@@ -1,0 +1,20 @@
+0.2.0 (2014-11-26)
+------------------
+Made endpoint configurable, thanks @sambo1972! (snowplow/snowplow#978)
+Added support for IAM roles, thanks @pkallos! (snowplow/snowplow#534)
+Replaced stream list with describe to tighten permissions, thanks @pkallos! (snowplow/snowplow#535)
+Bumped to 0.2.0
+Bumped Scala Common Enrich to 0.9.0
+Changed organization to "com.snowplowanalytics" (snowplow/snowplow#1167)
+Made the --config option mandatory (snowplow/snowplow#1126)
+Updated instructions in README (snowplow/snowplow#1125)
+Added ability to set AWS credentials from environment variables (snowplow/snowplow#1117)
+Now enforcing Java 7 for compilation (snowplow/snowplow#1067)
+Replaced printlns with Java Logger (snowplow/snowplow#521)
+Started sending bad records to a separate stream (snowplow/snowplow#463)
+Added page_url and page_referrer back into enrichment output (snowplow/snowplow#686)
+Stopped opening a new file for each enriched event, thanks @pkallos! (snowplow/snowplow#714)
+
+0.1.0 (2014-02-04)
+------------------
+Initial release

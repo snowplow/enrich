@@ -1,3 +1,9 @@
+0.2.1 (2014-12-01)
+------------------
+Bumped to 0.2.1
+Bumped Scala Common Enrich to 0.9.1
+Fixed conflict with Specs2 version, thanks @knservis! (snowplow/snowplow#1213)
+
 0.2.0 (2014-11-26)
 ------------------
 Made endpoint configurable, thanks @sambo1972! (snowplow/snowplow#978)

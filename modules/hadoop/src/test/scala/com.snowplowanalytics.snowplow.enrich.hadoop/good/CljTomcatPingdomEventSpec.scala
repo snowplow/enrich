@@ -33,14 +33,14 @@ import JobSpecHelpers._
  * Holds the input and expected data
  * for the test.
  */
-object CljTomcatCallrailEventSpec {
-
+object CljTomcatPingdomEventSpec {
+  
   val lines = Lines(
-    "2014-10-09  16:28:31    -   13  255.255.255.255   POST    255.255.255.255   /com.callrail/v1    404 -   -   aid=bnb&answered=true&callercity=BAKERSFIELD&callercountry=US&callername=SKYPE+CALLER&callernum=%2B16617240240&callerstate=CA&callerzip=93307&callsource=keyword&datetime=2014-10-09+16%3A23%3A45&destinationnum=2015014231&duration=247&first_call=true&ga=&gclid=&id=305895151&ip=86.178.183.7&keywords=&kissmetrics_id=&landingpage=http%3A%2F%2Flndpage.com%2F&recording=http%3A%2F%2Fapp.callrail.com%2Fcalls%2F305895151%2Frecording%2F9f59ad59ba1cfa964372&referrer=direct&referrermedium=Direct&trackingnum=%2B12015911668&transcription=&utm_campaign=&utm_content=&utm_medium=&utm_source=&utm_term=&utma=&utmb=&utmc=&utmv=&utmx=&utmz=&cv=clj-0.6.0-tom-0.0.4&nuid=-   -   -   -"
+    "2014-10-09  16:28:31    -   13  255.255.255.255   POST    255.255.255.255   /com.pingdom/v1   404 -  -   p=srv&message=%7B%22check%22%3A%20%221421338%22%2C%20%22checkname%22%3A%20%22Webhooks_Test%22%2C%20%22host%22%3A%20%227eef51c2.ngrok.com%22%2C%20%22action%22%3A%20%22assign%22%2C%20%22incidentid%22%3A%203%2C%20%22description%22%3A%20%22down%22%7D&aid=uptime&cv=clj-0.6.0-tom-0.0.4&nuid=-   -   -   -   -   -"
     )
 
   val expected = List(
-    "bnb",
+    "uptime",
     "srv",
     EtlTimestamp,
     "2014-10-09 16:28:31.000",
@@ -49,7 +49,7 @@ object CljTomcatCallrailEventSpec {
     null, // We can't predict the event_id
     null,
     null, // No tracker namespace
-    "com.callrail-v1",
+    "com.pingdom-v1",
     "clj-0.6.0-tom-0.0.4",
     EtlVersion,
     null, // No user_id set
@@ -98,8 +98,8 @@ object CljTomcatCallrailEventSpec {
     null, //
     null, //
     null, //
-    """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.callrail/call_complete/jsonschema/1-0-0","data":{"duration":247,"utm_source":null,"utmv":null,"ip":"86.178.183.7","utmx":null,"ga":null,"destinationnum":"2015014231","datetime":"2014-10-09T16:23:45.000Z","kissmetrics_id":null,"landingpage":"http://lndpage.com/","callerzip":"93307","gclid":null,"callername":"SKYPE CALLER","utmb":null,"id":"305895151","callernum":"+16617240240","utm_content":null,"trackingnum":"+12015911668","referrermedium":"Direct","utm_campaign":null,"keywords":null,"transcription":null,"utmz":null,"utma":null,"referrer":"direct","callerstate":"CA","recording":"http://app.callrail.com/calls/305895151/recording/9f59ad59ba1cfa964372","first_call":true,"utmc":null,"callercountry":"US","utm_medium":null,"callercity":"BAKERSFIELD","utm_term":null,"answered":true,"callsource":"keyword"}}}""", // Unstructured event field empty
-    null, // Transaction fields empty 
+    """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.pingdom/incident_assign/jsonschema/1-0-0","data":{"check":"1421338","checkname":"Webhooks_Test","host":"7eef51c2.ngrok.com","incidentid":3,"description":"down"}}}""",
+    null, // Transaction fields empty
     null, //
     null, //
     null, //
@@ -154,24 +154,20 @@ object CljTomcatCallrailEventSpec {
 /**
  * Integration test for the EtlJob:
  *
- * Check that all tuples in a CallRail completed call
- * event in the Clojure-Tomcat format are successfully
- * extracted.
- *
  * For details:
  * https://forums.aws.amazon.com/thread.jspa?threadID=134017&tstart=0#
  */
-class CljTomcatCallrailEventSpec extends Specification {
+class CljTomcatPingdomEventSpec extends Specification {
 
-  "A job which processes a Clojure-Tomcat file containing a GET raw event representing 1 valid completed call" should {
+  "A job which processes a Clojure-Tomcat file containing a Pingdom GET raw event representing 1 valid completed call" should {
     EtlJobSpec("clj-tomcat", "2", true, List("geo")).
-      source(MultipleTextLineFiles("inputFolder"), CljTomcatCallrailEventSpec.lines).
+      source(MultipleTextLineFiles("inputFolder"), CljTomcatPingdomEventSpec.lines).
       sink[TupleEntry](Tsv("outputFolder")){ buf : Buffer[TupleEntry] =>
         "correctly output 1 completed call" in {
           buf.size must_== 1
           val actual = buf.head
-          for (idx <- CljTomcatCallrailEventSpec.expected.indices) {
-            actual.getString(idx) must beFieldEqualTo(CljTomcatCallrailEventSpec.expected(idx), withIndex = idx)
+          for (idx <- CljTomcatPingdomEventSpec.expected.indices) {
+            actual.getString(idx) must beFieldEqualTo(CljTomcatPingdomEventSpec.expected(idx), withIndex = idx)
           }
         }
       }.

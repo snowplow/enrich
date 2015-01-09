@@ -1,3 +1,9 @@
+0.3.0 (2015-02-03)
+------------------
+Bumped to 0.3.0
+Bumped Scala Common Enrich to 0.11.0 (snowplow/snowplow#1295)
+Renamed default.conf to config.hocon.sample (snowplow/snowplow#1242)
+
 0.2.1 (2014-12-01)
 ------------------
 Bumped to 0.2.1

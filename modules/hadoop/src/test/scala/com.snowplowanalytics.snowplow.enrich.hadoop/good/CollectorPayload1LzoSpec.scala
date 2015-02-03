@@ -26,39 +26,62 @@ import com.twitter.scalding._
 // Cascading
 import cascading.tuple.TupleEntry
 
-// This project
+// Apache Thrift
+import org.apache.thrift.TSerializer
+
 import JobSpecHelpers._
+
+import com.snowplowanalytics.snowplow.CollectorPayload.thrift.model1.CollectorPayload
 
 /**
  * Holds the input and expected data
  * for the test.
  */
-object Apr2014CfLineSpec {
+object CollectorPayload1LzoSpec {
 
-  // April 2014: Amazon added a new field (time-taken) to the end of the Access Log format
-  val lines = Lines(
-    "2014-04-29	09:00:54	CDG51	830	255.255.255.255	GET	d3v6ndkyapxc2w.cloudfront.net	/i	200	http://snowplowanalytics.com/blog/2013/11/20/loading-json-data-into-redshift/	Mozilla/5.0%2520(Macintosh;%2520Intel%2520Mac%2520OS%2520X%252010_9_2)%2520AppleWebKit/537.36%2520(KHTML,%2520like%2520Gecko)%2520Chrome/34.0.1847.131%2520Safari/537.36	e=pp&page=Loading%2520JSON%2520data%2520into%2520Redshift%2520-%2520the%2520challenges%2520of%2520quering%2520JSON%2520data%252C%2520and%2520how%2520Snowplow%2520can%2520be%2520used%2520to%2520meet%2520those%2520challenges&pp_mix=0&pp_max=1&pp_miy=64&pp_may=935&cx=eyJwYWdlIjp7InVybCI6ImJsb2cifX0&dtm=1398762054889&tid=612876&vp=1279x610&ds=1279x5614&vid=2&duid=44082d3af0e30126&p=web&tv=js-2.0.0&fp=2071613637&aid=snowplowweb&lang=fr&cs=UTF-8&tz=Europe%252FBerlin&tna=cloudfront&evn=com.snowplowanalytics&refr=http%253A%252F%252Fsnowplowanalytics.com%252Fservices%252Fpipelines.html&f_pdf=1&f_qt=1&f_realp=0&f_wma=0&f_dir=0&f_fla=1&f_java=1&f_gears=0&f_ag=0&res=1280x800&cd=24&cookie=1&url=http%253A%252F%252Fsnowplowanalytics.com%252Fblog%252F2013%252F11%252F20%252Floading-json-data-into-redshift%252F%2523weaknesses	-	Hit	cN-iKWE_3tTwxIKGkSnUOjGpmNjsDUyk4ctemoxU_zIG7Md_fH87sg==	d3v6ndkyapxc2w.cloudfront.net	http	1163	0.001"
-    )
+  val payloadData = "e=pp&page=Loading%20JSON%20data%20into%20Redshift%20-%20the%20challenges%20of%20quering%20JSON%20data%2C%20and%20how%20Snowplow%20can%20be%20used%20to%20meet%20those%20challenges&pp_mix=0&pp_max=1&pp_miy=64&pp_may=935&cx=eyJwYWdlIjp7InVybCI6ImJsb2cifX0&dtm=1398762054889&tid=612876&vp=1279x610&ds=1279x5614&vid=2&duid=44082d3af0e30126&p=web&tv=js-2.0.0&fp=2071613637&aid=snowplowweb&lang=fr&cs=UTF-8&tz=Europe%2FBerlin&tna=cloudfront&evn=com.snowplowanalytics&refr=http%3A%2F%2Fsnowplowanalytics.com%2Fservices%2Fpipelines.html&f_pdf=1&f_qt=1&f_realp=0&f_wma=0&f_dir=0&f_fla=1&f_java=1&f_gears=0&f_ag=0&res=1280x800&cd=24&cookie=1&url=http%3A%2F%2Fsnowplowanalytics.com%2Fblog%2F2013%2F11%2F20%2Floading-json-data-into-redshift%2F%23weaknesses"
+
+  val collectorPayload = new CollectorPayload(
+    "iglu:com.snowplowanalytics.snowplow/CollectorPayload/thrift/1-0-0",
+    "255.255.255.255",
+    1381175274000L,
+    "UTF-8",
+    "collector"
+  )
+  
+  collectorPayload.setPath("/i")
+  collectorPayload.setHostname("localhost")
+  collectorPayload.setQuerystring(payloadData)
+  collectorPayload.setUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_6_8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1650.8 Safari/537.36")
+  collectorPayload.setNetworkUserId("8712a379-4bcb-46ee-815d-85f26540577f")
+
+  val serializer = new TSerializer
+
+  val binaryThrift = serializer.serialize(collectorPayload)
+
+  val lines = List(
+    (binaryThrift, 1L)
+  )
 
   val expected = List(
     "snowplowweb",
     "web",
     EtlTimestamp,
-    "2014-04-29 09:00:54.000",
+    "2013-10-07 19:47:54.000",
     "2014-04-29 09:00:54.889",
     "page_ping",
     null, // We can't predict the event_id
     "612876",
     "cloudfront", // Tracker namespace
     "js-2.0.0",
-    "cloudfront",
+    "collector",
     EtlVersion,
     null, // No user_id set
-    "255.255.255.255",
+    "255.255.255.x",
     "2071613637",
     "44082d3af0e30126",
     "2",
-    null, // No network_userid set
+    "8712a379-4bcb-46ee-815d-85f26540577f",
     null, // No geo-location for this IP address
     null,
     null,
@@ -118,10 +141,10 @@ object Apr2014CfLineSpec {
     "1", //
     "64", //
     "935", //
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/34.0.1847.131 Safari/537.36",
-    "Chrome 34",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_6_8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1650.8 Safari/537.36", // previously "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/34.0.1847.131 Safari/537.36",
+    "Chrome 31", // previously "Chrome"
     "Chrome",
-    "34.0.1847.131",
+    "31.0.1650.8",// previously "34.0.1847.131"
     "Browser",
     "WEBKIT",
     "fr",
@@ -155,24 +178,21 @@ object Apr2014CfLineSpec {
 /**
  * Integration test for the EtlJob:
  *
- * Check that all tuples in a page view in the
- * CloudFront format changed in April 2014
- * are successfully extracted.
- *
- * For details:
- * https://forums.aws.amazon.com/thread.jspa?threadID=134017&tstart=0#
+ * Test that a raw Thrift event is processed correctly.
+ * See https://github.com/snowplow/snowplow/issues/538
+ * Based on Apr2014CfLineSpec.
  */
-class Apr2014CfLineSpec extends Specification {
+class CollectorPayload1LzoSpec extends Specification {
 
-  "A job which processes a CloudFront file containing 1 valid page view" should {
-    EtlJobSpec("cloudfront", "1", false, List("geo")).
-      source(MultipleTextLineFiles("inputFolder"), Apr2014CfLineSpec.lines).
+  "A job which processes a RawThrift file containing 1 valid page view" should {
+    EtlJobSpec("thrift", "1", true, List("geo")).
+      source(FixedPathLzoRaw("inputFolder"), CollectorPayload1LzoSpec.lines).
       sink[TupleEntry](Tsv("outputFolder")){ buf : Buffer[TupleEntry] =>
-        "correctly output 1 page ping" in {
+        "correctly output 1 page view" in {
           buf.size must_== 1
           val actual = buf.head
-          for (idx <- Apr2014CfLineSpec.expected.indices) {
-            actual.getString(idx) must beFieldEqualTo(Apr2014CfLineSpec.expected(idx), withIndex = idx)
+          for (idx <- CollectorPayload1LzoSpec.expected.indices) {
+            actual.getString(idx) must beFieldEqualTo(CollectorPayload1LzoSpec.expected(idx), withIndex = idx)
           }
         }
       }.

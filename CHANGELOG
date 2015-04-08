@@ -1,3 +1,25 @@
+0.5.0 (2015-05-08)
+------------------
+Bumped to 0.5.0
+Bumped Scala Common Enrich to 0.13.1 (snowplow/snowplow#1618)
+Bumped Scalazon to 0.11 (snowplow/snowplow#1492)
+Bumped Kinesis Client Library to 1.2.1 (snowplow/snowplow#1580)
+Added ability to retrieve resolver and enrichments from DynamoDB (snowplow/snowplow#1289)
+Added support for PutRecords API (snowplow/snowplow#1418)
+Removed automatic creation of streams (snowplow/snowplow#1465)
+Fixed checkpointing (snowplow/snowplow#1467)
+Logged the name of the stream to which records are written (snowplow/snowplow#1493)
+Added macros to config.hocon.sample (snowplow/snowplow#1513)
+Moved Iglu resolver to dedicated CLI argument (snowplow/snowplow#1534)
+Updated README examples with new configuration (snowplow/snowplow#1549)
+Stopped retrying in the case of a ShutdownException or InvalidStateException (snowplow/snowplow#1552)
+Stopped ignoring region setting for DynamoDB table (snowplow/snowplow#1576)
+Updated test suite to accommodate changes (snowplow/snowplow#1581)
+Added Clojars as a resolver (snowplow/snowplow#1586)
+Added configurable exponential backoff with jitter (snowplow/snowplow#1591)
+Randomize partition keys for bad events (snowplow/snowplow#1631)
+Stopped sending records of over 50kB (snowplow/snowplow#1649)
+
 0.4.0 (2015-04-02)
 ------------------
 Bumped to 0.4.0

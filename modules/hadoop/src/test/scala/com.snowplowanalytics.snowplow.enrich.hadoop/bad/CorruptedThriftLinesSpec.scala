@@ -14,9 +14,6 @@ package com.snowplowanalytics.snowplow.enrich
 package hadoop
 package bad
 
-// Scala
-import scala.collection.mutable.Buffer
-
 // Specs2
 import org.specs2.mutable.Specification
 
@@ -30,29 +27,28 @@ import cascading.tuple.TupleEntry
 import JobSpecHelpers._
 
 /**
- * Holds the input and expected data
+ * Holds the input and expected output data
  * for the test.
  */
-object NullNumericFieldsSpec {
+object CorruptedThriftLinesSpec {
 
-  val lines = Lines(
-    "2014-10-11  14:01:05    -   37  172.31.38.31    GET 24.209.95.109   /i  200 http://www.myvideowebsite.com/embed/ab123456789?auto_start=e9&rf=cb Mozilla%2F5.0+%28Macintosh%3B+Intel+Mac+OS+X+10.6%3B+rv%3A32.0%29+Gecko%2F20100101+Firefox%2F32.0   e=se&se_ca=video-player%3Anewformat&se_ac=play-time&se_la=efba3ef384&se_va=&tid="
+  val lines = List(
+    "bad".getBytes -> 1L
     )
 
-  val expected = """{"line":"2014-10-11  14:01:05    -   37  172.31.38.31    GET 24.209.95.109   /i  200 http://www.myvideowebsite.com/embed/ab123456789?auto_start=e9&rf=cb Mozilla%2F5.0+%28Macintosh%3B+Intel+Mac+OS+X+10.6%3B+rv%3A32.0%29+Gecko%2F20100101+Firefox%2F32.0   e=se&se_ca=video-player%3Anewformat&se_ac=play-time&se_la=efba3ef384&se_va=&tid=","errors":[{"level":"error","message":"Field [se_va]: cannot convert [] to Double-like String"},{"level":"error","message":"Field [tid]: [] is not a valid integer"}]}"""
+  val expected = """{"line":"YmFk","errors":[{"level":"error","message":"Error deserializing raw event: Cannot read. Remote side has closed. Tried to read 1 bytes, but only got 0 bytes. (This is often indicative of an internal error on the server side. Please check your server logs.)"}]}"""
 }
 
 /**
  * Integration test for the EtlJob:
  *
- * Check that all tuples in a custom structured event
- * (CloudFront format) are successfully extracted.
+ * Input Thrift data cannot be decoded so should be base 64 encoded in the resulting bad row.
  */
-class NullNumericFieldsSpec extends Specification {
+class CorruptedThriftLinesSpec extends Specification {
 
-  "A job which processes a CloudFront file containing 1 event with null integer and double fields" should {
-    EtlJobSpec("clj-tomcat", "2", true, List("geo", "organization")).
-      source(MultipleTextLineFiles("inputFolder"), NullNumericFieldsSpec.lines).
+  "A job which processes a corrupted input line" should {
+    EtlJobSpec("thrift", "1", false, List("geo")).
+      source(FixedPathLzoRaw("inputFolder"), CorruptedThriftLinesSpec.lines).
       sink[String](Tsv("outputFolder")){ output =>
         "not write any events" in {
           output must beEmpty
@@ -66,7 +62,7 @@ class NullNumericFieldsSpec extends Specification {
       sink[String](Tsv("badFolder")){ buf =>
         val json = buf.head
         "write a bad row JSON containing the input line and all errors" in {
-          removeTstamp(json) must_== NullNumericFieldsSpec.expected
+          removeTstamp(json) must_== CorruptedThriftLinesSpec.expected
         }
       }.
       run.

@@ -1,3 +1,36 @@
+0.7.0 (2016-03-15)
+------------------
+Bumped to 0.7.0
+Renamed to Stream Enrich (snowplow/snowplow#2418)
+Bumped Kinesis Client Library to 1.6.1 (snowplow/snowplow#1823)
+Bumped Scala Common Enrich to 0.21.0 (snowplow/snowplow#2033)
+Bumped Iglu Scala Client to 0.3.1 (snowplow/snowplow#2080)
+Configured the ability to use IP address as partition key (snowplow/snowplow#2332)
+Started emitting KCL metrics to CloudWatch (snowplow/snowplow#2357)
+Converted bad rows to new format (snowplow/snowplow#1207)
+Removed outdated comment about ClasspathPropertiesFileCredentialsProvider from sample config file (snowplow/snowplow#1519)
+Removed redundant documentation from README (snowplow/snowplow#2032)
+Updated test suite with valid self-describing JSONs (snowplow/snowplow#2151)
+Updated Scala Tracker to 0.2.0 and enabled EC2 context (snowplow/snowplow#2109)
+Updated to use new EtlPipeline (snowplow/snowplow#1933)
+Specified UTF-8 encoding everywhere (snowplow/snowplow#2148)
+
+0.6.0 (2015-07-13)
+------------------
+Bumped to 0.6.0
+Bumped to Scala Common Enrich 0.15.0 (snowplow/snowplow#1685)
+Tries to send 503 records (snowplow/snowplow#1756)
+Made back-off fields macros (snowplow/snowplow#1745)
+Increased maximum record size to 1MB (snowplow/snowplow#1736)
+Logging all bad rows (snowplow/snowplow#1722)
+Exception installing MaxMind file must terminate (snowplow/snowplow#1711)
+Sending Snowplow hearbeat (snowplow/snowplow#1406)
+Allowed records of over 1Mb when running in local mode (snowplow/snowplow#1663)
+Fixed error when fetching MaxMind file from s3:// URI (snowplow/snowplow#1645)
+Sending a warning via Snowplow if no enrichment JSONs are retrieved from DynamoDB (snowplow/snowplow#1621)
+Sending failure to sink event to kinesis to Snowplow (snowplow/snowplow#1798)
+Etl_tstamp should be Redshift Formatted not raw (snowplow/snowplow#1842)
+
 0.5.0 (2015-05-08)
 ------------------
 Bumped to 0.5.0

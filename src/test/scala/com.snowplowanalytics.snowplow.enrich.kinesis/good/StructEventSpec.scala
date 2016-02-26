@@ -168,7 +168,7 @@ object StructEventSpec {
 
 class StructEventSpec extends Specification with ValidationMatchers {
 
-  "Scala Kinesis Enrich" should {
+  "Stream Enrich" should {
 
     "enrich a valid structured event" in {
 

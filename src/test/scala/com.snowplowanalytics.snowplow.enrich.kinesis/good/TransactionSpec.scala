@@ -168,7 +168,7 @@ object TransactionSpec {
 
 class TransactionSpec extends Specification with ValidationMatchers {
 
-  "Scala Kinesis Enrich" should {
+  "Stream Enrich" should {
 
     "enrich a valid transaction" in {
 

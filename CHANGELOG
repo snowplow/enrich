@@ -1,3 +1,19 @@
+0.8.0 (2016-05-30)
+------------------
+Bump to 0.8.0 (snowplow/snowplow#2596)
+Bump Common Enrich to 0.23.0 (snowplow/snowplow#2612)
+Bump Iglu Scala Client to 0.4.0 (snowplow/snowplow#2688)
+Add configuration setting for MaxRecords (snowplow/snowplow#2610)
+Use nonEmpty method to check whether lists are empty (snowplow/snowplow#2608)
+Refactor functions to avoid return keyword (snowplow/snowplow#2607)
+Upgrade the log level for reports of stream nonexistence from INFO to ERROR (snowplow/snowplow#2598)
+Crash when unable to find stream instead of hanging (snowplow/snowplow#2584)
+Add standard copyright notice to AbstractSourceSpec.scala (snowplow/snowplow#2580)
+Make logging more succinct in case of failure (snowplow/snowplow#1723)
+Move example configuration file to examples folder (snowplow/snowplow#2567)
+Remove src/main/resolver.json.sample (snowplow/snowplow#1932)
+Use json4s to combine the enrichment configuration JSONs (snowplow/snowplow#2259)
+
 0.7.0 (2016-03-15)
 ------------------
 Bumped to 0.7.0

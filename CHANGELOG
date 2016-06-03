@@ -1,3 +1,8 @@
+0.8.1 (2016-06-16)
+------------------
+Bump to 0.8.1 (snowplow/snowplow#2701)
+Bump Scala Common Enrich to 0.23.1 (snowplow/snowplow#2700)
+
 0.8.0 (2016-05-30)
 ------------------
 Bump to 0.8.0 (snowplow/snowplow#2596)

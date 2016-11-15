@@ -1,3 +1,11 @@
+0.10.0 (2016-11-15)
+-------------------
+Bump to 0.10.0 (snowplow/snowplow#2942)
+Add Kafka sink (snowplow/snowplow#2939)
+Add Kafka source (snowplow/snowplow#2941)
+Update config.hocon.sample to support Kafka (snowplow/snowplow#2940)
+Fix incorrect parsing of S3 urls (snowplow/snowplow#2921)
+
 0.9.0 (2016-10-07)
 ------------------
 Bump to 0.9.0 (snowplow/snowplow#2728)

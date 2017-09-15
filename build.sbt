@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2015 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2017 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -14,7 +14,7 @@ lazy val root = project.in(file("."))
   .settings(
     organization  :=  "com.snowplowanalytics",
     name          :=  "snowplow-stream-enrich",
-    version       :=  "0.10.0",
+    version       :=  "0.11.0",
     description   :=  "The Snowplow Enrichment process, implemented as an Amazon Kinesis app",
     scalaVersion  :=  "2.11.11",
     scalacOptions :=  BuildSettings.compilerOptions,

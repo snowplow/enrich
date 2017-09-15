@@ -1,5 +1,5 @@
-/* 
- * Copyright (c) 2013-2016 Snowplow Analytics Ltd. All rights reserved.
+/*
+ * Copyright (c) 2013-2017 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0, and
  * you may not use this file except in compliance with the Apache License
@@ -39,7 +39,7 @@ object SpecHelpers {
   /**
    * The Stream Enrich being used
    */
-  val EnrichVersion = "kinesis-0.10.0-common-0.26.0"
+  val EnrichVersion = "kinesis-0.11.0-common-0.26.0"
 
   val TimestampRegex = "[0-9\\s-:.]+"
 
@@ -167,7 +167,7 @@ object SpecHelpers {
                 |"uri":  "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
               |}
             |}
-          |}  
+          |}
         |},
         |{
           |"schema": "iglu:com.snowplowanalytics.snowplow/campaign_attribution/jsonschema/1-0-0",

@@ -1,3 +1,10 @@
+0.12.0 (2017-11-21)
+-------------------
+Bump to 0.12.0 (snowplow/snowplow#3432)
+Update config.hocon.sample to support NSQ (snowplow/snowplow#3339)
+Add NSQ sink (snowplow/snowplow#3337)
+Add NSQ source (snowplow/snowplow#3336)
+
 0.11.1 (2017-10-10)
 -------------------
 Bump to 0.11.1 (snowplow/snowplow#3454)

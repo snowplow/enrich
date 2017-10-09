@@ -1,3 +1,8 @@
+0.11.1 (2017-10-10)
+-------------------
+Bump to 0.11.1 (snowplow/snowplow#3454)
+Keep sending records when the Kinesis stream is resharding (snowplow/snowplow#3452)
+
 0.11.0 (2017-10-03)
 -------------------
 Bump to 0.11.0 (snowplow/snowplow#3425)

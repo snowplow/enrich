@@ -1,3 +1,9 @@
+0.13.0 (2018-01-05)
+-------------------
+Bump to 0.13.0 (snowplow/snowplow#3549)
+Bump scala-common-enrich to 0.29.0 (snowplow/snowplow#3553)
+Bump nsq-java-client to 1.2.0 (snowplow/snowplow#3520)
+
 0.12.0 (2017-11-21)
 -------------------
 Bump to 0.12.0 (snowplow/snowplow#3432)

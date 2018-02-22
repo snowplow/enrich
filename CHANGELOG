@@ -1,3 +1,9 @@
+0.14.0 (2018-02-26)
+-------------------
+Bump scala-common-enrich to 0.31.0 (snowplow/snowplow#3597)
+Bump to 0.14.0 (snowplow/snowplow#3596)
+Use generated Settings for version in test (snowplow/snowplow#3604)
+
 0.13.0 (2018-01-05)
 -------------------
 Bump to 0.13.0 (snowplow/snowplow#3549)

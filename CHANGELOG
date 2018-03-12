@@ -1,3 +1,22 @@
+0.15.0 (2018-03-21)
+-------------------
+Bump to 0.15.0 (snowplow/snowplow#3681)
+Add Google Cloud PubSub source (snowplow/snowplow#3150)
+Add Google Cloud PubSub sink (snowplow/snowplow#3149)
+Split into multiple artifacts according to targeted platform (snowplow/snowplow#3645)
+Rename etl version from kinesis to stream-enrich (snowplow/snowplow#3642)
+Make source / sink configuration a coproduct (snowplow/snowplow#3555)
+Add ability to retrieve resolver and enrichments from Google Cloud Datastore (snowplow/snowplow#3152)
+Update config.hocon.sample to support Google Cloud PubSub (snowplow/snowplow#3151)
+Customize useragent for GCP API calls (snowplow/snowplow#3193)
+Bump kafka-clients to 1.0.1 (snowplow/snowplow#3661)
+Bump amazon-kinesis-client to 1.9.0 (snowplow/snowplow#3663)
+Bump aws-java-sdk to 1.11.290 (snowplow/snowplow#3662)
+Bump SBT to 1.1.1 (snowplow/snowplow#3657)
+Bump sbt-assembly to 0.14.6 (snowplow/snowplow#3664)
+Use sbt-buildinfo (snowplow/snowplow#3627)
+Extend copyright notice to 2018 (snowplow/snowplow#3686)
+
 0.14.0 (2018-02-26)
 -------------------
 Bump scala-common-enrich to 0.31.0 (snowplow/snowplow#3597)

@@ -1,3 +1,9 @@
+0.16.0 (2018-04-17)
+-------------------
+Bump to 0.16.0 (snowplow/snowplow#3698)
+Bump scala-common-enrich to 0.32.0 (snowplow/snowplow#3676)
+Force jackson-dataformat-cbor to 2.9.3 (snowplow/snowplow#3701)
+
 0.15.0 (2018-03-21)
 -------------------
 Bump to 0.15.0 (snowplow/snowplow#3681)

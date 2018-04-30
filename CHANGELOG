@@ -1,3 +1,9 @@
+0.16.1 (2018-05-07)
+-------------------
+Bump to 0.16.1 (snowplow/snowplow#3748)
+Ensure a one-to-one relationship between sink and record processor (snowplow/snowplow#3745)
+Force jackson-databind to 2.9.3 (snowplow/snowplow#3744)
+
 0.16.0 (2018-04-17)
 -------------------
 Bump to 0.16.0 (snowplow/snowplow#3698)

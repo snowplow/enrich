@@ -1,0 +1,37 @@
+dist: trusty
+language: scala
+scala:
+- 2.12.10
+jdk:
+- oraclejdk8
+before_deploy:
+- pip install --user release-manager==0.4.1
+- docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+before_script:
+- psql -U postgres -c "CREATE USER enricher WITH password 'supersecret1';"
+- psql -U postgres -c "CREATE DATABASE sql_enrichment_test WITH OWNER = enricher;"
+- psql -U postgres -d sql_enrichment_test < integration-tests/sql-enrichment-test.sql
+- psql -U postgres -d sql_enrichment_test -c "GRANT ALL ON enrichment_test TO enricher;"
+script:
+- python integration-tests/api-lookup-test.py &
+- sbt test
+deploy:
+- provider: script
+  script: release-manager --config ./.travis/release.yml --make-artifact --make-version
+    --upload-artifact
+  skip_cleanup: true
+  on:
+    tags: true
+- provider: script
+  script: sbt docker:publish
+  skip_cleanup: true
+  on:
+    tags: true
+services:
+- postgresql
+env:
+  global:
+  - secure: QiQJz5xKMER4cZNure7adRM3XB/D55dKy6A7rjlbnC0JNesfYr6UBOIa5ARV7GWgppgY9/X6cYG277mYZ37YlE7ADyUKA6qC0R5Gpj/PI7oXKciYm100dPrS57bsNE+BI6Ni2dDpDKrGQTYFqF5V78JLagq5BLPfrEin7aCOQhROv0Y4pt/fQn2O0Rclo82JIylYg0uLzZlEW41/ja+KMEY35IKPg3Jobf0gueB5Ni7hqlj3zeZjbWS8s4W49AWKBrTOx5+DqsU6qnR98DI0MyPXtu6CcphHEuUsLfoGqCmu/HQUVTAGYtb3jl9ED+DyuKKN9ASFmZUJKpkg8NGIdEGvX+C044qJ2SugGye4azULI3jZw1gqmPIySfRge6vHs1yi+x/4U1KBWJam1RiMK+QojN8D5np/Xu+l9/oVjYx8dliS4hotqjWePuhkx/uQCrCGpK7nWfBPkAudiTnV4V1c7GXrsPXjGhIw2S2HpPArgLL2gwaFNphB06WOpaucD3+Kj3r+PuGx8AubkG8/7C4OTjPOTrRu0gLWt5/zy7rMmq19ETdd9Hye7dd3Yb5ZToz+4MF4Mqd+4DswA/LM85NLeQwoveiaZWfou7cphQegrV3sx5hYnZqevlSmEdGi567Z75qRdhso8ozWQmGFRykOP2k5hua7M2dXNkPwJtU=
+  - secure: BFvWdbw9cFmqQ+3mWafDrrCkOVc3NZqFC6yOeyl16zwXNo7RkENm+rsaDTqaldkIZn19ARwRnCTR1Gx+vfLLHO0z6lSkwWyMZkhwE9Bd/Uy8FY/1eb0bl0hDb+cxwJ3zyqHjw3ERvhV5OD6S52dBo0m5T1yqHgYQcX2v+SvHsdNsnbQ6je0zx11LTYf6Tr4bHqOsVPSZ/whNLk+wO92wRfmRbUz99EZkgM7P3EAWNHxskMWQUXVVR5SOEquyKwHhgDwddKx09KdBcwxWt/J4zifh9KuQaz/gmtGUQuiYdvyA1AKFhJpota/5YM8V6LHvQN1Ze9wEX1g3G830TErMotxPx6UGJidARAacF93cfy7h1d+wycbJ12e4bs+3tSZzvoV8gzoGumG2uVUYEwjMCG8Babk9Psv740vKmRAOHkyRzMNCiIQ9XOkDhfCLhvoCfet8TjBnMpZ0M0E32+cXxlYZbAuZZaSy4DZjGtiqOaZB9eGezlYhyPyt1gQEMP4sssK+/VqPA05HAwywD6YczzDyYdgGihQxExmU/L6CneDV5Jogrc2FRHJvcTK+DMGFq0WPodtyJ42fdmG3XhjSRvR8Fi6ecKIvWRmzJLRmu/rCkcjmR4nqWn7oNS1josAjjSwFdd/VeZ5OWb7Ls3+aaTpzQ6XnKjsYvj84ltTb4eA=
+  - secure: UMGPixjLEKBYw7gUvr4B7XqZ96vSWtTjzOcvqyVpq9E5vP/fI88psxepZZd3MMY8sU3XXMOiAiXmqg8B+G380L7/wD3fnA3P0tsNqWzm+7yuxb6vowzghJynQ8gyPn9i+k5Gq2h0o1P7P4OGebKksqolna263Z7xQtqx7XtD78HXJSLWddEJO8P/DCbtPNrbC0bZn3qojmcIEl5nMsUx7MDnzBJAb488m19BBmgiIzyB1N9I1ravWURv5oLAjC6OoufomsEJkTxMiYl5XV+VNGr+AYOrEz+sVtvv2q1rIm3P6jtNEhGPFEDuJUaWN+yifOtKhR+z90Amw2R5QvUHz4QCh1e1My2YlXhcAzyoM3iFdvobIuvTmzcyBkXuFOLXY2VfRDJdNn4hjSaFhcb99FI4g48bfvEU8ovBZpcF7pp0G/NUmyN54Cj2aBU/At0wj2Dp5FN8oCTEyRlOeohuyW0AKkj5wpIVGIkt2QufMnpmZ9cKfRB9de/yToa+M+R3tW61H8jKEtEg4y2zhinICksOD3GqBaC23lw2Gos78BHJVGkl62DUoI3XUjhBDH43V6/IeAjKAU/8sVEhzdZf8dNMxHLePO4c4MqI1R9r4PLHDARxd0crFwf594XrCzZoUdIZQsSaB4M2oPGV2n3Pi2MJADvD1Lqc3nZSglr48lk=
+  - secure: KixLOR3aeCmQ7vLJaD6emz7GC40lKIQKxmUSYQIkK97KPpKdAea+mOOfe3bqzGrzLAr5vHsRMaM+AzvsvrKf+no5UTytSlgay1oYzHMQ5+s9hrhH9+o1Ad1SDYc4s+RNHAyvU6kLsZ9OtzpwcVHgvF2jfUfIx1T1VL+J6Y+Ale2jYIgsa8s75/VJNSrZewCeVModVhetyObeg8/HRw1JU5RIOwAkGFFRjZwZ35zn2E0SpU3OLQCScOa7/DYk75JhspJabrteFpV4sVihotKcnEvkPNMQY7gQI/jOpoIBRzYg+pr43emYqe6BH99q1MFz0OVJVcB1kbKwl0jr9vdg32rGj8GL5UZvz6qoeODxZKrk9eQRzZORj07maK0+dv3H/iSC4ReZdqHFR1XcJ9OKv7osLDZ4tm28ODyk6r+SbdBhJlWJOZAnjMaGRVnBnCAuLWu1+ZbaH1EsUXv02G/M1/6f7NeYiRjkIdtok+EOppdVCw7K5v3kywJjCSPmSDLCP6P6vWdCivea/Yxx6CrUS7L4wdnDu3upSMewJLQsuYBFrmQyKBbiKwC7INztJ8T2e5+Y93lWmA7IlQAxWBX2eoaKp4yiZjfDiw4o03NdLvlr/6sbl3V4+s61c7mS/hIs5KP2SvDuCHcCkwxiKutFplmVDOz8mZDOzDpoCk0PBMY=

@@ -1,3 +1,11 @@
+0.18.0 (2018-07-17)
+-------------------
+Bump scala-common-enrich to 0.34.0 (snowplow/snowplow#3730)
+Add support for the IAB enrichment (snowplow/snowplow#3797)
+Force jackson-databind to 2.9.3 for all projects (snowplow/snowplow#3767)
+Rename force-ip-lookups-download to force-cached-files-download (snowplow/snowplow#3809)
+Bump to 0.18.0 (snowplow/snowplow#3727)
+
 0.17.0 (2018-06-14)
 -------------------
 Add context for parent event when generating PII event (snowplow/snowplow#3724)

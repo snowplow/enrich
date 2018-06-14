@@ -1,3 +1,14 @@
+0.17.0 (2018-06-14)
+-------------------
+Add context for parent event when generating PII event (snowplow/snowplow#3724)
+Add end-to-end test using mock streaming (snowplow/snowplow#3639)
+Apply automated code formatting (snowplow/snowplow#3651)
+Bump scala-common-enrich to 0.33.0 (snowplow/snowplow#3607)
+Bump to 0.17.0 (snowplow/snowplow#3608)
+Extend PII Enrichment to output a stream of PII identification events (snowplow/snowplow#3581)
+Update config.hocon.sample to include a PII output stream (snowplow/snowplow#3579)
+Use automated code formatting (snowplow/snowplow#3644)
+
 0.16.1 (2018-05-07)
 -------------------
 Bump to 0.16.1 (snowplow/snowplow#3748)

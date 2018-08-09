@@ -1,3 +1,12 @@
+0.19.0 (2018-08-21)
+-------------------
+Bump to 0.19.0 (snowplow/snowplow#3864)
+Bump scala-common-enrich to 0.35.0 (snowplow/snowplow#3863)
+Allow overriding of the kinesis endpoint url in the configuration (snowplow/snowplow#3775)
+Decorrelate the need for a pii stream and the pii enrichment (snowplow/snowplow#3828)
+Bump SBT to 1.1.6 (snowplow/snowplow#3841)
+Fix configuration example (snowplow/snowplow#3820)
+
 0.18.0 (2018-07-17)
 -------------------
 Bump scala-common-enrich to 0.34.0 (snowplow/snowplow#3730)

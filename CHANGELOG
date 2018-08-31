@@ -1,3 +1,9 @@
+0.19.1 (2018-09-07)
+-------------------
+Bump to 0.19.1 (snowplow/snowplow#3889)
+Remove GCP module (snowplow/snowplow#3865)
+Fix parent event context in PII events (snowplow/snowplow#3886)
+
 0.19.0 (2018-08-21)
 -------------------
 Bump to 0.19.0 (snowplow/snowplow#3864)

@@ -1,3 +1,12 @@
+0.20.0 (2019-02-27)
+-------------------
+Bump to 0.20.0 (snowplow/snowplow#3986)
+Bump scala-common-enrich to 0.36.0 (snowplow/snowplow#3985)
+Bump kafka client to 2.1.1 (snowplow/snowplow#3992)
+Provide a way to add arbitrary Kafka configuration settings (snowplow/snowplow#3969)
+Showcase the usage of env variables in the configuration example (snowplow/snowplow#3972)
+Extend copyright notice to 2019 (snowplow/snowplow#4000)
+
 0.19.1 (2018-09-07)
 -------------------
 Bump to 0.19.1 (snowplow/snowplow#3889)

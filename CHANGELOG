@@ -1,3 +1,8 @@
+0.22.0 (2019-12-03)
+-------------------
+Bump scala-common-enrich to 0.38.0 (snowplow/snowplow#4139)
+Bump to 0.22.0 (snowplow/snowplow#4140)
+
 0.21.0 (2019-05-17)
 -------------------
 Bump to 0.21.0 (snowplow/snowplow#4059)

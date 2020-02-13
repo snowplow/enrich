@@ -55,7 +55,7 @@ class RefererParserEnrichmentSpec extends PipelineSpec {
     val url =
       "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/referer-parser/referer-tests.json"
     val localFile = "./referer-parser.json"
-    SpecHelpers.downloadLocalEnrichmentFile(url, localFile)
+    SpecHelpers.copyLocalEnrichmentFile("/referer-tests.json", localFile)
 
     JobTest[Enrich.type]
       .args(

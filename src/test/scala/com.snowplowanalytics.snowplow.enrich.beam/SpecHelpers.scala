@@ -157,8 +157,14 @@ object SpecHelpers {
     Files.write(path, content.getBytes("UTF-8")); ()
   }
 
-  def downloadLocalEnrichmentFile(remoteLocation: String, localLocation: String): Unit = {
-    new URL(remoteLocation).#>(new File(localLocation)).!!; ()
+  def downloadLocalEnrichmentFile(remoteLocation: String, localLocation: String): Unit =
+    fetchEnrichmentFile(new URL(remoteLocation), localLocation)
+
+  def copyLocalEnrichmentFile(remoteLocation: String, localLocation: String): Unit =
+    fetchEnrichmentFile(getClass.getResource(remoteLocation), localLocation)
+
+  private[this] def fetchEnrichmentFile(sourceLocation: URL, localLocation: String): Unit = {
+    sourceLocation.#>(new File(localLocation)).!!; ()
   }
 
   def deleteLocalFile(location: String): Unit = { new File(location).delete; () }

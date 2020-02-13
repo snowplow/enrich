@@ -27,7 +27,7 @@ import org.scalatest.Matchers._
 import config._
 import SpecHelpers._
 
-class ConfigSpec extends FreeSpec {
+class ConfigSpec extends FreeSpec with EitherValues {
   "the config object should" - {
     "make an EnrichConfig smart ctor available" - {
       "which fails if --job-name is not present" in {
@@ -68,7 +68,7 @@ class ConfigSpec extends FreeSpec {
         EnrichConfig(
           Args(Array("--job-name=j", "--raw=i", "--enriched=o", "--bad=b", "--resolver=r"))
         ) shouldEqual
-          Right(EnrichConfig("j", "i", "o", "b", None, "r", None))
+          Right(EnrichConfig("j", "i", "o", "b", None, "r", None, None))
       }
       "which succeeds if --enrichments is present" in {
         val args = Args(
@@ -81,13 +81,42 @@ class ConfigSpec extends FreeSpec {
             "--enrichments=e"
           )
         )
-        EnrichConfig(args) shouldEqual Right(EnrichConfig("j", "i", "o", "b", None, "r", Some("e")))
+        EnrichConfig(args) shouldEqual Right(
+          EnrichConfig("j", "i", "o", "b", None, "r", Some("e"), None)
+        )
       }
       "which succeeds if --pii is present" in {
         val args = Args(
           Array("--job-name=j", "--raw=i", "--enriched=o", "--bad=b", "--pii=p", "--resolver=r")
         )
-        EnrichConfig(args) shouldEqual Right(EnrichConfig("j", "i", "o", "b", Some("p"), "r", None))
+        EnrichConfig(args) shouldEqual Right(
+          EnrichConfig("j", "i", "o", "b", Some("p"), "r", None, None)
+        )
+      }
+      "which succeeds if --labels is present" in {
+        val args = Args(
+          Array(
+            "--job-name=j",
+            "--raw=i",
+            "--enriched=o",
+            "--bad=b",
+            "--pii=p",
+            "--resolver=r",
+            "--labels={\"env\":\"abc\"}"
+          )
+        )
+        EnrichConfig(args) shouldEqual Right(
+          EnrichConfig(
+            "j",
+            "i",
+            "o",
+            "b",
+            Some("p"),
+            "r",
+            None,
+            Some("{\"env\":\"abc\"}")
+          )
+        )
       }
     }
 
@@ -157,6 +186,19 @@ class ConfigSpec extends FreeSpec {
             Json.arr()
           ).asJson
         )
+      }
+    }
+
+    "make a parseLabels function available" - {
+      "which splits valid strings" in {
+        parseLabels("""{"env":"qa1","key1":"va#@^0ue"}""") shouldEqual
+          Right(Map("env" -> "qa1", "key1" -> "va#@^0ue"))
+      }
+      "which handles empty strings" in {
+        parseLabels("") should be('left)
+      }
+      "which reports invalid values" in {
+        parseLabels("env:qa") should be('left)
       }
     }
   }

@@ -44,6 +44,7 @@ Once unzipped the artifact can be run as follows:
   --bad=projects/project/topics/bad-topic \
   --pii=projects/project/topics/pii-topic \ #OPTIONAL
   --resolver=iglu_resolver.json \
+  --labels={"label": "value"} \ #OPTIONAL
   --enrichments=enrichments/
 ```
 
@@ -75,6 +76,7 @@ docker run \
   --bad=projects/project/topics/bad-topic \
   --pii=projects/project/topics/pii-topic \ #OPTIONAL
   --resolver=/snowplow/config/iglu_resolver.json \
+  --labels={"label": "value"} \ #OPTIONAL
   --enrichments=/snowplow/config/enrichments/
 ```
 

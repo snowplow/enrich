@@ -32,6 +32,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.Enrichm
 import com.snowplowanalytics.snowplow.enrich.common.utils.JsonUtils
 import com.spotify.scio.Args
 import io.circe.Json
+import io.circe.parser.decode
 import io.circe.syntax._
 
 import utils._
@@ -48,7 +49,8 @@ object config {
     bad: String,
     pii: Option[String],
     resolver: String,
-    enrichments: Option[String]
+    enrichments: Option[String],
+    labels: Option[String]
   )
   object EnrichConfig {
 
@@ -72,7 +74,8 @@ object config {
         bad,
         args.optional("pii"),
         resolver,
-        args.optional("enrichments")
+        args.optional("enrichments"),
+        args.optional("labels")
       )
 
     private val configurations = List(
@@ -88,7 +91,8 @@ object config {
       RequiredConfiguration("bad", "Name of the bad topic projects/{project}/topics/{topic}"),
       OptionalConfiguration("pii", "Name of the pii topic projects/{project}/topics/{topic}"),
       RequiredConfiguration("resolver", "Path to the resolver file"),
-      OptionalConfiguration("enrichments", "Path to the directory containing the enrichment files")
+      OptionalConfiguration("enrichments", "Path to the directory containing the enrichment files"),
+      OptionalConfiguration("labels", "Dataflow labels to be set ie. env=qa1;region=eu")
     )
 
     /** Generates an help string from a list of conifugration */
@@ -119,7 +123,8 @@ object config {
     bad: String,
     pii: Option[String],
     resolver: Json,
-    enrichmentConfs: List[EnrichmentConf]
+    enrichmentConfs: List[EnrichmentConf],
+    labels: Map[String, String]
   )
 
   /**
@@ -180,4 +185,8 @@ object config {
         } yield read
       }
       .getOrElse(Nil.asRight)
+
+  def parseLabels(input: String): Either[String, Map[String, String]] =
+    decode[Map[String, String]](input)
+      .leftMap(_ => s"Invalid `labels` format, expected json object, received: $input")
 }

@@ -30,8 +30,10 @@ import com.spotify.scio.pubsub.PubSubAdmin
 import com.spotify.scio.values.{DistCache, SCollection}
 import _root_.io.circe.Json
 import org.apache.beam.sdk.io.gcp.pubsub.PubsubOptions
+import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions
 import org.joda.time.DateTime
 import org.slf4j.LoggerFactory
+import scala.collection.JavaConverters._
 
 import config._
 import singleton._
@@ -64,6 +66,7 @@ object Enrich {
       client <- Client.parseDefault[Id](resolverJson).leftMap(_.toString).value
       registryJson <- parseEnrichmentRegistry(config.enrichments, client)
       confs <- EnrichmentRegistry.parse(registryJson, client, false).leftMap(_.toString).toEither
+      labels <- config.labels.map(parseLabels).getOrElse(Right(Map.empty[String, String]))
       _ <- if (emitPii(confs) && config.pii.isEmpty) {
         "A pii topic needs to be used in order to use the pii enrichment".asLeft
       } else {
@@ -75,7 +78,8 @@ object Enrich {
       config.bad,
       config.pii,
       resolverJson,
-      confs
+      confs,
+      labels
     )
 
     parsedConfig match {
@@ -90,6 +94,10 @@ object Enrich {
   }
 
   def run(sc: ScioContext, config: ParsedEnrichConfig): Unit = {
+    if (config.labels.nonEmpty) {
+      sc.optionsAs[DataflowPipelineOptions].setLabels(config.labels.asJava)
+    }
+
     val cachedFiles: DistCache[List[Either[String, String]]] =
       buildDistCache(sc, config.enrichmentConfs)
 

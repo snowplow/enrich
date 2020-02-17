@@ -130,7 +130,7 @@ class IabEnrichmentSpec extends PipelineSpec {
         "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI()),
         "--enrichments=" + Paths.get(getClass.getResource("/iab").toURI())
       )
-      .input(PubsubIO[Array[Byte]]("in"), raw)
+      .input(PubsubIO.readCoder[Array[Byte]]("in"), raw)
       .distCache(
         DistCacheIO(
           Seq(
@@ -141,10 +141,10 @@ class IabEnrichmentSpec extends PipelineSpec {
         ),
         List(Right(localIpFile), Right(localExcludeUaFile), Right(localIncludeUaFile))
       )
-      .output(PubsubIO[String]("bad")) { b =>
+      .output(PubsubIO.readString("bad")) { b =>
         b should beEmpty; ()
       }
-      .output(PubsubIO[String]("out")) { o =>
+      .output(PubsubIO.readString("out")) { o =>
         o should satisfy { cs: Iterable[String] =>
           val ordered =
             cs.toList

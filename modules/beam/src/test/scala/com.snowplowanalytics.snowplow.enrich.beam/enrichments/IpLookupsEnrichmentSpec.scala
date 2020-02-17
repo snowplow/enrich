@@ -68,14 +68,14 @@ class IpLookupsEnrichmentSpec extends PipelineSpec {
         "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI()),
         "--enrichments=" + Paths.get(getClass.getResource("/ip_lookups").toURI())
       )
-      .input(PubsubIO[Array[Byte]]("in"), raw.map(Base64.decodeBase64))
+      .input(PubsubIO.readCoder[Array[Byte]]("in"), raw.map(Base64.decodeBase64))
       .distCache(DistCacheIO(url), List(Right(localFile)))
-      .output(PubsubIO[String]("out")) { o =>
+      .output(PubsubIO.readString("out")) { o =>
         o should satisfySingleValue { c: String =>
           expected.forall(c.contains) // Add `println(c);` before `expected` to see the enrichment output
         }; ()
       }
-      .output(PubsubIO[String]("bad")) { b =>
+      .output(PubsubIO.readString("bad")) { b =>
         b should beEmpty; ()
       }
       .distribution(Enrich.enrichedEventSizeDistribution) { d =>

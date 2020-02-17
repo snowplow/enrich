@@ -51,14 +51,14 @@ class SqlQueryEnrichmentSpec extends PipelineSpec {
         "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI()),
         "--enrichments=" + Paths.get(getClass.getResource("/sql_query").toURI())
       )
-      .input(PubsubIO[Array[Byte]]("in"), raw)
+      .input(PubsubIO.readCoder[Array[Byte]]("in"), raw)
       .distCache(DistCacheIO(""), List.empty[Either[String, String]])
-      .output(PubsubIO[String]("out")) { o =>
+      .output(PubsubIO.readString("out")) { o =>
         o should satisfySingleValue { c: String =>
           SpecHelpers.compareEnrichedEvent(expected, c)
         }; ()
       }
-      .output(PubsubIO[String]("bad")) { b =>
+      .output(PubsubIO.readString("bad")) { b =>
         b should beEmpty; ()
       }
       .run()

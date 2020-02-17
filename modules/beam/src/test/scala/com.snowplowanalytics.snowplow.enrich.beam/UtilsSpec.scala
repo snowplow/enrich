@@ -27,8 +27,10 @@ import com.snowplowanalytics.iglu.core.circe.instances._
 import org.scalatest._
 
 import utils._
+import org.scalatest.freespec.AnyFreeSpec
+import org.scalatest.matchers.should.Matchers
 
-class UtilsSpec extends FreeSpec with Matchers {
+class UtilsSpec extends AnyFreeSpec with Matchers {
   val processor = Processor("be", "1.0.0")
 
   "the utils object should" - {

@@ -88,7 +88,7 @@ object Enrich {
         System.exit(1)
       case Right(config) =>
         run(sc, config)
-        sc.close()
+        sc.run()
         ()
     }
   }

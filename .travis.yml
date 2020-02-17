@@ -17,8 +17,7 @@ script:
 - sbt test
 deploy:
 - provider: script
-  script: release-manager --config ./.travis/release.yml --make-artifact --make-version
-    --upload-artifact
+  script: release-manager --config ./.travis/release.yml --check-version --make-artifact --make-version --upload-artifact
   skip_cleanup: true
   on:
     tags: true

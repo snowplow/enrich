@@ -20,7 +20,7 @@ packages :
     publish : true
     override : false
     continue_on_conflict : false
-    version : <%= FUNC['sbt_version'] %>
+    version : <%= FUNC['sbt_version(.)'] %>
     build_version : <%= ENV['TRAVIS_TAG'] %>
     build_commands :
       - sbt universal:packageBin

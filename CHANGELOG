@@ -1,3 +1,10 @@
+1.1.0 (2020-02-??)
+-----------------------------------
+Add support for GCP labels in dataflow launcher docker image (#6)
+Bump scio to 0.8.1 (#11)
+Do not use remote json for referer parser specs (#9)
+Fix versioning in bintray (#13)
+
 1.0.0 (2020-01-16)
 -----------------------------------
 Extend copyright notice to 2020 (snowplow/snowplow#4259)

@@ -66,12 +66,12 @@ class RefererParserEnrichmentSpec extends PipelineSpec {
         "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI()),
         "--enrichments=" + Paths.get(getClass.getResource("/referer_parser").toURI())
       )
-      .input(PubsubIO[Array[Byte]]("in"), raw)
+      .input(PubsubIO.readCoder[Array[Byte]]("in"), raw)
       .distCache(DistCacheIO(url), List(Right(localFile)))
-      .output(PubsubIO[String]("bad")) { b =>
+      .output(PubsubIO.readString("bad")) { b =>
         b should beEmpty; ()
       }
-      .output(PubsubIO[String]("out")) { o =>
+      .output(PubsubIO.readString("out")) { o =>
         o should satisfySingleValue { c: String =>
           SpecHelpers.compareEnrichedEvent(expected, c)
         }; ()

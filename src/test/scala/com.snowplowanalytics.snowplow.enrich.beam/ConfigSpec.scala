@@ -22,12 +22,13 @@ import com.spotify.scio.Args
 import io.circe.Json
 import io.circe.syntax._
 import org.scalatest._
-import org.scalatest.Matchers._
+import matchers.should.Matchers._
 
 import config._
 import SpecHelpers._
+import org.scalatest.freespec.AnyFreeSpec
 
-class ConfigSpec extends FreeSpec with EitherValues {
+class ConfigSpec extends AnyFreeSpec with EitherValues {
   "the config object should" - {
     "make an EnrichConfig smart ctor available" - {
       "which fails if --job-name is not present" in {

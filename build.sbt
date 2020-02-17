@@ -43,8 +43,8 @@ dockerBaseImage := "snowplow-docker-registry.bintray.io/snowplow/base-debian:0.1
 daemonUser in Docker := "snowplow"
 dockerUpdateLatest := true
 
-lazy val scioVersion = "0.7.4"
-lazy val beamVersion = "2.11.0"
+lazy val scioVersion = "0.8.1"
+lazy val beamVersion = "2.18.0"
 lazy val sceVersion = "1.0.0"
 lazy val scalaMacrosVersion = "2.1.1"
 lazy val slf4jVersion = "1.7.25"

@@ -111,19 +111,19 @@ class PiiEnrichmentSpec extends PipelineSpec {
         "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI()),
         "--enrichments=" + Paths.get(getClass.getResource("/pii").toURI())
       )
-      .input(PubsubIO[Array[Byte]]("in"), raw.map(Base64.decodeBase64))
+      .input(PubsubIO.readCoder[Array[Byte]]("in"), raw.map(Base64.decodeBase64))
       .distCache(DistCacheIO(""), List.empty[Either[String, Path]])
-      .output(PubsubIO[String]("out")) { o =>
+      .output(PubsubIO.readString("out")) { o =>
         o should satisfySingleValue { c: String =>
           expected.forall(c.contains)
         }; ()
       }
-      .output(PubsubIO[String]("pii")) { p =>
+      .output(PubsubIO.readString("pii")) { p =>
         p should satisfySingleValue { c: String =>
           pii.forall(c.contains)
         }; ()
       }
-      .output(PubsubIO[String]("bad")) { b =>
+      .output(PubsubIO.readString("bad")) { b =>
         b should beEmpty; ()
       }
       .distribution(Enrich.enrichedEventSizeDistribution) { d =>

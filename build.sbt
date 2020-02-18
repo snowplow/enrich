@@ -39,9 +39,13 @@ lazy val noPublishSettings = Seq(
 import com.typesafe.sbt.packager.docker._
 packageName in Docker := "snowplow/beam-enrich"
 maintainer in Docker := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>"
-dockerBaseImage := "snowplow-docker-registry.bintray.io/snowplow/base-debian:0.1.0"
+dockerBaseImage := "snowplow-docker-registry.bintray.io/snowplow/k8s-dataflow:0.1.1"
 daemonUser in Docker := "snowplow"
 dockerUpdateLatest := true
+dockerCommands := dockerCommands.value.map{
+  case ExecCmd("ENTRYPOINT", args) => ExecCmd("ENTRYPOINT", "docker-entrypoint.sh", args)
+  case e => e
+}
 
 lazy val scioVersion = "0.8.1"
 lazy val beamVersion = "2.18.0"

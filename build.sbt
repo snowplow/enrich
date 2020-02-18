@@ -138,6 +138,7 @@ lazy val beam =
     .in(file("modules/beam"))
     .dependsOn(common)
     .settings(BuildSettings.basicSettings)
+    .settings(BuildSettings.dataflowDockerSettings)
     .settings(BuildSettings.formatting)
     .settings(
       name := "beam-enrich",

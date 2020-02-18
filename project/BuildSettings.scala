@@ -24,6 +24,7 @@ import bintray.BintrayKeys._
 import com.typesafe.sbt.SbtNativePackager.autoImport._
 import com.typesafe.sbt.packager.linux.LinuxPlugin.autoImport._
 import com.typesafe.sbt.packager.docker.DockerPlugin.autoImport._
+import com.typesafe.sbt.packager.docker.ExecCmd
 
 import org.scalafmt.sbt.ScalafmtPlugin.autoImport._
 
@@ -106,13 +107,27 @@ object BuildSettings {
     }
   )
 
+  /** Docker settings, used by SE */
   lazy val dockerSettings = Seq(
     maintainer in Docker := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
     dockerBaseImage := "snowplow-docker-registry.bintray.io/snowplow/base-debian:0.1.0",
     daemonUser in Docker := "snowplow",
+    dockerUpdateLatest := true,
+
     daemonUserUid in Docker := None,
     defaultLinuxInstallLocation in Docker := "/home/snowplow", // must be home directory of daemonUser
-    dockerUpdateLatest := true
   )
 
+  /** Docker settings, used by BE */
+  lazy val dataflowDockerSettings = Seq(
+    maintainer in Docker := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
+    dockerBaseImage := "snowplow-docker-registry.bintray.io/snowplow/k8s-dataflow:0.1.1",
+    daemonUser in Docker := "snowplow",
+    dockerUpdateLatest := true,
+
+    dockerCommands := dockerCommands.value.map {
+      case ExecCmd("ENTRYPOINT", args) => ExecCmd("ENTRYPOINT", "docker-entrypoint.sh", args)
+      case e => e
+    }
+  )
 }

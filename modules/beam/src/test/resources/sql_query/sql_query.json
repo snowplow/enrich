@@ -5,22 +5,7 @@
     "name": "sql_query_enrichment_config",
     "enabled": true,
     "parameters": {
-      "inputs": [
-        {
-          "placeholder": 1,
-          "pojo": {
-            "field": "useragent"
-          }
-        },
-        {
-          "placeholder": 2,
-          "json": {
-            "field": "contexts",
-            "schemaCriterion": "iglu:com.snowplowanalytics.snowplow/geolocation_context/jsonschema/*-*-*",
-            "jsonPath": "$.speed"
-          }
-        }
-      ],
+      "inputs": [],
       "database": {
         "postgresql": {
           "host": "localhost",
@@ -32,12 +17,12 @@
         }
       },
       "query": {
-        "sql": "SELECT city, country, pk FROM enrichment_test WHERE city = ? and speed = ?"
+        "sql": "SELECT service_name, current_status, last_status, pk FROM enrichment_test"
       },
       "output": {
-        "expectedRows": "AT_LEAST_ONE",
+        "expectedRows": "EXACTLY_ONE",
         "json": {
-          "schema": "iglu:com.acme/user/jsonschema/1-0-0",
+          "schema": "iglu:com.statusgator/status_change/jsonschema/1-0-0",
           "describes": "ALL_ROWS",
           "propertyNames": "CAMEL_CASE"
         }

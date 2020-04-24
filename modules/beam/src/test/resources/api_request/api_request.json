@@ -13,14 +13,6 @@
           }
         },
         {
-          "key": "os",
-          "json": {
-            "field": "derived_contexts",
-            "schemaCriterion": "iglu:com.snowplowanalytics.snowplow/ua_parser_context/jsonschema/1-0-*",
-            "jsonPath": "$.osFamily"
-          }
-        },
-        {
           "key": "device",
           "json": {
             "field": "contexts",
@@ -40,14 +32,14 @@
       "api": {
         "http": {
           "method": "GET",
-          "uri": "http://localhost:8000/guest/users/{{device}}/{{os}}/{{uhost}}/{{service}}?format=json",
+          "uri": "http://localhost:8000/guest/users/{{device}}/{{uhost}}/{{service}}?format=json",
           "timeout": 2000,
           "authentication": { }
         }
       },
       "outputs": [
         {
-          "schema": "iglu:com.acme/user/jsonschema/1-0-0" ,
+          "schema": "iglu:com.statusgator/status_change/jsonschema/1-0-0" ,
           "json": {
             "jsonPath": "$"
           }

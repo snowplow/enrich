@@ -35,7 +35,7 @@ object SqlQueryEnrichmentSpec {
     )
   )
   val expected = Map(
-    "derived_contexts" -> json"""{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[{"schema":"iglu:com.acme/user/jsonschema/1-0-0","data":[{"city":"Milton","country":"US","pk":4}]}]}""".noSpaces
+    "derived_contexts" -> json"""{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[{"schema":"iglu:com.statusgator/status_change/jsonschema/1-0-0","data":{"serviceName":"sp-sql-request-enrichment","currentStatus":"OK","lastStatus":"OK","pk":1}}]}""".noSpaces
   )
 }
 

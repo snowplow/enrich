@@ -72,12 +72,7 @@ class AuthHandler(SimpleHTTPRequestHandler):
                 }
             }
         else:
-            response = {
-                "message": "unauthorized",
-                "path": self.path,
-                "method": method
-
-            }
+            response = { "serviceName": "sp-api-request-enrichment" }
         return json.dumps(response)
 
 

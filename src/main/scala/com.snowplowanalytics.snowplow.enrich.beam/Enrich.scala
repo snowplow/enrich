@@ -104,7 +104,7 @@ object Enrich {
     val raw: SCollection[Array[Byte]] =
       sc.withName("raw-from-pubsub").pubsubSubscription[Array[Byte]](config.raw)
 
-    val enriched: SCollection[Validated[List[String], EnrichedEvent]] =
+    val enriched: SCollection[Validated[String, EnrichedEvent]] =
       enrichEvents(raw, config.resolver, config.enrichmentConfs, cachedFiles)
 
     val (failures, successes): (SCollection[String], SCollection[EnrichedEvent]) = {
@@ -116,9 +116,7 @@ object Enrich {
 
       val failures = enrichedPartitioned._2
         .withName("get-enriched-bad")
-        .collect { case Validated.Invalid(badRows) => badRows.toList }
-        .withName("flatten-bad-rows")
-        .flatten
+        .collect { case Validated.Invalid(row) => row }
         .withName("resize-bad-rows")
         .map(resizeBadRow(_, MaxRecordSize, processor))
 
@@ -184,7 +182,7 @@ object Enrich {
     resolver: Json,
     enrichmentConfs: List[EnrichmentConf],
     cachedFiles: DistCache[List[Either[String, String]]]
-  ): SCollection[Validated[List[String], EnrichedEvent]] =
+  ): SCollection[Validated[String, EnrichedEvent]] =
     raw
       .withName("enrich")
       .map { rawEvent =>
@@ -263,7 +261,7 @@ object Enrich {
     data: Array[Byte],
     enrichmentRegistry: EnrichmentRegistry[Id],
     client: Client[Id, Json]
-  ): List[Validated[List[String], EnrichedEvent]] = {
+  ): List[Validated[String, EnrichedEvent]] = {
     val processor = Processor(generated.BuildInfo.name, generated.BuildInfo.version)
     val collectorPayload = ThriftLoader.toCollectorPayload(data, processor)
     val enriched = EtlPipeline.processEvents(
@@ -274,9 +272,7 @@ object Enrich {
       new DateTime(System.currentTimeMillis),
       collectorPayload
     )
-    enriched.map {
-      _.leftMap(_.map(br => br.compact).toList)
-    }
+    enriched.map(_.leftMap(_.compact))
   }
 
   /**

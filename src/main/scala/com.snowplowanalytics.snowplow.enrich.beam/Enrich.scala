@@ -26,6 +26,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.Enrichm
 import com.snowplowanalytics.snowplow.enrich.common.loaders.ThriftLoader
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.spotify.scio._
+import com.spotify.scio.coders.Coder
 import com.spotify.scio.pubsub.PubSubAdmin
 import com.spotify.scio.values.{DistCache, SCollection}
 import _root_.io.circe.Json
@@ -34,7 +35,6 @@ import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions
 import org.joda.time.DateTime
 import org.slf4j.LoggerFactory
 import scala.collection.JavaConverters._
-
 import config._
 import singleton._
 import utils._
@@ -43,6 +43,9 @@ import utils._
 object Enrich {
 
   private val logger = LoggerFactory.getLogger(this.getClass)
+
+  implicit val badRowScioCodec: Coder[BadRow] = Coder.kryo[BadRow]
+
   // the maximum record size in Google PubSub is 10Mb
   private val MaxRecordSize = 10000000
   private val MetricsNamespace = "snowplow"
@@ -104,10 +107,10 @@ object Enrich {
     val raw: SCollection[Array[Byte]] =
       sc.withName("raw-from-pubsub").pubsubSubscription[Array[Byte]](config.raw)
 
-    val enriched: SCollection[Validated[String, EnrichedEvent]] =
+    val enriched: SCollection[Validated[BadRow, EnrichedEvent]] =
       enrichEvents(raw, config.resolver, config.enrichmentConfs, cachedFiles)
 
-    val (failures, successes): (SCollection[String], SCollection[EnrichedEvent]) = {
+    val (failures, successes): (SCollection[BadRow], SCollection[EnrichedEvent]) = {
       val enrichedPartitioned = enriched.withName("split-enriched-good-bad").partition(_.isValid)
 
       val successes = enrichedPartitioned._1
@@ -116,7 +119,7 @@ object Enrich {
 
       val failures = enrichedPartitioned._2
         .withName("get-enriched-bad")
-        .collect { case Validated.Invalid(row) => row }
+        .collect[BadRow] { case Validated.Invalid(row) => row }
         .withName("resize-bad-rows")
         .map(resizeBadRow(_, MaxRecordSize, processor))
 
@@ -130,7 +133,7 @@ object Enrich {
       .withName("write-enriched-to-pubsub")
       .saveAsPubsub(config.enriched)
 
-    val resizedEnriched: SCollection[String] = tooBigSuccesses
+    val resizedEnriched: SCollection[BadRow] = tooBigSuccesses
       .withName("resize-oversized-enriched")
       .map {
         case (event, size) => resizeEnrichedEvent(event, size, MaxRecordSize, processor)
@@ -138,7 +141,7 @@ object Enrich {
 
     val piis = generatePiiEvents(successes, config.enrichmentConfs)
 
-    val allResized: SCollection[String] = (piis, config.pii) match {
+    val allResized: SCollection[BadRow] = (piis, config.pii) match {
       case (Some((tooBigPiis, properlySizedPiis)), Some(topicPii)) =>
         properlySizedPiis
           .withName("get-properly-sized-pii")
@@ -158,12 +161,14 @@ object Enrich {
       case _ => resizedEnriched
     }
 
-    val allBadRows: SCollection[String] =
+    val allBadRows: SCollection[BadRow] =
       allResized
         .withName("join-bad-all")
         .union(failures)
 
     allBadRows
+      .withName("serialize-bad-rows")
+      .map(_.compact)
       .withName("write-bad-rows-to-pubsub")
       .saveAsPubsub(config.bad)
 
@@ -182,7 +187,7 @@ object Enrich {
     resolver: Json,
     enrichmentConfs: List[EnrichmentConf],
     cachedFiles: DistCache[List[Either[String, String]]]
-  ): SCollection[Validated[String, EnrichedEvent]] =
+  ): SCollection[Validated[BadRow, EnrichedEvent]] =
     raw
       .withName("enrich")
       .map { rawEvent =>
@@ -225,8 +230,7 @@ object Enrich {
   /**
    * Generates PII transformation events depending on the configuration of the PII enrichment.
    * @param enriched collection of events that went through the enrichment phase
-   * @param resolver Json representing the iglu resolver
-   * @param reigstry Json representing the enrichment registry
+   * @param confs list of enrichment configuration
    * @return a collection of properly-sized enriched events and another of oversized ones wrapped
    * in an option depending on whether the PII enrichment is configured to emit PII transformation
    * events
@@ -261,10 +265,10 @@ object Enrich {
     data: Array[Byte],
     enrichmentRegistry: EnrichmentRegistry[Id],
     client: Client[Id, Json]
-  ): List[Validated[String, EnrichedEvent]] = {
+  ): List[Validated[BadRow, EnrichedEvent]] = {
     val processor = Processor(generated.BuildInfo.name, generated.BuildInfo.version)
     val collectorPayload = ThriftLoader.toCollectorPayload(data, processor)
-    val enriched = EtlPipeline.processEvents(
+    EtlPipeline.processEvents(
       new AdapterRegistry,
       enrichmentRegistry,
       client,
@@ -272,7 +276,6 @@ object Enrich {
       new DateTime(System.currentTimeMillis),
       collectorPayload
     )
-    enriched.map(_.leftMap(_.compact))
   }
 
   /**

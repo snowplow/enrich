@@ -91,7 +91,6 @@ class UtilsSpec extends AnyFreeSpec with Matchers {
             ),
             Payload.RawPayload("ah")
           )
-          .compact
         resizeBadRow(badRow, 500, processor) shouldEqual badRow
       }
 
@@ -106,10 +105,9 @@ class UtilsSpec extends AnyFreeSpec with Matchers {
             ),
             Payload.RawPayload("ah")
           )
-          .compact
 
         val res = resizeBadRow(original, 150, processor)
-        val resSdd = parseBadRow(res).right.get
+        val resSdd = parseBadRow(res.compact).right.get
         resSdd shouldBe a[BadRow.SizeViolation]
         val badRowSizeViolation = resSdd.asInstanceOf[BadRow.SizeViolation]
         badRowSizeViolation.failure.maximumAllowedSizeBytes shouldEqual 150
@@ -122,7 +120,7 @@ class UtilsSpec extends AnyFreeSpec with Matchers {
     "make a resizeEnrichedEvent function available" - {
       "which truncates a formatted enriched event and wrap it in a bad row" in {
         val res = resizeEnrichedEvent("a" * 100, 100, 400, processor)
-        val resSdd = parseBadRow(res).right.get
+        val resSdd = parseBadRow(res.compact).right.get
         resSdd shouldBe a[BadRow.SizeViolation]
         val badRowSizeViolation = resSdd.asInstanceOf[BadRow.SizeViolation]
         badRowSizeViolation.failure.maximumAllowedSizeBytes shouldEqual 400

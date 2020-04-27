@@ -100,16 +100,16 @@ object utils {
   /**
    * Truncate an oversized formatted enriched event into a bad row.
    * @param value TSV-formatted oversized enriched event
-   * @param maxBytesSize maximum size in bytes a record can take
+   * @param maxSizeBytes maximum size in bytes a record can take
    * @param processor metadata about this artifact
-   * @return a bad row (JSON string) containing a the truncated enriched event (10 times less than the max size)
+   * @return a bad row containing a the truncated enriched event (10 times less than the max size)
    */
   def resizeEnrichedEvent(
     value: String,
     size: Int,
     maxSizeBytes: Int,
     processor: Processor
-  ): String = {
+  ): BadRow = {
     val msg = "event passed enrichment but exceeded the maximum allowed size as a result"
     BadRow
       .SizeViolation(
@@ -117,20 +117,20 @@ object utils {
         Failure.SizeViolation(Instant.now(), maxSizeBytes, size, msg),
         Payload.RawPayload(value.take(maxSizeBytes / ReductionFactor))
       )
-      .compact
   }
 
   /**
    * Resize a bad row if it exceeds the maximum allowed size.
-   * @param value the original bad row which can be oversized
-   * @param maxBytesSize maximum size in bytes a record can take
-   * @return a bad row (JSON string) where the line is 10 times less than the max size
+   * @param badRow the original bad row which can be oversized
+   * @param maxSizeBytes maximum size in bytes a record can take
+   * @return a bad row where the line is 10 times less than the max size
    */
   def resizeBadRow(
-    originalBadRow: String,
+    badRow: BadRow,
     maxSizeBytes: Int,
     processor: Processor
-  ): String = {
+  ): BadRow = {
+    val originalBadRow = badRow.compact
     val size = getSize(originalBadRow)
     if (size > maxSizeBytes) {
       BadRow
@@ -140,8 +140,7 @@ object utils {
             .SizeViolation(Instant.now(), maxSizeBytes, size, "bad row exceeded the maximum size"),
           Payload.RawPayload(originalBadRow.take(maxSizeBytes / ReductionFactor))
         )
-        .compact
-    } else originalBadRow
+    } else badRow
   }
 
   /** The size of a string in bytes */

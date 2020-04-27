@@ -1,3 +1,12 @@
+1.2.0 (2020-05-05)
+------------------
+Update README (#35)
+Fix dashes in CHANGELOG (#34)
+Fix 1.1.0 release date in CHANGELOG (#33)
+Use BadRow as an error type of enrich (#21)
+Bump Scala Common Enrich to 1.1.0 (#29)
+Change base docker image to k8s-dataflow (#15)
+
 1.1.0 (2020-02-21)
 ------------------
 Add support for GCP labels in dataflow launcher docker image (#6)

@@ -64,7 +64,7 @@ A container can be run as follows:
 docker run \
   -v $PWD/config:/snowplow/config \
   -e GOOGLE_APPLICATION_CREDENTIALS=/snowplow/config/credentials.json \ # if running outside GCP
-  snowplow-docker-registry.bintray.io/snowplow/beam-enrich:0.1.0 \
+  snowplow/beam-enrich:1.2.0 \
   --runner=DataFlowRunner \
   --job-name=snowplow-enrich \
   --project=project-id \
@@ -83,7 +83,7 @@ docker run \
 To display the help message:
 
 ```bash
-docker run snowplow-docker-registry.bintray.io/snowplow/beam-enrich:0.1.0 \
+docker run snowplow/beam-enrich:1.2.0 \
   --runner=DataFlowRunner \
   --help
 ```
@@ -103,7 +103,7 @@ Cloud Storage, e.g. for the IP lookups enrichment:
     "parameters": {
       "geo": {
         "database": "GeoLite2-City.mmdb",
-        "uri": "gs://ben-sp-test/maxmind"
+        "uri": "gs://beam-enrich-test/maxmind"
       }
     }
   }
@@ -139,7 +139,7 @@ sbt repl/run
 
 ## Copyright and license
 
-Copyright 2018-2019 Snowplow Analytics Ltd.
+Copyright 2018-2020 Snowplow Analytics Ltd.
 
 Licensed under the [Apache License, Version 2.0][license] (the "License");
 you may not use this software except in compliance with the License.

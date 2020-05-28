@@ -34,6 +34,7 @@ import org.apache.beam.sdk.io.gcp.pubsub.PubsubOptions
 import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions
 import org.joda.time.DateTime
 import org.slf4j.LoggerFactory
+import _root_.io.sentry.Sentry
 import scala.collection.JavaConverters._
 import config._
 import singleton._
@@ -82,7 +83,8 @@ object Enrich {
       config.pii,
       resolverJson,
       confs,
-      labels
+      labels,
+      config.sentryDSN
     )
 
     parsedConfig match {
@@ -108,7 +110,7 @@ object Enrich {
       sc.withName("raw-from-pubsub").pubsubSubscription[Array[Byte]](config.raw)
 
     val enriched: SCollection[Validated[BadRow, EnrichedEvent]] =
-      enrichEvents(raw, config.resolver, config.enrichmentConfs, cachedFiles)
+      enrichEvents(raw, config.resolver, config.enrichmentConfs, cachedFiles, config.sentryDSN)
 
     val (failures, successes): (SCollection[BadRow], SCollection[EnrichedEvent]) = {
       val enrichedPartitioned = enriched.withName("split-enriched-good-bad").partition(_.isValid)
@@ -186,7 +188,8 @@ object Enrich {
     raw: SCollection[Array[Byte]],
     resolver: Json,
     enrichmentConfs: List[EnrichmentConf],
-    cachedFiles: DistCache[List[Either[String, String]]]
+    cachedFiles: DistCache[List[Either[String, String]]],
+    sentryDSN: Option[String]
   ): SCollection[Validated[BadRow, EnrichedEvent]] =
     raw
       .withName("enrich")
@@ -196,7 +199,8 @@ object Enrich {
           enrich(
             rawEvent,
             EnrichmentRegistrySingleton.get(enrichmentConfs),
-            ClientSingleton.get(resolver)
+            ClientSingleton.get(resolver),
+            sentryDSN
           )
         }
         timeToEnrichDistribution.update(time)
@@ -264,18 +268,33 @@ object Enrich {
   private def enrich(
     data: Array[Byte],
     enrichmentRegistry: EnrichmentRegistry[Id],
-    client: Client[Id, Json]
+    client: Client[Id, Json],
+    sentryDSN: Option[String]
   ): List[Validated[BadRow, EnrichedEvent]] = {
     val processor = Processor(generated.BuildInfo.name, generated.BuildInfo.version)
     val collectorPayload = ThriftLoader.toCollectorPayload(data, processor)
-    EtlPipeline.processEvents(
-      new AdapterRegistry,
-      enrichmentRegistry,
-      client,
-      processor,
-      new DateTime(System.currentTimeMillis),
-      collectorPayload
-    )
+    Either.catchNonFatal(
+      EtlPipeline.processEvents(
+        new AdapterRegistry,
+        enrichmentRegistry,
+        client,
+        processor,
+        new DateTime(System.currentTimeMillis),
+        collectorPayload
+      )
+    ) match {
+      case Left(throwable) =>
+        logger.error(
+          s"Problem occured while processing CollectorPayload [$collectorPayload]",
+          throwable
+        )
+        sentryDSN.foreach { dsn =>
+          System.setProperty("sentry.dsn", dsn)
+          Sentry.capture(throwable)
+        }
+        Nil
+      case Right(events) => events
+    }
   }
 
   /**

@@ -50,7 +50,8 @@ object config {
     pii: Option[String],
     resolver: String,
     enrichments: Option[String],
-    labels: Option[String]
+    labels: Option[String],
+    sentryDSN: Option[String]
   )
   object EnrichConfig {
 
@@ -75,7 +76,8 @@ object config {
         args.optional("pii"),
         resolver,
         args.optional("enrichments"),
-        args.optional("labels")
+        args.optional("labels"),
+        args.optional("sentry-dsn")
       )
 
     private val configurations = List(
@@ -92,7 +94,8 @@ object config {
       OptionalConfiguration("pii", "Name of the pii topic projects/{project}/topics/{topic}"),
       RequiredConfiguration("resolver", "Path to the resolver file"),
       OptionalConfiguration("enrichments", "Path to the directory containing the enrichment files"),
-      OptionalConfiguration("labels", "Dataflow labels to be set ie. env=qa1;region=eu")
+      OptionalConfiguration("labels", "Dataflow labels to be set ie. env=qa1;region=eu"),
+      OptionalConfiguration("sentry-dsn", "Sentry DSN")
     )
 
     /** Generates an help string from a list of conifugration */
@@ -124,7 +127,8 @@ object config {
     pii: Option[String],
     resolver: Json,
     enrichmentConfs: List[EnrichmentConf],
-    labels: Map[String, String]
+    labels: Map[String, String],
+    sentryDSN: Option[String]
   )
 
   /**

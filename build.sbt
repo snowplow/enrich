@@ -54,6 +54,7 @@ lazy val scalaMacrosVersion = "2.1.1"
 lazy val slf4jVersion = "1.7.25"
 lazy val circeVersion = "0.11.1"
 lazy val scalatestVersion = "3.0.8"
+lazy val sentryVersion = "1.7.30"
 
 lazy val root: Project = Project(
   "beam-enrich",
@@ -69,7 +70,8 @@ lazy val root: Project = Project(
     "com.spotify" %% "scio-core" % scioVersion,
     "org.apache.beam" % "beam-runners-google-cloud-dataflow-java" % beamVersion,
     "com.snowplowanalytics" %% "snowplow-common-enrich" % sceVersion,
-    "org.slf4j" % "slf4j-simple" % slf4jVersion
+    "org.slf4j" % "slf4j-simple" % slf4jVersion,
+    "io.sentry" % "sentry" % sentryVersion
   ) ++ Seq(
     "com.spotify" %% "scio-test" % scioVersion,
     "org.scalatest" %% "scalatest" % scalatestVersion,

@@ -5,7 +5,9 @@ lazy val resolutionRepos = Seq(
   // For Snowplow
   "Snowplow Analytics Maven releases repo" at "http://maven.snplow.com/releases/",
   // For ua-parser
-  "user-agent-parser repo"                 at "https://clojars.org/repo/"
+  "user-agent-parser repo"                 at "https://clojars.org/repo/",
+  // For Snowplow libraries
+  "Snowplow Bintray" at "https://snowplow.bintray.com/snowplow-maven/"
 )
 
 // we fork a JVM per test in order to not reuse enrichment registries

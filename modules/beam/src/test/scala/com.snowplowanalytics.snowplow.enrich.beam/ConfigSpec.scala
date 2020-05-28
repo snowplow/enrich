@@ -69,7 +69,7 @@ class ConfigSpec extends AnyFreeSpec with EitherValues {
         EnrichConfig(
           Args(Array("--job-name=j", "--raw=i", "--enriched=o", "--bad=b", "--resolver=r"))
         ) shouldEqual
-          Right(EnrichConfig("j", "i", "o", "b", None, "r", None, None))
+          Right(EnrichConfig("j", "i", "o", "b", None, "r", None, None, None))
       }
       "which succeeds if --enrichments is present" in {
         val args = Args(
@@ -83,7 +83,7 @@ class ConfigSpec extends AnyFreeSpec with EitherValues {
           )
         )
         EnrichConfig(args) shouldEqual Right(
-          EnrichConfig("j", "i", "o", "b", None, "r", Some("e"), None)
+          EnrichConfig("j", "i", "o", "b", None, "r", Some("e"), None, None)
         )
       }
       "which succeeds if --pii is present" in {
@@ -91,7 +91,7 @@ class ConfigSpec extends AnyFreeSpec with EitherValues {
           Array("--job-name=j", "--raw=i", "--enriched=o", "--bad=b", "--pii=p", "--resolver=r")
         )
         EnrichConfig(args) shouldEqual Right(
-          EnrichConfig("j", "i", "o", "b", Some("p"), "r", None, None)
+          EnrichConfig("j", "i", "o", "b", Some("p"), "r", None, None, None)
         )
       }
       "which succeeds if --labels is present" in {
@@ -115,8 +115,25 @@ class ConfigSpec extends AnyFreeSpec with EitherValues {
             Some("p"),
             "r",
             None,
-            Some("{\"env\":\"abc\"}")
+            Some("{\"env\":\"abc\"}"),
+            None
           )
+        )
+      }
+      "which succeeds if --sentry-dsn is present" in {
+        val args = Args(
+          Array(
+            "--job-name=j",
+            "--raw=i",
+            "--enriched=o",
+            "--bad=b",
+            "--pii=p",
+            "--resolver=r",
+            "--sentry-dsn=DSN"
+          )
+        )
+        EnrichConfig(args) shouldEqual Right(
+          EnrichConfig("j", "i", "o", "b", Some("p"), "r", None, None, Some("DSN"))
         )
       }
     }

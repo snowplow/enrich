@@ -148,6 +148,7 @@ lazy val beam =
       libraryDependencies ++= Seq(
         Dependencies.Libraries.scio,
         Dependencies.Libraries.beam,
+        Dependencies.Libraries.sentry,
         Dependencies.Libraries.slf4j,
         Dependencies.Libraries.scioTest,
         Dependencies.Libraries.scalaTest,

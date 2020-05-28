@@ -75,6 +75,7 @@ object Dependencies {
     val scalacheck       = "1.14.0"
     val jinJava          = "2.5.0"
 
+    val sentry           = "1.7.30"
     val scio             = "0.8.1"
     val beam             = "2.18.0"
     val macros           = "2.1.1"
@@ -120,6 +121,7 @@ object Dependencies {
     val specs2Mock       = "org.specs2"                 %% "specs2-mock"                   % V.specs2                    % Test
 
     // Beam
+    val sentry           = "io.sentry"                  %  "sentry"                                   % V.sentry
     val scio             = "com.spotify"                %% "scio-core"                                % V.scio
     val beam             = "org.apache.beam"            % "beam-runners-google-cloud-dataflow-java"   % V.beam
     val slf4j            = "org.slf4j"                  % "slf4j-simple"                              % V.slf4j

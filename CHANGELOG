@@ -1,3 +1,9 @@
+1.2.1 (2020-06-01)
+------------------
+Bump Common Enrich to 1.1.1 (#39)
+Add Snowplow Bintray to resolvers (#41)
+Integrate Sentry for Common Enrich exceptions (#40)
+
 1.2.0 (2020-05-05)
 ------------------
 Update README (#35)

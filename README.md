@@ -2,25 +2,29 @@
 
 ## Introduction
 
-Stream Enrich processes raw [Snowplow][snowplow] events from an input
-[Amazon Kinesis][kinesis] stream and [NSQ][nsq], stores enriched events
-into output Kinesis streams.
-Events are enriched using the [scala-common-enrich][common-enrich] library.
+Stream Enrich reads raw [Snowplow][snowplow] events from
+
+-  [Amazon Kinesis][kinesis]
+-  [NSQ][nsq]
+-  [Kafka][kafka]
+-  stdin
+
+enriches them using [Snowplow Common Enrich][common-enrich] library and emits enriched events to an output stream.
 
 ## Building
 
 Assuming you already have [SBT][sbt] installed:
 
-    $ git clone git://github.com/snowplow/snowplow.git
-    $ cd 3-enrich/stream-enrich
+    $ git clone git@github.com:snowplow/stream-enrich.git
+    $ cd stream-enrich
     $ sbt compile
 
 ## Usage
 
-Stream Enrich has the following command-line interface:
+Stream Enrich has the following command line interface:
 
 ```
-snowplow-stream-enrich 1.0.0
+snowplow-stream-enrich 1.1.0
 Usage: snowplow-stream-enrich [options]
 
   --config <filename>
@@ -34,7 +38,7 @@ Usage: snowplow-stream-enrich [options]
 
 ## Copyright and license
 
-Copyright 2013-2019 Snowplow Analytics Ltd.
+Copyright 2013-2020 Snowplow Analytics Ltd.
 
 Licensed under the [Apache License, Version 2.0][license] (the "License");
 you may not use this software except in compliance with the License.
@@ -45,13 +49,11 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
-[kinesis]: http://aws.amazon.com/kinesis/
-[snowplow]: http://snowplowanalytics.com
-[common-enrich]: https://github.com/snowplow/snowplow/tree/master/3-enrich/scala-common-enrich
+[kinesis]: https://aws.amazon.com/kinesis/
+[snowplow]: https://snowplowanalytics.com/
+[common-enrich]: https://github.com/snowplow/common-enrich
 [sbt]: https://www.scala-sbt.org
-[nsq]: http://nsq.io/
-
-[configuring-enrichments]: https://github.com/snowplow/snowplow/wiki/5-Configuring-enrichments
-[iglu-client-configuration]: https://github.com/snowplow/iglu/wiki/Iglu-client-configuration
+[nsq]: https://nsq.io/
+[kafka]: https://kafka.apache.org/
 
 [license]: http://www.apache.org/licenses/LICENSE-2.0

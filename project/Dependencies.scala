@@ -35,6 +35,7 @@ object Dependencies {
     val config               = "1.3.4"
     val slf4j                = "1.7.26"
     val gcpSdk               = "1.106.0"
+    val sentry               = "1.7.30"
     // Scala
     val scopt                = "3.7.1"
     val pureconfig           = "0.11.0"
@@ -62,6 +63,7 @@ object Dependencies {
     val slf4j                = "org.slf4j"                        %  "slf4j-simple"              % V.slf4j
     val log4jOverSlf4j       = "org.slf4j"                        %  "log4j-over-slf4j"          % V.slf4j
     val gsSdk                = "com.google.cloud"                 %  "google-cloud-storage"      % V.gcpSdk
+    val sentry               = "io.sentry"                        %  "sentry"                    % V.sentry
     // Scala
     val scopt                = "com.github.scopt"                 %% "scopt"                             % V.scopt
     val pureconfig           = "com.github.pureconfig"            %% "pureconfig"                        % V.pureconfig

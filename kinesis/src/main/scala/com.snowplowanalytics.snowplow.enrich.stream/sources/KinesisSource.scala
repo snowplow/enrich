@@ -43,7 +43,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegist
 import com.snowplowanalytics.snowplow.scalatracker.Tracker
 import io.circe.Json
 
-import model.{Kinesis, StreamsConfig}
+import model.{Kinesis, SentryConfig, StreamsConfig}
 import sinks._
 import utils.getAWSCredentialsProvider
 
@@ -51,6 +51,7 @@ import utils.getAWSCredentialsProvider
 object KinesisSource {
   def createAndInitialize(
     config: StreamsConfig,
+    sentryConfig: Option[SentryConfig],
     client: Client[Id, Json],
     adapterRegistry: AdapterRegistry,
     enrichmentRegistry: EnrichmentRegistry[Id],
@@ -75,6 +76,7 @@ object KinesisSource {
       processor,
       config,
       kinesisConfig,
+      sentryConfig,
       provider
     )
 }
@@ -88,8 +90,16 @@ class KinesisSource private (
   processor: Processor,
   config: StreamsConfig,
   kinesisConfig: Kinesis,
+  sentryConfig: Option[SentryConfig],
   provider: AWSCredentialsProvider
-) extends Source(client, adapterRegistry, enrichmentRegistry, processor, config.out.partitionKey) {
+) extends Source(
+      client,
+      adapterRegistry,
+      enrichmentRegistry,
+      processor,
+      config.out.partitionKey,
+      sentryConfig
+    ) {
 
   override val MaxRecordSize = Some(1000000)
 

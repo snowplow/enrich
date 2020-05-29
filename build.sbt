@@ -20,6 +20,7 @@ lazy val commonDependencies = Seq(
   Dependencies.Libraries.jacksonDatabind,
   Dependencies.Libraries.s3Sdk,
   Dependencies.Libraries.gsSdk,
+  Dependencies.Libraries.sentry,
   // Scala
   Dependencies.Libraries.scopt,
   Dependencies.Libraries.pureconfig,

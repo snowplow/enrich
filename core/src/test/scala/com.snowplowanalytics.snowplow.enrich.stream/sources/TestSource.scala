@@ -35,7 +35,7 @@ class TestSource(
   client: Client[Id, Json],
   adapterRegistry: AdapterRegistry,
   enrichmentRegistry: EnrichmentRegistry[Id]
-) extends Source(client, adapterRegistry, enrichmentRegistry, Processor("sce", "1.0.0"), "") {
+) extends Source(client, adapterRegistry, enrichmentRegistry, Processor("sce", "1.0.0"), "", None) {
 
   override val MaxRecordSize = None
 

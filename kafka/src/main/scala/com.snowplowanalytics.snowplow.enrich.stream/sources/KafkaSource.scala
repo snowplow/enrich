@@ -33,7 +33,7 @@ import io.circe.Json
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.clients.producer._
 
-import model.{Kafka, StreamsConfig}
+import model.{Kafka, SentryConfig, StreamsConfig}
 import sinks.{KafkaSink, Sink}
 import java.time.Duration
 
@@ -41,6 +41,7 @@ import java.time.Duration
 object KafkaSource {
   def create(
     config: StreamsConfig,
+    sentryConfig: Option[SentryConfig],
     client: Client[Id, Json],
     adapterRegistry: AdapterRegistry,
     enrichmentRegistry: EnrichmentRegistry[Id],
@@ -71,7 +72,8 @@ object KafkaSource {
       enrichmentRegistry,
       processor,
       config,
-      kafkaConfig
+      kafkaConfig,
+      sentryConfig
     )
 }
 
@@ -85,8 +87,16 @@ class KafkaSource private (
   enrichmentRegistry: EnrichmentRegistry[Id],
   processor: Processor,
   config: StreamsConfig,
-  kafkaConfig: Kafka
-) extends Source(client, adapterRegistry, enrichmentRegistry, processor, config.out.partitionKey) {
+  kafkaConfig: Kafka,
+  sentryConfig: Option[SentryConfig]
+) extends Source(
+      client,
+      adapterRegistry,
+      enrichmentRegistry,
+      processor,
+      config.out.partitionKey,
+      sentryConfig
+    ) {
 
   override val MaxRecordSize = None
 

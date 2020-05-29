@@ -41,7 +41,14 @@ import com.snowplowanalytics.snowplow.scalatracker.Tracker
 import io.circe.Json
 import io.circe.syntax._
 import config._
-import model.{Credentials, DualCloudCredentialsPair, Kinesis, NoCredentials, StreamsConfig}
+import model.{
+  Credentials,
+  DualCloudCredentialsPair,
+  Kinesis,
+  NoCredentials,
+  SentryConfig,
+  StreamsConfig
+}
 import sources.KinesisSource
 import utils.getAWSCredentialsProvider
 
@@ -79,6 +86,7 @@ object KinesisEnrich extends Enrich {
       processor = Processor(generated.BuildInfo.name, generated.BuildInfo.version)
       source <- getSource(
         enrichConfig.streams,
+        enrichConfig.sentry,
         client,
         adapterRegistry,
         enrichmentRegistry,
@@ -99,6 +107,7 @@ object KinesisEnrich extends Enrich {
 
   override def getSource(
     streamsConfig: StreamsConfig,
+    sentryConfig: Option[SentryConfig],
     client: Client[Id, Json],
     adapterRegistry: AdapterRegistry,
     enrichmentRegistry: EnrichmentRegistry[Id],
@@ -107,6 +116,7 @@ object KinesisEnrich extends Enrich {
   ): Either[String, sources.Source] =
     KinesisSource.createAndInitialize(
       streamsConfig,
+      sentryConfig,
       client,
       adapterRegistry,
       enrichmentRegistry,

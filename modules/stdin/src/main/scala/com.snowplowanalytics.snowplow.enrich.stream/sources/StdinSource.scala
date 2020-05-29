@@ -30,13 +30,14 @@ import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import io.circe.Json
 
-import model.{Stdin, StreamsConfig}
+import model.{SentryConfig, Stdin, StreamsConfig}
 import sinks.{Sink, StderrSink, StdoutSink}
 
 /** StdinSource companion object with factory method */
 object StdinSource {
   def create(
     config: StreamsConfig,
+    sentryConfig: Option[SentryConfig],
     client: Client[Id, Json],
     adapterRegistry: AdapterRegistry,
     enrichmentRegistry: EnrichmentRegistry[Id],
@@ -52,7 +53,8 @@ object StdinSource {
       adapterRegistry,
       enrichmentRegistry,
       processor,
-      config.out.partitionKey
+      config.out.partitionKey,
+      sentryConfig
     )
 }
 
@@ -62,8 +64,16 @@ class StdinSource private (
   adapterRegistry: AdapterRegistry,
   enrichmentRegistry: EnrichmentRegistry[Id],
   processor: Processor,
-  partitionKey: String
-) extends Source(client, adapterRegistry, enrichmentRegistry, processor, partitionKey) {
+  partitionKey: String,
+  sentryConfig: Option[SentryConfig]
+) extends Source(
+      client,
+      adapterRegistry,
+      enrichmentRegistry,
+      processor,
+      partitionKey,
+      sentryConfig
+    ) {
 
   override val MaxRecordSize = None
 

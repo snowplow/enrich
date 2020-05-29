@@ -62,7 +62,7 @@ trait KafkaIntegrationSpec extends TryMatchers with TraversableMatchers {
   ): Future[Unit] = Future {
     val p = Processor("test", "1.0.0")
     KafkaEnrich
-      .getSource(configuration, client, adapterRegistry, registry, tracker, p)
+      .getSource(configuration, None, client, adapterRegistry, registry, tracker, p)
       .toOption
       .get
       .run()

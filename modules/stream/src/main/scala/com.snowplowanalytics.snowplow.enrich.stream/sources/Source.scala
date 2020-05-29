@@ -29,8 +29,7 @@ import scala.util.Random
 import cats.Id
 import cats.data.{Validated, ValidatedNel}
 import cats.data.Validated.{Invalid, Valid}
-import cats.syntax.option._
-import cats.syntax.validated._
+import cats.implicits._
 import com.snowplowanalytics.iglu.client.Client
 import com.snowplowanalytics.snowplow.badrows._
 import com.snowplowanalytics.snowplow.enrich.common.EtlPipeline
@@ -38,10 +37,13 @@ import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.loaders.{CollectorPayload, ThriftLoader}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.stream.model.SentryConfig
 import io.circe.Json
 import io.circe.syntax._
 import org.joda.time.DateTime
 import org.slf4j.LoggerFactory
+import io.sentry.Sentry
+import io.sentry.SentryClient
 import org.joda.time.{DateTime, DateTimeZone}
 import org.joda.time.format.DateTimeFormat
 
@@ -116,8 +118,11 @@ abstract class Source(
   adapterRegistry: AdapterRegistry,
   enrichmentRegistry: EnrichmentRegistry[Id],
   processor: Processor,
-  partitionKey: String
+  partitionKey: String,
+  sentryConfig: Option[SentryConfig]
 ) {
+
+  val sentryClient: Option[SentryClient] = sentryConfig.map(_.dsn).map(Sentry.init)
 
   val MaxRecordSize: Option[Int]
 
@@ -201,7 +206,7 @@ abstract class Source(
   ): List[Validated[(BadRow, String), (String, String, Option[String])]] = {
     val canonicalInput: ValidatedNel[BadRow, Option[CollectorPayload]] =
       ThriftLoader.toCollectorPayload(binaryData, processor)
-    val processedEvents: List[Validated[BadRow, EnrichedEvent]] =
+    Either.catchNonFatal(
       EtlPipeline.processEvents(
         adapterRegistry,
         enrichmentRegistry,
@@ -210,14 +215,29 @@ abstract class Source(
         new DateTime(System.currentTimeMillis),
         canonicalInput
       )
-    processedEvents.map {
-      case Valid(ee) =>
-        (
-          tabSeparateEnrichedEvent(ee),
-          getProprertyValue(ee, partitionKey),
-          getPiiEvent(ee).map(tabSeparateEnrichedEvent)
-        ).valid
-      case Invalid(br) => (br, Random.nextInt().toString()).invalid
+    ) match {
+      case Left(throwable) =>
+        log.error(
+          s"Problem occured while processing CollectorPayload [$canonicalInput]",
+          throwable
+        )
+        sentryClient.foreach { client =>
+          client.sendException(throwable)
+        }
+        Nil
+      case Right(processedEvents) =>
+        processedEvents.map(
+          event =>
+            event.bimap(
+              br => (br, Random.nextInt().toString()),
+              enriched =>
+                (
+                  tabSeparateEnrichedEvent(enriched),
+                  getProprertyValue(enriched, partitionKey),
+                  getPiiEvent(enriched).map(tabSeparateEnrichedEvent)
+                )
+            )
+        )
     }
   }
 

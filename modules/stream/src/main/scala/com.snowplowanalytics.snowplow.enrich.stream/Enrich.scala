@@ -83,6 +83,7 @@ trait Enrich {
       processor = Processor(generated.BuildInfo.name, generated.BuildInfo.version)
       source <- getSource(
         enrichConfig.streams,
+        enrichConfig.sentry,
         client,
         adapterRegistry,
         enrichmentRegistry,
@@ -111,6 +112,7 @@ trait Enrich {
    */
   def getSource(
     streamsConfig: StreamsConfig,
+    sentryConfig: Option[SentryConfig],
     client: Client[Id, Json],
     adapterRegistry: AdapterRegistry,
     enrichmentRegistry: EnrichmentRegistry[Id],

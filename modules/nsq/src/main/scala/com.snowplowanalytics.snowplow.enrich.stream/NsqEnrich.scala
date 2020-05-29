@@ -28,7 +28,7 @@ import com.snowplowanalytics.snowplow.scalatracker.Tracker
 import io.circe.Json
 
 import config.FileConfig
-import model.{Credentials, StreamsConfig}
+import model.{Credentials, SentryConfig, StreamsConfig}
 import sources.NsqSource
 
 /** The main entry point for Stream Enrich for NSQ. */
@@ -38,6 +38,7 @@ object NsqEnrich extends Enrich {
 
   def getSource(
     streamsConfig: StreamsConfig,
+    sentryConfig: Option[SentryConfig],
     client: Client[Id, Json],
     adapterRegistry: AdapterRegistry,
     enrichmentRegistry: EnrichmentRegistry[Id],
@@ -45,7 +46,7 @@ object NsqEnrich extends Enrich {
     processor: Processor
   ): Either[String, sources.Source] =
     NsqSource
-      .create(streamsConfig, client, adapterRegistry, enrichmentRegistry, processor)
+      .create(streamsConfig, sentryConfig, client, adapterRegistry, enrichmentRegistry, processor)
       .leftMap(_.getMessage)
 
   override val parser: scopt.OptionParser[FileConfig] = localParser

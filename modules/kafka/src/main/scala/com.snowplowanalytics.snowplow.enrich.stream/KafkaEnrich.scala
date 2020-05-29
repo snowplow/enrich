@@ -27,7 +27,7 @@ import com.snowplowanalytics.snowplow.scalatracker.Tracker
 import io.circe.Json
 
 import config.FileConfig
-import model.{Credentials, StreamsConfig}
+import model.{Credentials, SentryConfig, StreamsConfig}
 import sources.{KafkaSource, Source}
 
 /** The main entry point for Stream Enrich for Kafka. */
@@ -37,13 +37,21 @@ object KafkaEnrich extends Enrich {
 
   override def getSource(
     streamsConfig: StreamsConfig,
+    sentryConfig: Option[SentryConfig],
     client: Client[Id, Json],
     adapterRegistry: AdapterRegistry,
     enrichmentRegistry: EnrichmentRegistry[Id],
     tracker: Option[Tracker[Id]],
     processor: Processor
   ): Either[String, Source] =
-    KafkaSource.create(streamsConfig, client, adapterRegistry, enrichmentRegistry, processor)
+    KafkaSource.create(
+      streamsConfig,
+      sentryConfig,
+      client,
+      adapterRegistry,
+      enrichmentRegistry,
+      processor
+    )
 
   override val parser: scopt.OptionParser[FileConfig] = localParser
 

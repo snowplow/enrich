@@ -162,9 +162,11 @@ object model {
     readTimeout: Option[Long],
     url: String
   )
+  final case class SentryConfig(dsn: String)
   final case class EnrichConfig(
     streams: StreamsConfig,
     remoteAdapters: Option[List[RemoteAdapterConfig]],
-    monitoring: Option[MonitoringConfig]
+    monitoring: Option[MonitoringConfig],
+    sentry: Option[SentryConfig]
   )
 }

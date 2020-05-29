@@ -32,13 +32,14 @@ import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import io.circe.Json
 
-import model.{Nsq, StreamsConfig}
+import model.{Nsq, SentryConfig, StreamsConfig}
 import sinks.{NsqSink, Sink}
 
 /** NsqSource companion object with factory method */
 object NsqSource {
   def create(
     config: StreamsConfig,
+    sentryConfig: Option[SentryConfig],
     client: Client[Id, Json],
     adapterRegistry: AdapterRegistry,
     enrichmentRegistry: EnrichmentRegistry[Id],
@@ -68,7 +69,8 @@ object NsqSource {
       enrichmentRegistry,
       processor,
       config,
-      nsqConfig
+      nsqConfig,
+      sentryConfig
     )
 }
 
@@ -82,8 +84,16 @@ class NsqSource private (
   enrichmentRegistry: EnrichmentRegistry[Id],
   processor: Processor,
   config: StreamsConfig,
-  nsqConfig: Nsq
-) extends Source(client, adapterRegistry, enrichmentRegistry, processor, config.out.partitionKey) {
+  nsqConfig: Nsq,
+  sentryConfig: Option[SentryConfig]
+) extends Source(
+      client,
+      adapterRegistry,
+      enrichmentRegistry,
+      processor,
+      config.out.partitionKey,
+      sentryConfig
+    ) {
 
   override val MaxRecordSize = None
 

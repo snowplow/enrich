@@ -71,6 +71,7 @@ lazy val allStreamSettings = BuildSettings.basicSettings ++ BuildSettings.sbtAss
   BuildSettings.dockerSettings ++ BuildSettings.formatting ++
   Seq(libraryDependencies := Seq(
     Dependencies.Libraries.config,
+    Dependencies.Libraries.sentry,
     Dependencies.Libraries.slf4j,
     Dependencies.Libraries.log4jOverSlf4j,
     Dependencies.Libraries.s3Sdk,

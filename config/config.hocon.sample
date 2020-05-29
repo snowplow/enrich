@@ -215,4 +215,9 @@ enrich {
       method = ${?ENRICH_MONITORING_METHOD}
     }
   }
+
+  # Optional section for Sentry
+  sentry {
+    dsn = ${?SENTRY_DSN}
+  }
 }

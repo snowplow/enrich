@@ -1,3 +1,12 @@
+1.1.1 (2020-06-01)
+------------------
+Integrate Sentry for Common Enrich exceptions (#8)
+Bump Common Enrich to 1.1.1 (#7)
+Add DockerHub credentials to .travis.yml (#4)
+Add Bintray credentials to .travis.yml (#5)
+Add CI/CD (#1)
+Update README for post-migration (#2)
+
 1.1.0 (2020-04-30)
 ------------------
 Bump to 1.1.0 (snowplow/snowplow#4296)

@@ -24,7 +24,7 @@ Assuming you already have [SBT][sbt] installed:
 Stream Enrich has the following command line interface:
 
 ```
-snowplow-stream-enrich 1.1.0
+snowplow-stream-enrich 1.1.1
 Usage: snowplow-stream-enrich [options]
 
   --config <filename>

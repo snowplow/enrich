@@ -1,0 +1,24 @@
+dist: trusty
+language: scala
+scala:
+  - 2.12.10
+jdk:
+  - oraclejdk8
+services:
+  - docker
+before_deploy:
+  - pip install --user release-manager==0.4.1
+  - docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+script:
+  - sbt test
+deploy:
+  - provider: script
+    script: release-manager --config ./.travis/release.yml --check-version --make-artifact --make-version --upload-artifact
+    skip_cleanup: true
+    on:
+      tags: true
+  - provider: script
+    script: sbt "project kinesis" docker:publish && sbt "project kafka" docker:publish && sbt "project nsq" docker:publish
+    skip_cleanup: true
+    on:
+      tags: true

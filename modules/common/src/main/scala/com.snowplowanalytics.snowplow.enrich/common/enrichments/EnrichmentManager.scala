@@ -83,6 +83,7 @@ object EnrichmentManager {
         inputContexts,
         unstructEvent
       )
+      _ <- EitherT.fromEither[F](Transform.overrideTransform(raw, enriched, processor))
       _ <- IgluUtils
         .validateEnrichmentsContexts[F](client, enrichmentsContexts, raw, processor, enriched)
       _ <- EitherT.rightT[F, BadRow] {

@@ -279,5 +279,92 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       )
       enriched.value.value must beRight
     }
+
+    "have a preference of ua query parameter over UserAgent HTTP header" >> {
+      val parameters = Map(
+        "e" -> "ue",
+        "tv" -> "js-0.13.1",
+        "ua" -> "queryparam-useragent",
+        "p" -> "web",
+        "co" -> """
+          {
+            "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
+            "data": [
+              {
+                "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+                "data": {
+                  "emailAddress": "hello@world.com",
+                  "emailAddress2": "foo@bar.org"
+                }
+              }
+            ]
+          }
+        """,
+        "ue_pr" -> """
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data":{
+              "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+              "data": {
+                "emailAddress": "hello@world.com",
+                "emailAddress2": "foo@bar.org"
+              }
+            }
+          }"""
+      )
+      val contextWithUa = context.copy(useragent = Some("header-useragent"))
+      val rawEvent = RawEvent(api, parameters, None, source, contextWithUa)
+      val enriched = EnrichmentManager.enrichEvent(
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent
+      )
+      enriched.value.value.map(_.useragent) must beRight("queryparam-useragent")
+    }
+
+    "use Useragent HTTP Header if ua query parameter is not set" >> {
+      val parameters = Map(
+        "e" -> "ue",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "co" -> """
+          {
+            "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
+            "data": [
+              {
+                "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+                "data": {
+                  "emailAddress": "hello@world.com",
+                  "emailAddress2": "foo@bar.org"
+                }
+              }
+            ]
+          }
+        """,
+        "ue_pr" -> """
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data":{
+              "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+              "data": {
+                "emailAddress": "hello@world.com",
+                "emailAddress2": "foo@bar.org"
+              }
+            }
+          }"""
+      )
+      val contextWithUa = context.copy(useragent = Some("header-useragent"))
+      val rawEvent = RawEvent(api, parameters, None, source, contextWithUa)
+      val enriched = EnrichmentManager.enrichEvent(
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent
+      )
+      enriched.value.value.map(_.useragent) must beRight("header-useragent")
+    }
   }
 }

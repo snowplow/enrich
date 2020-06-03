@@ -28,6 +28,9 @@ import adapters.RawEvent
 
 object Transform {
 
+  /** Query parameters that can overwrite values in the end */
+  val TopPriorityQueryParams = Set("ua")
+
   /** Map the parameters of the input raw event to the fields of the enriched event,
    * with a possible transformation. For instance "ip" in the input would be mapped
    * to "user_ipaddress" in the enriched event
@@ -43,6 +46,25 @@ object Transform {
     val secondPassTransform = enriched.transform(sourceMap, secondPassTransformMap)
 
     (firstPassTransform |+| secondPassTransform).leftMap { enrichmentFailures =>
+      EnrichmentManager.buildEnrichmentFailuresBadRow(
+        enrichmentFailures,
+        EnrichedEvent.toPartiallyEnrichedEvent(enriched),
+        RawEvent.toRawEvent(raw),
+        processor
+      )
+    }.toEither
+  }
+
+  /** Transformations running after enrichments that can overwrite fields by queryparam values */
+  private[enrichments] def overrideTransform(
+    raw: RawEvent,
+    enriched: EnrichedEvent,
+    processor: Processor
+  ): Either[BadRow.EnrichmentFailures, Int] = {
+    val lastPassTransformMap = firstPassTransformMap.filter { case (k, _) => TopPriorityQueryParams.contains(k) }
+    val lastPassTransform = enriched.transform(raw.parameters, lastPassTransformMap)
+
+    lastPassTransform.leftMap { enrichmentFailures =>
       EnrichmentManager.buildEnrichmentFailuresBadRow(
         enrichmentFailures,
         EnrichedEvent.toPartiallyEnrichedEvent(enriched),

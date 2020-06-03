@@ -51,7 +51,7 @@ dockerCommands := dockerCommands.value.map{
 
 lazy val scioVersion = "0.8.1"
 lazy val beamVersion = "2.18.0"
-lazy val sceVersion = "1.1.1"
+lazy val sceVersion = "1.1.2"
 lazy val scalaMacrosVersion = "2.1.1"
 lazy val slf4jVersion = "1.7.25"
 lazy val circeVersion = "0.11.1"

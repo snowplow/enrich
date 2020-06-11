@@ -71,8 +71,7 @@ object EnrichmentManager {
     raw: RawEvent
   ): EitherT[F, BadRow, EnrichedEvent] =
     for {
-      enriched <- EitherT.rightT[F, BadRow](setupEnrichedEvent(raw, etlTstamp, processor))
-      _ <- EitherT.fromEither[F](Transform.transform(raw, enriched, processor))
+      enriched <- EitherT.fromEither[F](setupEnrichedEvent(raw, etlTstamp, processor))
       inputSDJs <- IgluUtils.extractAndValidateInputJsons(enriched, client, raw, processor)
       (inputContexts, unstructEvent) = inputSDJs
       enrichmentsContexts <- runEnrichments(
@@ -83,7 +82,6 @@ object EnrichmentManager {
         inputContexts,
         unstructEvent
       )
-      _ <- EitherT.fromEither[F](Transform.overrideTransform(raw, enriched, processor))
       _ <- IgluUtils
         .validateEnrichmentsContexts[F](client, enrichmentsContexts, raw, processor, enriched)
       _ <- EitherT.rightT[F, BadRow] {
@@ -114,15 +112,6 @@ object EnrichmentManager {
     inputContexts: List[SelfDescribingData[Json]],
     unstructEvent: Option[SelfDescribingData[Json]]
   ): EitherT[F, BadRow.EnrichmentFailures, List[SelfDescribingData[Json]]] = EitherT {
-    // Validate that the collectorTstamp exists and is Redshift-compatible
-    val collectorTstamp: Either[FailureDetails.EnrichmentFailure, Unit] =
-      setCollectorTstamp(enriched, raw.context.timestamp)
-
-    // Attempt to decode the useragent
-    // May be updated later if we have a `ua` parameter
-    val useragent: Either[FailureDetails.EnrichmentFailure, Unit] =
-      setUseragent(enriched, raw.context.useragent, raw.source.encoding)
-
     // The load fails if the collector version is not set
     val collectorVersionSet: Either[FailureDetails.EnrichmentFailure, Unit] =
       getCollectorVersionSet(enriched)
@@ -211,8 +200,6 @@ object EnrichmentManager {
     // Enrichments that don't run in a Monad
     val noMonadEnrichments: ValidatedNel[FailureDetails.EnrichmentFailure, Unit] =
       List(
-        collectorTstamp.toValidatedNel,
-        useragent.toValidatedNel,
         collectorVersionSet.toValidatedNel,
         pageUri.toValidatedNel,
         derivedTstamp.toValidatedNel,
@@ -299,7 +286,7 @@ object EnrichmentManager {
     raw: RawEvent,
     etlTstamp: DateTime,
     processor: Processor
-  ): EnrichedEvent = {
+  ): Either[BadRow.EnrichmentFailures, EnrichedEvent] = {
     val e = new EnrichedEvent()
     e.event_id = EE.generateEventId() // May be updated later if we have an `eid` parameter
     e.v_collector = raw.source.name // May be updated later if we have a `cv` parameter
@@ -310,7 +297,24 @@ object EnrichmentManager {
       .extractIp("user_ipaddress", raw.context.ipAddress.orNull)
       .toOption
       .orNull // May be updated later by 'ip'
-    e
+    // May be updated later if we have a `ua` parameter
+    val useragent = setUseragent(e, raw.context.useragent, raw.source.encoding).toValidatedNel
+    // Validate that the collectorTstamp exists and is Redshift-compatible
+    val collectorTstamp = setCollectorTstamp(e, raw.context.timestamp).toValidatedNel
+    // Map/validate/transform input fields to enriched event fields
+    val transformed = Transform.transform(raw, e)
+
+    (useragent |+| collectorTstamp |+| transformed)
+      .leftMap { enrichmentFailures =>
+        EnrichmentManager.buildEnrichmentFailuresBadRow(
+          enrichmentFailures,
+          EnrichedEvent.toPartiallyEnrichedEvent(e),
+          RawEvent.toRawEvent(raw),
+          processor
+        )
+      }
+      .as(e)
+      .toEither
   }
 
   def setCollectorTstamp(event: EnrichedEvent, timestamp: Option[DateTime]): Either[FailureDetails.EnrichmentFailure, Unit] =
@@ -329,7 +333,6 @@ object EnrichmentManager {
         CU.decodeString(Charset.forName(encoding), ua)
           .map { ua =>
             event.useragent = ua
-            ()
           }
           .leftMap(
             f =>

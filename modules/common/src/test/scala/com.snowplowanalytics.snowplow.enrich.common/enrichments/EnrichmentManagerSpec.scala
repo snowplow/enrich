@@ -11,6 +11,7 @@
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
 package com.snowplowanalytics.snowplow.enrich.common
+
 package enrichments
 
 import org.specs2.mutable.Specification
@@ -33,9 +34,10 @@ import adapters.RawEvent
 import utils.Clock._
 import utils.ConversionUtils
 import enrichments.registry.JavascriptScriptEnrichment
+import enrichments.registry.YauaaEnrichment
 
 class EnrichmentManagerSpec extends Specification with EitherMatchers {
-  val enrichmentReg = EnrichmentRegistry[Eval]()
+  val enrichmentReg = EnrichmentRegistry[Eval](yauaa = Some(YauaaEnrichment(None)))
   val client = SpecHelpers.client
   val processor = Processor("ssc-tests", "0.0.0")
   val timestamp = DateTime.now()
@@ -280,37 +282,13 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       enriched.value.value must beRight
     }
 
-    "have a preference of ua query parameter over UserAgent HTTP header" >> {
+    "have a preference of 'ua' query string parameter over user agent of HTTP header" >> {
+      val qs_ua = "Mozilla/5.0 (X11; Linux x86_64; rv:75.0) Gecko/20100101 Firefox/75.0"
       val parameters = Map(
-        "e" -> "ue",
+        "e" -> "pp",
         "tv" -> "js-0.13.1",
-        "ua" -> "queryparam-useragent",
-        "p" -> "web",
-        "co" -> """
-          {
-            "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
-            "data": [
-              {
-                "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
-                "data": {
-                  "emailAddress": "hello@world.com",
-                  "emailAddress2": "foo@bar.org"
-                }
-              }
-            ]
-          }
-        """,
-        "ue_pr" -> """
-          {
-            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
-            "data":{
-              "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
-              "data": {
-                "emailAddress": "hello@world.com",
-                "emailAddress2": "foo@bar.org"
-              }
-            }
-          }"""
+        "ua" -> qs_ua,
+        "p" -> "web"
       )
       val contextWithUa = context.copy(useragent = Some("header-useragent"))
       val rawEvent = RawEvent(api, parameters, None, source, contextWithUa)
@@ -321,39 +299,15 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         timestamp,
         rawEvent
       )
-      enriched.value.value.map(_.useragent) must beRight("queryparam-useragent")
+      enriched.value.value.map(_.useragent) must beRight(qs_ua)
+      enriched.value.value.map(_.derived_contexts) must beRight((_: String).contains("\"agentName\":\"Firefox\""))
     }
 
-    "use Useragent HTTP Header if ua query parameter is not set" >> {
+    "use user agent of HTTP header if 'ua' query string parameter is not set" >> {
       val parameters = Map(
-        "e" -> "ue",
+        "e" -> "pp",
         "tv" -> "js-0.13.1",
-        "p" -> "web",
-        "co" -> """
-          {
-            "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
-            "data": [
-              {
-                "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
-                "data": {
-                  "emailAddress": "hello@world.com",
-                  "emailAddress2": "foo@bar.org"
-                }
-              }
-            ]
-          }
-        """,
-        "ue_pr" -> """
-          {
-            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
-            "data":{
-              "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
-              "data": {
-                "emailAddress": "hello@world.com",
-                "emailAddress2": "foo@bar.org"
-              }
-            }
-          }"""
+        "p" -> "web"
       )
       val contextWithUa = context.copy(useragent = Some("header-useragent"))
       val rawEvent = RawEvent(api, parameters, None, source, contextWithUa)

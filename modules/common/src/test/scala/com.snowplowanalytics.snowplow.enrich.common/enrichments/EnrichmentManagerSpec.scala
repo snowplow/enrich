@@ -233,10 +233,10 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
                 Nil
               )
             ),
-            _
-            ) =>
+            payload
+            ) if payload.enriched.derived_contexts.isDefined =>
           ok
-        case br => ko(s"bad row [$br] is not an EnrichmentFailures containing one IgluError")
+        case br => ko(s"bad row [$br] is not an EnrichmentFailures containing one IgluError and with derived_contexts defined")
       }
     }
 

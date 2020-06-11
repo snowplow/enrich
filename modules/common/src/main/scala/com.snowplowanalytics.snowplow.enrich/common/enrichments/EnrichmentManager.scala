@@ -82,12 +82,12 @@ object EnrichmentManager {
         inputContexts,
         unstructEvent
       )
-      _ <- IgluUtils
-        .validateEnrichmentsContexts[F](client, enrichmentsContexts, raw, processor, enriched)
       _ <- EitherT.rightT[F, BadRow] {
         if (enrichmentsContexts.nonEmpty)
           enriched.derived_contexts = ME.formatDerivedContexts(enrichmentsContexts)
       }
+      _ <- IgluUtils
+        .validateEnrichmentsContexts[F](client, enrichmentsContexts, raw, processor, enriched)
       _ <- EitherT.rightT[F, BadRow](
         anonIp(enriched, registry.anonIp).foreach(enriched.user_ipaddress = _)
       )

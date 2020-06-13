@@ -20,24 +20,25 @@ import Keys._
 
 import bintray.BintrayPlugin._
 import bintray.BintrayKeys._
+
+import com.typesafe.sbt.SbtNativePackager.autoImport._
+import com.typesafe.sbt.packager.linux.LinuxPlugin.autoImport._
+import com.typesafe.sbt.packager.docker.DockerPlugin.autoImport._
+
 import org.scalafmt.sbt.ScalafmtPlugin.autoImport._
 
 object BuildSettings {
 
-  // Basic settings for our app
+  /** Common base settings */
   lazy val basicSettings = Seq(
     organization          :=  "com.snowplowanalytics",
     scalaVersion          :=  "2.12.10",
-    javacOptions          :=  javaCompilerOptions,
+    version               :=  "1.3.0",
+    javacOptions          :=  Seq("-source", "1.8", "-target", "1.8"),
     resolvers             ++= Dependencies.resolutionRepos
   )
 
-  lazy val javaCompilerOptions = Seq(
-    "-source", "1.8",
-    "-target", "1.8"
-  )
-
-  // Makes our SBT app settings available from within the ETL
+  /** Custom sbt-buildinfo replacement, used by SCE only */
   lazy val scalifySettings = Seq(
     sourceGenerators in Compile += Def.task {
       val file = (sourceManaged in Compile).value / "settings.scala"
@@ -53,8 +54,7 @@ object BuildSettings {
     }.taskValue
   )
 
-  lazy val buildSettings = basicSettings ++ scalifySettings
-
+  /** Snowplow Common Enrich Maven publishing settings */
   lazy val publishSettings = bintraySettings ++ Seq(
     publishMavenStyle := true,
     publishArtifact := true,
@@ -81,4 +81,38 @@ object BuildSettings {
     scalafmtConfig    := file(".scalafmt.conf"),
     scalafmtOnCompile := true
   )
+
+  /** Fork a JVM per test in order to not reuse enrichment registries */
+  def oneJVMPerTest(tests: Seq[TestDefinition]): Seq[Tests.Group] =
+    tests.map(t => Tests.Group(t.name, Seq(t), Tests.SubProcess(ForkOptions())))
+
+  /** sbt-assembly settings for building a fat jar */
+  import sbtassembly.AssemblyPlugin.autoImport._
+  lazy val sbtAssemblySettings = Seq(
+    assemblyJarName in assembly := { s"${moduleName.value}-${version.value}.jar" },
+    assemblyMergeStrategy in assembly := {
+      case x if x.endsWith("ProjectSettings$.class") => MergeStrategy.first
+      case x if x.endsWith("module-info.class") => MergeStrategy.first
+      case x =>
+        val oldStrategy = (assemblyMergeStrategy in assembly).value
+        oldStrategy(x)
+    }
+  )
+
+  /** Add example config for integration tests */
+  lazy val addExampleConfToTestCp = Seq(
+    unmanagedClasspath in Test += {
+      baseDirectory.value.getParentFile.getParentFile / "config"
+    }
+  )
+
+  lazy val dockerSettings = Seq(
+    maintainer in Docker := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
+    dockerBaseImage := "snowplow-docker-registry.bintray.io/snowplow/base-debian:0.1.0",
+    daemonUser in Docker := "snowplow",
+    daemonUserUid in Docker := None,
+    defaultLinuxInstallLocation in Docker := "/home/snowplow", // must be home directory of daemonUser
+    dockerUpdateLatest := true
+  )
+
 }

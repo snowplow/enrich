@@ -8,7 +8,7 @@ The best place to ask general questions or ask for community support is
 
 -->
 
-**Project**: <!-- e.g. Stream Enrich, Scala Stream Collector -->
+**Project**: <!-- e.g. Common, Stream Enrich, Beam Enrich -->
 
 **Version**:
 

@@ -31,6 +31,7 @@ lazy val common = project
   .settings(BuildSettings.basicSettings)
   .settings(BuildSettings.scalifySettings)
   .settings(BuildSettings.publishSettings)
+  .settings(BuildSettings.scoverageSettings)
   .settings(parallelExecution in Test := false)
   .settings(
     libraryDependencies ++= Seq(
@@ -69,7 +70,7 @@ lazy val common = project
 
 lazy val allStreamSettings = BuildSettings.basicSettings ++ BuildSettings.sbtAssemblySettings ++
   BuildSettings.dockerSettings ++ BuildSettings.formatting ++
-  Seq(libraryDependencies := Seq(
+  Seq(libraryDependencies ++= Seq(
     Dependencies.Libraries.config,
     Dependencies.Libraries.sentry,
     Dependencies.Libraries.slf4j,
@@ -87,6 +88,8 @@ lazy val stream = project
   .in(file("modules/stream"))
   .settings(allStreamSettings)
   .settings(moduleName := "snowplow-stream-enrich")
+  .settings(BuildSettings.scoverageSettings)
+  .settings(coverageMinimum := 20)
   .enablePlugins(BuildInfoPlugin)
   .settings(
     buildInfoKeys := Seq[BuildInfoKey](organization, name, version, "commonEnrichVersion" -> version.value),
@@ -111,8 +114,10 @@ lazy val kinesis = project
 lazy val kafka = project
   .in(file("modules/kafka"))
   .settings(moduleName := "snowplow-stream-enrich-kafka")
-  .settings(packageName in Docker := "snowplow/stream-enrich-kafka")
   .settings(allStreamSettings)
+  .settings(
+    packageName in Docker := "snowplow/stream-enrich-kafka",
+  )
   .settings(libraryDependencies ++= Seq(
     Dependencies.Libraries.kafkaClients
   ))
@@ -123,15 +128,19 @@ lazy val nsq = project
   .in(file("modules/nsq"))
   .settings(moduleName := "snowplow-stream-enrich-nsq")
   .settings(allStreamSettings)
-  .settings(packageName in Docker := "snowplow/stream-enrich-nsq")
+  .settings(
+    packageName in Docker := "snowplow/stream-enrich-nsq",
+  )
   .settings(libraryDependencies ++= Seq(Dependencies.Libraries.nsqClient))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
   .dependsOn(stream)
 
 lazy val stdin = project
   .in(file("modules/stdin"))
-  .settings(moduleName := "snowplow-stream-enrich-stdin")
   .settings(allStreamSettings)
+  .settings(
+    moduleName := "snowplow-stream-enrich-stdin",
+  )
   .dependsOn(stream)
 
 lazy val beam =
@@ -141,6 +150,7 @@ lazy val beam =
     .settings(BuildSettings.basicSettings)
     .settings(BuildSettings.dataflowDockerSettings)
     .settings(BuildSettings.formatting)
+    .settings(BuildSettings.scoverageSettings)
     .settings(
       name := "beam-enrich",
       description := "Streaming enrich job written using SCIO",

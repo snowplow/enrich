@@ -77,4 +77,5 @@ class AuthHandler(SimpleHTTPRequestHandler):
 
 
 if __name__ == '__main__':
+    print("Starting mock webserver")
     BaseHTTPServer.test(AuthHandler, BaseHTTPServer.HTTPServer)

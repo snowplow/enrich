@@ -37,7 +37,7 @@ jobs:
       env:
         PGPASSWORD: supersecret1
     - name: Run tests
-      run: sbt +test
+      run: sbt coverage +test coverageReport
       env:
         OER_KEY: ${{ secrets.OER_KEY }}
     - name: Aggregate coverage data

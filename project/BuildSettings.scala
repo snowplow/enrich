@@ -26,6 +26,8 @@ import com.typesafe.sbt.packager.linux.LinuxPlugin.autoImport._
 import com.typesafe.sbt.packager.docker.DockerPlugin.autoImport._
 import com.typesafe.sbt.packager.docker.{ ExecCmd, DockerPermissionStrategy }
 
+import scoverage.ScoverageKeys._
+
 import org.scalafmt.sbt.ScalafmtPlugin.autoImport._
 
 object BuildSettings {
@@ -81,6 +83,14 @@ object BuildSettings {
   lazy val formatting = Seq(
     scalafmtConfig    := file(".scalafmt.conf"),
     scalafmtOnCompile := true
+  )
+
+  lazy val scoverageSettings = Seq(
+    coverageMinimum := 50,
+    coverageFailOnMinimum := false,
+    (test in Test) := {
+      (coverageReport dependsOn (test in Test)).value
+    }
   )
 
   /** Fork a JVM per test in order to not reuse enrichment registries */

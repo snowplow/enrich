@@ -178,7 +178,7 @@ class SqlQueryEnrichmentIntegrationTest extends Specification {
             }
           },
           "query": {
-            "sql": "SELECT city, country, pk FROM enrichment_test WHERE city = ? AND date_time = ? AND name = ? AND speed = ? AND aux = ?;"
+            "sql": "SELECT city, country, pk FROM sce_enrichment_test WHERE city = ? AND date_time = ? AND name = ? AND speed = ? AND aux = ?;"
           },
           "output": {
             "expectedRows": "AT_MOST_ONE",

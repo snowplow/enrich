@@ -1,0 +1,96 @@
+name: Test
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: enricher
+          POSTGRES_PASSWORD: supersecret1
+          POSTGRES_DB: sql_enrichment_test
+          POSTGRES_PORT: 5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up JDK 1.8
+      uses: actions/setup-java@v1
+      with:
+        java-version: 1.8
+    - name: Prepare Mock server for SCE ApiRequestEnrichmentIntegrationTest (launch in background)
+      run: python integration-tests/sce-api-lookup-test.py 8001 &
+    - name: Prepare Postgres for SCE SqlLookupEnrichmentIntegrationTest (create entities)
+      run: psql -h localhost -p 5432 -U enricher -d sql_enrichment_test < integration-tests/sce-sql-enrichment-test.sql
+      env:
+        PGPASSWORD: supersecret1
+    - name: Prepare Mock server for BE ApiRequestEnrichmentIntegrationTest (launch in background)
+      run: python integration-tests/beam-api-lookup-test.py &
+    - name: Prepare Postgres for BE SqlLookupEnrichmentIntegrationTest (create entities)
+      run: psql -h localhost -p 5432 -U enricher -d sql_enrichment_test < integration-tests/beam-sql-enrichment-test.sql
+      env:
+        PGPASSWORD: supersecret1
+    - name: Run tests
+      run: sbt +test
+      env:
+        OER_KEY: ${{ secrets.OER_KEY }}
+    - name: Aggregate coverage data
+      if: ${{ always() }}
+      run: sbt coverageAggregate
+    - name: Submit coveralls data
+      if: ${{ always() }}
+      run: sbt coveralls
+      env:
+        COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
+
+  deploy:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up JDK 1.8
+      uses: actions/setup-java@v1
+      with:
+        java-version: 1.8
+    - name: Compare SBT version with git tag
+      run: .github/check_tag.sh ${GITHUB_REF##*/}
+    - name: Docker login
+      run: docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+      env:
+        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+    - name: Build and publish Beam Docker images
+      run: sbt "project beam" docker:publish
+    - name: Build and publish Stream Kinesis Docker image
+      run: sbt "project kinesis" docker:publish
+    - name: Build and publish Stream Kafka Docker image
+      run: sbt "project kafka" docker:publish
+    - name: Build and publish Stream NSQ Docker images
+      run: sbt "project nsq" docker:publish
+
+  deploy_sce:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up JDK 1.8
+      uses: actions/setup-java@v1
+      with:
+        java-version: 1.8
+    - name: Compare SBT version with git tag
+      run: .github/check_tag.sh ${GITHUB_REF##*/}
+    - name: Deploy SCE on Bintray Maven and Maven Central
+      run: .github/deploy_sce.sh
+      env:
+        SONA_USER: snowplow
+        SONA_PASS: ${{ secrets.SONA_PASS }}
+        BINTRAY_SNOWPLOW_MAVEN_USER: ${{ secrets.BINTRAY_SNOWPLOW_MAVEN_USER }}
+        BINTRAY_SNOWPLOW_MAVEN_API_KEY: ${{ secrets.BINTRAY_SNOWPLOW_MAVEN_API_KEY }}

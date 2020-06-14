@@ -1,3 +1,7 @@
+[![License][license-image]][license]
+[![Coverage Status][coveralls-image]][coveralls]
+[![Test][test-image]][test]
+
 # Snowplow Enrich
 
 Snowplow Enrich is a set of applications and libraries for processing raw Snowplow events into validated and enriched Snowplow events, ready for loading into [Storage][storage].
@@ -41,5 +45,11 @@ limitations under the License.
 [roadmap]: https://github.com/snowplow/enrich/issues
 [contributing]: https://github.com/snowplow/snowplow/wiki/Contributing
 
-[license]: http://www.apache.org/licenses/LICENSE-2.0
+[test]: https://github.com/snowplow/enrich/actions?query=workflow%3ATest
+[test-image]: https://github.com/snowplow/enrich/workflows/Test/badge.svg
 
+[license]: http://www.apache.org/licenses/LICENSE-2.0
+[license-image]: http://img.shields.io/badge/license-Apache--2-blue.svg?style=flat
+
+[coveralls]: https://coveralls.io/github/snowplow/enrich?branch=master
+[coveralls-image]: https://coveralls.io/repos/github/snowplow/enrich/badge.svg?branch=master

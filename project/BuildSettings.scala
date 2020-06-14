@@ -26,6 +26,8 @@ import com.typesafe.sbt.packager.linux.LinuxPlugin.autoImport._
 import com.typesafe.sbt.packager.docker.DockerPlugin.autoImport._
 import com.typesafe.sbt.packager.docker.{ ExecCmd, DockerPermissionStrategy }
 
+import scoverage.ScoverageKeys._
+
 import org.scalafmt.sbt.ScalafmtPlugin.autoImport._
 
 object BuildSettings {

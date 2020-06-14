@@ -65,7 +65,7 @@ class ApiRequestEnrichmentIntegrationTest extends Specification {
         "api": {
           "http": {
             "method": "GET",
-            "uri": "http://localhost:8000/guest/api/{{client}}/{{user}}?format=json",
+            "uri": "http://localhost:8001/guest/api/{{client}}/{{user}}?format=json",
            "timeout": 5000,
             "authentication": {}
           }

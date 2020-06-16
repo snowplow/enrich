@@ -35,7 +35,7 @@ object BuildSettings {
   /** Common base settings */
   lazy val basicSettings = Seq(
     organization          :=  "com.snowplowanalytics",
-    scalaVersion          :=  "2.12.10",
+    scalaVersion          :=  "2.12.11",
     version               :=  "1.3.0",
     javacOptions          :=  Seq("-source", "1.8", "-target", "1.8"),
     resolvers             ++= Dependencies.resolutionRepos

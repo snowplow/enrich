@@ -13,8 +13,6 @@
 package com.snowplowanalytics.snowplow.enrich.common
 package enrichments.registry
 
-import scala.util.control.NonFatal
-
 import cats.data.{NonEmptyList, ValidatedNel}
 import cats.implicits._
 
@@ -23,7 +21,7 @@ import com.snowplowanalytics.iglu.core.circe.implicits._
 
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
-import org.mozilla.javascript._
+import javax.script._
 
 import io.circe._
 import io.circe.parser._
@@ -55,130 +53,73 @@ object JavascriptScriptEnrichment extends ParseableEnrichment {
     (for {
       _ <- isParseable(c, schemaKey)
       encoded <- CirceUtils.extract[String](c, "parameters", "script").toEither
-      raw <- ConversionUtils.decodeBase64Url(encoded) // script
-      compiled <- compile(raw)
-    } yield JavascriptScriptConf(schemaKey, compiled)).toValidatedNel
-
-  object Variables {
-    private val prefix = "$snowplow31337" // To avoid collisions
-    val In = s"${prefix}In"
-    val Out = s"${prefix}Out"
-  }
-
-  /**
-   * Appends an invocation to the script and then attempts to compile it.
-   * @param script the JavaScript process() function as a String
-   */
-  private[registry] def compile(script: String): Either[String, Script] =
-    Option(script) match {
-      case Some(s) =>
-        val invoke =
-          s"""|// User-supplied script
-              |$s
-              |
-              |// Immediately invoke using reserved args
-              |var ${Variables.Out} = JSON.stringify(process(${Variables.In}));
-              |
-              |// Don't return anything
-              |null;
-              |""".stripMargin
-
-        val cx = Context.enter()
-        Either
-          .catchNonFatal(cx.compileString(invoke, "user-defined-script", 0, null))
-          .leftMap(e => s"Error compiling JavaScript script: [${e.getMessage}]")
-      case None => "JavaScript script for evaluation is null".asLeft
-    }
+      script <- ConversionUtils.decodeBase64Url(encoded)
+      _ <- if (script.isEmpty) Left("Provided script for JS enrichment is empty") else Right(())
+    } yield JavascriptScriptConf(schemaKey, script)).toValidatedNel
 }
 
-/**
- * Config for an JavaScript script enrichment
- * @param script The compiled script ready for
- */
-final case class JavascriptScriptEnrichment(schemaKey: SchemaKey, script: Script) extends Enrichment {
+final case class JavascriptScriptEnrichment(schemaKey: SchemaKey, rawFunction: String) extends Enrichment {
   private val enrichmentInfo =
-    FailureDetails.EnrichmentInformation(schemaKey, "javascript-script").some
+    FailureDetails.EnrichmentInformation(schemaKey, "Javascript enrichment").some
+
+  private val engine = new ScriptEngineManager(null)
+    .getEngineByMimeType("text/javascript")
+    .asInstanceOf[ScriptEngine with Invocable with Compilable]
+
+  private val stringified = rawFunction + """
+    function getJavascriptContexts(event) {
+      return JSON.stringify(process(event));
+    }
+    """
+
+  private val invocable =
+    Either
+      .catchNonFatal(engine.compile(stringified).eval())
+      .leftMap(e => s"Error compiling JavaScript function: [${e.getMessage}]")
 
   /**
-   * Run the process function as stored in the CompiledScript against the supplied EnrichedEvent.
-   * @param event The enriched event to pass into our process function
+   * Run the process function from the Javascript configuration on the supplied EnrichedEvent.
+   * @param event The enriched event to pass into our process function.
+   *              The event can be updated in-place by the JS function.
    * @return either a JSON array of contexts on Success, or an error String on Failure
    */
   def process(event: EnrichedEvent): Either[FailureDetails.EnrichmentFailure, List[SelfDescribingData[Json]]] =
-    process(script, event)
-
-  import JavascriptScriptEnrichment.Variables
-
-  /**
-   * Run the process function as stored in the CompiledScript against the supplied EnrichedEvent.
-   * @param script the JavaScript process() function as a CompiledScript
-   * @param event The enriched event to pass into our process function
-   * @return a Validation boxing either a JSON array of contexts, or an error String
-   */
-  private[registry] def process(
-    script: Script,
-    event: EnrichedEvent
-  ): Either[FailureDetails.EnrichmentFailure, List[SelfDescribingData[Json]]] = {
-    val cx = Context.enter()
-    val scope = cx.initStandardObjects
-
-    val scriptExec = try {
-      scope.put(Variables.In, scope, Context.javaToJS(event, scope))
-      val retVal = script.exec(cx, scope)
-      if (Option(retVal).isDefined) {
-        val msg = s"Evaluated JavaScript script should not return a value; returned: [$retVal]"
-        FailureDetails.EnrichmentFailureMessage.Simple(msg).asLeft
-      } else {
-        ().asRight
-      }
-    } catch {
-      case NonFatal(nf) =>
-        val msg = s"Evaluating JavaScript script threw an exception: [$nf]"
-        FailureDetails.EnrichmentFailureMessage.Simple(msg).asLeft
-    } finally {
-      Context.exit()
-    }
-
-    scriptExec
-      .flatMap { _ =>
-        Option(scope.get(Variables.Out)) match {
-          case None => Nil.asRight
-          case Some(obj) =>
-            parse(obj.asInstanceOf[String]) match {
-              case Right(js) =>
-                js.asArray match {
-                  case Some(array) =>
-                    array
-                      .parTraverse(
-                        json =>
-                          SelfDescribingData
-                            .parse(json)
-                            .leftMap(error => (error, json))
-                            .leftMap(NonEmptyList.one)
-                      )
-                      .map(_.toList)
-                      .leftMap { s =>
-                        val msg = s.toList.map {
-                          case (error, json) => s"${json.noSpaces}. ${error.code}"
-                        }.mkString
-                        FailureDetails.EnrichmentFailureMessage.Simple(
-                          s"Resulting contexts are not self-desribing: $msg"
-                        )
-                      }
-                  case None =>
-                    val msg = s"JavaScript script must return an Array; got [$obj]"
-                    FailureDetails.EnrichmentFailureMessage
-                      .Simple(msg)
-                      .asLeft
-                }
-              case Left(e) =>
-                val msg = "Could not convert object returned from JavaScript script to Json: " +
-                  s"[${e.getMessage}]"
-                FailureDetails.EnrichmentFailureMessage.Simple(msg).asLeft
-            }
-        }
-      }
-      .leftMap(FailureDetails.EnrichmentFailure(enrichmentInfo, _))
-  }
-
+    invocable
+      .flatMap(
+        _ =>
+          Either
+            .catchNonFatal(engine.invokeFunction("getJavascriptContexts", event).asInstanceOf[String])
+            .leftMap(e => s"Error during execution of JavaScript function: [${e.getMessage}]")
+      )
+      .flatMap(
+        contexts =>
+          parse(contexts) match {
+            case Right(json) =>
+              json.asArray match {
+                case Some(array) =>
+                  array
+                    .parTraverse(
+                      json =>
+                        SelfDescribingData
+                          .parse(json)
+                          .leftMap(error => (error, json))
+                          .leftMap(NonEmptyList.one)
+                    )
+                    .map(_.toList)
+                    .leftMap { s =>
+                      val msg = s.toList
+                        .map {
+                          case (error, json) => s"error code:[${error.code}],json:[${json.noSpaces}]"
+                        }
+                        .mkString(";")
+                      s"Resulting contexts are not self-desribing. Error(s): [$msg]"
+                    }
+                case None =>
+                  Left(s"Output of JavaScript function [$json] could be parsed as JSON but is not read as an array")
+              }
+            case Left(err) =>
+              Left(s"Could not parse output JSON of Javascript function. Error: [${err.getMessage}]")
+          }
+      )
+      .leftMap(errorMsg => FailureDetails.EnrichmentFailure(enrichmentInfo, FailureDetails.EnrichmentFailureMessage.Simple(errorMsg)))
 }

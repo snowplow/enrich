@@ -45,7 +45,6 @@ lazy val common = project
       Dependencies.Libraries.jaywayJsonpath,
       Dependencies.Libraries.iabClient,
       Dependencies.Libraries.yauaa,
-      Dependencies.Libraries.rhino,
       Dependencies.Libraries.guava,
       Dependencies.Libraries.circeOptics,
       Dependencies.Libraries.circeJackson,

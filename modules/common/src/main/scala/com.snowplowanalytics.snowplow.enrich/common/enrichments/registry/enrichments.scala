@@ -26,7 +26,6 @@ import com.snowplowanalytics.refererparser.CreateParser
 import com.snowplowanalytics.weather.providers.openweather.CreateOWM
 import io.circe._
 import org.joda.money.CurrencyUnit
-import org.mozilla.javascript.Script
 
 import apirequest._
 import sqlquery._
@@ -134,8 +133,8 @@ final case class IpLookupsConf(
   def enrichment[F[_]: Functor: CreateIpLookups]: F[IpLookupsEnrichment[F]] =
     IpLookupsEnrichment[F](this)
 }
-final case class JavascriptScriptConf(override val schemaKey: SchemaKey, script: Script) extends EnrichmentConf {
-  def enrichment: JavascriptScriptEnrichment = JavascriptScriptEnrichment(schemaKey, script)
+final case class JavascriptScriptConf(override val schemaKey: SchemaKey, rawFunction: String) extends EnrichmentConf {
+  def enrichment: JavascriptScriptEnrichment = JavascriptScriptEnrichment(schemaKey, rawFunction)
 }
 final case class RefererParserConf(refererDatabase: (URI, String), internalDomains: List[String]) extends EnrichmentConf {
   override val filesToCache: List[(URI, String)] = List(refererDatabase)

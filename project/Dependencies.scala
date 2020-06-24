@@ -40,7 +40,6 @@ object Dependencies {
     val iabClient        = "0.1.0"
     val yauaa            = "5.8"
     val guava            = "28.1-jre" //used only for InetAddress (because it doesn't do dns lookup)
-    val rhino            = "1.7.10"
     val slf4j            = "1.7.26"
 
     val refererParser    = "1.0.0"
@@ -93,7 +92,6 @@ object Dependencies {
     val jaywayJsonpath   = "com.jayway.jsonpath"        %  "json-path"                     % V.jaywayJsonpath
     val yauaa            = "nl.basjes.parse.useragent"  %  "yauaa"                         % V.yauaa
     val guava            = "com.google.guava"           %  "guava"                         % V.guava
-    val rhino            = "org.mozilla"                %  "rhino"                         % V.rhino
 
     val circeCore        = "io.circe"                   %% "circe-core"                    % V.circe
     val circeGeneric     = "io.circe"                   %% "circe-generic"                 % V.circe

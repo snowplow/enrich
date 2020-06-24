@@ -141,7 +141,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       )
       val jsEnrichConf =
         JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
-      val jsEnrich = JavascriptScriptEnrichment(jsEnrichConf.schemaKey, jsEnrichConf.script)
+      val jsEnrich = JavascriptScriptEnrichment(jsEnrichConf.schemaKey, jsEnrichConf.rawFunction)
       val enrichmentReg = EnrichmentRegistry[Eval](javascriptScript = Some(jsEnrich))
 
       val parameters = Map(
@@ -204,7 +204,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       )
       val jsEnrichConf =
         JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
-      val jsEnrich = JavascriptScriptEnrichment(jsEnrichConf.schemaKey, jsEnrichConf.script)
+      val jsEnrich = JavascriptScriptEnrichment(jsEnrichConf.schemaKey, jsEnrichConf.rawFunction)
       val enrichmentReg = EnrichmentRegistry[Eval](javascriptScript = Some(jsEnrich))
 
       val parameters = Map(

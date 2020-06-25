@@ -20,9 +20,7 @@ import java.net.InetSocketAddress
 
 import cats.syntax.either._
 import cats.syntax.option._
-import com.snowplowanalytics.snowplow.CollectorPayload.thrift.model1.{
-  CollectorPayload => CollectorPayload1
-}
+import com.snowplowanalytics.snowplow.CollectorPayload.thrift.model1.{CollectorPayload => CollectorPayload1}
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
 import io.circe.generic.auto._
 import io.circe.parser._

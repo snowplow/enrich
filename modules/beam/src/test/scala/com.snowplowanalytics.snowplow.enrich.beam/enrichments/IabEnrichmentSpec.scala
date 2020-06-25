@@ -28,8 +28,7 @@ object IabEnrichmentSpec {
     SpecHelpers.buildCollectorPayload(
       path = "/i",
       querystring = "e=pp".some,
-      userAgent =
-        "Mozilla/5.0%20(Windows%20NT%206.1;%20WOW64;%20rv:12.0)%20Gecko/20100101%20Firefox/12.0".some,
+      userAgent = "Mozilla/5.0%20(Windows%20NT%206.1;%20WOW64;%20rv:12.0)%20Gecko/20100101%20Firefox/12.0".some,
       ipAddress = "216.160.83.56",
       networkUserId = "11111111-1111-1111-1111-111111111111"
     ),

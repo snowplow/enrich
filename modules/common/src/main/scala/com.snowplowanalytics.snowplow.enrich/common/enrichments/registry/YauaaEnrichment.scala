@@ -57,11 +57,12 @@ object YauaaEnrichment extends ParseableEnrichment {
     } yield YauaaConf(cacheSize)).toValidatedNel
 
   /** Helper to decapitalize a string. Used for the names of the fields returned in the context. */
-  def decapitalize(s: String): String = s match {
-    case _ if s.isEmpty => s
-    case _ if s.length == 1 => s.toLowerCase
-    case _ => s.charAt(0).toLower + s.substring(1)
-  }
+  def decapitalize(s: String): String =
+    s match {
+      case _ if s.isEmpty => s
+      case _ if s.length == 1 => s.toLowerCase
+      case _ => s.charAt(0).toLower + s.substring(1)
+    }
 }
 
 /**
@@ -93,7 +94,8 @@ final case class YauaaEnrichment(cacheSize: Option[Int]) extends Enrichment {
   def getYauaaContext(userAgent: String): SelfDescribingData[Json] =
     SelfDescribingData(outputSchema, parseUserAgent(userAgent).asJson)
 
-  /** Gets the map of attributes retrieved by YAUAA from the user agent.
+  /**
+   * Gets the map of attributes retrieved by YAUAA from the user agent.
    * @return Map with all the fields extracted by YAUAA by parsing the user agent.
    *         If the input is null or empty, a map with just the DeviceClass set to Unknown is returned.
    */

@@ -63,8 +63,8 @@ object serializers {
         for {
           function <- c.downField("pseudonymize").get[String]("hashFunction")
           hashFn <- PiiPseudonymizerEnrichment
-            .getHashFunction(function)
-            .leftMap(DecodingFailure(_, List.empty))
+                      .getHashFunction(function)
+                      .leftMap(DecodingFailure(_, List.empty))
           salt <- c.downField("pseudonymize").get[String]("salt")
         } yield PiiStrategyPseudonymize(function, hashFn, salt)
     }

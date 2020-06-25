@@ -81,12 +81,12 @@ object ThriftLoader extends Loader[Array[Byte]] {
     val collectorPayload =
       try {
         val schema = new SchemaSniffer()
-        this.synchronized { thriftDeserializer.deserialize(schema, line) }
+        this.synchronized(thriftDeserializer.deserialize(schema, line))
         if (schema.isSetSchema) {
           val payload = for {
             schemaKey <- SchemaKey.fromUri(schema.getSchema).leftMap(collectorPayloadViolation)
             collectorPayload <- if (ExpectedSchema.matches(schemaKey)) convertSchema1(line).toEither
-            else collectorPayloadViolation(schemaKey).asLeft
+                                else collectorPayloadViolation(schemaKey).asLeft
           } yield collectorPayload
           payload.toValidated
         } else convertOldSchema(line)
@@ -211,7 +211,5 @@ object ThriftLoader extends Loader[Array[Byte]] {
   private def parseNetworkUserId(str: String): Either[FailureDetails.CPFormatViolationMessage, UUID] =
     Either
       .catchOnly[IllegalArgumentException](UUID.fromString(str))
-      .leftMap(
-        _ => CPFormatViolationMessage.InputData("networkUserId", Some(str), "not valid UUID")
-      )
+      .leftMap(_ => CPFormatViolationMessage.InputData("networkUserId", Some(str), "not valid UUID"))
 }

@@ -296,7 +296,8 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
         Shared.cljSource,
         Shared.context
       )
-      val expectedJson = "{\"schema\":\"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0\",\"data\":{\"schema\":\"" + expected + "\",\"data\":{}}}"
+      val expectedJson =
+        "{\"schema\":\"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0\",\"data\":{\"schema\":\"" + expected + "\",\"data\":{}}}"
       val actual = VeroAdapter.toRawEvents(payload, SpecHelpers.client).value
       actual must beValid(
         NonEmptyList.one(

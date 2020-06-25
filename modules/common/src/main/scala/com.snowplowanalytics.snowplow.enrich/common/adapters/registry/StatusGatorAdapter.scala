@@ -69,7 +69,7 @@ object StatusGatorAdapter extends Adapter {
           "empty body: no events to process"
         )
         Monad[F].pure(failure.invalidNel)
-      case (Some(body), _) if (body.isEmpty) =>
+      case (Some(body), _) if body.isEmpty =>
         val failure = FailureDetails.AdapterFailure.InputData(
           "body",
           none,

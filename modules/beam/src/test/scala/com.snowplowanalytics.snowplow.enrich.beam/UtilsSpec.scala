@@ -146,7 +146,7 @@ class UtilsSpec extends AnyFreeSpec with Matchers {
           e.pii = "pii"
           e
         }
-        tabSeparatedEnrichedEvent(event) should not include ("pii")
+        tabSeparatedEnrichedEvent(event) should not include "pii"
       }
     }
     "make a getPii function available" - {

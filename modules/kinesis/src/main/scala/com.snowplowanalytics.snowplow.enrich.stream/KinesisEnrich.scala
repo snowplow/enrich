@@ -56,36 +56,36 @@ object KinesisEnrich extends Enrich {
       config <- parseConfig(args)
       (enrichConfig, resolverArg, enrichmentsArg, forceDownload) = config
       credsWithRegion <- enrichConfig.streams.sourceSink match {
-        case k: Kinesis =>
-          (
-            DualCloudCredentialsPair(k.aws, k.gcp.fold[Credentials](NoCredentials)(identity)),
-            k.region
-          ).asRight
-        case _ => "Configured source/sink is not Kinesis".asLeft
-      }
+                           case k: Kinesis =>
+                             (
+                               DualCloudCredentialsPair(k.aws, k.gcp.fold[Credentials](NoCredentials)(identity)),
+                               k.region
+                             ).asRight
+                           case _ => "Configured source/sink is not Kinesis".asLeft
+                         }
       (credentials, awsRegion) = credsWithRegion
       client <- parseClient(resolverArg)(credsWithRegion._1.aws)
       enrichmentsConf <- parseEnrichmentRegistry(enrichmentsArg, client)(credsWithRegion._1.aws)
       _ <- cacheFiles(
-        enrichmentsConf,
-        forceDownload,
-        credentials.aws,
-        credentials.gcp,
-        Option(awsRegion)
-      )
+             enrichmentsConf,
+             forceDownload,
+             credentials.aws,
+             credentials.gcp,
+             Option(awsRegion)
+           )
       enrichmentRegistry <- EnrichmentRegistry.build[Id](enrichmentsConf).value
       tracker = enrichConfig.monitoring.map(c => SnowplowTracking.initializeTracker(c.snowplow))
       adapterRegistry = new AdapterRegistry(prepareRemoteAdapters(enrichConfig.remoteAdapters))
       processor = Processor(generated.BuildInfo.name, generated.BuildInfo.version)
       source <- getSource(
-        enrichConfig.streams,
-        enrichConfig.sentry,
-        client,
-        adapterRegistry,
-        enrichmentRegistry,
-        tracker,
-        processor
-      )
+                  enrichConfig.streams,
+                  enrichConfig.sentry,
+                  client,
+                  adapterRegistry,
+                  enrichmentRegistry,
+                  tracker,
+                  processor
+                )
     } yield (tracker, source)
 
     trackerSource match {
@@ -182,11 +182,11 @@ object KinesisEnrich extends Enrich {
     for {
       // getTable doesn't involve any IO apparently so it's safe to chain
       item <- Option(dynamoDB.getTable(table).getItem("id", key))
-        .fold(s"Key $key doesn't exist in DynamoDB table $table".asLeft[Item])(_.asRight[String])
+                .fold(s"Key $key doesn't exist in DynamoDB table $table".asLeft[Item])(_.asRight[String])
       json <- Option(item.getString("json"))
-        .fold(s"""Field "json" not found at key $key in DynamoDB table $table""".asLeft[String])(
-          _.asRight[String]
-        )
+                .fold(s"""Field "json" not found at key $key in DynamoDB table $table""".asLeft[String])(
+                  _.asRight[String]
+                )
     } yield json
   }
 
@@ -204,9 +204,9 @@ object KinesisEnrich extends Enrich {
             provider <- getAWSCredentialsProvider(creds)
             enrichmentList = lookupDynamoDBEnrichments(provider, region, table, keyNamePrefix)
             enrichments <- enrichmentList match {
-              case Nil => s"No enrichments found with prefix $keyNamePrefix".asLeft
-              case js => js.asRight
-            }
+                             case Nil => s"No enrichments found with prefix $keyNamePrefix".asLeft
+                             case js => js.asRight
+                           }
           } yield enrichments
         case other => s"Enrichments argument [$other] must match $regexMsg".asLeft
       }

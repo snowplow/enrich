@@ -84,7 +84,7 @@ object CallrailAdapter extends Adapter {
         "empty querystring"
       )
       Monad[F].pure(failure.invalidNel)
-    } else {
+    } else
       Monad[F].pure(
         NonEmptyList
           .of(
@@ -104,6 +104,5 @@ object CallrailAdapter extends Adapter {
           )
           .valid
       )
-    }
   }
 }

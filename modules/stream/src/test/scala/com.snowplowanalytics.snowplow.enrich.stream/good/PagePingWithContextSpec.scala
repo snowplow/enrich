@@ -311,16 +311,12 @@ class PagePingWithContextSpec extends Specification {
       val piiFields = enrichedEvent.toOption.get._3.get.split("\t", -1)
       fields.size must beEqualTo(PagePingWithContextSpec.expected.size)
       piiFields.size must beEqualTo(PagePingWithContextSpec.pii.size)
-      Result.unit(
-        {
-          for (idx <- PagePingWithContextSpec.expected.indices) {
-            fields(idx) must beFieldEqualTo(PagePingWithContextSpec.expected(idx), withIndex = idx)
-          }
-          for (idx <- PagePingWithContextSpec.pii.indices) {
-            piiFields(idx) must beFieldEqualTo(PagePingWithContextSpec.pii(idx), withIndex = idx)
-          }
-        }
-      )
+      Result.unit {
+        for (idx <- PagePingWithContextSpec.expected.indices)
+          fields(idx) must beFieldEqualTo(PagePingWithContextSpec.expected(idx), withIndex = idx)
+        for (idx <- PagePingWithContextSpec.pii.indices)
+          piiFields(idx) must beFieldEqualTo(PagePingWithContextSpec.pii(idx), withIndex = idx)
+      }
     }
   }
 }

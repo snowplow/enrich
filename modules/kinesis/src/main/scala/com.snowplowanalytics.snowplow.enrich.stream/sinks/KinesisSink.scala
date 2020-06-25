@@ -46,17 +46,17 @@ object KinesisSink {
     for {
       provider <- getAWSCredentialsProvider(kinesisConfig.aws)
       endpointConfiguration = new EndpointConfiguration(
-        kinesisConfig.streamEndpoint,
-        kinesisConfig.region
-      )
+                                kinesisConfig.streamEndpoint,
+                                kinesisConfig.region
+                              )
       client = AmazonKinesisClientBuilder
-        .standard()
-        .withCredentials(provider)
-        .withEndpointConfiguration(endpointConfiguration)
-        .build()
+                 .standard()
+                 .withCredentials(provider)
+                 .withEndpointConfiguration(endpointConfiguration)
+                 .build()
       _ <- streamExists(client, streamName)
-        .leftMap(_.getMessage)
-        .ensure(s"Kinesis stream $streamName doesn't exist")(_ == true)
+             .leftMap(_.getMessage)
+             .ensure(s"Kinesis stream $streamName doesn't exist")(_ == true)
     } yield ()
 
   /**
@@ -133,18 +133,16 @@ class KinesisSink(
         log.error(s"Dropping record with size $newBytes bytes: [$original]")
       } else {
 
-        if (byteCount + newBytes >= ByteThreshold) {
+        if (byteCount + newBytes >= ByteThreshold)
           sealBatch()
-        }
 
         byteCount += newBytes
 
         eventCount += 1
         currentBatch = event :: currentBatch
 
-        if (eventCount == RecordThreshold) {
+        if (eventCount == RecordThreshold)
           sealBatch()
-        }
       }
     }
 
@@ -178,9 +176,8 @@ class KinesisSink(
     if (!EventStorage.currentBatch.isEmpty && System.currentTimeMillis() > nextRequestTime) {
       nextRequestTime = System.currentTimeMillis() + TimeThreshold
       true
-    } else {
+    } else
       !EventStorage.completeBatches.isEmpty
-    }
   }
 
   /**
@@ -246,9 +243,8 @@ class KinesisSink(
             }
 
             Thread.sleep(backoffTime)
-          } else {
+          } else
             sentBatchSuccessfully = true
-          }
         } catch {
           case NonFatal(f) =>
             backoffTime = getNextBackoff(backoffTime)
@@ -295,21 +291,18 @@ class KinesisSink(
     }
 
   private[sinks] def getErrorsSummary(badResponses: List[PutRecordsResultEntry]): Map[String, (Long, String)] =
-    badResponses.foldLeft(Map[String, (Long, String)]())(
-      (counts, r) =>
-        if (counts.contains(r.getErrorCode)) {
-          counts + (r.getErrorCode -> (counts(r.getErrorCode)._1 + 1 -> r.getErrorMessage))
-        } else {
-          counts + (r.getErrorCode -> ((1, r.getErrorMessage)))
-        }
+    badResponses.foldLeft(Map[String, (Long, String)]())((counts, r) =>
+      if (counts.contains(r.getErrorCode))
+        counts + (r.getErrorCode -> (counts(r.getErrorCode)._1 + 1 -> r.getErrorMessage))
+      else
+        counts + (r.getErrorCode -> ((1, r.getErrorMessage)))
     )
 
   private[sinks] def logErrorsSummary(errorsSummary: Map[String, (Long, String)]): Unit =
-    for ((errorCode, (count, sampleMessage)) <- errorsSummary) {
+    for ((errorCode, (count, sampleMessage)) <- errorsSummary)
       log.error(
         s"$count records failed with error code ${errorCode}. Example error message: ${sampleMessage}"
       )
-    }
 
   /**
    * How long to wait before sending the next request

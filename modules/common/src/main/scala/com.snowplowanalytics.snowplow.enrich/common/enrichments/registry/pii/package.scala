@@ -20,7 +20,7 @@ import com.jayway.jsonpath.{Configuration, Option => JOption}
 import outputs.EnrichedEvent
 
 package object pii {
-  type DigestFunction = Function1[Array[Byte], String]
+  type DigestFunction = Array[Byte] => String
   type ModifiedFields = List[ModifiedField]
   type ApplyStrategyFn = (String, PiiStrategy) => (String, ModifiedFields)
   type MutatorFn = (EnrichedEvent, PiiStrategy, ApplyStrategyFn) => ModifiedFields

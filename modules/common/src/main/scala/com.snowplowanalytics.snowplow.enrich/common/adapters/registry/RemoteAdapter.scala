@@ -85,43 +85,41 @@ final case class RemoteAdapter(
   ): Either[FailureDetails.AdapterFailure, NonEmptyList[RawEvent]] =
     for {
       res <- response
-        .leftMap(
-          t =>
-            FailureDetails.AdapterFailure.InputData(
-              "body",
-              none,
-              s"could not get response from remote adapter $remoteUrl: ${t.getMessage}"
-            )
-        )
+               .leftMap(t =>
+                 FailureDetails.AdapterFailure.InputData(
+                   "body",
+                   none,
+                   s"could not get response from remote adapter $remoteUrl: ${t.getMessage}"
+                 )
+               )
       json <- JsonUtils
-        .extractJson(res)
-        .leftMap(e => FailureDetails.AdapterFailure.NotJson("body", res.some, e))
+                .extractJson(res)
+                .leftMap(e => FailureDetails.AdapterFailure.NotJson("body", res.some, e))
       events <- json.hcursor
-        .downField("events")
-        .as[List[Map[String, String]]]
-        .leftMap(
-          e =>
-            FailureDetails.AdapterFailure.InputData(
-              "body",
-              res.some,
-              s"could not be decoded as a list of json objects: ${e.getMessage}"
-            )
-        )
+                  .downField("events")
+                  .as[List[Map[String, String]]]
+                  .leftMap(e =>
+                    FailureDetails.AdapterFailure.InputData(
+                      "body",
+                      res.some,
+                      s"could not be decoded as a list of json objects: ${e.getMessage}"
+                    )
+                  )
       nonEmptyEvents <- events match {
-        case Nil =>
-          FailureDetails.AdapterFailure
-            .InputData("body", res.some, "empty list of events")
-            .asLeft
-        case h :: t => NonEmptyList.of(h, t: _*).asRight
-      }
+                          case Nil =>
+                            FailureDetails.AdapterFailure
+                              .InputData("body", res.some, "empty list of events")
+                              .asLeft
+                          case h :: t => NonEmptyList.of(h, t: _*).asRight
+                        }
       rawEvents = nonEmptyEvents.map { e =>
-        RawEvent(
-          api = payload.api,
-          parameters = e,
-          contentType = payload.contentType,
-          source = payload.source,
-          context = payload.context
-        )
-      }
+                    RawEvent(
+                      api = payload.api,
+                      parameters = e,
+                      contentType = payload.contentType,
+                      source = payload.source,
+                      context = payload.context
+                    )
+                  }
     } yield rawEvents
 }

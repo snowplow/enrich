@@ -204,7 +204,7 @@ object MapTransformer {
    */
   private def getSetters[T](c: Class[T]): SettersMap =
     c.getDeclaredMethods
-      .filter { _.getName.startsWith("set") }
-      .groupBy { setterToFieldName(_) }
-      .mapValues { _.head }
+      .filter(_.getName.startsWith("set"))
+      .groupBy(setterToFieldName(_))
+      .mapValues(_.head)
 }

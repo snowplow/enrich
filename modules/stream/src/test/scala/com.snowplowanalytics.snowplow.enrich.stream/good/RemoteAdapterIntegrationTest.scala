@@ -255,13 +255,10 @@ class RemoteAdapterIntegrationTest extends Specification with BeforeAfterAll {
       val fields = enrichedEvent.toOption.get._1.split("\t", -1)
       fields.contains(transactionId) must beTrue // added by remote adapter
       fields.size must beEqualTo(StructEventSpec.expected.size)
-      Result.unit(
-        {
-          for (idx <- StructEventSpec.expected.indices) {
-            fields(idx) must beFieldEqualTo(expected(idx), withIndex = idx)
-          }
-        }
-      )
+      Result.unit {
+        for (idx <- StructEventSpec.expected.indices)
+          fields(idx) must beFieldEqualTo(expected(idx), withIndex = idx)
+      }
     }
 
     "be able to send payloads to a remote HTTP adapter and handle a problem on the remote adapter" in {

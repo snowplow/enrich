@@ -88,12 +88,11 @@ object PingdomAdapter extends Adapter {
               case Some(event) =>
                 Monad[F].pure((for {
                   parsedEvent <- JsonUtils
-                    .extractJson(event)
-                    .leftMap(
-                      e =>
-                        FailureDetails.AdapterFailure
-                          .NotJson("message", event.some, e)
-                    )
+                                   .extractJson(event)
+                                   .leftMap(e =>
+                                     FailureDetails.AdapterFailure
+                                       .NotJson("message", event.some, e)
+                                   )
                   schema <- {
                     val eventOpt = parsedEvent.hcursor.downField("action").as[String].toOption
                     lookupSchema(eventOpt, EventSchemaMap)

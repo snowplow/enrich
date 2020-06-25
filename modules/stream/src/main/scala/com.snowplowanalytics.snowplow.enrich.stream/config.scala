@@ -43,10 +43,9 @@ object config {
         .required()
         .valueName("<filename>")
         .action((f: File, c: FileConfig) => c.copy(config = f))
-        .validate(
-          f =>
-            if (f.exists) success
-            else failure(s"Configuration file $f does not exist")
+        .validate(f =>
+          if (f.exists) success
+          else failure(s"Configuration file $f does not exist")
         )
     def localResolverOption(): OptionDef[String, FileConfig] =
       opt[String]("resolver")

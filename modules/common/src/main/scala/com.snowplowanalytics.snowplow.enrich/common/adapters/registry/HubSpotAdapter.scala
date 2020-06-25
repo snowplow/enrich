@@ -143,11 +143,11 @@ object HubSpotAdapter extends Adapter {
   private[registry] def payloadBodyToEvents(body: String): Either[FailureDetails.AdapterFailure, List[Json]] =
     for {
       b <- JsonUtils
-        .extractJson(body)
-        .leftMap(e => FailureDetails.AdapterFailure.NotJson("body", body.some, e))
+             .extractJson(body)
+             .leftMap(e => FailureDetails.AdapterFailure.NotJson("body", body.some, e))
       a <- b.asArray.toRight(
-        FailureDetails.AdapterFailure.InputData("body", body.some, "not a json array")
-      )
+             FailureDetails.AdapterFailure.InputData("body", body.some, "not a json array")
+           )
     } yield a.toList
 
   /**
@@ -162,24 +162,23 @@ object HubSpotAdapter extends Adapter {
       JsonSchemaDateTimeFormat.print(dt)
     }
 
-    val longToDateString: Kleisli[Option, Json, Json] = Kleisli(
-      (json: Json) =>
-        json
-          .as[Long]
-          .toOption
-          .map(v => Json.fromString(toStringField(v)))
+    val longToDateString: Kleisli[Option, Json, Json] = Kleisli((json: Json) =>
+      json
+        .as[Long]
+        .toOption
+        .map(v => Json.fromString(toStringField(v)))
     )
 
     val occurredAtKey = "occurredAt"
     (for {
       jObj <- json.asObject
       newValue = jObj.kleisli
-        .andThen(longToDateString)
-        .run(occurredAtKey)
+                   .andThen(longToDateString)
+                   .run(occurredAtKey)
       res = newValue
-        .map(v => jObj.add(occurredAtKey, v))
-        .getOrElse(jObj)
-        .remove("subscriptionType")
+              .map(v => jObj.add(occurredAtKey, v))
+              .getOrElse(jObj)
+              .remove("subscriptionType")
     } yield Json.fromJsonObject(res)).getOrElse(json)
   }
 }

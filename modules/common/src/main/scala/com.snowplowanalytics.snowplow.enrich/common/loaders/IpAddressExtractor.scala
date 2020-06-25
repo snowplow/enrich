@@ -64,8 +64,9 @@ object IpAddressExtractor {
    * @param lastIp Fallback IP address if no X-FORWARDED-FOR header exists
    * @return True client IP address
    */
-  def extractIpAddress(xForwardedFor: String, lastIp: String): String = xForwardedFor match {
-    case CloudfrontRegex(ipv4, ipv6) => Option(ipv4).getOrElse(ipv6)
-    case _ => lastIp
-  }
+  def extractIpAddress(xForwardedFor: String, lastIp: String): String =
+    xForwardedFor match {
+      case CloudfrontRegex(ipv4, ipv6) => Option(ipv4).getOrElse(ipv6)
+      case _ => lastIp
+    }
 }

@@ -37,7 +37,7 @@ object Dependencies {
     val postgresDriver   = "42.2.5"
     val mysqlConnector   = "8.0.16"
     val jaywayJsonpath   = "2.4.0"
-    val iabClient        = "0.2.0"
+    val iabClient        = "0.2.0-M1"
     val yauaa            = "5.8"
     val guava            = "28.1-jre" //used only for InetAddress (because it doesn't do dns lookup)
     val slf4j            = "1.7.26"

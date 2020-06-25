@@ -115,13 +115,12 @@ object CloudfrontLoader extends Loader[String] {
           .Fallback("does not match header or data row formats")
           .invalidNel
     }).leftMap(
-      _.map(
-        f =>
-          BadRow.CPFormatViolation(
-            processor,
-            Failure.CPFormatViolation(Instant.now(), CollectorName, f),
-            Payload.RawPayload(line)
-          )
+      _.map(f =>
+        BadRow.CPFormatViolation(
+          processor,
+          Failure.CPFormatViolation(Instant.now(), CollectorName, f),
+          Payload.RawPayload(line)
+        )
       )
     )
 

@@ -144,8 +144,9 @@ class JavascriptScriptEnrichmentSpec extends Specification {
     e
   }
 
-  def failureContains(failure: FailureDetails.EnrichmentFailure, pattern: String): Boolean = failure match {
-    case FailureDetails.EnrichmentFailure(_, FailureDetails.EnrichmentFailureMessage.Simple(msg)) if msg.contains(pattern) => true
-    case _ => false
-  }
+  def failureContains(failure: FailureDetails.EnrichmentFailure, pattern: String): Boolean =
+    failure match {
+      case FailureDetails.EnrichmentFailure(_, FailureDetails.EnrichmentFailureMessage.Simple(msg)) if msg.contains(pattern) => true
+      case _ => false
+    }
 }

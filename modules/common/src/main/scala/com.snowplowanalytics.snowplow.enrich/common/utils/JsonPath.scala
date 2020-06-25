@@ -65,11 +65,12 @@ object JsonPath {
    * @param values list of JSON values
    * @return array if there's >1 values in list
    */
-  def wrapArray(values: List[Json]): Json = values match {
-    case Nil => Json.fromValues(List.empty)
-    case one :: Nil => one
-    case many => Json.fromValues(many)
-  }
+  def wrapArray(values: List[Json]): Json =
+    values match {
+      case Nil => Json.fromValues(List.empty)
+      case one :: Nil => one
+      case many => Json.fromValues(many)
+    }
 
   /**
    * Convert POJO to JValue with `jackson` mapper

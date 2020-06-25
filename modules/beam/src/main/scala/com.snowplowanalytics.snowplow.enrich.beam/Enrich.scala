@@ -71,11 +71,10 @@ object Enrich {
       registryJson <- parseEnrichmentRegistry(config.enrichments, client)
       confs <- EnrichmentRegistry.parse(registryJson, client, false).leftMap(_.toString).toEither
       labels <- config.labels.map(parseLabels).getOrElse(Right(Map.empty[String, String]))
-      _ <- if (emitPii(confs) && config.pii.isEmpty) {
-        "A pii topic needs to be used in order to use the pii enrichment".asLeft
-      } else {
-        ().asRight
-      }
+      _ <- if (emitPii(confs) && config.pii.isEmpty)
+             "A pii topic needs to be used in order to use the pii enrichment".asLeft
+           else
+             ().asRight
     } yield ParsedEnrichConfig(
       config.raw,
       config.enriched,
@@ -99,9 +98,8 @@ object Enrich {
   }
 
   def run(sc: ScioContext, config: ParsedEnrichConfig): Unit = {
-    if (config.labels.nonEmpty) {
+    if (config.labels.nonEmpty)
       sc.optionsAs[DataflowPipelineOptions].setLabels(config.labels.asJava)
-    }
 
     val cachedFiles: DistCache[List[Either[String, String]]] =
       buildDistCache(sc, config.enrichmentConfs)
@@ -254,9 +252,8 @@ object Enrich {
         .withName("split-oversized-pii")
         .partition(_._2 >= MaxRecordSize)
       Some((tooBigPiis, properlySizedPiis))
-    } else {
+    } else
       None
-    }
 
   /**
    * Enrich a collector payload into a list of [[EnrichedEvent]].
@@ -326,13 +323,12 @@ object Enrich {
    * @return Right if it exists, left otherwise
    */
   private def checkTopicExists(sc: ScioContext, topicName: String): Either[String, Unit] =
-    if (sc.isTest) {
+    if (sc.isTest)
       ().asRight
-    } else {
+    else
       PubSubAdmin.topic(sc.options.as(classOf[PubsubOptions]), topicName) match {
         case scala.util.Success(_) => ().asRight
         case scala.util.Failure(e) =>
           s"Output topic $topicName couldn't be retrieved: ${e.getMessage}".asLeft
       }
-    }
 }

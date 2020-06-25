@@ -51,19 +51,20 @@ abstract class Loader[T] {
   protected[loaders] def parseQuerystring(
     qs: Option[String],
     encoding: Charset
-  ): Either[FailureDetails.CPFormatViolationMessage, List[NameValuePair]] = qs match {
-    case Some(q) =>
-      Either
-        .catchNonFatal(URLEncodedUtils.parse(URI.create("http://localhost/?" + q), encoding))
-        .map(_.asScala.toList)
-        .leftMap { e =>
-          val msg = s"could not extract name-value pairs from querystring with encoding $encoding: " +
-            JsonUtils.stripInstanceEtc(e.getMessage).orNull
-          FailureDetails.CPFormatViolationMessage
-            .InputData("querystring", qs, msg)
-        }
-    case None => Nil.asRight
-  }
+  ): Either[FailureDetails.CPFormatViolationMessage, List[NameValuePair]] =
+    qs match {
+      case Some(q) =>
+        Either
+          .catchNonFatal(URLEncodedUtils.parse(URI.create("http://localhost/?" + q), encoding))
+          .map(_.asScala.toList)
+          .leftMap { e =>
+            val msg = s"could not extract name-value pairs from querystring with encoding $encoding: " +
+              JsonUtils.stripInstanceEtc(e.getMessage).orNull
+            FailureDetails.CPFormatViolationMessage
+              .InputData("querystring", qs, msg)
+          }
+      case None => Nil.asRight
+    }
 
   /**
    * Converts a CloudFront log-format date and a time to a timestamp.
@@ -88,11 +89,12 @@ abstract class Loader[T] {
    * @param field The field to check
    * @return True if the String was a hyphen "-"
    */
-  private[loaders] def toOption(field: String): Option[String] = Option(field) match {
-    case Some("-") => None
-    case Some("") => None
-    case s => s // Leaves any other Some(x) or None as-is
-  }
+  private[loaders] def toOption(field: String): Option[String] =
+    Option(field) match {
+      case Some("-") => None
+      case Some("") => None
+      case s => s // Leaves any other Some(x) or None as-is
+    }
 }
 
 /** Companion object to the CollectorLoader. Contains factory methods. */

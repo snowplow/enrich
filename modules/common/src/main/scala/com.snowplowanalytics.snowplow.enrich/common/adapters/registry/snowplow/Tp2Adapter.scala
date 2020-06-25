@@ -215,46 +215,43 @@ object Tp2Adapter extends Adapter {
   ): EitherT[F, NonEmptyList[FailureDetails.TrackerProtocolViolation], Json] =
     (for {
       j <- EitherT.fromEither[F](
-        JU.extractJson(instance)
-          .leftMap(
-            e =>
-              NonEmptyList.one(
-                FailureDetails.TrackerProtocolViolation
-                  .NotJson(field, instance.some, e)
-              )
-          )
-      )
+             JU.extractJson(instance)
+               .leftMap(e =>
+                 NonEmptyList.one(
+                   FailureDetails.TrackerProtocolViolation
+                     .NotJson(field, instance.some, e)
+                 )
+               )
+           )
       sd <- EitherT.fromEither[F](
-        SelfDescribingData
-          .parse(j)
-          .leftMap(
-            e =>
-              NonEmptyList.one(
-                FailureDetails.TrackerProtocolViolation
-                  .NotIglu(j, e)
-              )
-          )
-      )
-      _ <- client
-        .check(sd)
-        .leftMap(
-          e =>
-            NonEmptyList.one(
-              FailureDetails.TrackerProtocolViolation
-                .IgluError(sd.schema, e)
-            )
-        )
-        .subflatMap { _ =>
-          schemaCriterion.matches(sd.schema) match {
-            case true => ().asRight
-            case false =>
-              NonEmptyList
-                .one(
-                  FailureDetails.TrackerProtocolViolation
-                    .CriterionMismatch(sd.schema, schemaCriterion)
+              SelfDescribingData
+                .parse(j)
+                .leftMap(e =>
+                  NonEmptyList.one(
+                    FailureDetails.TrackerProtocolViolation
+                      .NotIglu(j, e)
+                  )
                 )
-                .asLeft
-          }
-        }
+            )
+      _ <- client
+             .check(sd)
+             .leftMap(e =>
+               NonEmptyList.one(
+                 FailureDetails.TrackerProtocolViolation
+                   .IgluError(sd.schema, e)
+               )
+             )
+             .subflatMap { _ =>
+               schemaCriterion.matches(sd.schema) match {
+                 case true => ().asRight
+                 case false =>
+                   NonEmptyList
+                     .one(
+                       FailureDetails.TrackerProtocolViolation
+                         .CriterionMismatch(sd.schema, schemaCriterion)
+                     )
+                     .asLeft
+               }
+             }
     } yield sd.data).leftWiden[NonEmptyList[FailureDetails.TrackerProtocolViolation]]
 }

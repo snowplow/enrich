@@ -1,4 +1,5 @@
-/**Copyright (c) 2012-2020 Snowplow Analytics Ltd. All rights reserved.
+/**
+ * Copyright (c) 2012-2020 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -40,23 +41,21 @@ class UserAgentUtilsEnrichmentSpec extends Specification with DataTables {
           deviceType,
           deviceIsMobile
         ) =>
-          {
-            val expected = ClientAttributes(
-              browserName,
-              browserFamily,
-              browserVersion,
-              browserType,
-              browserRenderEngine,
-              osFields._1,
-              osFields._2,
-              osFields._3,
-              deviceType,
-              deviceIsMobile
-            )
-            UserAgentUtilsEnrichment(schemaKey).extractClientAttributes(input) must beRight(
-              expected
-            )
-          }
+          val expected = ClientAttributes(
+            browserName,
+            browserFamily,
+            browserVersion,
+            browserType,
+            browserRenderEngine,
+            osFields._1,
+            osFields._2,
+            osFields._3,
+            deviceType,
+            deviceIsMobile
+          )
+          UserAgentUtilsEnrichment(schemaKey).extractClientAttributes(input) must beRight(
+            expected
+          )
       }
     }
   }

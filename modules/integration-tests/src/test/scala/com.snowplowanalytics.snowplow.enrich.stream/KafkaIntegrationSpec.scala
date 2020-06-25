@@ -59,18 +59,19 @@ trait KafkaIntegrationSpec extends TryMatchers with TraversableMatchers {
     adapterRegistry: AdapterRegistry,
     registry: EnrichmentRegistry[Id],
     tracker: Option[Tracker[Id]]
-  ): Future[Unit] = Future {
-    val p = Processor("test", "1.0.0")
-    KafkaEnrich
-      .getSource(configuration, None, client, adapterRegistry, registry, tracker, p)
-      .toOption
-      .get
-      .run()
-  }
+  ): Future[Unit] =
+    Future {
+      val p = Processor("test", "1.0.0")
+      KafkaEnrich
+        .getSource(configuration, None, client, adapterRegistry, registry, tracker, p)
+        .toOption
+        .get
+        .run()
+    }
 
   def producerTimeoutSec: Int
   def inputProduced(address: String): Try[Unit] =
-    Try { Await.result(produce(address: String), Duration(s"$producerTimeoutSec sec")) }
+    Try(Await.result(produce(address: String), Duration(s"$producerTimeoutSec sec")))
   def testKafkaPropertiesProducer(address: String) = {
     val props = new Properties()
     props.put("bootstrap.servers", address)
@@ -79,15 +80,16 @@ trait KafkaIntegrationSpec extends TryMatchers with TraversableMatchers {
     props.put("value.serializer", "org.apache.kafka.common.serialization.ByteArraySerializer")
     props
   }
-  def produce(address: String): Future[Unit] = Future {
-    val testProducer = new KafkaProducer[String, Array[Byte]](testKafkaPropertiesProducer(address))
-    val events = inputGood
-    events.foreach { r =>
-      testProducer.send(new ProducerRecord(testGoodIn, "key", r))
+  def produce(address: String): Future[Unit] =
+    Future {
+      val testProducer = new KafkaProducer[String, Array[Byte]](testKafkaPropertiesProducer(address))
+      val events = inputGood
+      events.foreach { r =>
+        testProducer.send(new ProducerRecord(testGoodIn, "key", r))
+      }
+      testProducer.flush
+      testProducer.close
     }
-    testProducer.flush
-    testProducer.close
-  }
   private def getListOfRecords(cr: ConsumerRecords[String, String]): List[String] =
     cr.asScala.map(_.value).toList
 
@@ -114,11 +116,10 @@ trait KafkaIntegrationSpec extends TryMatchers with TraversableMatchers {
       val testConsumerPii = new KafkaConsumer[String, String](testKafkaPropertiesConsumer)
       testConsumerPii.subscribe(List(topic).asJava)
       var records = getListOfRecords(testConsumerPii.poll(JDuration.ofMillis(POLL_TIME_MSEC)))
-      while (((System.currentTimeMillis - started) / 1000 < timeoutSec - 1) && records.size < expectedRecords) {
+      while (((System.currentTimeMillis - started) / 1000 < timeoutSec - 1) && records.size < expectedRecords)
         records = records ++ getListOfRecords(
           testConsumerPii.poll(JDuration.ofMillis(POLL_TIME_MSEC))
         )
-      }
       testConsumerPii.close()
       records
     }

@@ -60,13 +60,13 @@ object config {
       for {
         _ <- if (args.optional("help").isDefined) helpString(configurations).asLeft else "".asRight
         l <- configurations
-          .collect {
-            case RequiredConfiguration(key, _) =>
-              args.optional(key).toValidNel(s"Missing `$key` argument")
-          }
-          .sequence[ValidatedNelS, String]
-          .leftMap(_.toList.mkString("\n"))
-          .toEither
+               .collect {
+                 case RequiredConfiguration(key, _) =>
+                   args.optional(key).toValidNel(s"Missing `$key` argument")
+               }
+               .sequence[ValidatedNelS, String]
+               .leftMap(_.toList.mkString("\n"))
+               .toEither
         List(jobName, raw, enriched, bad, resolver) = l
       } yield EnrichConfig(
         jobName,
@@ -160,16 +160,16 @@ object config {
       fileContents <- readEnrichmentFiles(enrichmentsPath)
       jsons <- fileContents.map(JsonUtils.extractJson(_)).sequence[EitherS, Json]
       schemaKey = SchemaKey(
-        "com.snowplowanalytics.snowplow",
-        "enrichments",
-        "jsonschema",
-        SchemaVer.Full(1, 0, 0)
-      )
+                    "com.snowplowanalytics.snowplow",
+                    "enrichments",
+                    "jsonschema",
+                    SchemaVer.Full(1, 0, 0)
+                  )
       enrichmentsJson = SelfDescribingData[Json](schemaKey, Json.fromValues(jsons)).asJson
       _ <- EnrichmentRegistry
-        .parse(enrichmentsJson, client, false)
-        .leftMap(_.toList.mkString("\n"))
-        .toEither
+             .parse(enrichmentsJson, client, false)
+             .leftMap(_.toList.mkString("\n"))
+             .toEither
     } yield enrichmentsJson
 
   /** Reads all the enrichment files contained in a directory at the specified path. */
@@ -178,11 +178,11 @@ object config {
       .map { p =>
         for {
           files <- Option(new File(p).listFiles)
-            .toRight(s"Enrichment directory `$p` does not exist")
+                     .toRight(s"Enrichment directory `$p` does not exist")
           read = files
-            .filter(_.getName.endsWith(".json"))
-            .map(Source.fromFile(_).mkString)
-            .toList
+                   .filter(_.getName.endsWith(".json"))
+                   .map(Source.fromFile(_).mkString)
+                   .toList
         } yield read
       }
       .getOrElse(Nil.asRight)

@@ -85,36 +85,35 @@ object VeroAdapter extends Adapter {
   private def payloadBodyToEvent(json: String, payload: CollectorPayload): Either[FailureDetails.AdapterFailure, RawEvent] =
     for {
       parsed <- JsonUtils
-        .extractJson(json)
-        .leftMap(e => FailureDetails.AdapterFailure.NotJson("body", json.some, e))
+                  .extractJson(json)
+                  .leftMap(e => FailureDetails.AdapterFailure.NotJson("body", json.some, e))
       eventType <- parsed.hcursor
-        .get[String]("type")
-        .leftMap(
-          e =>
-            FailureDetails.AdapterFailure
-              .InputData("type", none, s"could not extract 'type': ${e.getMessage}")
-        )
+                     .get[String]("type")
+                     .leftMap(e =>
+                       FailureDetails.AdapterFailure
+                         .InputData("type", none, s"could not extract 'type': ${e.getMessage}")
+                     )
       formattedEvent = cleanupJsonEventValues(
-        parsed,
-        ("type", eventType).some,
-        List(s"${eventType}_at", "triggered_at")
-      )
+                         parsed,
+                         ("type", eventType).some,
+                         List(s"${eventType}_at", "triggered_at")
+                       )
       reformattedEvent = reformatParameters(formattedEvent)
       schema <- lookupSchema(eventType.some, EventSchemaMap)
       params = toUnstructEventParams(
-        TrackerVersion,
-        toMap(payload.querystring),
-        schema,
-        reformattedEvent,
-        "srv"
-      )
+                 TrackerVersion,
+                 toMap(payload.querystring),
+                 schema,
+                 reformattedEvent,
+                 "srv"
+               )
       rawEvent = RawEvent(
-        api = payload.api,
-        parameters = params,
-        contentType = payload.contentType,
-        source = payload.source,
-        context = payload.context
-      )
+                   api = payload.api,
+                   parameters = params,
+                   contentType = payload.contentType,
+                   source = payload.source,
+                   context = payload.context
+                 )
     } yield rawEvent
 
   /**

@@ -35,12 +35,13 @@ import utils.ConversionUtils
 trait Enrichment
 
 sealed trait EnrichmentConf {
-  def schemaKey: SchemaKey = SchemaKey(
-    "com.acme",
-    "placeholder",
-    "jsonschema",
-    SchemaVer.Full(1, 0, 0)
-  )
+  def schemaKey: SchemaKey =
+    SchemaKey(
+      "com.acme",
+      "placeholder",
+      "jsonschema",
+      SchemaVer.Full(1, 0, 0)
+    )
   def filesToCache: List[(URI, String)] = Nil
 }
 final case class ApiRequestConf(
@@ -84,14 +85,15 @@ final case class CampaignAttributionConf(
   campaignParameters: List[String],
   clickIdParameters: List[(String, String)]
 ) extends EnrichmentConf {
-  def enrichment: CampaignAttributionEnrichment = CampaignAttributionEnrichment(
-    mediumParameters,
-    sourceParameters,
-    termParameters,
-    contentParameters,
-    campaignParameters,
-    clickIdParameters
-  )
+  def enrichment: CampaignAttributionEnrichment =
+    CampaignAttributionEnrichment(
+      mediumParameters,
+      sourceParameters,
+      termParameters,
+      contentParameters,
+      campaignParameters,
+      clickIdParameters
+    )
 }
 final case class CookieExtractorConf(cookieNames: List[String]) extends EnrichmentConf {
   def enrichment: CookieExtractorEnrichment = CookieExtractorEnrichment(cookieNames)
@@ -192,12 +194,11 @@ trait ParseableEnrichment {
    * @return The JSON or an error message, boxed
    */
   def isParseable(config: Json, schemaKey: SchemaKey): Either[String, Json] =
-    if (supportedSchema.matches(schemaKey)) {
+    if (supportedSchema.matches(schemaKey))
       config.asRight
-    } else {
+    else
       (s"Schema key ${schemaKey.toSchemaUri} is not supported. A '${supportedSchema.name}' " +
         s"enrichment must have schema ${supportedSchema.asString}.").asLeft
-    }
 
   /**
    * Convert the path to a file from a String to a URI.

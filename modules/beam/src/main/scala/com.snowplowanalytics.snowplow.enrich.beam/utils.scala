@@ -131,7 +131,7 @@ object utils {
   ): BadRow = {
     val originalBadRow = badRow.compact
     val size = getSize(originalBadRow)
-    if (size > maxSizeBytes) {
+    if (size > maxSizeBytes)
       BadRow
         .SizeViolation(
           processor,
@@ -139,7 +139,7 @@ object utils {
             .SizeViolation(Instant.now(), maxSizeBytes, size, "bad row exceeded the maximum size"),
           Payload.RawPayload(originalBadRow.take(maxSizeBytes / ReductionFactor))
         )
-    } else badRow
+    else badRow
   }
 
   /** The size of a string in bytes */
@@ -161,12 +161,12 @@ object utils {
    */
   def createSymLink(file: File, symLink: String): Either[String, Path] = {
     val symLinkPath = Paths.get(symLink)
-    if (!Files.exists(symLinkPath)) {
+    if (!Files.exists(symLinkPath))
       Try(Files.createSymbolicLink(symLinkPath, file.toPath)) match {
         case scala.util.Success(p) => Right(p)
         case scala.util.Failure(t) => Left(s"Symlink can't be created: ${t.getMessage}")
       }
-    } else Left(s"A file at path $symLinkPath already exists")
+    else Left(s"A file at path $symLinkPath already exists")
   }
 
   /**

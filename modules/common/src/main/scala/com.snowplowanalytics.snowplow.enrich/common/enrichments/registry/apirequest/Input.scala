@@ -115,34 +115,34 @@ object Input {
       for {
         obj <- cur.value.as[Map[String, JSON]]
         key <- obj
-          .get("key")
-          .toRight(DecodingFailure("Key is missing", cur.history))
+                 .get("key")
+                 .toRight(DecodingFailure("Key is missing", cur.history))
         keyString <- key.as[String]
         pojo = obj.get("pojo").map { pojoJson =>
-          pojoJson.hcursor
-            .downField("field")
-            .as[String]
-            .map(field => Pojo(keyString, field))
-        }
+                 pojoJson.hcursor
+                   .downField("field")
+                   .as[String]
+                   .map(field => Pojo(keyString, field))
+               }
         json = obj.get("json").map { jsonJson =>
-          for {
-            field <- jsonJson.hcursor.downField("field").as[String]
-            criterion <- jsonJson.hcursor.downField("schemaCriterion").as[SchemaCriterion]
-            jsonPath <- jsonJson.hcursor.downField("jsonPath").as[String]
-          } yield Json(keyString, field, criterion, jsonPath)
-        }
+                 for {
+                   field <- jsonJson.hcursor.downField("field").as[String]
+                   criterion <- jsonJson.hcursor.downField("schemaCriterion").as[SchemaCriterion]
+                   jsonPath <- jsonJson.hcursor.downField("jsonPath").as[String]
+                 } yield Json(keyString, field, criterion, jsonPath)
+               }
         _ <- if (json.isDefined && pojo.isDefined)
-          DecodingFailure("Either json or pojo input must be specified, both provided", cur.history).asLeft
-        else ().asRight
+               DecodingFailure("Either json or pojo input must be specified, both provided", cur.history).asLeft
+             else ().asRight
         result <- pojo
-          .orElse(json)
-          .toRight(
-            DecodingFailure(
-              "Either json or pojo input must be specified, none provided",
-              cur.history
-            )
-          )
-          .flatten
+                    .orElse(json)
+                    .toRight(
+                      DecodingFailure(
+                        "Either json or pojo input must be specified, none provided",
+                        cur.history
+                      )
+                    )
+                    .flatten
       } yield result
     }
 

@@ -300,8 +300,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
         .extractAndValidateInputContexts(input, SpecHelpers.client)
         .value must beInvalid.like {
         case NonEmptyList(
-            FailureDetails.SchemaViolation.IgluError(_, ValidationError(_)),
-            List(FailureDetails.SchemaViolation.IgluError(_, ResolutionError(_)))
+              FailureDetails.SchemaViolation.IgluError(_, ValidationError(_)),
+              List(FailureDetails.SchemaViolation.IgluError(_, ResolutionError(_)))
             ) =>
           ok
         case errs => ko(s"[$errs] is not one ValidationError and one ResolutionError")
@@ -345,19 +345,18 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
         .validateEnrichmentsContexts(SpecHelpers.client, contexts, raw, processor, enriched)
         .value
         .value must beLeft.like {
-        case BadRow.EnrichmentFailures(_, failures, _) => {
+        case BadRow.EnrichmentFailures(_, failures, _) =>
           failures.messages match {
             case NonEmptyList(
-                FailureDetails.EnrichmentFailure(
-                  _,
-                  FailureDetails.EnrichmentFailureMessage.IgluError(_, ValidationError(_))
-                ),
-                _
+                  FailureDetails.EnrichmentFailure(
+                    _,
+                    FailureDetails.EnrichmentFailureMessage.IgluError(_, ValidationError(_))
+                  ),
+                  _
                 ) =>
               ok
             case err => ko(s"bad row is EnrichmentFailures but [$err] is not one ValidationError")
           }
-        }
         case br => ko(s"bad row [$br] is not EnrichmentFailures")
       }
     }
@@ -372,19 +371,19 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
         .validateEnrichmentsContexts(SpecHelpers.client, contexts, raw, processor, enriched)
         .value
         .value must beLeft.like {
-        case BadRow.EnrichmentFailures(_, failures, _) => {
+        case BadRow.EnrichmentFailures(_, failures, _) =>
           failures.messages match {
             case NonEmptyList(
-                FailureDetails.EnrichmentFailure(
-                  _,
-                  FailureDetails.EnrichmentFailureMessage.IgluError(_, ValidationError(_))
-                ),
-                List(
                   FailureDetails.EnrichmentFailure(
                     _,
-                    FailureDetails.EnrichmentFailureMessage.IgluError(_, ResolutionError(_))
+                    FailureDetails.EnrichmentFailureMessage.IgluError(_, ValidationError(_))
+                  ),
+                  List(
+                    FailureDetails.EnrichmentFailure(
+                      _,
+                      FailureDetails.EnrichmentFailureMessage.IgluError(_, ResolutionError(_))
+                    )
                   )
-                )
                 ) =>
               ok
             case errs =>
@@ -392,7 +391,6 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
                 s"bad row is EnrichmentFailures but [$errs] is not one ValidationError and one ResolutionError"
               )
           }
-        }
         case br => ko(s"bad row [$br] is not EnrichmentFailures")
       }
     }
@@ -407,19 +405,18 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
         .validateEnrichmentsContexts(SpecHelpers.client, contexts, raw, processor, enriched)
         .value
         .value must beLeft.like {
-        case BadRow.EnrichmentFailures(_, failures, _) => {
+        case BadRow.EnrichmentFailures(_, failures, _) =>
           failures.messages match {
             case NonEmptyList(
-                FailureDetails.EnrichmentFailure(
-                  _,
-                  FailureDetails.EnrichmentFailureMessage.IgluError(_, ValidationError(_))
-                ),
-                Nil
+                  FailureDetails.EnrichmentFailure(
+                    _,
+                    FailureDetails.EnrichmentFailureMessage.IgluError(_, ValidationError(_))
+                  ),
+                  Nil
                 ) =>
               ok
             case err => ko(s"bad row is EnrichmentFailures but [$err] is not one ValidationError")
           }
-        }
         case br => ko(s"bad row [$br] is not EnrichmentFailures")
       }
     }

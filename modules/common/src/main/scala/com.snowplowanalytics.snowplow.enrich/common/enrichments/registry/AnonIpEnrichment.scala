@@ -44,12 +44,12 @@ object AnonIpEnrichment extends ParseableEnrichment {
     (for {
       _ <- isParseable(config, schemaKey)
       paramIPv4Octet <- CirceUtils
-        .extract[Int](config, "parameters", "anonOctets")
-        .toEither
+                          .extract[Int](config, "parameters", "anonOctets")
+                          .toEither
       paramIPv6Segment <- CirceUtils
-        .extract[Int](config, "parameters", "anonSegments")
-        .orElse(Validated.valid(paramIPv4Octet))
-        .toEither
+                            .extract[Int](config, "parameters", "anonSegments")
+                            .orElse(Validated.valid(paramIPv4Octet))
+                            .toEither
       ipv4Octets <- AnonIPv4Octets.fromInt(paramIPv4Octet)
       ipv6Segment <- AnonIPv6Segments.fromInt(paramIPv6Segment)
     } yield AnonIpConf(ipv4Octets, ipv6Segment)).toValidatedNel
@@ -72,9 +72,7 @@ object AnonIPv4Octets extends Enumeration {
   def fromInt(anonIPv4Octets: Int): Either[String, AnonIPv4Octets] =
     Either
       .catchNonFatal(AnonIPv4Octets(anonIPv4Octets))
-      .leftMap(
-        e => s"IPv4 address octets to anonymize must be 1, 2, 3 or 4. Value: $anonIPv4Octets was given. Error: [${e.getMessage}]"
-      )
+      .leftMap(e => s"IPv4 address octets to anonymize must be 1, 2, 3 or 4. Value: $anonIPv4Octets was given. Error: [${e.getMessage}]")
 }
 
 /**
@@ -109,9 +107,8 @@ object AnonIPv6Segments extends Enumeration {
   def fromInt(anonIPv6Segments: Int): Either[String, AnonIPv6Segments] =
     Either
       .catchNonFatal(AnonIPv6Segments(anonIPv6Segments))
-      .leftMap(
-        e =>
-          s"IPv6 address segments to anonymize must be 1, 2, 3, 4, 5, 6, 7 or 8. Value $anonIPv6Segments was given. Error: [${e.getMessage}]"
+      .leftMap(e =>
+        s"IPv6 address segments to anonymize must be 1, 2, 3, 4, 5, 6, 7 or 8. Value $anonIPv6Segments was given. Error: [${e.getMessage}]"
       )
 }
 
@@ -180,7 +177,7 @@ final case class AnonIpEnrichment(ipv4Octets: AnonIPv4Octets.AnonIPv4Octets, ipv
 
   /**
    * Mainly to not brake code that already exists, i.e. broken IP like this: "777.2.23"
-   * */
+   */
   private def tryAnonymizingInvalidIp(ip: String): String =
     if (ip.contains(".") || ip.isEmpty) anonymizeIpV4(ip)
     else if (ip.contains(":")) anonymizeIpV6(ip)

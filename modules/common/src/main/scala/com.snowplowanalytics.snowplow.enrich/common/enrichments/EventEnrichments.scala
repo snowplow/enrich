@@ -62,9 +62,8 @@ object EventEnrichments {
           FailureDetails.EnrichmentFailureMessage
             .InputData("collector_tstamp", t.toString.some, msg)
             .asLeft
-        } else {
+        } else
           formattedTimestamp.asRight
-        }
     }).leftMap(FailureDetails.EnrichmentFailure(None, _))
 
   /**
@@ -85,33 +84,33 @@ object EventEnrichments {
     dvceCreatedTstamp: Option[String],
     collectorTstamp: Option[String],
     trueTstamp: Option[String]
-  ): Either[FailureDetails.EnrichmentFailure, Option[String]] = trueTstamp match {
-    case Some(ttm) => Some(ttm).asRight
-    case None =>
-      try {
-        ((dvceSentTstamp, dvceCreatedTstamp, collectorTstamp) match {
-          case (Some(dst), Some(dct), Some(ct)) =>
-            val startTstamp = fromTimestamp(dct)
-            val endTstamp = fromTimestamp(dst)
-            if (startTstamp.isBefore(endTstamp)) {
-              toTimestamp(fromTimestamp(ct).minus(new Period(startTstamp, endTstamp))).some
-            } else {
-              ct.some
-            }
-          case _ => collectorTstamp
-        }).asRight
-      } catch {
-        case NonFatal(e) =>
-          FailureDetails
-            .EnrichmentFailure(
-              None,
-              FailureDetails.EnrichmentFailureMessage.Simple(
-                s"exception calculating derived timestamp: ${e.getMessage}"
+  ): Either[FailureDetails.EnrichmentFailure, Option[String]] =
+    trueTstamp match {
+      case Some(ttm) => Some(ttm).asRight
+      case None =>
+        try {
+          ((dvceSentTstamp, dvceCreatedTstamp, collectorTstamp) match {
+            case (Some(dst), Some(dct), Some(ct)) =>
+              val startTstamp = fromTimestamp(dct)
+              val endTstamp = fromTimestamp(dst)
+              if (startTstamp.isBefore(endTstamp))
+                toTimestamp(fromTimestamp(ct).minus(new Period(startTstamp, endTstamp))).some
+              else
+                ct.some
+            case _ => collectorTstamp
+          }).asRight
+        } catch {
+          case NonFatal(e) =>
+            FailureDetails
+              .EnrichmentFailure(
+                None,
+                FailureDetails.EnrichmentFailureMessage.Simple(
+                  s"exception calculating derived timestamp: ${e.getMessage}"
+                )
               )
-            )
-            .asLeft
-      }
-  }
+              .asLeft
+        }
+    }
 
   /**
    * Extracts the timestamp from the format as laid out in the Tracker Protocol:
@@ -132,9 +131,8 @@ object EventEnrichments {
             msg
           )
           FailureDetails.EnrichmentFailure(None, f).asLeft
-        } else {
+        } else
           timestampString.asRight
-        }
       } catch {
         case _: NumberFormatException =>
           val msg = "not in the expected format: ms since epoch"

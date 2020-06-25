@@ -65,17 +65,16 @@ object UaParserEnrichment extends ParseableEnrichment {
       .map(p => UaParserEnrichment(conf.schemaKey, p))
 
   private def getCustomRules(conf: Json): ValidatedNel[String, Option[(URI, String)]] =
-    if (conf.hcursor.downField("parameters").downField("uri").focus.isDefined) {
+    if (conf.hcursor.downField("parameters").downField("uri").focus.isDefined)
       (for {
         uriAndDb <- (
-          CirceUtils.extract[String](conf, "parameters", "uri").toValidatedNel,
-          CirceUtils.extract[String](conf, "parameters", "database").toValidatedNel
-        ).mapN((_, _)).toEither
+                        CirceUtils.extract[String](conf, "parameters", "uri").toValidatedNel,
+                        CirceUtils.extract[String](conf, "parameters", "database").toValidatedNel
+                    ).mapN((_, _)).toEither
         source <- getDatabaseUri(uriAndDb._1, uriAndDb._2).leftMap(NonEmptyList.one)
       } yield (source, localFile)).toValidated.map(_.some)
-    } else {
+    else
       None.validNel
-    }
 }
 
 /** Config for an ua_parser_config enrichment. Uses uap-java library to parse client attributes */
@@ -84,27 +83,24 @@ final case class UaParserEnrichment(schemaKey: SchemaKey, parser: Parser) extend
 
   /** Adds a period in front of a not-null version element */
   def prependDot(versionElement: String): String =
-    if (versionElement != null) {
+    if (versionElement != null)
       "." + versionElement
-    } else {
+    else
       ""
-    }
 
   /** Prepends space before the versionElement */
   def prependSpace(versionElement: String): String =
-    if (versionElement != null) {
+    if (versionElement != null)
       " " + versionElement
-    } else {
+    else
       ""
-    }
 
   /** Checks for null value in versionElement for family parameter */
   def checkNull(versionElement: String): String =
-    if (versionElement == null) {
+    if (versionElement == null)
       ""
-    } else {
+    else
       versionElement
-    }
 
   /**
    * Extracts the client attributes from a useragent string, using UserAgentEnrichment.
@@ -166,30 +162,31 @@ trait CreateUaParser[F[_]] {
 object CreateUaParser {
   def apply[F[_]](implicit ev: CreateUaParser[F]): CreateUaParser[F] = ev
 
-  implicit def syncCreateUaParser[F[_]: Sync]: CreateUaParser[F] = new CreateUaParser[F] {
-    def create(uaFile: Option[String]): F[Either[String, Parser]] =
-      Sync[F].delay { parser(uaFile) }
-  }
+  implicit def syncCreateUaParser[F[_]: Sync]: CreateUaParser[F] =
+    new CreateUaParser[F] {
+      def create(uaFile: Option[String]): F[Either[String, Parser]] =
+        Sync[F].delay(parser(uaFile))
+    }
 
-  implicit def evalCreateUaParser: CreateUaParser[Eval] = new CreateUaParser[Eval] {
-    def create(uaFile: Option[String]): Eval[Either[String, Parser]] =
-      Eval.later { parser(uaFile) }
-  }
+  implicit def evalCreateUaParser: CreateUaParser[Eval] =
+    new CreateUaParser[Eval] {
+      def create(uaFile: Option[String]): Eval[Either[String, Parser]] =
+        Eval.later(parser(uaFile))
+    }
 
-  implicit def idCreateUaParser: CreateUaParser[Id] = new CreateUaParser[Id] {
-    def create(uaFile: Option[String]): Id[Either[String, Parser]] =
-      parser(uaFile)
-  }
+  implicit def idCreateUaParser: CreateUaParser[Id] =
+    new CreateUaParser[Id] {
+      def create(uaFile: Option[String]): Id[Either[String, Parser]] =
+        parser(uaFile)
+    }
 
-  private def constructParser(input: Option[InputStream]) = input match {
-    case Some(is) =>
-      try {
-        new Parser(is)
-      } finally {
-        is.close()
-      }
-    case None => new Parser()
-  }
+  private def constructParser(input: Option[InputStream]) =
+    input match {
+      case Some(is) =>
+        try new Parser(is)
+        finally is.close()
+      case None => new Parser()
+    }
 
   private def parser(file: Option[String]): Either[String, Parser] =
     (for {

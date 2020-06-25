@@ -159,18 +159,18 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       )
       enriched.value.value must beLeft.like {
         case BadRow.EnrichmentFailures(
-            _,
-            Failure.EnrichmentFailures(
               _,
-              NonEmptyList(
-                FailureDetails.EnrichmentFailure(
-                  _,
-                  _: FailureDetails.EnrichmentFailureMessage.Simple
-                ),
-                Nil
-              )
-            ),
-            _
+              Failure.EnrichmentFailures(
+                _,
+                NonEmptyList(
+                  FailureDetails.EnrichmentFailure(
+                    _,
+                    _: FailureDetails.EnrichmentFailureMessage.Simple
+                  ),
+                  Nil
+                )
+              ),
+              _
             ) =>
           ok
         case br =>
@@ -222,18 +222,18 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       )
       enriched.value.value must beLeft.like {
         case BadRow.EnrichmentFailures(
-            _,
-            Failure.EnrichmentFailures(
               _,
-              NonEmptyList(
-                FailureDetails.EnrichmentFailure(
-                  _,
-                  _: FailureDetails.EnrichmentFailureMessage.IgluError
-                ),
-                Nil
-              )
-            ),
-            payload
+              Failure.EnrichmentFailures(
+                _,
+                NonEmptyList(
+                  FailureDetails.EnrichmentFailure(
+                    _,
+                    _: FailureDetails.EnrichmentFailureMessage.IgluError
+                  ),
+                  Nil
+                )
+              ),
+              payload
             ) if payload.enriched.derived_contexts.isDefined =>
           ok
         case br => ko(s"bad row [$br] is not an EnrichmentFailures containing one IgluError and with derived_contexts defined")

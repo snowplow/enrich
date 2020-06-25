@@ -223,17 +223,16 @@ abstract class Source(
         }
         Nil
       case Right(processedEvents) =>
-        processedEvents.map(
-          event =>
-            event.bimap(
-              br => (br, Random.nextInt().toString()),
-              enriched =>
-                (
-                  tabSeparateEnrichedEvent(enriched),
-                  getProprertyValue(enriched, partitionKey),
-                  getPiiEvent(enriched).map(tabSeparateEnrichedEvent)
-                )
-            )
+        processedEvents.map(event =>
+          event.bimap(
+            br => (br, Random.nextInt().toString()),
+            enriched =>
+              (
+                tabSeparateEnrichedEvent(enriched),
+                getProprertyValue(enriched, partitionKey),
+                getPiiEvent(enriched).map(tabSeparateEnrichedEvent)
+              )
+          )
         )
     }
   }
@@ -289,9 +288,8 @@ abstract class Source(
       threadLocalPiiSink.map(_.get.flush)
       threadLocalBadSink.get.flush
       true
-    } else {
+    } else
       false
-    }
   }
 
   private val isTooLarge: String => Boolean = evt => MaxRecordSize.map(Source.getSize(evt) >= _).getOrElse(false)

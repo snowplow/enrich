@@ -140,28 +140,28 @@ object Input {
       for {
         obj <- cur.value.as[Map[String, JSON]]
         placeholder <- obj
-          .get("placeholder")
-          .toRight(DecodingFailure("Placeholder is missing", cur.history))
+                         .get("placeholder")
+                         .toRight(DecodingFailure("Placeholder is missing", cur.history))
         placeholderInt <- placeholder
-          .as[Int]
-          .ensure(DecodingFailure("Placeholder must be greater than 1", cur.history))(s => s >= 1)
+                            .as[Int]
+                            .ensure(DecodingFailure("Placeholder must be greater than 1", cur.history))(s => s >= 1)
         pojo = obj.get("pojo").map { pojoJson =>
-          pojoJson.hcursor.downField("field").as[String].map(field => Pojo(placeholderInt, field))
-        }
+                 pojoJson.hcursor.downField("field").as[String].map(field => Pojo(placeholderInt, field))
+               }
         json = obj.get("json").map { jsonJson =>
-          for {
-            field <- jsonJson.hcursor.downField("field").as[String]
-            criterion <- jsonJson.hcursor.downField("schemaCriterion").as[SchemaCriterion]
-            jsonPath <- jsonJson.hcursor.downField("jsonPath").as[String]
-          } yield Json(placeholderInt, field, criterion, jsonPath)
-        }
+                 for {
+                   field <- jsonJson.hcursor.downField("field").as[String]
+                   criterion <- jsonJson.hcursor.downField("schemaCriterion").as[SchemaCriterion]
+                   jsonPath <- jsonJson.hcursor.downField("jsonPath").as[String]
+                 } yield Json(placeholderInt, field, criterion, jsonPath)
+               }
         _ <- if (json.isDefined && pojo.isDefined)
-          DecodingFailure("Either json or pojo input must be specified, both provided", cur.history).asLeft
-        else ().asRight
+               DecodingFailure("Either json or pojo input must be specified, both provided", cur.history).asLeft
+             else ().asRight
         result <- pojo
-          .orElse(json)
-          .toRight(DecodingFailure("Either json or pojo input must be specified", cur.history))
-          .flatten
+                    .orElse(json)
+                    .toRight(DecodingFailure("Either json or pojo input must be specified", cur.history))
+                    .flatten
       } yield result
     }
 
@@ -269,27 +269,28 @@ object Input {
    * @param json JSON, probably extracted by JSONPath
    * @return Some runtime-typed representation of JSON value or None if it is object, array, null
    */
-  def extractFromJson(json: JSON): Option[ExtractedValue] = json.fold(
-    none,
-    b => BooleanPlaceholder.Value(b).some,
-    n =>
-      n.toInt
-        .map(IntPlaceholder.Value)
-        .orElse(n.toLong.map(LongPlaceholder.Value))
-        .getOrElse(DoublePlaceholder.Value(n.toDouble))
-        .some,
-    s =>
-      Either
-        .catchNonFatal(s.toInt)
-        .map(IntPlaceholder.Value)
-        .orElse(Either.catchNonFatal(s.toLong).map(LongPlaceholder.Value))
-        .orElse(Either.catchNonFatal(s.toDouble).map(DoublePlaceholder.Value))
-        .orElse(Either.catchNonFatal(s.toBoolean).map(BooleanPlaceholder.Value))
-        .getOrElse(StringPlaceholder.Value(s))
-        .some,
-    _ => none,
-    _ => none
-  )
+  def extractFromJson(json: JSON): Option[ExtractedValue] =
+    json.fold(
+      none,
+      b => BooleanPlaceholder.Value(b).some,
+      n =>
+        n.toInt
+          .map(IntPlaceholder.Value)
+          .orElse(n.toLong.map(LongPlaceholder.Value))
+          .getOrElse(DoublePlaceholder.Value(n.toDouble))
+          .some,
+      s =>
+        Either
+          .catchNonFatal(s.toInt)
+          .map(IntPlaceholder.Value)
+          .orElse(Either.catchNonFatal(s.toLong).map(LongPlaceholder.Value))
+          .orElse(Either.catchNonFatal(s.toDouble).map(DoublePlaceholder.Value))
+          .orElse(Either.catchNonFatal(s.toBoolean).map(BooleanPlaceholder.Value))
+          .getOrElse(StringPlaceholder.Value(s))
+          .some,
+      _ => none,
+      _ => none
+    )
 
   /**
    * Get [[StatementPlaceholder]] for specified field

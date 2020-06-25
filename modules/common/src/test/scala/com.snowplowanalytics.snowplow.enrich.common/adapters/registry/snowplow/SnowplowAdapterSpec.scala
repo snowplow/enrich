@@ -245,7 +245,9 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
           "expected one of application/json, application/json; charset=utf-8, application/json; charset=UTF-8"
         )
       ) |
-      "Content type populated but body missing" !! SpecHelpers.toNameValuePairs("a" -> "b") ! ApplicationJsonWithCharset.some ! None ! NonEmptyList
+      "Content type populated but body missing" !! SpecHelpers.toNameValuePairs(
+        "a" -> "b"
+      ) ! ApplicationJsonWithCharset.some ! None ! NonEmptyList
         .one(
           FailureDetails.TrackerProtocolViolation.InputData(
             "body",
@@ -261,18 +263,16 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
             "invalid json: expected json value got 'body' (line 1, column 1)"
           )
         ) |> { (_, querystring, contentType, body, expected) =>
-      {
-        val payload = CollectorPayload(
-          Snowplow.Tp2,
-          querystring,
-          contentType,
-          body,
-          Shared.source,
-          Shared.context
-        )
-        val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client).value
-        actual must beInvalid(expected)
-      }
+      val payload = CollectorPayload(
+        Snowplow.Tp2,
+        querystring,
+        contentType,
+        body,
+        Shared.source,
+        Shared.context
+      )
+      val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client).value
+      actual must beInvalid(expected)
     }
 
   def e8 = {
@@ -423,22 +423,19 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
             )
           )
         ) |> { (_, json, expected) =>
-      {
+      val body = SpecHelpers.toSelfDescJson(json, "payload_data")
+      val payload =
+        CollectorPayload(
+          Snowplow.Tp2,
+          Nil,
+          ApplicationJson.some,
+          body.some,
+          Shared.source,
+          Shared.context
+        )
 
-        val body = SpecHelpers.toSelfDescJson(json, "payload_data")
-        val payload =
-          CollectorPayload(
-            Snowplow.Tp2,
-            Nil,
-            ApplicationJson.some,
-            body.some,
-            Shared.source,
-            Shared.context
-          )
-
-        val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client).value
-        actual must beInvalid(expected)
-      }
+      val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client).value
+      actual must beInvalid(expected)
     }
 
   def e11 = {

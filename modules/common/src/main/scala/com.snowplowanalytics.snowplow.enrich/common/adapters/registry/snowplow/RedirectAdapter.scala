@@ -84,7 +84,7 @@ object RedirectAdapter extends Adapter {
         msg
       )
       Monad[F].pure(failure.invalidNel)
-    } else {
+    } else
       originalParams.get("u") match {
         case None =>
           val msg = "missing `u` parameter: not a valid URI redirect"
@@ -108,10 +108,9 @@ object RedirectAdapter extends Adapter {
                 case (None, Some(co)) => addToExistingCo(json, co).map(str => Map("co" -> str))
                 case (Some(cx), _) => addToExistingCx(json, cx).map(str => Map("cx" -> str))
               }
-            } else {
+            } else
               // Add URI redirect as an unstructured event
               Map("e" -> "ue", "ue_pr" -> toUnstructEvent(json).noSpaces).asRight
-            }
 
           val fixedParams = Map(
             "tv" -> TrackerVersion,
@@ -121,17 +120,16 @@ object RedirectAdapter extends Adapter {
           Monad[F].pure((for {
             np <- newParams
             ev = NonEmptyList.one(
-              RawEvent(
-                api = payload.api,
-                parameters = (originalParams - "u") ++ np ++ fixedParams,
-                contentType = payload.contentType,
-                source = payload.source,
-                context = payload.context
-              )
-            )
+                   RawEvent(
+                     api = payload.api,
+                     parameters = (originalParams - "u") ++ np ++ fixedParams,
+                     contentType = payload.contentType,
+                     source = payload.source,
+                     context = payload.context
+                   )
+                 )
           } yield ev).leftMap(e => NonEmptyList.one(e)).toValidated)
       }
-    }
   }
 
   /**
@@ -156,17 +154,16 @@ object RedirectAdapter extends Adapter {
   ): Either[FailureDetails.TrackerProtocolViolation, String] =
     for {
       json <- JU
-        .extractJson(existing) // co|cx
-        .leftMap(
-          e =>
-            FailureDetails.TrackerProtocolViolation
-              .NotJson("co|cx", existing.some, e)
-        )
+                .extractJson(existing) // co|cx
+                .leftMap(e =>
+                  FailureDetails.TrackerProtocolViolation
+                    .NotJson("co|cx", existing.some, e)
+                )
       merged = json.hcursor
-        .downField("data")
-        .withFocus(_.mapArray(newContext.asJson +: _))
-        .top
-        .getOrElse(json)
+                 .downField("data")
+                 .withFocus(_.mapArray(newContext.asJson +: _))
+                 .top
+                 .getOrElse(json)
     } yield merged.noSpaces
 
   /**
@@ -183,12 +180,11 @@ object RedirectAdapter extends Adapter {
   ): Either[FailureDetails.TrackerProtocolViolation, String] =
     for {
       decoded <- CU
-        .decodeBase64Url(existing) // cx
-        .leftMap(
-          e =>
-            FailureDetails.TrackerProtocolViolation
-              .InputData("cx", existing.some, e)
-        )
+                   .decodeBase64Url(existing) // cx
+                   .leftMap(e =>
+                     FailureDetails.TrackerProtocolViolation
+                       .InputData("cx", existing.some, e)
+                   )
       added <- addToExistingCo(newContext, decoded)
       recoded = CU.encodeBase64Url(added)
     } yield recoded

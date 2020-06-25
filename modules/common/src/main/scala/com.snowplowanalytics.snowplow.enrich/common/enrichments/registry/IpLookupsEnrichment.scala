@@ -85,7 +85,7 @@ object IpLookupsEnrichment extends ParseableEnrichment {
 
       // better-monadic-for
       (for {
-        uriAndDb <- (uri.toValidatedNel, db.toValidatedNel).mapN { (_, _) }.toEither
+        uriAndDb <- (uri.toValidatedNel, db.toValidatedNel).mapN((_, _)).toEither
         uri <- getDatabaseUri(uriAndDb._1, uriAndDb._2).leftMap(NonEmptyList.one)
       } yield IpLookupsDatabase(name, uri, uriAndDb._2)).toValidated.some
     } else None

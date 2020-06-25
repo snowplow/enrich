@@ -155,10 +155,7 @@ object config {
    * @param enrichmentsPath path where the enrichment directory is located
    * @return the enrichment registry built from the enrichments found
    */
-  def parseEnrichmentRegistry(
-    enrichmentsPath: Option[String],
-    client: Client[Id, Json]
-  ): Either[String, Json] =
+  def parseEnrichmentRegistry(enrichmentsPath: Option[String], client: Client[Id, Json]): Either[String, Json] =
     for {
       fileContents <- readEnrichmentFiles(enrichmentsPath)
       jsons <- fileContents.map(JsonUtils.extractJson(_)).sequence[EitherS, Json]

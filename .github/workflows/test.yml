@@ -36,18 +36,6 @@ jobs:
       run: psql -h localhost -p 5432 -U enricher -d sql_enrichment_test < integration-tests/beam-sql-enrichment-test.sql
       env:
         PGPASSWORD: supersecret1
-    - name: Run tests
-      run: sbt coverage +test coverageReport
-      env:
-        OER_KEY: ${{ secrets.OER_KEY }}
-    - name: Aggregate coverage data
-      if: ${{ always() }}
-      run: sbt coverageAggregate
-    - name: Submit coveralls data
-      if: ${{ always() }}
-      run: sbt coveralls
-      env:
-        COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
 
   deploy:
     needs: test

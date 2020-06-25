@@ -24,8 +24,7 @@ import com.spotify.scio.testing._
 object CampaignAttributionEnrichmentSpec {
   val raw = Seq(
     SpecHelpers.buildCollectorPayload(
-      refererUri =
-        "http://pb.com/?utm_source=GoogleSearch&utm_medium=cpc&utm_term=pb&utm_content=39&cid=tna&gclid=CI6".some,
+      refererUri = "http://pb.com/?utm_source=GoogleSearch&utm_medium=cpc&utm_term=pb&utm_content=39&cid=tna&gclid=CI6".some,
       path = "/i",
       querystring = "e=pp".some
     )

@@ -105,14 +105,13 @@ class KafkaSource private (
       new KafkaSink(goodProducer, config.out.enriched)
   }
 
-  override val threadLocalPiiSink: Option[ThreadLocal[Sink]] = piiProducer.flatMap {
-    somePiiProducer =>
-      config.out.pii.map { piiTopicName =>
-        new ThreadLocal[Sink] {
-          override def initialValue: Sink =
-            new KafkaSink(somePiiProducer, piiTopicName)
-        }
+  override val threadLocalPiiSink: Option[ThreadLocal[Sink]] = piiProducer.flatMap { somePiiProducer =>
+    config.out.pii.map { piiTopicName =>
+      new ThreadLocal[Sink] {
+        override def initialValue: Sink =
+          new KafkaSink(somePiiProducer, piiTopicName)
       }
+    }
   }
 
   override val threadLocalBadSink: ThreadLocal[Sink] = new ThreadLocal[Sink] {
@@ -139,10 +138,7 @@ class KafkaSource private (
     }
   }
 
-  private def createConsumer(
-    brokers: String,
-    groupId: String
-  ): KafkaConsumer[String, Array[Byte]] = {
+  private def createConsumer(brokers: String, groupId: String): KafkaConsumer[String, Array[Byte]] = {
     val properties = createProperties(brokers, groupId)
     properties.putAll(kafkaConfig.consumerConf.getOrElse(Map()).asJava)
     new KafkaConsumer[String, Array[Byte]](properties)

@@ -152,8 +152,7 @@ abstract class Source(
         ee.event_name = Source.PiiEventName
         ee.event_version = Source.PiiEventVersion
         ee.contexts = getContextParentEvent(event.event_id).noSpaces
-        ee.v_etl =
-          s"stream-enrich-${generated.BuildInfo.version}-common-${generated.BuildInfo.commonEnrichVersion}"
+        ee.v_etl = s"stream-enrich-${generated.BuildInfo.version}-common-${generated.BuildInfo.commonEnrichVersion}"
         ee
       }
 
@@ -201,9 +200,7 @@ abstract class Source(
    * @return List containing failed, successful and, if present, pii events. Successful and failed, each specify a
    *         partition key.
    */
-  def enrichEvents(
-    binaryData: Array[Byte]
-  ): List[Validated[(BadRow, String), (String, String, Option[String])]] = {
+  def enrichEvents(binaryData: Array[Byte]): List[Validated[(BadRow, String), (String, String, Option[String])]] = {
     val canonicalInput: ValidatedNel[BadRow, Option[CollectorPayload]] =
       ThriftLoader.toCollectorPayload(binaryData, processor)
     Either.catchNonFatal(
@@ -297,6 +294,5 @@ abstract class Source(
     }
   }
 
-  private val isTooLarge: String => Boolean = evt =>
-    MaxRecordSize.map(Source.getSize(evt) >= _).getOrElse(false)
+  private val isTooLarge: String => Boolean = evt => MaxRecordSize.map(Source.getSize(evt) >= _).getOrElse(false)
 }

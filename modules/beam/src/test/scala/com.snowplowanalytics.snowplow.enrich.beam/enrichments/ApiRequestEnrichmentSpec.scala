@@ -31,8 +31,7 @@ object ApiRequestEnrichmentSpec {
     SpecHelpers.buildCollectorPayload(
       querystring = s"e=ue&cx=$contexts&ue_pr=$unstructEvent".some,
       path = "/i",
-      userAgent =
-        "Mozilla/5.0%20(Windows%20NT%206.1;%20WOW64;%20rv:12.0)%20Gecko/20100101%20Firefox/12.0".some,
+      userAgent = "Mozilla/5.0%20(Windows%20NT%206.1;%20WOW64;%20rv:12.0)%20Gecko/20100101%20Firefox/12.0".some,
       refererUri = "http://www.pb.com/oracles/119.html?view=print#detail".some
     )
   )

@@ -34,14 +34,16 @@ import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentManager
 import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
 
-/** Contain the functions to validate:
+/**
+ * Contain the functions to validate:
  *  - An unstructured event,
  *  - The input contexts of an event,
  *  - The contexts added by the enrichments.
  */
 object IgluUtils {
 
-  /** Extract unstructured event (if any) and input contexts (if any) from input event
+  /**
+   * Extract unstructured event (if any) and input contexts (if any) from input event
    * and validate them against their schema
    * @param enriched Contain the input Jsons
    * @param client Iglu client used to validate the SDJs
@@ -61,28 +63,30 @@ object IgluUtils {
     F,
     BadRow.SchemaViolations,
     (List[SelfDescribingData[Json]], Option[SelfDescribingData[Json]])
-  ] = EitherT {
-    for {
-      contexts <- IgluUtils.extractAndValidateInputContexts(enriched, client)
-      unstruct <- IgluUtils
-        .extractAndValidateUnstructEvent(enriched, client)
-        .map(_.toValidatedNel)
-    } yield (contexts, unstruct)
-      .mapN { (c, ue) =>
-        (c, ue)
-      }
-      .leftMap { schemaViolations =>
-        buildSchemaViolationsBadRow(
-          schemaViolations,
-          EnrichedEvent.toPartiallyEnrichedEvent(enriched),
-          RawEvent.toRawEvent(raw),
-          processor
-        )
-      }
-      .toEither
-  }
+  ] =
+    EitherT {
+      for {
+        contexts <- IgluUtils.extractAndValidateInputContexts(enriched, client)
+        unstruct <- IgluUtils
+                      .extractAndValidateUnstructEvent(enriched, client)
+                      .map(_.toValidatedNel)
+      } yield (contexts, unstruct)
+        .mapN { (c, ue) =>
+          (c, ue)
+        }
+        .leftMap { schemaViolations =>
+          buildSchemaViolationsBadRow(
+            schemaViolations,
+            EnrichedEvent.toPartiallyEnrichedEvent(enriched),
+            RawEvent.toRawEvent(raw),
+            processor
+          )
+        }
+        .toEither
+    }
 
-  /** Extract unstructured event from event and validate against its schema
+  /**
+   * Extract unstructured event from event and validate against its schema
    *  @param enriched Snowplow event from which to extract unstructured event (in String)
    *  @param client Iglu client used for SDJ validation
    *  @param field Name of the field containing the unstructured event, to put in the bad row
@@ -103,22 +107,23 @@ object IgluUtils {
           unstruct <- extractInputData(rawUnstructEvent, field, criterion, client)
           // Parse Json unstructured event as SelfDescribingData[Json]
           unstructSDJ <- SelfDescribingData
-            .parse(unstruct)
-            .leftMap(FailureDetails.SchemaViolation.NotIglu(unstruct, _))
-            .toEitherT[F]
+                           .parse(unstruct)
+                           .leftMap(FailureDetails.SchemaViolation.NotIglu(unstruct, _))
+                           .toEitherT[F]
           // Check SelfDescribingData[Json] of unstructured event
           _ <- check(client, unstructSDJ)
-            .leftMap {
-              case (schemaKey, clientError) =>
-                FailureDetails.SchemaViolation.IgluError(schemaKey, clientError)
-            }
-            .leftWiden[FailureDetails.SchemaViolation]
+                 .leftMap {
+                   case (schemaKey, clientError) =>
+                     FailureDetails.SchemaViolation.IgluError(schemaKey, clientError)
+                 }
+                 .leftWiden[FailureDetails.SchemaViolation]
         } yield unstructSDJ.some
       case None =>
         EitherT.rightT[F, FailureDetails.SchemaViolation](none[SelfDescribingData[Json]])
     }).toValidated
 
-  /** Extract list of custom contexts from event and validate each against its schema
+  /**
+   * Extract list of custom contexts from event and validate each against its schema
    *  @param enriched Snowplow enriched event from which to extract custom contexts (in String)
    *  @param client Iglu client used for SDJ validation
    *  @param field Name of the field containing the contexts, to put in the bad row
@@ -137,15 +142,15 @@ object IgluUtils {
         for {
           // Validate input Json string and extract contexts
           contexts <- extractInputData(rawContexts, field, criterion, client)
-            .map(_.asArray.get.toList) // .get OK because SDJ wrapping the contexts valid
-            .leftMap(NonEmptyList.one)
+                        .map(_.asArray.get.toList) // .get OK because SDJ wrapping the contexts valid
+                        .leftMap(NonEmptyList.one)
           // Parse and validate each SDJ and merge the errors
           contextsSDJ <- EitherT(
-            contexts
-              .map(parseAndValidateSDJ_sv(_, client).toValidatedNel)
-              .sequence
-              .map(_.sequence.toEither)
-          )
+                           contexts
+                             .map(parseAndValidateSDJ_sv(_, client).toValidatedNel)
+                             .sequence
+                             .map(_.sequence.toEither)
+                         )
         } yield contextsSDJ
       case None =>
         EitherT.rightT[F, NonEmptyList[FailureDetails.SchemaViolation]](
@@ -153,7 +158,8 @@ object IgluUtils {
         )
     }).toValidated
 
-  /** Validate each context added by the enrichments against its schema
+  /**
+   * Validate each context added by the enrichments against its schema
    *  @param client Iglu client used for SDJ validation
    *  @param sdjs List of enrichments contexts to be added to the enriched event
    *  @param raw Input event to put in the bad row if at least one context is invalid
@@ -199,28 +205,28 @@ object IgluUtils {
     for {
       // Parse Json string with the SDJ
       json <- JsonUtils
-        .extractJson(rawJson)
-        .leftMap(e => FailureDetails.SchemaViolation.NotJson(field, rawJson.some, e))
-        .toEitherT[F]
+                .extractJson(rawJson)
+                .leftMap(e => FailureDetails.SchemaViolation.NotJson(field, rawJson.some, e))
+                .toEitherT[F]
       // Parse Json as SelfDescribingData[Json] (which contains the .data that we want)
       sdj <- SelfDescribingData
-        .parse(json)
-        .leftMap(FailureDetails.SchemaViolation.NotIglu(json, _))
-        .toEitherT[F]
+               .parse(json)
+               .leftMap(FailureDetails.SchemaViolation.NotIglu(json, _))
+               .toEitherT[F]
       // Check that the schema of SelfDescribingData[Json] is the expected one
       _ <- if (validateCriterion(sdj, expectedCriterion))
-        EitherT.rightT[F, FailureDetails.SchemaViolation](sdj)
-      else
-        EitherT
-          .leftT[F, SelfDescribingData[Json]](
-            FailureDetails.SchemaViolation.CriterionMismatch(sdj.schema, expectedCriterion)
-          )
+             EitherT.rightT[F, FailureDetails.SchemaViolation](sdj)
+           else
+             EitherT
+               .leftT[F, SelfDescribingData[Json]](
+                 FailureDetails.SchemaViolation.CriterionMismatch(sdj.schema, expectedCriterion)
+               )
       // Check that the SDJ holding the .data is valid
       _ <- check(client, sdj)
-        .leftMap {
-          case (schemaKey, clientError) =>
-            FailureDetails.SchemaViolation.IgluError(schemaKey, clientError)
-        }
+             .leftMap {
+               case (schemaKey, clientError) =>
+                 FailureDetails.SchemaViolation.IgluError(schemaKey, clientError)
+             }
       // Extract .data of SelfDescribingData[Json]
       data <- EitherT.rightT[F, FailureDetails.SchemaViolation](sdj.data)
     } yield data
@@ -242,12 +248,13 @@ object IgluUtils {
   private def checkList[F[_]: Monad: RegistryLookup: Clock](
     client: Client[F, Json],
     sdjs: List[SelfDescribingData[Json]]
-  ): EitherT[F, NonEmptyList[(SchemaKey, ClientError)], Unit] = EitherT {
-    sdjs
-      .map(check(client, _).toValidatedNel)
-      .sequence
-      .map(_.sequence_.toEither)
-  }
+  ): EitherT[F, NonEmptyList[(SchemaKey, ClientError)], Unit] =
+    EitherT {
+      sdjs
+        .map(check(client, _).toValidatedNel)
+        .sequence
+        .map(_.sequence_.toEither)
+    }
 
   /** Parse a Json as a SDJ and check that it's valid */
   private def parseAndValidateSDJ_sv[F[_]: Monad: RegistryLookup: Clock]( // _sv for SchemaViolation
@@ -256,16 +263,16 @@ object IgluUtils {
   ): EitherT[F, FailureDetails.SchemaViolation, SelfDescribingData[Json]] =
     for {
       sdj <- SelfDescribingData
-        .parse(json)
-        .leftMap(FailureDetails.SchemaViolation.NotIglu(json, _))
-        .toEitherT[F]
+               .parse(json)
+               .leftMap(FailureDetails.SchemaViolation.NotIglu(json, _))
+               .toEitherT[F]
       _ <- check(client, sdj)
-        .leftMap {
-          case (schemaKey, clientError) =>
-            FailureDetails.SchemaViolation
-              .IgluError(schemaKey, clientError): FailureDetails.SchemaViolation
+             .leftMap {
+               case (schemaKey, clientError) =>
+                 FailureDetails.SchemaViolation
+                   .IgluError(schemaKey, clientError): FailureDetails.SchemaViolation
 
-        }
+             }
     } yield sdj
 
   /** Build `BadRow.SchemaViolations` from a list of `FailureDetails.SchemaViolation`s */
@@ -274,9 +281,10 @@ object IgluUtils {
     pee: Payload.PartiallyEnrichedEvent,
     re: Payload.RawEvent,
     processor: Processor
-  ) = BadRow.SchemaViolations(
-    processor,
-    Failure.SchemaViolations(Instant.now(), vs),
-    Payload.EnrichmentPayload(pee, re)
-  )
+  ) =
+    BadRow.SchemaViolations(
+      processor,
+      Failure.SchemaViolations(Instant.now(), vs),
+      Payload.EnrichmentPayload(pee, re)
+    )
 }

@@ -116,13 +116,15 @@ class KafkaTestUtils {
     props.put("broker.id", "0")
     props.put("host.name", brokerHost)
     props.put("offsets.topic.replication.factor", "1")
-    props.put("log.dir", {
-      val dir = System.getProperty("java.io.tmpdir") +
-        "/logDir-" + new Random().nextInt(Int.MaxValue)
-      val f = new File(dir)
-      f.mkdirs()
-      dir
-    })
+    props.put(
+      "log.dir", {
+        val dir = System.getProperty("java.io.tmpdir") +
+          "/logDir-" + new Random().nextInt(Int.MaxValue)
+        val f = new File(dir)
+        f.mkdirs()
+        dir
+      }
+    )
     props.put("port", brokerPort.toString)
     props.put("zookeeper.connect", zkAddress)
     props.put("zookeeper.connection.timeout.ms", "10000")

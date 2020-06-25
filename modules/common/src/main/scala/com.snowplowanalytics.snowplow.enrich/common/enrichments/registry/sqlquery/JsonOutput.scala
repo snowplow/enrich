@@ -82,9 +82,7 @@ object JsonOutput {
     "java.lang.Double" -> ((obj: Object) => Json.fromDoubleOrNull(obj.asInstanceOf[Double])),
     "java.lang.Float" -> ((obj: Object) => Json.fromDoubleOrNull(obj.asInstanceOf[Float].toDouble)),
     "java.lang.String" -> ((obj: Object) => Json.fromString(obj.asInstanceOf[String])),
-    "java.sql.Date" -> (
-      (obj: Object) => Json.fromString(new DateTime(obj.asInstanceOf[java.sql.Date]).toString)
-    )
+    "java.sql.Date" -> ((obj: Object) => Json.fromString(new DateTime(obj.asInstanceOf[java.sql.Date]).toString))
   )
 
   /**

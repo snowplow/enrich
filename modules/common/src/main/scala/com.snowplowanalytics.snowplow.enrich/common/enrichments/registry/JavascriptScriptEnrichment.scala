@@ -122,22 +122,20 @@ final case class JavascriptScriptEnrichment(schemaKey: SchemaKey, script: Script
     val cx = Context.enter()
     val scope = cx.initStandardObjects
 
-    val scriptExec = try {
-      scope.put(Variables.In, scope, Context.javaToJS(event, scope))
-      val retVal = script.exec(cx, scope)
-      if (Option(retVal).isDefined) {
-        val msg = s"Evaluated JavaScript script should not return a value; returned: [$retVal]"
-        FailureDetails.EnrichmentFailureMessage.Simple(msg).asLeft
-      } else {
-        ().asRight
-      }
-    } catch {
-      case NonFatal(nf) =>
-        val msg = s"Evaluating JavaScript script threw an exception: [$nf]"
-        FailureDetails.EnrichmentFailureMessage.Simple(msg).asLeft
-    } finally {
-      Context.exit()
-    }
+    val scriptExec =
+      try {
+        scope.put(Variables.In, scope, Context.javaToJS(event, scope))
+        val retVal = script.exec(cx, scope)
+        if (Option(retVal).isDefined) {
+          val msg = s"Evaluated JavaScript script should not return a value; returned: [$retVal]"
+          FailureDetails.EnrichmentFailureMessage.Simple(msg).asLeft
+        } else
+          ().asRight
+      } catch {
+        case NonFatal(nf) =>
+          val msg = s"Evaluating JavaScript script threw an exception: [$nf]"
+          FailureDetails.EnrichmentFailureMessage.Simple(msg).asLeft
+      } finally Context.exit()
 
     scriptExec
       .flatMap { _ =>
@@ -149,12 +147,11 @@ final case class JavascriptScriptEnrichment(schemaKey: SchemaKey, script: Script
                 js.asArray match {
                   case Some(array) =>
                     array
-                      .parTraverse(
-                        json =>
-                          SelfDescribingData
-                            .parse(json)
-                            .leftMap(error => (error, json))
-                            .leftMap(NonEmptyList.one)
+                      .parTraverse(json =>
+                        SelfDescribingData
+                          .parse(json)
+                          .leftMap(error => (error, json))
+                          .leftMap(NonEmptyList.one)
                       )
                       .map(_.toList)
                       .leftMap { s =>

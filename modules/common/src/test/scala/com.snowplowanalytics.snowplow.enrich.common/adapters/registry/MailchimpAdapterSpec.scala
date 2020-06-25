@@ -214,7 +214,8 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
         Shared.cljSource,
         Shared.context
       )
-      val expectedJson = "{\"schema\":\"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0\",\"data\":{\"schema\":\"" + expected + "\",\"data\":{\"type\":\"" + schema + "\"}}}"
+      val expectedJson =
+        "{\"schema\":\"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0\",\"data\":{\"schema\":\"" + expected + "\",\"data\":{\"type\":\"" + schema + "\"}}}"
       val actual = MailchimpAdapter.toRawEvents(payload, SpecHelpers.client).value
       actual must beValid(
         NonEmptyList.one(

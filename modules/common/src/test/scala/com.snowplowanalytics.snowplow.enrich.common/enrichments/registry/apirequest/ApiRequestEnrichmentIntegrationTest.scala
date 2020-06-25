@@ -26,10 +26,11 @@ import org.specs2.matcher.Matcher
 import outputs.EnrichedEvent
 
 object ApiRequestEnrichmentIntegrationTest {
-  def continuousIntegration: Boolean = sys.env.get("CI") match {
-    case Some("true") => true
-    case _ => false
-  }
+  def continuousIntegration: Boolean =
+    sys.env.get("CI") match {
+      case Some("true") => true
+      case _ => false
+    }
 }
 
 import ApiRequestEnrichmentIntegrationTest._
@@ -242,18 +243,16 @@ class ApiRequestEnrichmentIntegrationTest extends Specification {
    * Helper matcher to print JSON
    */
   def beJson(expected: SelfDescribingData[Json]): Matcher[SelfDescribingData[Json]] = { actual: SelfDescribingData[Json] =>
-    {
-      val result = actual == expected
-      val schemaMatch = actual.schema == expected.schema
-      val dataMatch = actual.data == expected.data
-      val message =
-        if (schemaMatch)
-          s"Schema ${actual.schema} matches, data doesn't.\nActual data: ${actual.data.spaces2}\nExpected data: ${expected.data.spaces2}"
-        else if (dataMatch)
-          s"Data payloads match, schemas don't.\nActual schema: ${actual.schema.toSchemaUri}\nExpected schema: ${expected.schema.toSchemaUri}"
-        else "actual:\n" + actual + "\n expected:\n" + expected + "\n"
-      (result, message)
-    }
+    val result = actual == expected
+    val schemaMatch = actual.schema == expected.schema
+    val dataMatch = actual.data == expected.data
+    val message =
+      if (schemaMatch)
+        s"Schema ${actual.schema} matches, data doesn't.\nActual data: ${actual.data.spaces2}\nExpected data: ${expected.data.spaces2}"
+      else if (dataMatch)
+        s"Data payloads match, schemas don't.\nActual schema: ${actual.schema.toSchemaUri}\nExpected schema: ${expected.schema.toSchemaUri}"
+      else "actual:\n" + actual + "\n expected:\n" + expected + "\n"
+    (result, message)
   }
 
   def e1 = {

@@ -43,37 +43,36 @@ class PiiEmitSpec(implicit ee: ExecutionEnv) extends Specification with FutureMa
     ktu.createTopics(kafkaTopics.toList: _*)
   }
   override def afterAll(): Unit =
-    if (ktu != null) {
+    if (ktu != null)
       ktu = null
-    }
 
   import KafkaIntegrationSpecValues._
 
-  def configValues = Map(
-    "sinkType" -> "kafka",
-    "streamsInRaw" -> s"$testGoodIn",
-    "outEnriched" -> s"$testGood",
-    "outPii" -> s"$testPii",
-    "outBad" -> s"$testBad",
-    "partitionKeyName" -> "\"\"",
-    "kafkaBrokers" -> ktu.brokerAddress,
-    "bufferTimeThreshold" -> "1",
-    "bufferRecordThreshold" -> "1",
-    "bufferByteThreshold" -> "100000",
-    "enrichAppName" -> "Jim",
-    "enrichStreamsOutMaxBackoff" -> "1000",
-    "enrichStreamsOutMinBackoff" -> "1000",
-    "appName" -> "jim"
-  )
+  def configValues =
+    Map(
+      "sinkType" -> "kafka",
+      "streamsInRaw" -> s"$testGoodIn",
+      "outEnriched" -> s"$testGood",
+      "outPii" -> s"$testPii",
+      "outBad" -> s"$testBad",
+      "partitionKeyName" -> "\"\"",
+      "kafkaBrokers" -> ktu.brokerAddress,
+      "bufferTimeThreshold" -> "1",
+      "bufferRecordThreshold" -> "1",
+      "bufferByteThreshold" -> "100000",
+      "enrichAppName" -> "Jim",
+      "enrichStreamsOutMaxBackoff" -> "1000",
+      "enrichStreamsOutMinBackoff" -> "1000",
+      "appName" -> "jim"
+    )
 
   def config: String =
     Try {
       val configRes = getClass.getResourceAsStream("/config.hocon.sample")
       Source.fromInputStream(configRes).getLines.mkString("\n")
     } match {
-      case Failure(t) => {
+      case Failure(t) =>
         println(s"Unable to get config.hocon.sample: $t"); throw new Exception(t)
-      }
       case Success(s) => s
     }
 
@@ -137,10 +136,10 @@ class PiiEmitSpec(implicit ee: ExecutionEnv) extends Specification with FutureMa
           .mkString("\\s*")
 
       val expectedMatcher: Matcher[(List[String], List[String], List[String])] = beLike {
-        case (good: List[String], bad: List[String], pii: List[String]) => {
-          bad aka "bad result list" must have size (expectedBad)
-          pii aka "pii result list" must have size (expectedPii)
-          good aka "good result list" must have size (expectedGood)
+        case (good: List[String], bad: List[String], pii: List[String]) =>
+          bad aka "bad result list" must have size expectedBad
+          pii aka "pii result list" must have size expectedPii
+          good aka "good result list" must have size expectedGood
           good aka "good result list" must containMatch(
             spaceJoinResult(PagePingWithContextSpec.expected)
           )
@@ -163,7 +162,6 @@ class PiiEmitSpec(implicit ee: ExecutionEnv) extends Specification with FutureMa
           pii aka "pii result list" must containMatch(spaceJoinResult(TransactionItemSpec.pii))
           good aka "good result list" must containMatch(spaceJoinResult(TransactionSpec.expected))
           pii aka "pii result list" must containMatch(spaceJoinResult(TransactionSpec.pii))
-        }
       }
       allResults(ktu.brokerAddress) must expectedMatcher.await(
         retries = 0,

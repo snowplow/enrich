@@ -49,11 +49,11 @@ object EventFingerprintEnrichment extends ParseableEnrichment {
       _ <- isParseable(c, schemaKey).leftMap(e => NonEmptyList.one(e))
       // better-monadic-for
       paramsAndAlgo <- (
-        CirceUtils.extract[List[String]](c, "parameters", "excludeParameters").toValidatedNel,
-        CirceUtils.extract[String](c, "parameters", "hashAlgorithm").toValidatedNel
-      ).mapN { (_, _) }.toEither
+                           CirceUtils.extract[List[String]](c, "parameters", "excludeParameters").toValidatedNel,
+                           CirceUtils.extract[String](c, "parameters", "hashAlgorithm").toValidatedNel
+                       ).mapN((_, _)).toEither
       algorithm <- getAlgorithm(paramsAndAlgo._2)
-        .leftMap(e => NonEmptyList.one(e))
+                     .leftMap(e => NonEmptyList.one(e))
     } yield EventFingerprintConf(algorithm, paramsAndAlgo._1)).toValidated
 
   /**

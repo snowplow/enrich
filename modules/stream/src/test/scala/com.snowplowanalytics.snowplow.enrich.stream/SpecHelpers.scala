@@ -24,14 +24,7 @@ import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdap
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.JsonUtils
-import com.snowplowanalytics.snowplow.enrich.stream.model.{
-  AWSCredentials,
-  CloudAgnosticPlatformConfig,
-  GCPCredentials,
-  Kafka,
-  Nsq,
-  Stdin
-}
+import com.snowplowanalytics.snowplow.enrich.stream.model.{AWSCredentials, CloudAgnosticPlatformConfig, GCPCredentials, Kafka, Nsq, Stdin}
 import org.specs2.matcher.{Expectable, Matcher}
 import sources.TestSource
 import utils._

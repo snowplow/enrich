@@ -214,10 +214,7 @@ class KinesisSource private (
       this.kinesisShardId = shardId
     }
 
-    override def processRecords(
-      records: List[Record],
-      checkpointer: IRecordProcessorCheckpointer
-    ) = {
+    override def processRecords(records: List[Record], checkpointer: IRecordProcessorCheckpointer) = {
 
       if (!records.isEmpty) {
         log.info(s"Processing ${records.size} records from $kinesisShardId")

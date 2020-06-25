@@ -74,16 +74,15 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers {
     ThriftLoader
       .toCollectorPayload(thriftBytesMalformedQS, processor)
       .map(_.get)
-      .map(
-        collectorPayload =>
-          EtlPipeline.processEvents[Id](
-            adapterRegistry,
-            enrichmentReg,
-            client,
-            processor,
-            dateTime,
-            Some(collectorPayload).validNel
-          )
+      .map(collectorPayload =>
+        EtlPipeline.processEvents[Id](
+          adapterRegistry,
+          enrichmentReg,
+          client,
+          processor,
+          dateTime,
+          Some(collectorPayload).validNel
+        )
       ) must beValid.like {
       case Validated.Valid(_: EnrichedEvent) :: Nil => ok
       case res => ko(s"[$res] doesn't contain one enriched event")

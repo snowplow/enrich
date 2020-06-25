@@ -34,17 +34,17 @@ final class TargetBean {
   @BeanProperty var width: Int = _
   @BeanProperty var height: Int = _
 
-  override def equals(other: Any): Boolean = other match {
-    case that: TargetBean => {
-      platform == that.platform &&
-      br_features_pdf == that.br_features_pdf &&
-      visit_id == that.visit_id &&
-      tracker_v == that.tracker_v &&
-      height == that.height &&
-      width == that.width
+  override def equals(other: Any): Boolean =
+    other match {
+      case that: TargetBean =>
+        platform == that.platform &&
+          br_features_pdf == that.br_features_pdf &&
+          visit_id == that.visit_id &&
+          tracker_v == that.tracker_v &&
+          height == that.height &&
+          width == that.width
+      case _ => false
     }
-    case _ => false
-  }
   // No canEqual needed as the class is final
 
   // Use Reflection - perf hit is okay as this is only in the test suite
@@ -71,7 +71,7 @@ class MapTransformerSpec extends Specification with ValidatedMatchers {
     ("f_pdf", (ConversionUtils.stringToBooleanLikeJByte, "br_features_pdf")),
     ("vid", (ConversionUtils.stringToJInteger2, "visit_id")),
     ("res", (ClientEnrichments.extractViewDimensions, ("width", "height"))),
-    ("tv", (identity, ("tracker_v")))
+    ("tv", (identity, "tracker_v"))
   )
 
   val expected = {

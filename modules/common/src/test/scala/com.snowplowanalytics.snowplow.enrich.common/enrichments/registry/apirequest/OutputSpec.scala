@@ -51,7 +51,8 @@ class OutputSpec extends Specification {
       "iglu:com.snowplowanalytics/complex_schema/jsonschema/1-0-0",
       Some(JsonOutput("$.objects[1].deepNesting[3]"))
     )
-    output.parseResponse("""
+    output
+      .parseResponse("""
         |{
         |  "value": 32,
         |  "objects":
@@ -61,7 +62,9 @@ class OutputSpec extends Specification {
         |    {"wrongValue": 10}
         |  ]
         |}
-      """.stripMargin).flatMap(output.extract).map(output.describeJson) must beRight.like {
+      """.stripMargin)
+      .flatMap(output.extract)
+      .map(output.describeJson) must beRight.like {
       case context =>
         context must be equalTo json"""{
           "schema": "iglu:com.snowplowanalytics/complex_schema/jsonschema/1-0-0",

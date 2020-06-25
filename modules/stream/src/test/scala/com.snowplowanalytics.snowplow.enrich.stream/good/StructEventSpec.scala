@@ -313,16 +313,12 @@ class StructEventSpec extends Specification {
       enrichedEvent.toOption.get._3 must not beNone
       val piiFields = enrichedEvent.toOption.get._3.get.split("\t", -1)
       piiFields.size must beEqualTo(StructEventSpec.pii.size)
-      Result.unit(
-        {
-          for (idx <- StructEventSpec.expected.indices) {
-            fields(idx) must beFieldEqualTo(StructEventSpec.expected(idx), withIndex = idx)
-          }
-          for (idx <- StructEventSpec.pii.indices) {
-            piiFields(idx) must beFieldEqualTo(StructEventSpec.pii(idx), withIndex = idx)
-          }
-        }
-      )
+      Result.unit {
+        for (idx <- StructEventSpec.expected.indices)
+          fields(idx) must beFieldEqualTo(StructEventSpec.expected(idx), withIndex = idx)
+        for (idx <- StructEventSpec.pii.indices)
+          piiFields(idx) must beFieldEqualTo(StructEventSpec.pii(idx), withIndex = idx)
+      }
     }
   }
 }

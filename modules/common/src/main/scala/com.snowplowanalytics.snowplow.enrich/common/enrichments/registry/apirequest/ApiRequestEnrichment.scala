@@ -133,10 +133,10 @@ final case class ApiRequestEnrichment[F[_]: Monad: HttpClient](
         context <- EitherT.fromEither[F](templateContext.toEither)
         jsons <- getOutputs(context)
         contexts = jsons.parTraverse { json =>
-          SelfDescribingData
-            .parse(json)
-            .leftMap(e => NonEmptyList.one(s"${json.noSpaces} is not self-describing, ${e.code}"))
-        }
+                     SelfDescribingData
+                       .parse(json)
+                       .leftMap(e => NonEmptyList.one(s"${json.noSpaces} is not self-describing, ${e.code}"))
+                   }
         outputs <- EitherT.fromEither[F](contexts)
       } yield outputs
 
@@ -180,11 +180,11 @@ final case class ApiRequestEnrichment[F[_]: Monad: HttpClient](
       key <- Monad[F].pure(cacheKey(url, body))
       gotten <- cache.get(key)
       res <- gotten match {
-        case Some(response) =>
-          if (System.currentTimeMillis() / 1000 - response._2 < ttl) Monad[F].pure(response._1)
-          else put(key, url, body, output)
-        case None => put(key, url, body, output)
-      }
+               case Some(response) =>
+                 if (System.currentTimeMillis() / 1000 - response._2 < ttl) Monad[F].pure(response._1)
+                 else put(key, url, body, output)
+               case None => put(key, url, body, output)
+             }
       extracted = res.flatMap(output.extract)
       described = extracted.map(output.describeJson)
     } yield described
@@ -217,12 +217,12 @@ object CreateApiRequestEnrichment {
 
   implicit def syncCreateApiRequestEnrichment[F[_]: Sync: HttpClient](
     implicit CLM: CreateLruMap[F, String, (Either[Throwable, Json], Long)]
-  ): CreateApiRequestEnrichment[F] = new CreateApiRequestEnrichment[F] {
-    override def create(conf: ApiRequestConf): F[ApiRequestEnrichment[F]] =
-      CLM
-        .create(conf.cache.size)
-        .map(
-          c =>
+  ): CreateApiRequestEnrichment[F] =
+    new CreateApiRequestEnrichment[F] {
+      override def create(conf: ApiRequestConf): F[ApiRequestEnrichment[F]] =
+        CLM
+          .create(conf.cache.size)
+          .map(c =>
             ApiRequestEnrichment(
               conf.schemaKey,
               conf.inputs,
@@ -231,18 +231,18 @@ object CreateApiRequestEnrichment {
               conf.cache.ttl,
               c
             )
-        )
-  }
+          )
+    }
 
   implicit def evalCreateApiRequestEnrichment(
     implicit CLM: CreateLruMap[Eval, String, (Either[Throwable, Json], Long)],
     HTTP: HttpClient[Eval]
-  ): CreateApiRequestEnrichment[Eval] = new CreateApiRequestEnrichment[Eval] {
-    override def create(conf: ApiRequestConf): Eval[ApiRequestEnrichment[Eval]] =
-      CLM
-        .create(conf.cache.size)
-        .map(
-          c =>
+  ): CreateApiRequestEnrichment[Eval] =
+    new CreateApiRequestEnrichment[Eval] {
+      override def create(conf: ApiRequestConf): Eval[ApiRequestEnrichment[Eval]] =
+        CLM
+          .create(conf.cache.size)
+          .map(c =>
             ApiRequestEnrichment(
               conf.schemaKey,
               conf.inputs,
@@ -251,18 +251,18 @@ object CreateApiRequestEnrichment {
               conf.cache.ttl,
               c
             )
-        )
-  }
+          )
+    }
 
   implicit def idCreateApiRequestEnrichment(
     implicit CLM: CreateLruMap[Id, String, (Either[Throwable, Json], Long)],
     HTTP: HttpClient[Id]
-  ): CreateApiRequestEnrichment[Id] = new CreateApiRequestEnrichment[Id] {
-    override def create(conf: ApiRequestConf): Id[ApiRequestEnrichment[Id]] =
-      CLM
-        .create(conf.cache.size)
-        .map(
-          c =>
+  ): CreateApiRequestEnrichment[Id] =
+    new CreateApiRequestEnrichment[Id] {
+      override def create(conf: ApiRequestConf): Id[ApiRequestEnrichment[Id]] =
+        CLM
+          .create(conf.cache.size)
+          .map(c =>
             ApiRequestEnrichment(
               conf.schemaKey,
               conf.inputs,
@@ -271,6 +271,6 @@ object CreateApiRequestEnrichment {
               conf.cache.ttl,
               c
             )
-        )
-  }
+          )
+    }
 }

@@ -116,25 +116,25 @@ final case class CurrencyConversionEnrichment[F[_]: Monad](
         (for {
           cu <- EitherT.fromEither[F](ic)
           res <- EitherT(
-            forex
-              .convert(v, cu)
-              .to(baseCurrency)
-              .at(tstamp)
-              .map(
-                _.bimap(
-                  l => {
-                    val errorType = l.errorType.getClass.getSimpleName.replace("$", "")
-                    val msg =
-                      s"Open Exchange Rates error, type: [$errorType], message: [${l.errorMessage}]"
-                    val f =
-                      FailureDetails.EnrichmentFailureMessage.Simple(msg)
-                    FailureDetails
-                      .EnrichmentFailure(enrichmentInfo, f)
-                  },
-                  r => (r.getAmount().toPlainString()).some
-                )
-              )
-          )
+                   forex
+                     .convert(v, cu)
+                     .to(baseCurrency)
+                     .at(tstamp)
+                     .map(
+                       _.bimap(
+                         l => {
+                           val errorType = l.errorType.getClass.getSimpleName.replace("$", "")
+                           val msg =
+                             s"Open Exchange Rates error, type: [$errorType], message: [${l.errorMessage}]"
+                           val f =
+                             FailureDetails.EnrichmentFailureMessage.Simple(msg)
+                           FailureDetails
+                             .EnrichmentFailure(enrichmentInfo, f)
+                         },
+                         r => (r.getAmount().toPlainString()).some
+                       )
+                     )
+                 )
         } yield res).value
       case _ => Monad[F].pure(None.asRight)
     }
@@ -194,14 +194,13 @@ final case class CurrencyConversionEnrichment[F[_]: Monad](
           performConversion(trCu, trTax, zdt),
           performConversion(trCu, trShipping, zdt),
           performConversion(tiCu, tiPrice, zdt)
-        ).mapN(
-          (newCurrencyTr, newTrTax, newTrShipping, newCurrencyTi) =>
-            (
-              newCurrencyTr.toValidatedNel,
-              newTrTax.toValidatedNel,
-              newTrShipping.toValidatedNel,
-              newCurrencyTi.toValidatedNel
-            ).mapN((_, _, _, _))
+        ).mapN((newCurrencyTr, newTrTax, newTrShipping, newCurrencyTi) =>
+          (
+            newCurrencyTr.toValidatedNel,
+            newTrTax.toValidatedNel,
+            newTrShipping.toValidatedNel,
+            newCurrencyTi.toValidatedNel
+          ).mapN((_, _, _, _))
         )
       // This should never happen
       case None =>

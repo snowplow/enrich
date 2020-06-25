@@ -61,10 +61,8 @@ class CloudfrontLoaderSpec extends Specification with DataTables with ValidatedM
       "Valid without ms #2" !! "1980-04-01" ! "21:20:04" ! DateTime.parse(
         "1980-04-01T21:20:04+00:00"
       ) |> { (_, date, time, expected) =>
-      {
-        val actual = CloudfrontLoader.toTimestamp(date, time)
-        actual must beRight(expected)
-      }
+      val actual = CloudfrontLoader.toTimestamp(date, time)
+      actual must beRight(expected)
     }
 
   def e2 =
@@ -79,10 +77,8 @@ class CloudfrontLoaderSpec extends Specification with DataTables with ValidatedM
       "URI without trailing % #1" !! "https://github.com/snowplow/snowplow/issues/494" ! "https://github.com/snowplow/snowplow/issues/494" |
       "URI without trailing % #2" !! "" ! "" |
       "URI without trailing % #3" !! "http://bbc.co.uk" ! "http://bbc.co.uk" |> { (_, uri, expected) =>
-      {
-        val actual = CloudfrontLoader.toCleanUri(uri)
-        actual must_== expected
-      }
+      val actual = CloudfrontLoader.toCleanUri(uri)
+      actual must_== expected
     }
 
   def e4 =
@@ -91,10 +87,8 @@ class CloudfrontLoaderSpec extends Specification with DataTables with ValidatedM
       "Ambiguous - assume double-encoded, modify" !! "%2588 is 1x-encoded 25 percent OR 2x-encoded ^" ! "%88 is 1x-encoded 25 percent OR 2x-encoded ^" |
       "Single-encoded %s, leave" !! "e=pp&page=Dreaming%20Way%20Tarot%20-%20Psychic%20Bazaar&pp_mix=0&pp_max=0&pp_miy=0&pp_may=0&dtm=1376984181667&tid=056188&vp=1440x838&ds=1440x1401&vid=1&duid=8ac2d67163d6d36a&p=web&tv=js-0.12.0&fp=1569742263&aid=pbzsite&lang=en-us&cs=UTF-8&tz=Australia%2FSydney&f_pdf=1&f_qt=1&f_realp=0&f_wma=1&f_dir=0&f_fla=1&f_java=1&f_gears=0&f_ag=0&res=1440x900&cd=24&cookie=1&url=http%3A%2F%2Fwww.psychicbazaar.com%2Ftarot-cards%2F312-dreaming-way-tarot.html" ! "e=pp&page=Dreaming%20Way%20Tarot%20-%20Psychic%20Bazaar&pp_mix=0&pp_max=0&pp_miy=0&pp_may=0&dtm=1376984181667&tid=056188&vp=1440x838&ds=1440x1401&vid=1&duid=8ac2d67163d6d36a&p=web&tv=js-0.12.0&fp=1569742263&aid=pbzsite&lang=en-us&cs=UTF-8&tz=Australia%2FSydney&f_pdf=1&f_qt=1&f_realp=0&f_wma=1&f_dir=0&f_fla=1&f_java=1&f_gears=0&f_ag=0&res=1440x900&cd=24&cookie=1&url=http%3A%2F%2Fwww.psychicbazaar.com%2Ftarot-cards%2F312-dreaming-way-tarot.html" |
       "Single-encoded % sign itself, leave" !! "Loading - 70%25 Complete" ! "Loading - 70%25 Complete" |> { (_, qs, expected) =>
-      {
-        val actual = ConversionUtils.singleEncodePcts(qs)
-        actual must_== expected
-      }
+      val actual = ConversionUtils.singleEncodePcts(qs)
+      actual must_== expected
     }
 
   def e5 =
@@ -226,22 +220,19 @@ class CloudfrontLoaderSpec extends Specification with DataTables with ValidatedM
         "67.71.16.237".some ! "Mozilla/5.0%20(Windows%20NT%206.1;%20Trident/7.0;%20rv:11.0)%20like%20Gecko".some ! "http://www.simplybusiness.co.uk/knowledge/articles/2016/06/guide-to-facebook-professional-services-for-small-business/".some |> {
 
       (_, raw, timestamp, payload, ipAddress, userAgent, refererUri) =>
-        {
+        val canonicalEvent = CloudfrontLoader.toCollectorPayload(raw, Process)
 
-          val canonicalEvent = CloudfrontLoader.toCollectorPayload(raw, Process)
+        val expected = CollectorPayload(
+          api = Expected.api,
+          querystring = payload,
+          body = None,
+          contentType = None,
+          source = CollectorPayload.Source(Expected.collector, Expected.encoding, None),
+          context = CollectorPayload
+            .Context(timestamp.some, ipAddress, userAgent, refererUri, Nil, None)
+        )
 
-          val expected = CollectorPayload(
-            api = Expected.api,
-            querystring = payload,
-            body = None,
-            contentType = None,
-            source = CollectorPayload.Source(Expected.collector, Expected.encoding, None),
-            context = CollectorPayload
-              .Context(timestamp.some, ipAddress, userAgent, refererUri, Nil, None)
-          )
-
-          canonicalEvent must beValid(expected.some)
-        }
+        canonicalEvent must beValid(expected.some)
     }
 
   def e6 = {
@@ -249,12 +240,12 @@ class CloudfrontLoaderSpec extends Specification with DataTables with ValidatedM
       "2012-05-24  11:35:53  DFW3  3343  99.116.172.58 POST d3gs014xn8p70.cloudfront.net  /i  200 http://www.psychicbazaar.com/2-tarot-cards/genre/all/type/all?p=5 Mozilla/5.0%20(Windows%20NT%206.1;%20WOW64;%20rv:12.0)%20Gecko/20100101%20Firefox/12.0  e=pv&page=Tarot%2520cards%2520-%2520Psychic%2520Bazaar&tid=344260&uid=288112e0a5003be2&vid=1&lang=en-US&refr=http%253A%252F%252Fwww.psychicbazaar.com%252F2-tarot-cards%252Fgenre%252Fall%252Ftype%252Fall%253Fp%253D4&f_pdf=1&f_qt=0&f_realp=0&f_wma=0&f_dir=0&f_fla=1&f_java=1&f_gears=0&f_ag=1&res=1366x768&cookie=1"
     CloudfrontLoader.toCollectorPayload(raw, Process) must beInvalid.like {
       case NonEmptyList(
-          BadRow.CPFormatViolation(
-            Process,
-            Failure.CPFormatViolation(_, "cloudfront", f),
-            Payload.RawPayload(l)
-          ),
-          List()
+            BadRow.CPFormatViolation(
+              Process,
+              Failure.CPFormatViolation(_, "cloudfront", f),
+              Payload.RawPayload(l)
+            ),
+            List()
           ) =>
         f must_== FailureDetails.CPFormatViolationMessage.InputData(
           "verb",
@@ -271,12 +262,12 @@ class CloudfrontLoaderSpec extends Specification with DataTables with ValidatedM
     prop { (raw: String) =>
       CloudfrontLoader.toCollectorPayload(raw, Process) must beInvalid.like {
         case NonEmptyList(
-            BadRow.CPFormatViolation(
-              Process,
-              Failure.CPFormatViolation(_, "cloudfront", f),
-              Payload.RawPayload(l)
-            ),
-            List()
+              BadRow.CPFormatViolation(
+                Process,
+                Failure.CPFormatViolation(_, "cloudfront", f),
+                Payload.RawPayload(l)
+              ),
+              List()
             ) =>
           f must_== FailureDetails.CPFormatViolationMessage.Fallback(
             "does not match header or data row formats"

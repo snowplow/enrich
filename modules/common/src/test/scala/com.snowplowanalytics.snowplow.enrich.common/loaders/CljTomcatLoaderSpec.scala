@@ -185,22 +185,19 @@ class CljTomcatLoaderSpec extends Specification with DataTables with ValidatedMa
         "Mozilla/5.0%20(Windows%20NT%205.1;%20rv:23.0)%20Gecko/20100101%20Firefox/23.0".some ! "http://snowplowanalytics.com/analytics/index.html".some |> {
 
       (_, raw, version, payload, contentType, body, timestamp, userAgent, refererUri) =>
-        {
+        val canonicalEvent = CljTomcatLoader.toCollectorPayload(raw, Process)
 
-          val canonicalEvent = CljTomcatLoader.toCollectorPayload(raw, Process)
+        val expected = CollectorPayload(
+          api = CollectorPayload.Api(Expected.vendor, version),
+          querystring = payload,
+          contentType = contentType,
+          body = body,
+          source = CollectorPayload.Source(Expected.collector, Expected.encoding, None),
+          context = CollectorPayload
+            .Context(timestamp.some, Expected.ipAddress, userAgent, refererUri, Nil, None)
+        )
 
-          val expected = CollectorPayload(
-            api = CollectorPayload.Api(Expected.vendor, version),
-            querystring = payload,
-            contentType = contentType,
-            body = body,
-            source = CollectorPayload.Source(Expected.collector, Expected.encoding, None),
-            context = CollectorPayload
-              .Context(timestamp.some, Expected.ipAddress, userAgent, refererUri, Nil, None)
-          )
-
-          canonicalEvent must beValid(expected.some)
-        }
+        canonicalEvent must beValid(expected.some)
     }
 
   def e2 = {
@@ -209,12 +206,12 @@ class CljTomcatLoaderSpec extends Specification with DataTables with ValidatedMa
     val actual = CljTomcatLoader.toCollectorPayload(raw, Process)
     actual must beInvalid.like {
       case NonEmptyList(
-          BadRow.CPFormatViolation(
-            Process,
-            Failure.CPFormatViolation(_, "clj-tomcat", f),
-            Payload.RawPayload(l)
-          ),
-          List()
+            BadRow.CPFormatViolation(
+              Process,
+              Failure.CPFormatViolation(_, "clj-tomcat", f),
+              Payload.RawPayload(l)
+            ),
+            List()
           ) =>
         f must_== FailureDetails.CPFormatViolationMessage.InputData(
           "verb",
@@ -231,12 +228,12 @@ class CljTomcatLoaderSpec extends Specification with DataTables with ValidatedMa
     val actual = CljTomcatLoader.toCollectorPayload(raw, Process)
     actual must beInvalid.like {
       case NonEmptyList(
-          BadRow.CPFormatViolation(
-            Process,
-            Failure.CPFormatViolation(_, "clj-tomcat", f),
-            Payload.RawPayload(l)
-          ),
-          List()
+            BadRow.CPFormatViolation(
+              Process,
+              Failure.CPFormatViolation(_, "clj-tomcat", f),
+              Payload.RawPayload(l)
+            ),
+            List()
           ) =>
         f must_== FailureDetails.CPFormatViolationMessage.InputData(
           "path",
@@ -253,12 +250,12 @@ class CljTomcatLoaderSpec extends Specification with DataTables with ValidatedMa
     prop { (raw: String) =>
       CljTomcatLoader.toCollectorPayload(raw, Process) must beInvalid.like {
         case NonEmptyList(
-            BadRow.CPFormatViolation(
-              Process,
-              Failure.CPFormatViolation(_, "clj-tomcat", f),
-              Payload.RawPayload(l)
-            ),
-            List()
+              BadRow.CPFormatViolation(
+                Process,
+                Failure.CPFormatViolation(_, "clj-tomcat", f),
+                Payload.RawPayload(l)
+              ),
+              List()
             ) =>
           f must_== FailureDetails.CPFormatViolationMessage.Fallback(
             "does not match the raw event format"

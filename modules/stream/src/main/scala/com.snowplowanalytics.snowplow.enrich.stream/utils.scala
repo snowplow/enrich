@@ -78,23 +78,23 @@ object utils {
 
     for {
       provider <- creds match {
-        case NoCredentials => "No AWS credentials provided".asLeft
-        case _: GCPCredentials => "GCP credentials provided".asLeft
-        case AWSCredentials(a, s) if isDefault(a) && isDefault(s) =>
-          new DefaultAWSCredentialsProviderChain().asRight
-        case AWSCredentials(a, s) if isDefault(a) || isDefault(s) =>
-          "accessKey and secretKey must both be set to 'default' or neither".asLeft
-        case AWSCredentials(a, s) if isIam(a) && isIam(s) =>
-          InstanceProfileCredentialsProvider.getInstance().asRight
-        case AWSCredentials(a, s) if isIam(a) && isIam(s) =>
-          "accessKey and secretKey must both be set to 'iam' or neither".asLeft
-        case AWSCredentials(a, s) if isEnv(a) && isEnv(s) =>
-          new EnvironmentVariableCredentialsProvider().asRight
-        case AWSCredentials(a, s) if isEnv(a) || isEnv(s) =>
-          "accessKey and secretKey must both be set to 'env' or neither".asLeft
-        case AWSCredentials(a, s) =>
-          new AWSStaticCredentialsProvider(new BasicAWSCredentials(a, s)).asRight
-      }
+                    case NoCredentials => "No AWS credentials provided".asLeft
+                    case _: GCPCredentials => "GCP credentials provided".asLeft
+                    case AWSCredentials(a, s) if isDefault(a) && isDefault(s) =>
+                      new DefaultAWSCredentialsProviderChain().asRight
+                    case AWSCredentials(a, s) if isDefault(a) || isDefault(s) =>
+                      "accessKey and secretKey must both be set to 'default' or neither".asLeft
+                    case AWSCredentials(a, s) if isIam(a) && isIam(s) =>
+                      InstanceProfileCredentialsProvider.getInstance().asRight
+                    case AWSCredentials(a, s) if isIam(a) && isIam(s) =>
+                      "accessKey and secretKey must both be set to 'iam' or neither".asLeft
+                    case AWSCredentials(a, s) if isEnv(a) && isEnv(s) =>
+                      new EnvironmentVariableCredentialsProvider().asRight
+                    case AWSCredentials(a, s) if isEnv(a) || isEnv(s) =>
+                      "accessKey and secretKey must both be set to 'env' or neither".asLeft
+                    case AWSCredentials(a, s) =>
+                      new AWSStaticCredentialsProvider(new BasicAWSCredentials(a, s)).asRight
+                  }
     } yield provider
   }
 
@@ -143,18 +143,18 @@ object utils {
   ): Either[String, Unit] =
     for {
       s3Client <- Either
-        .catchNonFatal(
-          region
-            .fold(AmazonS3ClientBuilder.standard().withCredentials(provider).build())(
-              r => AmazonS3ClientBuilder.standard().withCredentials(provider).withRegion(r).build()
-            )
-        )
-        .leftMap(_.getMessage)
+                    .catchNonFatal(
+                      region
+                        .fold(AmazonS3ClientBuilder.standard().withCredentials(provider).build())(r =>
+                          AmazonS3ClientBuilder.standard().withCredentials(provider).withRegion(r).build()
+                        )
+                    )
+                    .leftMap(_.getMessage)
       bucketName = uri.getHost
       key = extractObjectKey(uri)
       _ <- Either
-        .catchNonFatal(s3Client.getObject(new GetObjectRequest(bucketName, key), targetFile))
-        .leftMap(_.getMessage)
+             .catchNonFatal(s3Client.getObject(new GetObjectRequest(bucketName, key), targetFile))
+             .leftMap(_.getMessage)
     } yield ()
 
   def downloadFromGCS(
@@ -164,20 +164,21 @@ object utils {
   ): Either[String, Unit] =
     for {
       storage <- Either
-        .catchNonFatal(StorageOptions.newBuilder().setCredentials(creds).build().getService)
-        .leftMap(_.getMessage)
+                   .catchNonFatal(StorageOptions.newBuilder().setCredentials(creds).build().getService)
+                   .leftMap(_.getMessage)
       bucketName = uri.getHost
       key = extractObjectKey(uri)
       _ <- Either
-        .catchNonFatal(storage.get(BlobId.of(bucketName, key)).downloadTo(targetFile.toPath))
-        .leftMap(_.getMessage)
+             .catchNonFatal(storage.get(BlobId.of(bucketName, key)).downloadTo(targetFile.toPath))
+             .leftMap(_.getMessage)
     } yield ()
 
   /** Remove leading slash from given uri's path, if exists */
-  def extractObjectKey(uri: URI): String = uri.getPath match {
-    case path if path.length > 0 && path.charAt(0) == '/' => path.substring(1)
-    case path => path
-  }
+  def extractObjectKey(uri: URI): String =
+    uri.getPath match {
+      case path if path.length > 0 && path.charAt(0) == '/' => path.substring(1)
+      case path => path
+    }
 
   /**
    * Extracts a DualCloudCredentialsPair from given cloud agnostic platform config

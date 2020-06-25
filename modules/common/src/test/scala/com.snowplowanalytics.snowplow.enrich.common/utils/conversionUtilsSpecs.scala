@@ -26,15 +26,16 @@ import org.specs2.matcher.DataTables
 class StringToUriSpec extends MSpecification with DataTables {
 
   /** Helper to generate URLs with `chars` at different places in the path and in the query string, doubled, tripled, etc. */
-  private def generateUrlsWithChars(chars: String): List[String] = List(
-    s"http://www.example.com/a/b/$chars",
-    s"http://www.example.com/a$chars",
-    s"http://www.example.com/a$chars$chars",
-    s"http://www.example.com/a$chars$chars${chars}b/c",
-    s"http://www.example.com/a${chars}/c$chars${chars}d",
-    s"http://www.example.com/a${chars}b/456?d=e$chars${chars}f&g=h${chars}i&j=k",
-    s"http://www.example.com/a${chars}b/c?d=e&f=g$chars$chars${chars}h"
-  )
+  private def generateUrlsWithChars(chars: String): List[String] =
+    List(
+      s"http://www.example.com/a/b/$chars",
+      s"http://www.example.com/a$chars",
+      s"http://www.example.com/a$chars$chars",
+      s"http://www.example.com/a$chars$chars${chars}b/c",
+      s"http://www.example.com/a${chars}/c$chars${chars}d",
+      s"http://www.example.com/a${chars}b/456?d=e$chars${chars}f&g=h${chars}i&j=k",
+      s"http://www.example.com/a${chars}b/c?d=e&f=g$chars$chars${chars}h"
+    )
 
   "Parsing string into URI should" >> {
     "work with null" >> {
@@ -161,11 +162,9 @@ class ExplodeUriSpec extends Specification with DataTables {
       "Tab & newline in #" !! "http://psy.bz/oracles/psycards.html?view=print#detail%09is%0Acorrupted" ! "http" ! "psy.bz" ! 80 ! Some(
         "/oracles/psycards.html"
       ) ! Some("view=print") ! Some("detail%09is%0Acorrupted") |> { (_, uri, scheme, host, port, path, query, fragment) =>
-      {
-        val actual = ConversionUtils.explodeUri(new URI(uri))
-        val expected = ConversionUtils.UriComponents(scheme, host, port, path, query, fragment)
-        actual must_== expected
-      }
+      val actual = ConversionUtils.explodeUri(new URI(uri))
+      val expected = ConversionUtils.UriComponents(scheme, host, port, path, query, fragment)
+      actual must_== expected
 
     }
 }
@@ -230,9 +229,7 @@ class DecodeBase64UrlSpec extends Specification with DataTables with ScalaCheck 
       "JS Tracker JSON #1" !! "eyJwcm9kdWN0X2lkIjoiQVNPMDEwNDMiLCJjYXRlZ29yeSI6IkRyZXNzZXMiLCJicmFuZCI6IkFDTUUiLCJyZXR1cm5pbmciOnRydWUsInByaWNlIjo0OS45NSwic2l6ZXMiOlsieHMiLCJzIiwibCIsInhsIiwieHhsIl0sImF2YWlsYWJsZV9zaW5jZSRkdCI6MTU4MDF9" ! """{"product_id":"ASO01043","category":"Dresses","brand":"ACME","returning":true,"price":49.95,"sizes":["xs","s","l","xl","xxl"],"available_since$dt":15801}""" |
       "Unescaped characters" !! "äöü - &" ! "" |
       "Blank string" !! "" ! "" |> { (_, str, expected) =>
-      {
-        ConversionUtils.decodeBase64Url(str) must beRight(expected)
-      }
+      ConversionUtils.decodeBase64Url(str) must beRight(expected)
     }
 }
 
@@ -253,9 +250,7 @@ class ValidateUuidSpec extends Specification with DataTables with ScalaCheck {
       // Note: MS-style {GUID} is not supported
 
       (_, str, expected) =>
-        {
-          ConversionUtils.validateUuid(FieldName, str) must beRight(expected)
-        }
+        ConversionUtils.validateUuid(FieldName, str) must beRight(expected)
     }
 
   // A bit of fun: the chances of generating a valid UUID at random are

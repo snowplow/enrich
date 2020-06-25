@@ -74,7 +74,7 @@ class ExtractEventTypeSpec extends Specification with DataTables {
     "Valid timestamp"    !! SeventiesTstamp ! "1970-01-01 00:00:00.000".asRight |> {
 // format: on
       (_, input, expected) =>
-        EventEnrichments.formatCollectorTstamp(input) must_== (expected)
+        EventEnrichments.formatCollectorTstamp(input) must_== expected
     }
 
   def e4 =
@@ -100,7 +100,7 @@ class ExtractEventTypeSpec extends Specification with DataTables {
         )
         .asLeft |
       "Valid ts" !! (("f", "1")) ! "1970-01-01 00:00:00.001".asRight |> { (_, input, expected) =>
-      EventEnrichments.extractTimestamp(input._1, input._2) must_== (expected)
+      EventEnrichments.extractTimestamp(input._1, input._2) must_== expected
     }
 }
 

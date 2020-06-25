@@ -16,12 +16,7 @@
 package com.snowplowanalytics.snowplow.enrich.stream
 package sources
 
-import com.snowplowanalytics.snowplow.enrich.stream.model.{
-  AWSCredentials,
-  DualCloudCredentialsPair,
-  GCPCredentials,
-  NoCredentials
-}
+import com.snowplowanalytics.snowplow.enrich.stream.model.{AWSCredentials, DualCloudCredentialsPair, GCPCredentials, NoCredentials}
 import org.specs2.mutable.Specification
 
 class UtilsSpec extends Specification {

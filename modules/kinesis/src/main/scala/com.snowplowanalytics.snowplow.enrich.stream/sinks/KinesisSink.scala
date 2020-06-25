@@ -294,9 +294,7 @@ class KinesisSink(
       client.putRecords(putRecordsRequest)
     }
 
-  private[sinks] def getErrorsSummary(
-    badResponses: List[PutRecordsResultEntry]
-  ): Map[String, (Long, String)] =
+  private[sinks] def getErrorsSummary(badResponses: List[PutRecordsResultEntry]): Map[String, (Long, String)] =
     badResponses.foldLeft(Map[String, (Long, String)]())(
       (counts, r) =>
         if (counts.contains(r.getErrorCode)) {

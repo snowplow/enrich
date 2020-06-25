@@ -215,9 +215,7 @@ object Enrich {
    * @param enriched collection of events that went through the enrichment phase
    * @return a collection of properly-sized enriched events and another of oversized ones
    */
-  private def formatEnrichedEvents(
-    enriched: SCollection[EnrichedEvent]
-  ): (SCollection[(String, Int)], SCollection[(String, Int)]) =
+  private def formatEnrichedEvents(enriched: SCollection[EnrichedEvent]): (SCollection[(String, Int)], SCollection[(String, Int)]) =
     enriched
       .withName("format-enriched")
       .map { enrichedEvent =>
@@ -304,10 +302,7 @@ object Enrich {
    * @param enrichmentConfs list of enrichment configurations
    * @return a properly build [[DistCache]]
    */
-  private def buildDistCache(
-    sc: ScioContext,
-    enrichmentConfs: List[EnrichmentConf]
-  ): DistCache[List[Either[String, String]]] = {
+  private def buildDistCache(sc: ScioContext, enrichmentConfs: List[EnrichmentConf]): DistCache[List[Either[String, String]]] = {
     val filesToCache: List[(String, String)] = enrichmentConfs
       .map(_.filesToCache)
       .flatten

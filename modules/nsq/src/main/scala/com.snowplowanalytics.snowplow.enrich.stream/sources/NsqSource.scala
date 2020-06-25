@@ -101,13 +101,12 @@ class NsqSource private (
     override def initialValue: Sink = new NsqSink(goodProducer, config.out.enriched)
   }
 
-  override val threadLocalPiiSink: Option[ThreadLocal[Sink]] = piiProducer.flatMap {
-    somePiiProducer =>
-      config.out.pii.map { piiTopicName =>
-        new ThreadLocal[Sink] {
-          override def initialValue: Sink = new NsqSink(somePiiProducer, piiTopicName)
-        }
+  override val threadLocalPiiSink: Option[ThreadLocal[Sink]] = piiProducer.flatMap { somePiiProducer =>
+    config.out.pii.map { piiTopicName =>
+      new ThreadLocal[Sink] {
+        override def initialValue: Sink = new NsqSink(somePiiProducer, piiTopicName)
       }
+    }
   }
 
   override val threadLocalBadSink: ThreadLocal[Sink] = new ThreadLocal[Sink] {

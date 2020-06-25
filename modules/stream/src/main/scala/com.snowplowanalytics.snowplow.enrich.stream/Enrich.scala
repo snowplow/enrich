@@ -129,9 +129,7 @@ trait Enrich {
    * @return a validated tuple containing the parsed enrich configuration, the resolver argument,
    * the optional enrichments argument and the force download flag
    */
-  def parseConfig(
-    args: Array[String]
-  ): Either[String, (EnrichConfig, String, Option[String], Boolean)] =
+  def parseConfig(args: Array[String]): Either[String, (EnrichConfig, String, Option[String], Boolean)] =
     for {
       parsedCliArgs <- parser
         .parse(args, FileConfig())
@@ -140,8 +138,7 @@ trait Enrich {
         .catchNonFatal(ConfigFactory.parseFile(parsedCliArgs.config).resolve())
         .fold(
           t => t.getMessage.asLeft,
-          c =>
-            (c, parsedCliArgs.resolver, parsedCliArgs.enrichmentsDir, parsedCliArgs.forceDownload).asRight
+          c => (c, parsedCliArgs.resolver, parsedCliArgs.enrichmentsDir, parsedCliArgs.forceDownload).asRight
         )
       validatedConfig <- unparsedConfig.filterOrElse(
         t => t._1.hasPath("enrich"),
@@ -173,11 +170,7 @@ trait Enrich {
 a  * @param creds optionally necessary credentials to download the resolver
    * @return a validated iglu resolver
    */
-  def parseClient(
-    resolverArg: String
-  )(
-    implicit creds: Credentials
-  ): Either[String, Client[Id, Json]] =
+  def parseClient(resolverArg: String)(implicit creds: Credentials): Either[String, Client[Id, Json]] =
     for {
       parsedResolver <- extractResolver(resolverArg)
       json <- JsonUtils.extractJson(parsedResolver)
@@ -224,11 +217,7 @@ a  * @param creds optionally necessary credentials to download the resolver
    * @param creds optionally necessary credentials to download the enrichments
    * @return JSON containing configuration for all enrichments
    */
-  def extractEnrichmentConfigs(
-    enrichmentArgument: Option[String]
-  )(
-    implicit creds: Credentials
-  ): Either[String, Json]
+  def extractEnrichmentConfigs(enrichmentArgument: Option[String])(implicit creds: Credentials): Either[String, Json]
   val localEnrichmentConfigsExtractor = (enrichmentArgument: Option[String]) => {
     val jsons: Either[String, List[String]] = enrichmentArgument
       .map {

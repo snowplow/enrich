@@ -67,8 +67,7 @@ object utils {
         ee.event_format = "jsonschema"
         ee.event_name = "pii_transformation"
         ee.event_version = "1-0-0"
-        ee.v_etl =
-          s"beam-enrich-${generated.BuildInfo.version}-common-${generated.BuildInfo.sceVersion}"
+        ee.v_etl = s"beam-enrich-${generated.BuildInfo.version}-common-${generated.BuildInfo.sceVersion}"
         ee.contexts = getContextParentEvent(ee.event_id).noSpaces
         ee
       }

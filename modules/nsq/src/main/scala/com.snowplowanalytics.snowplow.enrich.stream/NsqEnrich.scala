@@ -51,17 +51,9 @@ object NsqEnrich extends Enrich {
 
   override val parser: scopt.OptionParser[FileConfig] = localParser
 
-  override def extractResolver(
-    resolverArgument: String
-  )(
-    implicit creds: Credentials
-  ): Either[String, String] =
+  override def extractResolver(resolverArgument: String)(implicit creds: Credentials): Either[String, String] =
     localResolverExtractor(resolverArgument)
 
-  override def extractEnrichmentConfigs(
-    enrichmentArg: Option[String]
-  )(
-    implicit creds: Credentials
-  ): Either[String, Json] =
+  override def extractEnrichmentConfigs(enrichmentArg: Option[String])(implicit creds: Credentials): Either[String, Json] =
     localEnrichmentConfigsExtractor(enrichmentArg)
 }

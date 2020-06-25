@@ -41,14 +41,7 @@ import com.snowplowanalytics.snowplow.scalatracker.Tracker
 import io.circe.Json
 import io.circe.syntax._
 import config._
-import model.{
-  Credentials,
-  DualCloudCredentialsPair,
-  Kinesis,
-  NoCredentials,
-  SentryConfig,
-  StreamsConfig
-}
+import model.{Credentials, DualCloudCredentialsPair, Kinesis, NoCredentials, SentryConfig, StreamsConfig}
 import sources.KinesisSource
 import utils.getAWSCredentialsProvider
 
@@ -151,11 +144,7 @@ object KinesisEnrich extends Enrich {
       forceCachedFilesDownloadOption()
     }
 
-  override def extractResolver(
-    resolverArgument: String
-  )(
-    implicit creds: Credentials
-  ): Either[String, String] =
+  override def extractResolver(resolverArgument: String)(implicit creds: Credentials): Either[String, String] =
     resolverArgument match {
       case FilepathRegex(filepath) =>
         val file = new File(filepath)
@@ -201,11 +190,7 @@ object KinesisEnrich extends Enrich {
     } yield json
   }
 
-  override def extractEnrichmentConfigs(
-    enrichmentArg: Option[String]
-  )(
-    implicit creds: Credentials
-  ): Either[String, Json] = {
+  override def extractEnrichmentConfigs(enrichmentArg: Option[String])(implicit creds: Credentials): Either[String, Json] = {
     val jsons: Either[String, List[String]] = enrichmentArg
       .map {
         case FilepathRegex(dir) =>

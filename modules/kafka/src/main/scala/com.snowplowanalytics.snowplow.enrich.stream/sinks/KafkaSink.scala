@@ -31,10 +31,7 @@ import model.{BufferConfig, Kafka}
 
 /** KafkaSink companion object with factory method */
 object KafkaSink {
-  def validateAndCreateProducer(
-    kafkaConfig: Kafka,
-    bufferConfig: BufferConfig
-  ): Either[String, KafkaProducer[String, String]] =
+  def validateAndCreateProducer(kafkaConfig: Kafka, bufferConfig: BufferConfig): Either[String, KafkaProducer[String, String]] =
     createProducer(kafkaConfig, bufferConfig).asRight
 
   /**
@@ -42,10 +39,7 @@ object KafkaSink {
    * This can fail if the producer can't be created.
    * @return a Kafka producer
    */
-  private def createProducer(
-    kafkaConfig: Kafka,
-    bufferConfig: BufferConfig
-  ): KafkaProducer[String, String] = {
+  private def createProducer(kafkaConfig: Kafka, bufferConfig: BufferConfig): KafkaProducer[String, String] = {
     val properties = createProperties(kafkaConfig, bufferConfig)
     properties.putAll(kafkaConfig.producerConf.getOrElse(Map()).asJava)
     new KafkaProducer[String, String](properties)

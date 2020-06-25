@@ -34,11 +34,7 @@ import pureconfig.generic.{FieldCoproductHint, ProductHint}
 import good._
 import model.{StreamsConfig, TargetPlatformConfig}
 
-class PiiEmitSpec(implicit ee: ExecutionEnv)
-    extends Specification
-    with FutureMatchers
-    with KafkaIntegrationSpec
-    with BeforeAfterAll {
+class PiiEmitSpec(implicit ee: ExecutionEnv) extends Specification with FutureMatchers with KafkaIntegrationSpec with BeforeAfterAll {
 
   var ktu: KafkaTestUtils = _
   override def beforeAll(): Unit = {

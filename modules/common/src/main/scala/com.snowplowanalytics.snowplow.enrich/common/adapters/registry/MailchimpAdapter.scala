@@ -99,14 +99,12 @@ object MailchimpAdapter extends Adapter {
       case (Some(body), _) =>
         val rawEvent = for {
           params <- ConversionUtils
-            .parseUrlEncodedForm(body)
-            .leftMap(
-              e => FailureDetails.AdapterFailure.InputData("body", body.some, e)
-            )
+                      .parseUrlEncodedForm(body)
+                      .leftMap(e => FailureDetails.AdapterFailure.InputData("body", body.some, e))
           eventType <- params.get("type").toRight {
-            val msg = "no `type` parameter provided: cannot determine event type"
-            FailureDetails.AdapterFailure.InputData("body", body.some, msg)
-          }
+                         val msg = "no `type` parameter provided: cannot determine event type"
+                         FailureDetails.AdapterFailure.InputData("body", body.some, msg)
+                       }
           schema <- lookupSchema(eventType.some, EventSchemaMap)
           allParams = toMap(payload.querystring) ++ reformatParameters(params)
         } yield RawEvent(

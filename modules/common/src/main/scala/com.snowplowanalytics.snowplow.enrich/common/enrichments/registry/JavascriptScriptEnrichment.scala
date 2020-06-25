@@ -85,41 +85,38 @@ final case class JavascriptScriptEnrichment(schemaKey: SchemaKey, rawFunction: S
    */
   def process(event: EnrichedEvent): Either[FailureDetails.EnrichmentFailure, List[SelfDescribingData[Json]]] =
     invocable
-      .flatMap(
-        _ =>
-          Either
-            .catchNonFatal(engine.invokeFunction("getJavascriptContexts", event).asInstanceOf[String])
-            .leftMap(e => s"Error during execution of JavaScript function: [${e.getMessage}]")
+      .flatMap(_ =>
+        Either
+          .catchNonFatal(engine.invokeFunction("getJavascriptContexts", event).asInstanceOf[String])
+          .leftMap(e => s"Error during execution of JavaScript function: [${e.getMessage}]")
       )
-      .flatMap(
-        contexts =>
-          parse(contexts) match {
-            case Right(json) =>
-              json.asArray match {
-                case Some(array) =>
-                  array
-                    .parTraverse(
-                      json =>
-                        SelfDescribingData
-                          .parse(json)
-                          .leftMap(error => (error, json))
-                          .leftMap(NonEmptyList.one)
-                    )
-                    .map(_.toList)
-                    .leftMap { s =>
-                      val msg = s.toList
-                        .map {
-                          case (error, json) => s"error code:[${error.code}],json:[${json.noSpaces}]"
-                        }
-                        .mkString(";")
-                      s"Resulting contexts are not self-desribing. Error(s): [$msg]"
-                    }
-                case None =>
-                  Left(s"Output of JavaScript function [$json] could be parsed as JSON but is not read as an array")
-              }
-            case Left(err) =>
-              Left(s"Could not parse output JSON of Javascript function. Error: [${err.getMessage}]")
-          }
+      .flatMap(contexts =>
+        parse(contexts) match {
+          case Right(json) =>
+            json.asArray match {
+              case Some(array) =>
+                array
+                  .parTraverse(json =>
+                    SelfDescribingData
+                      .parse(json)
+                      .leftMap(error => (error, json))
+                      .leftMap(NonEmptyList.one)
+                  )
+                  .map(_.toList)
+                  .leftMap { s =>
+                    val msg = s.toList
+                      .map {
+                        case (error, json) => s"error code:[${error.code}],json:[${json.noSpaces}]"
+                      }
+                      .mkString(";")
+                    s"Resulting contexts are not self-desribing. Error(s): [$msg]"
+                  }
+              case None =>
+                Left(s"Output of JavaScript function [$json] could be parsed as JSON but is not read as an array")
+            }
+          case Left(err) =>
+            Left(s"Could not parse output JSON of Javascript function. Error: [${err.getMessage}]")
+        }
       )
       .leftMap(errorMsg => FailureDetails.EnrichmentFailure(enrichmentInfo, FailureDetails.EnrichmentFailureMessage.Simple(errorMsg)))
 }

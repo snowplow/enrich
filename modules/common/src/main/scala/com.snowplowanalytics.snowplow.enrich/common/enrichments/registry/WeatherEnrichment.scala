@@ -62,7 +62,7 @@ object WeatherEnrichment extends ParseableEnrichment {
           CirceUtils.extract[Int](c, "parameters", "timeout").toValidatedNel,
           CirceUtils.extract[Int](c, "parameters", "cacheSize").toValidatedNel,
           CirceUtils.extract[Int](c, "parameters", "geoPrecision").toValidatedNel
-        ).mapN { WeatherConf(schemaKey, _, _, _, _, _) }.toEither
+        ).mapN(WeatherConf(schemaKey, _, _, _, _, _)).toEither
       }
       .toValidated
 
@@ -129,16 +129,16 @@ final case class WeatherEnrichment[F[_]: Monad](schemaKey: SchemaKey, client: OW
         val ts = ZonedDateTime.ofInstant(Instant.ofEpochMilli(t.getMillis()), ZoneOffset.UTC)
         for {
           weather <- EitherT(client.cachingHistoryByCoords(lat, lon, ts))
-            .leftMap { e =>
-              val f =
-                FailureDetails.EnrichmentFailure(
-                  enrichmentInfo,
-                  FailureDetails.EnrichmentFailureMessage
-                    .Simple(e.getMessage)
-                )
-              NonEmptyList.one(f)
-            }
-            .leftWiden[NonEmptyList[FailureDetails.EnrichmentFailure]]
+                       .leftMap { e =>
+                         val f =
+                           FailureDetails.EnrichmentFailure(
+                             enrichmentInfo,
+                             FailureDetails.EnrichmentFailureMessage
+                               .Simple(e.getMessage)
+                           )
+                         NonEmptyList.one(f)
+                       }
+                       .leftWiden[NonEmptyList[FailureDetails.EnrichmentFailure]]
           transformed = transformWeather(weather)
         } yield transformed.asJson
       case (a, b, c) =>

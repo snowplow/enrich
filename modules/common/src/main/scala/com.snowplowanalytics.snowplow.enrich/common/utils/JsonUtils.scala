@@ -68,11 +68,12 @@ object JsonUtils {
    * @param str The boolean-like String to convert
    * @return true, false, and otherwise a JString wrapping the original String
    */
-  private[utils] def booleanToJson(str: String): Json = str match {
-    case "true" => Json.True
-    case "false" => Json.False
-    case _ => Json.fromString(str)
-  }
+  private[utils] def booleanToJson(str: String): Json =
+    str match {
+      case "true" => Json.True
+      case "false" => Json.False
+      case _ => Json.fromString(str)
+    }
 
   /**
    * Converts an integer-like String to a JInt value. Any other value becomes a JString.
@@ -165,10 +166,10 @@ object JsonUtils {
    * because the message can be null
    */
   def stripInstanceEtc(message: String): Option[String] =
-    for (m <- Option(message)) yield {
-      m.replaceAll("@[0-9a-z]+;", "@xxxxxx;")
+    for (m <- Option(message))
+      yield m
+        .replaceAll("@[0-9a-z]+;", "@xxxxxx;")
         .replaceAll("\\t", "    ")
         .replaceAll("\\p{Cntrl}", "") // Any other control character
         .trim
-    }
 }

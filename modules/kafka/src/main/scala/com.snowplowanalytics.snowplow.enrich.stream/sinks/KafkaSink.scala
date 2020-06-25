@@ -69,7 +69,7 @@ class KafkaSink(kafkaProducer: KafkaProducer[String, String], topicName: String)
    * @return whether to send the stored events to Kafka
    */
   override def storeEnrichedEvents(events: List[(String, String)]): Boolean = {
-    for ((value, key) <- events) {
+    for ((value, key) <- events)
       kafkaProducer.send(
         new ProducerRecord(topicName, key, value),
         new Callback {
@@ -77,7 +77,6 @@ class KafkaSink(kafkaProducer: KafkaProducer[String, String], topicName: String)
             if (e != null) log.error(s"Sending event failed: ${e.getMessage}")
         }
       )
-    }
     true
   }
 

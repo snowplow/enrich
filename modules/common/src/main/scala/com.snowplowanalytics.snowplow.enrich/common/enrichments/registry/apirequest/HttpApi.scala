@@ -110,11 +110,12 @@ object HttpApi {
    * @param pair key-value pair
    * @return template with replaced placehoders for pair's key
    */
-  private[apirequest] def replace(t: String, pair: (String, String)): String = pair match {
-    case (key, value) =>
-      if (!key.matches("^[a-zA-Z0-9_-]+$")) t
-      else t.replaceAll(s"\\{\\{\\ *$key\\ *\\}\\}", value)
-  }
+  private[apirequest] def replace(t: String, pair: (String, String)): String =
+    pair match {
+      case (key, value) =>
+        if (!key.matches("^[a-zA-Z0-9_-]+$")) t
+        else t.replaceAll(s"\\{\\{\\ *$key\\ *\\}\\}", value)
+    }
 }
 
 /**

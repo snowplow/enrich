@@ -244,13 +244,12 @@ object IgluAdapter extends Adapter {
                   .invalidNel
             }
           case _ =>
-            if (parsed.asObject.fold(true)(_.isEmpty)) {
+            if (parsed.asObject.fold(true)(_.isEmpty))
               FailureDetails.AdapterFailure
                 .InputData("body", body.some, "has no key-value pairs")
                 .invalidNel
-            } else {
+            else
               NonEmptyList.one(buildRawEvent(parsed)).valid
-            }
         }
       case Left(e) =>
         FailureDetails.AdapterFailure.NotJson("body", Option(body), e).invalidNel
@@ -273,18 +272,18 @@ object IgluAdapter extends Adapter {
   ): ValidatedNel[FailureDetails.AdapterFailure, NonEmptyList[RawEvent]] =
     (for {
       bodyMap <- ConversionUtils
-        .parseUrlEncodedForm(body)
-        .leftMap(e => FailureDetails.AdapterFailure.InputData("body", body.some, e))
+                   .parseUrlEncodedForm(body)
+                   .leftMap(e => FailureDetails.AdapterFailure.InputData("body", body.some, e))
       event = bodyMap.asJson
       rawEvent = NonEmptyList
-        .one(
-          RawEvent(
-            api = payload.api,
-            parameters = toUnstructEventParams(TrackerVersion, params - "schema", schemaUri, event, "srv"),
-            contentType = payload.contentType,
-            source = payload.source,
-            context = payload.context
-          )
-        )
+                   .one(
+                     RawEvent(
+                       api = payload.api,
+                       parameters = toUnstructEventParams(TrackerVersion, params - "schema", schemaUri, event, "srv"),
+                       contentType = payload.contentType,
+                       source = payload.source,
+                       context = payload.context
+                     )
+                   )
     } yield rawEvent).toValidatedNel
 }

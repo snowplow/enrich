@@ -46,7 +46,7 @@ object Tp1Adapter extends Adapter {
       val msg = "empty querystring: not a valid URI redirect"
       val failure = FailureDetails.AdapterFailure.InputData("querystring", None, msg)
       Monad[F].pure(failure.invalidNel)
-    } else {
+    } else
       Monad[F].pure(
         NonEmptyList
           .one(
@@ -60,6 +60,5 @@ object Tp1Adapter extends Adapter {
           )
           .valid
       )
-    }
   }
 }

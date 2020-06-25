@@ -121,10 +121,11 @@ object SpecHelpers {
      * @return true if the actual equals or
      * matches expected, false otherwise
      */
-    private def equalsOrMatches(actual: String, expected: StringOrRegex): Boolean = expected match {
-      case JustRegex(r) => r.pattern.matcher(actual).matches
-      case JustString(s) => actual == s
-    }
+    private def equalsOrMatches(actual: String, expected: StringOrRegex): Boolean =
+      expected match {
+        case JustRegex(r) => r.pattern.matcher(actual).matches
+        case JustString(s) => actual == s
+      }
   }
 
   /**

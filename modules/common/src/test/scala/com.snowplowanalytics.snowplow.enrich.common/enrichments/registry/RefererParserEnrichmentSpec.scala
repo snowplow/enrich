@@ -58,9 +58,9 @@ class RefererParserEnrichmentSpec extends Specification with DataTables {
       ) |> { (_, refererUri, referer) =>
       (for {
         c <- EitherT.fromEither[Eval](
-          RefererParserEnrichment
-            .parse(
-              json"""{
+               RefererParserEnrichment
+                 .parse(
+                   json"""{
               "name": "referer_parser",
               "vendor": "com.snowplowanalytics.snowplow",
               "enabled": true,
@@ -70,17 +70,17 @@ class RefererParserEnrichmentSpec extends Specification with DataTables {
                 "database": "referer-tests.json"
               }
             }""",
-              SchemaKey(
-                "com.snowplowanalytics.snowplow",
-                "referer_parser",
-                "jsonschema",
-                SchemaVer.Full(2, 0, 0)
-              ),
-              true
-            )
-            .toEither
-            .leftMap(_.head)
-        )
+                   SchemaKey(
+                     "com.snowplowanalytics.snowplow",
+                     "referer_parser",
+                     "jsonschema",
+                     SchemaVer.Full(2, 0, 0)
+                   ),
+                   true
+                 )
+                 .toEither
+                 .leftMap(_.head)
+             )
         e <- c.enrichment[Eval]
         res = e.extractRefererDetails(new URI(refererUri), PageHost)
       } yield res).value.value must beRight.like {
@@ -91,9 +91,9 @@ class RefererParserEnrichmentSpec extends Specification with DataTables {
   def e2 =
     (for {
       c <- EitherT.fromEither[Eval](
-        RefererParserEnrichment
-          .parse(
-            json"""{
+             RefererParserEnrichment
+               .parse(
+                 json"""{
             "name": "referer_parser",
             "vendor": "com.snowplowanalytics.snowplow",
             "enabled": true,
@@ -103,24 +103,24 @@ class RefererParserEnrichmentSpec extends Specification with DataTables {
               "database": "referer-tests.json"
             }
           }""",
-            SchemaKey(
-              "com.snowplowanalytics.snowplow",
-              "referer_parser",
-              "jsonschema",
-              SchemaVer.Full(2, 0, 0)
-            ),
-            true
-          )
-          .toEither
-          .leftMap(_.head)
-      )
+                 SchemaKey(
+                   "com.snowplowanalytics.snowplow",
+                   "referer_parser",
+                   "jsonschema",
+                   SchemaVer.Full(2, 0, 0)
+                 ),
+                 true
+               )
+               .toEither
+               .leftMap(_.head)
+           )
       e <- c.enrichment[Eval]
       res = e.extractRefererDetails(
-        new URI(
-          "http://www.google.com/search?q=%0Agateway%09oracle%09cards%09denise%09linn&hl=en&client=safari"
-        ),
-        PageHost
-      )
+              new URI(
+                "http://www.google.com/search?q=%0Agateway%09oracle%09cards%09denise%09linn&hl=en&client=safari"
+              ),
+              PageHost
+            )
     } yield res).value.value must beRight.like {
       case o =>
         o must_== Some(

@@ -34,9 +34,11 @@ object SchemaEnrichment {
     val structSchema = SchemaKey("com.google.analytics", "event", Format, SchemaVersion)
   }
 
-  /** Returns an Option so that if there has already been a failure to validate the unstructured event,
+  /**
+   * Returns an Option so that if there has already been a failure to validate the unstructured event,
    * it returns `None` instead of creating an `EnrichmentFailure` for this enrichment,
-   * thus making it 2 bad rows for the same problem. */
+   * thus making it 2 bad rows for the same problem.
+   */
   def extractSchema(
     event: EnrichedEvent,
     unstructEvent: Option[SelfDescribingData[Json]]

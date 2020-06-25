@@ -41,7 +41,6 @@ class NsqSink(nsqProducer: NSQProducer, topicName: String) extends Sink {
   val producer = nsqProducer.start()
 
   /**
-   *
    * @param events Sequence of enriched events and (unused) partition keys
    * @return Whether to checkpoint
    */

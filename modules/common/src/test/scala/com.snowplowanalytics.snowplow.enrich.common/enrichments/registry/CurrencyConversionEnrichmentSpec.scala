@@ -112,16 +112,16 @@ class CurrencyConversionEnrichmentSpec extends Specification with DataTables {
       ) =>
         (for {
           e <- CurrencyConversionConf(schemaKey, DeveloperAccount, apiKey, CurrencyUnit.EUR)
-            .enrichment[Eval]
+                 .enrichment[Eval]
           res <- e.convertCurrencies(
-            trCurrency,
-            trAmountTotal,
-            trAmountTax,
-            trAmountShipping,
-            tiCurrency,
-            tiPrice,
-            dateTime
-          )
+                   trCurrency,
+                   trAmountTotal,
+                   trAmountTax,
+                   trAmountShipping,
+                   tiCurrency,
+                   tiPrice,
+                   dateTime
+                 )
         } yield res).value must_== expected
     }
 
@@ -183,18 +183,18 @@ class CurrencyConversionEnrichmentSpec extends Specification with DataTables {
       ) =>
         (for {
           c <- Eval.now(
-            CurrencyConversionConf(schemaKey, DeveloperAccount, apiKey, CurrencyUnit.EUR)
-          )
+                 CurrencyConversionConf(schemaKey, DeveloperAccount, apiKey, CurrencyUnit.EUR)
+               )
           e <- c.enrichment[Eval]
           res <- e.convertCurrencies(
-            trCurrency,
-            trAmountTotal,
-            trAmountTax,
-            trAmountShipping,
-            tiCurrency,
-            tiPrice,
-            dateTime
-          )
+                   trCurrency,
+                   trAmountTotal,
+                   trAmountTax,
+                   trAmountShipping,
+                   tiCurrency,
+                   tiPrice,
+                   dateTime
+                 )
         } yield res).value must_== expected
     }
 }

@@ -47,18 +47,18 @@ object NsqSource {
   ): Either[Throwable, NsqSource] =
     for {
       nsqConfig <- config.sourceSink match {
-        case c: Nsq => c.asRight
-        case _ => new IllegalArgumentException("Configured source/sink is not Nsq").asLeft
-      }
+                     case c: Nsq => c.asRight
+                     case _ => new IllegalArgumentException("Configured source/sink is not Nsq").asLeft
+                   }
       goodProducer <- NsqSink.validateAndCreateProducer(nsqConfig)
       emitPii = utils.emitPii(enrichmentRegistry)
       _ <- utils
-        .validatePii(emitPii, config.out.pii)
-        .leftMap(new IllegalArgumentException(_))
+             .validatePii(emitPii, config.out.pii)
+             .leftMap(new IllegalArgumentException(_))
       piiProducer <- config.out.pii match {
-        case Some(_) => NsqSink.validateAndCreateProducer(nsqConfig).map(Some(_))
-        case None => None.asRight
-      }
+                       case Some(_) => NsqSink.validateAndCreateProducer(nsqConfig).map(Some(_))
+                       case None => None.asRight
+                     }
       badProducer <- NsqSink.validateAndCreateProducer(nsqConfig)
     } yield new NsqSource(
       goodProducer,
@@ -86,14 +86,7 @@ class NsqSource private (
   config: StreamsConfig,
   nsqConfig: Nsq,
   sentryConfig: Option[SentryConfig]
-) extends Source(
-      client,
-      adapterRegistry,
-      enrichmentRegistry,
-      processor,
-      config.out.partitionKey,
-      sentryConfig
-    ) {
+) extends Source(client, adapterRegistry, enrichmentRegistry, processor, config.out.partitionKey, sentryConfig) {
 
   override val MaxRecordSize = None
 

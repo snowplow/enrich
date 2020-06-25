@@ -85,11 +85,10 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers {
         def handle(exchange: HttpExchange): Unit = {
 
           val response = MockRemoteAdapter.handle(getBodyAsString(exchange.getRequestBody))
-          if (response != "\"server error\"") {
+          if (response != "\"server error\"")
             exchange.sendResponseHeaders(200, 0)
-          } else {
+          else
             exchange.sendResponseHeaders(500, 0)
-          }
           exchange.getResponseBody.write(response.getBytes)
           exchange.getResponseBody.close()
         }
@@ -118,20 +117,20 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers {
         payloadBodyJs <- parse(payloadBody).leftMap(_.message)
         array <- payloadBodyJs.asArray.toRight("payload body is not an array")
         events = array.map { item =>
-          val json = Json.obj(
-            "schema" := "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
-            "data" := Json.obj(
-              "schema" := s"iglu:$mockSchemaVendor/$mockSchemaName/$mockSchemaFormat/$mockSchemaVersion",
-              "data" := item
-            )
-          )
-          Map(
-            "tv" -> sampleTracker,
-            "e" -> "ue",
-            "p" -> payload.queryString.getOrElse("p", samplePlatform),
-            "ue_pr" -> json.noSpaces
-          ) ++ payload.queryString
-        }
+                   val json = Json.obj(
+                     "schema" := "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+                     "data" := Json.obj(
+                       "schema" := s"iglu:$mockSchemaVendor/$mockSchemaName/$mockSchemaFormat/$mockSchemaVersion",
+                       "data" := item
+                     )
+                   )
+                   Map(
+                     "tv" -> sampleTracker,
+                     "e" -> "ue",
+                     "p" -> payload.queryString.getOrElse("p", samplePlatform),
+                     "ue_pr" -> json.noSpaces
+                   ) ++ payload.queryString
+                 }
       } yield events) match {
         case Right(es) => Response(es.toList.some, None).asJson.noSpaces
         case Left(f) => Response(None, s"server error: $f".some).asJson.noSpaces

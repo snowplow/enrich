@@ -121,8 +121,8 @@ class EnrichedEvent extends Serializable {
   @BeanProperty var se_action: String = _
   @BeanProperty var se_label: String = _
   @BeanProperty var se_property: String = _
-  @BeanProperty var se_value
-    : String = _ // Technically should be a Double but may be rendered incorrectly by Cascading with scientific notification (which Redshift can't process)
+  @BeanProperty var se_value: String =
+    _ // Technically should be a Double but may be rendered incorrectly by Cascading with scientific notification (which Redshift can't process)
 
   // Unstructured Event
   @BeanProperty var unstruct_event: String = _

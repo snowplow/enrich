@@ -60,9 +60,9 @@ object KinesisSource {
   ): Either[String, KinesisSource] =
     for {
       kinesisConfig <- config.sourceSink match {
-        case c: Kinesis => c.asRight
-        case _ => "Configured source/sink is not Kinesis".asLeft
-      }
+                         case c: Kinesis => c.asRight
+                         case _ => "Configured source/sink is not Kinesis".asLeft
+                       }
       emitPii = utils.emitPii(enrichmentRegistry)
       _ <- KinesisSink.validate(kinesisConfig, config.out.enriched)
       _ <- utils.validatePii(emitPii, config.out.pii)
@@ -92,14 +92,7 @@ class KinesisSource private (
   kinesisConfig: Kinesis,
   sentryConfig: Option[SentryConfig],
   provider: AWSCredentialsProvider
-) extends Source(
-      client,
-      adapterRegistry,
-      enrichmentRegistry,
-      processor,
-      config.out.partitionKey,
-      sentryConfig
-    ) {
+) extends Source(client, adapterRegistry, enrichmentRegistry, processor, config.out.partitionKey, sentryConfig) {
 
   override val MaxRecordSize = Some(1000000)
 
@@ -216,20 +209,17 @@ class KinesisSource private (
 
     override def processRecords(records: List[Record], checkpointer: IRecordProcessorCheckpointer) = {
 
-      if (!records.isEmpty) {
+      if (!records.isEmpty)
         log.info(s"Processing ${records.size} records from $kinesisShardId")
-      }
       val shouldCheckpoint = processRecordsWithRetries(records)
 
-      if (shouldCheckpoint) {
+      if (shouldCheckpoint)
         checkpoint(checkpointer)
-      }
     }
 
     private def processRecordsWithRetries(records: List[Record]): Boolean =
-      try {
-        enrichAndStoreEvents(records.asScala.map(_.getData.array).toList)
-      } catch {
+      try enrichAndStoreEvents(records.asScala.map(_.getData.array).toList)
+      catch {
         case NonFatal(e) =>
           // TODO: send an event when something goes wrong here
           log.error(s"Caught throwable while processing records $records", e)
@@ -238,9 +228,8 @@ class KinesisSource private (
 
     override def shutdown(checkpointer: IRecordProcessorCheckpointer, reason: ShutdownReason) = {
       log.info(s"Shutting down record processor for shard: $kinesisShardId")
-      if (reason == ShutdownReason.TERMINATE) {
+      if (reason == ShutdownReason.TERMINATE)
         checkpoint(checkpointer)
-      }
     }
 
     private def checkpoint(checkpointer: IRecordProcessorCheckpointer) = {
@@ -255,15 +244,14 @@ class KinesisSource private (
               log.error("Caught shutdown exception, skipping checkpoint.", se)
               break
             case e: ThrottlingException =>
-              if (i >= (NUM_RETRIES - 1)) {
+              if (i >= (NUM_RETRIES - 1))
                 log.error(s"Checkpoint failed after ${i + 1} attempts.", e)
-              } else {
+              else
                 log.info(
                   s"Transient issue when checkpointing - attempt ${i + 1} of "
                     + NUM_RETRIES,
                   e
                 )
-              }
             case e: InvalidStateException =>
               log.error(
                 "Cannot save checkpoint to the DynamoDB table used by " +

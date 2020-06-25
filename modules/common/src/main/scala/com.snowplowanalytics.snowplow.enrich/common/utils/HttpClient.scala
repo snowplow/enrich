@@ -26,19 +26,22 @@ trait HttpClient[F[_]] {
 object HttpClient {
   def apply[F[_]](implicit ev: HttpClient[F]): HttpClient[F] = ev
 
-  implicit def syncHttpClient[F[_]: Sync]: HttpClient[F] = new HttpClient[F] {
-    override def getResponse(request: HttpRequest): F[Either[Throwable, String]] =
-      Sync[F].delay(getBody(request))
-  }
+  implicit def syncHttpClient[F[_]: Sync]: HttpClient[F] =
+    new HttpClient[F] {
+      override def getResponse(request: HttpRequest): F[Either[Throwable, String]] =
+        Sync[F].delay(getBody(request))
+    }
 
-  implicit def evalHttpClient: HttpClient[Eval] = new HttpClient[Eval] {
-    override def getResponse(request: HttpRequest): Eval[Either[Throwable, String]] =
-      Eval.later(getBody(request))
-  }
+  implicit def evalHttpClient: HttpClient[Eval] =
+    new HttpClient[Eval] {
+      override def getResponse(request: HttpRequest): Eval[Either[Throwable, String]] =
+        Eval.later(getBody(request))
+    }
 
-  implicit def idHttpClient: HttpClient[Id] = new HttpClient[Id] {
-    override def getResponse(request: HttpRequest): Id[Either[Throwable, String]] = getBody(request)
-  }
+  implicit def idHttpClient: HttpClient[Id] =
+    new HttpClient[Id] {
+      override def getResponse(request: HttpRequest): Id[Either[Throwable, String]] = getBody(request)
+    }
 
   // The defaults are from scalaj library
   val DEFAULT_CONNECTION_TIMEOUT_MS = 1000

@@ -60,27 +60,27 @@ object PiiPseudonymizerEnrichment extends ParseableEnrichment {
     for {
       conf <- matchesSchema(config, schemaKey)
       emitIdentificationEvent = CirceUtils
-        .extract[Boolean](conf, "emitEvent")
-        .toOption
-        .getOrElse(false)
+                                  .extract[Boolean](conf, "emitEvent")
+                                  .toOption
+                                  .getOrElse(false)
       piiFields <- CirceUtils
-        .extract[List[Json]](conf, "parameters", "pii")
-        .toEither
+                     .extract[List[Json]](conf, "parameters", "pii")
+                     .toEither
       piiStrategy <- CirceUtils
-        .extract[PiiStrategyPseudonymize](config, "parameters", "strategy")
-        .toEither
+                       .extract[PiiStrategyPseudonymize](config, "parameters", "strategy")
+                       .toEither
       piiFieldList <- extractFields(piiFields)
     } yield PiiPseudonymizerConf(piiFieldList, emitIdentificationEvent, piiStrategy)
   }.toValidatedNel
 
   private[pii] def getHashFunction(strategyFunction: String): Either[String, DigestFunction] =
     strategyFunction match {
-      case "MD2" => { DigestUtils.md2Hex(_: Array[Byte]) }.asRight
-      case "MD5" => { DigestUtils.md5Hex(_: Array[Byte]) }.asRight
-      case "SHA-1" => { DigestUtils.sha1Hex(_: Array[Byte]) }.asRight
-      case "SHA-256" => { DigestUtils.sha256Hex(_: Array[Byte]) }.asRight
-      case "SHA-384" => { DigestUtils.sha384Hex(_: Array[Byte]) }.asRight
-      case "SHA-512" => { DigestUtils.sha512Hex(_: Array[Byte]) }.asRight
+      case "MD2" => ((x: Array[Byte]) => DigestUtils.md2Hex(x)).asRight
+      case "MD5" => ((x: Array[Byte]) => DigestUtils.md5Hex(x)).asRight
+      case "SHA-1" => ((x: Array[Byte]) => DigestUtils.sha1Hex(x)).asRight
+      case "SHA-256" => ((x: Array[Byte]) => DigestUtils.sha256Hex(x)).asRight
+      case "SHA-384" => ((x: Array[Byte]) => DigestUtils.sha384Hex(x)).asRight
+      case "SHA-512" => ((x: Array[Byte]) => DigestUtils.sha512Hex(x)).asRight
       case fName => s"Unknown function $fName".asLeft
     }
 
@@ -200,31 +200,35 @@ final case class PiiJson(
       value <- Option(fieldValue)
       parsed <- parse(value).toOption
       (substituted, modifiedFields) = parsed.asObject
-        .map { obj =>
-          val jObjectMap = obj.toMap
-          val contextMapped = jObjectMap.map(mapContextTopFields(_, strategy))
-          (
-            Json.obj(contextMapped.mapValues(_._1).toList: _*),
-            contextMapped.values.flatMap(_._2)
-          )
-        }
-        .getOrElse((parsed, List.empty[JsonModifiedField]))
+                                        .map { obj =>
+                                          val jObjectMap = obj.toMap
+                                          val contextMapped = jObjectMap.map(mapContextTopFields(_, strategy))
+                                          (
+                                            Json.obj(contextMapped.mapValues(_._1).toList: _*),
+                                            contextMapped.values.flatMap(_._2)
+                                          )
+                                        }
+                                        .getOrElse((parsed, List.empty[JsonModifiedField]))
     } yield (substituted.noSpaces, modifiedFields.toList)).getOrElse((null, List.empty))
 
   /** Map context top fields with strategy if they match. */
-  private def mapContextTopFields(tuple: (String, Json), strategy: PiiStrategy): (String, (Json, List[JsonModifiedField])) = tuple match {
-    case (k, contexts) if k == "data" =>
-      (k, contexts.asArray match {
-        case Some(array) =>
-          val updatedAndModified = array.map(getModifiedContext(_, strategy))
-          (
-            Json.fromValues(updatedAndModified.map(_._1)),
-            updatedAndModified.flatMap(_._2).toList
-          )
-        case None => getModifiedContext(contexts, strategy)
-      })
-    case (k, v) => (k, (v, List.empty[JsonModifiedField]))
-  }
+  private def mapContextTopFields(tuple: (String, Json), strategy: PiiStrategy): (String, (Json, List[JsonModifiedField])) =
+    tuple match {
+      case (k, contexts) if k == "data" =>
+        (
+          k,
+          contexts.asArray match {
+            case Some(array) =>
+              val updatedAndModified = array.map(getModifiedContext(_, strategy))
+              (
+                Json.fromValues(updatedAndModified.map(_._1)),
+                updatedAndModified.flatMap(_._2).toList
+              )
+            case None => getModifiedContext(contexts, strategy)
+          }
+        )
+      case (k, v) => (k, (v, List.empty[JsonModifiedField]))
+    }
 
   /** Returns a modified context or unstruct event along with a list of modified fields. */
   private def getModifiedContext(jv: Json, strategy: PiiStrategy): (Json, List[JsonModifiedField]) =

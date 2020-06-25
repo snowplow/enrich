@@ -44,13 +44,12 @@ final case class TsvLoader(adapter: String) extends Loader[String] {
           val context = CollectorPayload.Context(None, None, None, None, Nil, None)
           CollectorPayload(api, Nil, None, Some(line), source, context).some
         }
-        .leftMap(
-          f =>
-            BadRow.CPFormatViolation(
-              processor,
-              Failure.CPFormatViolation(Instant.now(), CollectorName, f),
-              Payload.RawPayload(line)
-            )
+        .leftMap(f =>
+          BadRow.CPFormatViolation(
+            processor,
+            Failure.CPFormatViolation(Instant.now(), CollectorName, f),
+            Payload.RawPayload(line)
+          )
         )
         .toValidatedNel
 }

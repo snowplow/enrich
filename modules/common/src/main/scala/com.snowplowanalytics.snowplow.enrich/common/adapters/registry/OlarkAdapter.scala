@@ -82,7 +82,7 @@ object OlarkAdapter extends Adapter {
           "empty body: no events to process"
         )
         Monad[F].pure(failure.invalidNel)
-      case (Some(body), _) if (body.isEmpty) =>
+      case (Some(body), _) if body.isEmpty =>
         val failure = FailureDetails.AdapterFailure.InputData(
           "body",
           none,
@@ -117,9 +117,9 @@ object OlarkAdapter extends Adapter {
               (for {
                 event <- payloadBodyToEvent(bodyMap)
                 eventType = event.hcursor.get[Json]("operators").toOption match {
-                  case Some(_) => "transcript"
-                  case _ => "offline_message"
-                }
+                              case Some(_) => "transcript"
+                              case _ => "offline_message"
+                            }
                 schema <- lookupSchema(eventType.some, EventSchemaMap)
                 transformedEvent <- transformTimestamps(event)
               } yield NonEmptyList.one(
@@ -151,22 +151,22 @@ object OlarkAdapter extends Adapter {
     def toMsec(oTs: String): Either[FailureDetails.AdapterFailure, Long] =
       for {
         formatted <- oTs.split('.') match {
-          case Array(sec) => s"${sec}000".asRight
-          case Array(sec, msec) => s"${sec}${msec.take(3).padTo(3, '0')}".asRight
-          case _ =>
-            FailureDetails.AdapterFailure
-              .InputData("timestamp", oTs.some, "unexpected timestamp format")
-              .asLeft
-        }
+                       case Array(sec) => s"${sec}000".asRight
+                       case Array(sec, msec) => s"${sec}${msec.take(3).padTo(3, '0')}".asRight
+                       case _ =>
+                         FailureDetails.AdapterFailure
+                           .InputData("timestamp", oTs.some, "unexpected timestamp format")
+                           .asLeft
+                     }
         long <- Either
-          .catchNonFatal(formatted.toLong)
-          .leftMap { _ =>
-            FailureDetails.AdapterFailure.InputData(
-              "timestamp",
-              formatted.some,
-              "cannot be converted to Double"
-            )
-          }
+                  .catchNonFatal(formatted.toLong)
+                  .leftMap { _ =>
+                    FailureDetails.AdapterFailure.InputData(
+                      "timestamp",
+                      formatted.some,
+                      "cannot be converted to Double"
+                    )
+                  }
       } yield long
 
     type EitherAF[A] = Either[FailureDetails.AdapterFailure, A]

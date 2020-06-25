@@ -139,48 +139,45 @@ object MandrillAdapter extends Adapter {
   private[registry] def payloadBodyToEvents(rawEventString: String): Either[FailureDetails.AdapterFailure, List[Json]] =
     for {
       bodyMap <- ConversionUtils
-        .parseUrlEncodedForm(rawEventString)
-        .leftMap(
-          e => FailureDetails.AdapterFailure.InputData("body", rawEventString.some, e)
-        )
+                   .parseUrlEncodedForm(rawEventString)
+                   .leftMap(e => FailureDetails.AdapterFailure.InputData("body", rawEventString.some, e))
       res <- bodyMap match {
-        case map if map.size != 1 =>
-          val msg = s"body should have size 1: actual size ${map.size}"
-          FailureDetails.AdapterFailure
-            .InputData("body", rawEventString.some, msg)
-            .asLeft
-        case map =>
-          map.get("mandrill_events") match {
-            case None =>
-              val msg = "no `mandrill_events` parameter provided"
-              FailureDetails.AdapterFailure
-                .InputData("body", rawEventString.some, msg)
-                .asLeft
-            case Some("") =>
-              val msg = "`mandrill_events` field is empty"
-              FailureDetails.AdapterFailure
-                .InputData("body", rawEventString.some, msg)
-                .asLeft
-            case Some(dStr) =>
-              JsonUtils
-                .extractJson(dStr)
-                .leftMap(
-                  e =>
-                    FailureDetails.AdapterFailure
-                      .NotJson("mandril_events", dStr.some, e)
-                )
-                .flatMap { json =>
-                  json.asArray match {
-                    case Some(array) => array.toList.asRight
-                    case _ =>
-                      val msg = "not a json array"
-                      FailureDetails.AdapterFailure
-                        .InputData("mandrill_events", dStr.some, msg)
-                        .asLeft
-                  }
-                }
-          }
-      }
+               case map if map.size != 1 =>
+                 val msg = s"body should have size 1: actual size ${map.size}"
+                 FailureDetails.AdapterFailure
+                   .InputData("body", rawEventString.some, msg)
+                   .asLeft
+               case map =>
+                 map.get("mandrill_events") match {
+                   case None =>
+                     val msg = "no `mandrill_events` parameter provided"
+                     FailureDetails.AdapterFailure
+                       .InputData("body", rawEventString.some, msg)
+                       .asLeft
+                   case Some("") =>
+                     val msg = "`mandrill_events` field is empty"
+                     FailureDetails.AdapterFailure
+                       .InputData("body", rawEventString.some, msg)
+                       .asLeft
+                   case Some(dStr) =>
+                     JsonUtils
+                       .extractJson(dStr)
+                       .leftMap(e =>
+                         FailureDetails.AdapterFailure
+                           .NotJson("mandril_events", dStr.some, e)
+                       )
+                       .flatMap { json =>
+                         json.asArray match {
+                           case Some(array) => array.toList.asRight
+                           case _ =>
+                             val msg = "not a json array"
+                             FailureDetails.AdapterFailure
+                               .InputData("mandrill_events", dStr.some, msg)
+                               .asLeft
+                         }
+                       }
+                 }
+             }
     } yield res
 
 }

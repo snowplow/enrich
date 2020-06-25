@@ -235,10 +235,8 @@ class EnrichmentConfigsSpec extends Specification with ValidatedMatchers with Da
       "Configuration" | "Custom Rules" |
         configWithDefaultRules !! None |
         configWithExternalRules !! Some((new URI(externalUri + database), "./ua-parser-rules.yml")) |> { (config, expected) =>
-        {
-          val result = UaParserEnrichment.parse(config, schemaKey)
-          result must beValid(UaParserConf(schemaKey, expected))
-        }
+        val result = UaParserEnrichment.parse(config, schemaKey)
+        result must beValid(UaParserConf(schemaKey, expected))
       }
     }
   }
@@ -375,7 +373,7 @@ class EnrichmentConfigsSpec extends Specification with ValidatedMatchers with Da
       )
       val result = PiiPseudonymizerEnrichment.parse(piiPseudonymizerEnrichmentJson, schemaKey)
       result must beValid.like {
-        case piiRes: PiiPseudonymizerConf => {
+        case piiRes: PiiPseudonymizerConf =>
           (piiRes.strategy must haveClass[PiiStrategyPseudonymize]) and
             (piiRes.strategy
               .asInstanceOf[PiiStrategyPseudonymize]
@@ -394,7 +392,6 @@ class EnrichmentConfigsSpec extends Specification with ValidatedMatchers with Da
               .asInstanceOf[PiiJson]
               .schemaCriterion must_== SchemaCriterion("com.acme", "email_sent", "jsonschema", 1)) and
             (piiRes.fieldList(1).asInstanceOf[PiiJson].jsonPath must_== "$.emailAddress")
-        }
       }
     }
   }

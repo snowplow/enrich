@@ -101,7 +101,7 @@ object IabEnrichment extends ParseableEnrichment {
 
     // better-monadic-for
     (for {
-      uriAndDb <- (uri.toValidatedNel, db.toValidatedNel).mapN { (_, _) }.toEither
+      uriAndDb <- (uri.toValidatedNel, db.toValidatedNel).mapN((_, _)).toEither
       uri <- getDatabaseUri(uriAndDb._1, uriAndDb._2).leftMap(NonEmptyList.one)
     } yield IabDatabase(name, uri, uriAndDb._2)).toValidated
   }
@@ -136,17 +136,14 @@ final case class IabEnrichment(schemaKey: SchemaKey, iabClient: IabClient) exten
   ): Either[FailureDetails.EnrichmentFailure, IabEnrichmentResponse] =
     (for {
       ip <- Either
-        .catchNonFatal(InetAddress.getByName(ipAddress))
-        .leftMap(
-          e =>
-            FailureDetails.EnrichmentFailureMessage
-              .InputData("user_ipaddress", ipAddress.some, e.getMessage)
-        )
+              .catchNonFatal(InetAddress.getByName(ipAddress))
+              .leftMap(e =>
+                FailureDetails.EnrichmentFailureMessage
+                  .InputData("user_ipaddress", ipAddress.some, e.getMessage)
+              )
       result <- Either
-        .catchNonFatal(iabClient.checkAt(userAgent, ip, accurateAt.toDate))
-        .leftMap(
-          e => FailureDetails.EnrichmentFailureMessage.Simple(e.getMessage)
-        )
+                  .catchNonFatal(iabClient.checkAt(userAgent, ip, accurateAt.toDate))
+                  .leftMap(e => FailureDetails.EnrichmentFailureMessage.Simple(e.getMessage))
     } yield IabEnrichmentResponse(
       result.isSpiderOrRobot,
       result.getCategory.toString,
@@ -220,36 +217,39 @@ trait CreateIabClient[F[_]] {
 object CreateIabClient {
   def apply[F[_]](implicit ev: CreateIabClient[F]): CreateIabClient[F] = ev
 
-  implicit def syncCreateIabClient[F[_]: Sync]: CreateIabClient[F] = new CreateIabClient[F] {
-    def create(
-      ipFile: String,
-      excludeUaFile: String,
-      includeUaFile: String
-    ): F[IabClient] =
-      Sync[F].delay {
-        new IabClient(new File(ipFile), new File(excludeUaFile), new File(includeUaFile))
-      }
-  }
+  implicit def syncCreateIabClient[F[_]: Sync]: CreateIabClient[F] =
+    new CreateIabClient[F] {
+      def create(
+        ipFile: String,
+        excludeUaFile: String,
+        includeUaFile: String
+      ): F[IabClient] =
+        Sync[F].delay {
+          new IabClient(new File(ipFile), new File(excludeUaFile), new File(includeUaFile))
+        }
+    }
 
-  implicit def evalCreateIabClient: CreateIabClient[Eval] = new CreateIabClient[Eval] {
-    def create(
-      ipFile: String,
-      excludeUaFile: String,
-      includeUaFile: String
-    ): Eval[IabClient] =
-      Eval.later {
-        new IabClient(new File(ipFile), new File(excludeUaFile), new File(includeUaFile))
-      }
-  }
+  implicit def evalCreateIabClient: CreateIabClient[Eval] =
+    new CreateIabClient[Eval] {
+      def create(
+        ipFile: String,
+        excludeUaFile: String,
+        includeUaFile: String
+      ): Eval[IabClient] =
+        Eval.later {
+          new IabClient(new File(ipFile), new File(excludeUaFile), new File(includeUaFile))
+        }
+    }
 
-  implicit def idCreateIabClient: CreateIabClient[Id] = new CreateIabClient[Id] {
-    def create(
-      ipFile: String,
-      excludeUaFile: String,
-      includeUaFile: String
-    ): Id[IabClient] =
-      new IabClient(new File(ipFile), new File(excludeUaFile), new File(includeUaFile))
-  }
+  implicit def idCreateIabClient: CreateIabClient[Id] =
+    new CreateIabClient[Id] {
+      def create(
+        ipFile: String,
+        excludeUaFile: String,
+        includeUaFile: String
+      ): Id[IabClient] =
+        new IabClient(new File(ipFile), new File(excludeUaFile), new File(includeUaFile))
+    }
 }
 
 /** Case class copy of `com.snowplowanalytics.iab.spidersandrobotsclient.IabResponse` */

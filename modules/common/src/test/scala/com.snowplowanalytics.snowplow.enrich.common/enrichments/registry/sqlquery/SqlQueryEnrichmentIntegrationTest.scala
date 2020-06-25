@@ -24,10 +24,11 @@ import org.specs2.Specification
 import outputs.EnrichedEvent
 
 object SqlQueryEnrichmentIntegrationTest {
-  def continuousIntegration: Boolean = sys.env.get("CI") match {
-    case Some("true") => true
-    case _ => false
-  }
+  def continuousIntegration: Boolean =
+    sys.env.get("CI") match {
+      case Some("true") => true
+      case _ => false
+    }
 }
 
 import SqlQueryEnrichmentIntegrationTest._

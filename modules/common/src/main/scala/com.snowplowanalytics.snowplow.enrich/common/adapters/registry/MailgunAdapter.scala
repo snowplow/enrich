@@ -82,7 +82,7 @@ object MailgunAdapter extends Adapter {
           "empty body: no events to process"
         )
         Monad[F].pure(failure.invalidNel)
-      case (Some(body), _) if (body.isEmpty) =>
+      case (Some(body), _) if body.isEmpty =>
         val failure = FailureDetails.AdapterFailure.InputData(
           "body",
           none,
@@ -197,10 +197,11 @@ object MailgunAdapter extends Adapter {
    * "multipart/form-data; boundary=353d603f-eede-4b49-97ac-724fbc54ea3c"
    * @return boundary Option[String]
    */
-  private def getBoundary(contentType: String): Option[String] = contentType match {
-    case boundaryRegex(boundaryString) => Some(boundaryString)
-    case _ => None
-  }
+  private def getBoundary(contentType: String): Option[String] =
+    contentType match {
+      case boundaryRegex(boundaryString) => Some(boundaryString)
+      case _ => None
+    }
 
   /**
    * Rudimentary parsing the form fields of a multipart/form-data into a Map[String, String]

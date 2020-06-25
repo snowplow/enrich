@@ -40,12 +40,12 @@ class NdjsonLoaderSpec extends Specification with ValidatedMatchers {
       val line = List("""{"key":"value1"}""", """{"key":"value2"}""").mkString("\n")
       NdjsonLoader("com.abc/v1").toCollectorPayload(line, Process) must beInvalid.like {
         case NonEmptyList(
-            BadRow.CPFormatViolation(
-              Process,
-              Failure.CPFormatViolation(_, "ndjson", f),
-              Payload.RawPayload(l)
-            ),
-            List()
+              BadRow.CPFormatViolation(
+                Process,
+                Failure.CPFormatViolation(_, "ndjson", f),
+                Payload.RawPayload(l)
+              ),
+              List()
             ) =>
           f must_== FailureDetails.CPFormatViolationMessage.Fallback(
             "expected a single line, found 2"

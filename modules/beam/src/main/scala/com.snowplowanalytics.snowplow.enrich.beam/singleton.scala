@@ -33,15 +33,13 @@ object singleton {
      * @param resolverJson JSON representing the Resolver
      */
     def get(resolverJson: Json): Client[Id, Json] = {
-      if (instance == null) {
+      if (instance == null)
         synchronized {
-          if (instance == null) {
+          if (instance == null)
             instance = Client
               .parseDefault[Id](resolverJson)
               .valueOr(e => throw new RuntimeException(e.toString))
-          }
         }
-      }
       instance
     }
   }
@@ -55,16 +53,14 @@ object singleton {
      * @param enrichmentConfs list of enabled enrichment configuration
      */
     def get(enrichmentConfs: List[EnrichmentConf]): EnrichmentRegistry[Id] = {
-      if (instance == null) {
+      if (instance == null)
         synchronized {
-          if (instance == null) {
+          if (instance == null)
             instance = EnrichmentRegistry
               .build[Id](enrichmentConfs)
               .value
               .valueOr(e => throw new RuntimeException(e.toString))
-          }
         }
-      }
       instance
     }
   }

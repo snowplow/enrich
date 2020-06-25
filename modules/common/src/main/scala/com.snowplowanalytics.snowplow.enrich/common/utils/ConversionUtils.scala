@@ -70,13 +70,13 @@ object ConversionUtils {
     UriComponents(
       scheme = uri.getScheme,
       host = uri.getHost,
-      port = if (port == -1 && uri.getScheme == "https") {
-        443
-      } else if (port == -1) {
-        80
-      } else {
-        port
-      },
+      port =
+        if (port == -1 && uri.getScheme == "https")
+          443
+        else if (port == -1)
+          80
+        else
+          port,
       path = path,
       query = query,
       fragment = fragment
@@ -149,7 +149,7 @@ object ConversionUtils {
    */
   val validateUuid: (String, String) => Either[FailureDetails.EnrichmentFailure, String] =
     (field, str) => {
-      def check(s: String)(u: UUID): Boolean = (u != null && s.toLowerCase == u.toString)
+      def check(s: String)(u: UUID): Boolean = u != null && s.toLowerCase == u.toString
       val uuid = Try(UUID.fromString(str)).toOption.filter(check(str))
       uuid match {
         case Some(_) => str.toLowerCase.asRight
@@ -308,9 +308,9 @@ object ConversionUtils {
    * @return either a Failure String or a Success JInt
    */
   val stringToJInteger: String => Either[String, JInteger] = str =>
-    if (Option(str).isEmpty) {
+    if (Option(str).isEmpty)
       null.asInstanceOf[JInteger].asRight
-    } else {
+    else
       try {
         val jint: JInteger = str.toInt
         jint.asRight
@@ -318,7 +318,6 @@ object ConversionUtils {
         case _: NumberFormatException =>
           "cannot be converted to java.lang.Integer".asLeft
       }
-    }
 
   val stringToJInteger2: (String, String) => Either[FailureDetails.EnrichmentFailure, JInteger] =
     (field, str) =>
@@ -344,10 +343,10 @@ object ConversionUtils {
     (field, str) =>
       Either
         .catchNonFatal {
-          if (Option(str).isEmpty || str == "null") {
+          if (Option(str).isEmpty || str == "null")
             // "null" String check is LEGACY to handle a bug in the JavaScript tracker
             null.asInstanceOf[String]
-          } else {
+          else {
             val jbigdec = new JBigDecimal(str)
             jbigdec.toPlainString // Strip scientific notation
           }
@@ -370,24 +369,23 @@ object ConversionUtils {
   def stringToMaybeDouble(field: String, str: String): Either[FailureDetails.EnrichmentFailure, Option[Double]] =
     Either
       .catchNonFatal {
-        if (Option(str).isEmpty || str == "null") {
+        if (Option(str).isEmpty || str == "null")
           // "null" String check is LEGACY to handle a bug in the JavaScript tracker
           None
-        } else {
+        else {
           val jbigdec = new JBigDecimal(str)
           jbigdec.doubleValue().some
         }
       }
-      .leftMap(
-        _ =>
-          FailureDetails.EnrichmentFailure(
-            None,
-            FailureDetails.EnrichmentFailureMessage.InputData(
-              field,
-              Option(str),
-              "cannot be converted to Double"
-            )
+      .leftMap(_ =>
+        FailureDetails.EnrichmentFailure(
+          None,
+          FailureDetails.EnrichmentFailureMessage.InputData(
+            field,
+            Option(str),
+            "cannot be converted to Double"
           )
+        )
       )
 
   /**
@@ -395,10 +393,9 @@ object ConversionUtils {
    * multipleOf 0.01.
    * Takes a field name and a string value and return a validated double.
    */
-  val stringToTwoDecimals: String => Either[String, Double] = (str) =>
-    try {
-      BigDecimal(str).setScale(2, BigDecimal.RoundingMode.HALF_EVEN).toDouble.asRight
-    } catch {
+  val stringToTwoDecimals: String => Either[String, Double] = str =>
+    try BigDecimal(str).setScale(2, BigDecimal.RoundingMode.HALF_EVEN).toDouble.asRight
+    catch {
       case _: NumberFormatException => "cannot be converted to Double".asLeft
     }
 
@@ -406,7 +403,7 @@ object ConversionUtils {
    * Converts a String to a Double.
    * Takes a field name and a string value and return a validated float.
    */
-  val stringToDouble: String => Either[String, Double] = (str) =>
+  val stringToDouble: String => Either[String, Double] = str =>
     Either
       .catchNonFatal(BigDecimal(str).toDouble)
       .leftMap(_ => s"cannot be converted to Double")
@@ -438,14 +435,13 @@ object ConversionUtils {
    * @return True for "1", false for "0", or an error message for any other value, all boxed in a
    * Scalaz Validation
    */
-  val stringToBoolean: String => Either[String, Boolean] = (str) =>
-    if (str == "1") {
+  val stringToBoolean: String => Either[String, Boolean] = str =>
+    if (str == "1")
       true.asRight
-    } else if (str == "0") {
+    else if (str == "0")
       false.asRight
-    } else {
+    else
       s"cannot be converted to boolean, only 1 or 0 are supported".asLeft
-    }
 
   /**
    * Truncates a String - useful for making sure Strings can't overflow a database field.
@@ -454,11 +450,10 @@ object ConversionUtils {
    * @return the truncated String
    */
   def truncate(str: String, length: Int): String =
-    if (str == null) {
+    if (str == null)
       null
-    } else {
+    else
       str.take(length)
-    }
 
   /**
    * Helper to convert a Boolean value to a Byte. Does not require any validation.
@@ -471,8 +466,8 @@ object ConversionUtils {
   def parseUrlEncodedForm(s: String): Either[String, Map[String, String]] =
     for {
       r <- Either
-        .catchNonFatal(URLEncodedUtils.parse(URI.create("http://localhost/?" + s), UTF_8))
-        .leftMap(_.getMessage)
+             .catchNonFatal(URLEncodedUtils.parse(URI.create("http://localhost/?" + s), UTF_8))
+             .leftMap(_.getMessage)
       nvps = r.asScala.toList
       pairs = nvps.map(p => p.getName() -> p.getValue())
     } yield pairs.toMap

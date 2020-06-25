@@ -312,16 +312,12 @@ class PageViewWithContextSpec extends Specification {
       enrichedEvent.toOption.get._3 must not beNone
       val piiFields = enrichedEvent.toOption.get._3.get.split("\t", -1)
       piiFields.size must beEqualTo(PageViewWithContextSpec.pii.size)
-      Result.unit(
-        {
-          for (idx <- PageViewWithContextSpec.expected.indices) {
-            fields(idx) must beFieldEqualTo(PageViewWithContextSpec.expected(idx), withIndex = idx)
-          }
-          for (idx <- PageViewWithContextSpec.pii.indices) {
-            piiFields(idx) must beFieldEqualTo(PageViewWithContextSpec.pii(idx), withIndex = idx)
-          }
-        }
-      )
+      Result.unit {
+        for (idx <- PageViewWithContextSpec.expected.indices)
+          fields(idx) must beFieldEqualTo(PageViewWithContextSpec.expected(idx), withIndex = idx)
+        for (idx <- PageViewWithContextSpec.pii.indices)
+          piiFields(idx) must beFieldEqualTo(PageViewWithContextSpec.pii(idx), withIndex = idx)
+      }
     }
   }
 }

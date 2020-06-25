@@ -79,191 +79,192 @@ object DbExecutor {
 
   def apply[F[_]](implicit ev: DbExecutor[F]): DbExecutor[F] = ev
 
-  implicit def syncDbExecutor[F[_]: Sync]: DbExecutor[F] = new DbExecutor[F] {
-    def getConnection(rdbms: Rdbms, connectionRef: ConnectionRef[F])(implicit M: Monad[F]): F[Either[Throwable, Connection]] =
-      for {
-        cachedConnection <- connectionRef.get(()).map(flattenCached)
-        connection <- cachedConnection match {
-          case Right(conn) =>
-            for {
-              closed <- Sync[F].delay(conn.isClosed)
-              result <- if (!closed) conn.asRight[Throwable].pure[F]
-              else
-                for {
-                  newConn <- Sync[F].delay(
-                    Either.catchNonFatal(DriverManager.getConnection(rdbms.connectionString))
-                  )
-                  _ <- connectionRef.put((), newConn)
-                } yield newConn
-            } yield result
-          case Left(error) =>
-            error.asLeft[Connection].pure[F]
+  implicit def syncDbExecutor[F[_]: Sync]: DbExecutor[F] =
+    new DbExecutor[F] {
+      def getConnection(rdbms: Rdbms, connectionRef: ConnectionRef[F])(implicit M: Monad[F]): F[Either[Throwable, Connection]] =
+        for {
+          cachedConnection <- connectionRef.get(()).map(flattenCached)
+          connection <- cachedConnection match {
+                          case Right(conn) =>
+                            for {
+                              closed <- Sync[F].delay(conn.isClosed)
+                              result <- if (!closed) conn.asRight[Throwable].pure[F]
+                                        else
+                                          for {
+                                            newConn <- Sync[F].delay(
+                                                         Either.catchNonFatal(DriverManager.getConnection(rdbms.connectionString))
+                                                       )
+                                            _ <- connectionRef.put((), newConn)
+                                          } yield newConn
+                            } yield result
+                          case Left(error) =>
+                            error.asLeft[Connection].pure[F]
+                        }
+        } yield connection
+
+      def execute(query: PreparedStatement): EitherT[F, Throwable, ResultSet] =
+        Sync[F].delay(query.executeQuery()).attemptT
+
+      def convert(resultSet: ResultSet, names: JsonOutput.PropertyNameMode): EitherT[F, Throwable, List[Json]] =
+        EitherT(Bracket[F, Throwable].bracket(Sync[F].pure(resultSet)) { set =>
+          val hasNext = Sync[F].delay(set.next()).attemptT
+          val convert = transform(set, names)(this, Monad[F])
+          convert.whileM[List](hasNext).value
+        } { set =>
+          Sync[F].delay(set.close())
+        })
+
+      def getMetaData(rs: ResultSet): EitherT[F, Throwable, ResultSetMetaData] =
+        Sync[F].delay(rs.getMetaData).attemptT
+
+      def getColumnCount(rsMeta: ResultSetMetaData): EitherT[F, Throwable, Int] =
+        Sync[F].delay(rsMeta.getColumnCount).attemptT
+
+      def getColumnLabel(column: Int, rsMeta: ResultSetMetaData): EitherT[F, Throwable, String] =
+        Sync[F].delay(rsMeta.getColumnLabel(column)).attemptT
+
+      def getColumnType(column: Int, rsMeta: ResultSetMetaData): EitherT[F, Throwable, String] =
+        Sync[F].delay(rsMeta.getColumnClassName(column)).attemptT
+
+      def getColumnValue(
+        datatype: String,
+        columnIdx: Int,
+        rs: ResultSet
+      ): EitherT[F, Throwable, Json] =
+        Sync[F]
+          .delay(rs.getObject(columnIdx))
+          .attemptT
+          .map(Option.apply)
+          .map {
+            case Some(any) => JsonOutput.getValue(any, datatype)
+            case None => Json.Null
+          }
+
+    }
+
+  implicit def evalDbExecutor: DbExecutor[Eval] =
+    new DbExecutor[Eval] {
+      self =>
+      def getConnection(rdbms: Rdbms, connectionRef: ConnectionRef[Eval])(implicit M: Monad[Eval]): Eval[Either[Throwable, Connection]] =
+        for {
+          cachedConnection <- connectionRef.get(()).map(flattenCached)
+          connection <- cachedConnection match {
+                          case Right(conn) =>
+                            for {
+                              closed <- Eval.now(conn.isClosed)
+                              result <- if (!closed) conn.asRight[Throwable].pure[Eval]
+                                        else
+                                          for {
+                                            newConn <- Eval.now {
+                                                         Either.catchNonFatal(DriverManager.getConnection(rdbms.connectionString))
+                                                       }
+                                            _ <- connectionRef.put((), newConn)
+                                          } yield newConn
+                            } yield result
+                          case Left(error) =>
+                            Eval.now(error.asLeft[Connection])
+
+                        }
+        } yield connection
+
+      def execute(query: PreparedStatement): EitherT[Eval, Throwable, ResultSet] =
+        EitherT(Eval.now(Either.catchNonFatal(query.executeQuery())))
+
+      def convert(resultSet: ResultSet, names: JsonOutput.PropertyNameMode): EitherT[Eval, Throwable, List[Json]] =
+        EitherT {
+          Eval.always {
+            try {
+              val buffer = ListBuffer.empty[EitherT[Id, Throwable, Json]]
+              while (resultSet.next())
+                buffer += transform[Id](resultSet, names)(idDbExecutor, Monad[Id])
+              val parsedJsons = buffer.result().sequence
+              resultSet.close()
+              parsedJsons.value: Either[Throwable, List[Json]]
+            } catch {
+              case NonFatal(error) => error.asLeft
+            }
+          }
         }
-      } yield connection
 
-    def execute(query: PreparedStatement): EitherT[F, Throwable, ResultSet] =
-      Sync[F].delay(query.executeQuery()).attemptT
+      def getMetaData(rs: ResultSet): EitherT[Eval, Throwable, ResultSetMetaData] =
+        Either.catchNonFatal(rs.getMetaData).toEitherT[Eval]
 
-    def convert(resultSet: ResultSet, names: JsonOutput.PropertyNameMode): EitherT[F, Throwable, List[Json]] =
-      EitherT(Bracket[F, Throwable].bracket(Sync[F].pure(resultSet)) { set =>
-        val hasNext = Sync[F].delay(set.next()).attemptT
-        val convert = transform(set, names)(this, Monad[F])
-        convert.whileM[List](hasNext).value
-      } { set =>
-        Sync[F].delay(set.close())
-      })
+      def getColumnCount(rsMeta: ResultSetMetaData): EitherT[Eval, Throwable, Int] =
+        Either.catchNonFatal(rsMeta.getColumnCount).toEitherT[Eval]
 
-    def getMetaData(rs: ResultSet): EitherT[F, Throwable, ResultSetMetaData] =
-      Sync[F].delay(rs.getMetaData).attemptT
+      def getColumnLabel(column: Int, rsMeta: ResultSetMetaData): EitherT[Eval, Throwable, String] =
+        Either.catchNonFatal(rsMeta.getColumnLabel(column)).toEitherT[Eval]
 
-    def getColumnCount(rsMeta: ResultSetMetaData): EitherT[F, Throwable, Int] =
-      Sync[F].delay(rsMeta.getColumnCount).attemptT
+      def getColumnType(column: Int, rsMeta: ResultSetMetaData): EitherT[Eval, Throwable, String] =
+        Either.catchNonFatal(rsMeta.getColumnClassName(column)).toEitherT[Eval]
 
-    def getColumnLabel(column: Int, rsMeta: ResultSetMetaData): EitherT[F, Throwable, String] =
-      Sync[F].delay(rsMeta.getColumnLabel(column)).attemptT
+      def getColumnValue(
+        datatype: String,
+        columnIdx: Int,
+        rs: ResultSet
+      ): EitherT[Eval, Throwable, Json] =
+        Either
+          .catchNonFatal(rs.getObject(columnIdx))
+          .map(Option.apply)
+          .map {
+            case Some(any) => JsonOutput.getValue(any, datatype)
+            case None => Json.Null
+          }
+          .toEitherT
+    }
 
-    def getColumnType(column: Int, rsMeta: ResultSetMetaData): EitherT[F, Throwable, String] =
-      Sync[F].delay(rsMeta.getColumnClassName(column)).attemptT
-
-    def getColumnValue(
-      datatype: String,
-      columnIdx: Int,
-      rs: ResultSet
-    ): EitherT[F, Throwable, Json] =
-      Sync[F]
-        .delay(rs.getObject(columnIdx))
-        .attemptT
-        .map(Option.apply)
-        .map {
-          case Some(any) => JsonOutput.getValue(any, datatype)
-          case None => Json.Null
+  implicit def idDbExecutor: DbExecutor[Id] =
+    new DbExecutor[Id] {
+      def getConnection(rdbms: Rdbms, connectionRef: ConnectionRef[Id])(implicit M: Monad[Id]): Id[Either[Throwable, Connection]] =
+        flattenCached(connectionRef.get(())) match {
+          case Right(conn) if !conn.isClosed =>
+            conn.asRight
+          case Right(_) | Left(Unitialized) =>
+            val newConn = Either.catchNonFatal(DriverManager.getConnection(rdbms.connectionString))
+            connectionRef.put((), newConn)
+            newConn
+          case Left(other) =>
+            other.asLeft
         }
 
-  }
+      def execute(query: PreparedStatement): EitherT[Id, Throwable, ResultSet] =
+        EitherT[Id, Throwable, ResultSet](Either.catchNonFatal(query.executeQuery()))
 
-  implicit def evalDbExecutor: DbExecutor[Eval] = new DbExecutor[Eval] {
-    self =>
-    def getConnection(rdbms: Rdbms, connectionRef: ConnectionRef[Eval])(implicit M: Monad[Eval]): Eval[Either[Throwable, Connection]] =
-      for {
-        cachedConnection <- connectionRef.get(()).map(flattenCached)
-        connection <- cachedConnection match {
-          case Right(conn) =>
-            for {
-              closed <- Eval.now(conn.isClosed)
-              result <- if (!closed) conn.asRight[Throwable].pure[Eval]
-              else
-                for {
-                  newConn <- Eval.now {
-                    Either.catchNonFatal(DriverManager.getConnection(rdbms.connectionString))
-                  }
-                  _ <- connectionRef.put((), newConn)
-                } yield newConn
-            } yield result
-          case Left(error) =>
-            Eval.now(error.asLeft[Connection])
-
-        }
-      } yield connection
-
-    def execute(query: PreparedStatement): EitherT[Eval, Throwable, ResultSet] =
-      EitherT(Eval.now(Either.catchNonFatal(query.executeQuery())))
-
-    def convert(resultSet: ResultSet, names: JsonOutput.PropertyNameMode): EitherT[Eval, Throwable, List[Json]] =
-      EitherT {
-        Eval.always {
+      def convert(resultSet: ResultSet, names: JsonOutput.PropertyNameMode): EitherT[Id, Throwable, List[Json]] =
+        EitherT(
           try {
             val buffer = ListBuffer.empty[EitherT[Id, Throwable, Json]]
-            while (resultSet.next()) {
-              buffer += transform[Id](resultSet, names)(idDbExecutor, Monad[Id])
-            }
+            while (resultSet.next())
+              buffer += transform[Id](resultSet, names)(this, Monad[Id])
             val parsedJsons = buffer.result().sequence
             resultSet.close()
-            parsedJsons.value: Either[Throwable, List[Json]]
+            parsedJsons.value
           } catch {
             case NonFatal(error) => error.asLeft
           }
-        }
-      }
+        )
 
-    def getMetaData(rs: ResultSet): EitherT[Eval, Throwable, ResultSetMetaData] =
-      Either.catchNonFatal(rs.getMetaData).toEitherT[Eval]
+      def getMetaData(rs: ResultSet): EitherT[Id, Throwable, ResultSetMetaData] =
+        Either.catchNonFatal(rs.getMetaData).toEitherT[Id]
 
-    def getColumnCount(rsMeta: ResultSetMetaData): EitherT[Eval, Throwable, Int] =
-      Either.catchNonFatal(rsMeta.getColumnCount).toEitherT[Eval]
+      def getColumnCount(rsMeta: ResultSetMetaData): EitherT[Id, Throwable, Int] =
+        Either.catchNonFatal(rsMeta.getColumnCount).toEitherT[Id]
 
-    def getColumnLabel(column: Int, rsMeta: ResultSetMetaData): EitherT[Eval, Throwable, String] =
-      Either.catchNonFatal(rsMeta.getColumnLabel(column)).toEitherT[Eval]
+      def getColumnLabel(column: Int, rsMeta: ResultSetMetaData): EitherT[Id, Throwable, String] =
+        Either.catchNonFatal(rsMeta.getColumnLabel(column)).toEitherT[Id]
 
-    def getColumnType(column: Int, rsMeta: ResultSetMetaData): EitherT[Eval, Throwable, String] =
-      Either.catchNonFatal(rsMeta.getColumnClassName(column)).toEitherT[Eval]
+      def getColumnType(column: Int, rsMeta: ResultSetMetaData): EitherT[Id, Throwable, String] =
+        Either.catchNonFatal(rsMeta.getColumnClassName(column)).toEitherT[Id]
 
-    def getColumnValue(
-      datatype: String,
-      columnIdx: Int,
-      rs: ResultSet
-    ): EitherT[Eval, Throwable, Json] =
-      Either
-        .catchNonFatal(rs.getObject(columnIdx))
-        .map(Option.apply)
-        .map {
-          case Some(any) => JsonOutput.getValue(any, datatype)
-          case None => Json.Null
-        }
-        .toEitherT
-  }
-
-  implicit def idDbExecutor: DbExecutor[Id] = new DbExecutor[Id] {
-    def getConnection(rdbms: Rdbms, connectionRef: ConnectionRef[Id])(implicit M: Monad[Id]): Id[Either[Throwable, Connection]] =
-      flattenCached(connectionRef.get(())) match {
-        case Right(conn) if !conn.isClosed =>
-          conn.asRight
-        case Right(_) | Left(Unitialized) =>
-          val newConn = Either.catchNonFatal(DriverManager.getConnection(rdbms.connectionString))
-          connectionRef.put((), newConn)
-          newConn
-        case Left(other) =>
-          other.asLeft
-      }
-
-    def execute(query: PreparedStatement): EitherT[Id, Throwable, ResultSet] =
-      EitherT[Id, Throwable, ResultSet](Either.catchNonFatal(query.executeQuery()))
-
-    def convert(resultSet: ResultSet, names: JsonOutput.PropertyNameMode): EitherT[Id, Throwable, List[Json]] =
-      EitherT(
-        try {
-          val buffer = ListBuffer.empty[EitherT[Id, Throwable, Json]]
-          while (resultSet.next()) {
-            buffer += transform[Id](resultSet, names)(this, Monad[Id])
-          }
-          val parsedJsons = buffer.result().sequence
-          resultSet.close()
-          parsedJsons.value
-        } catch {
-          case NonFatal(error) => error.asLeft
-        }
-      )
-
-    def getMetaData(rs: ResultSet): EitherT[Id, Throwable, ResultSetMetaData] =
-      Either.catchNonFatal(rs.getMetaData).toEitherT[Id]
-
-    def getColumnCount(rsMeta: ResultSetMetaData): EitherT[Id, Throwable, Int] =
-      Either.catchNonFatal(rsMeta.getColumnCount).toEitherT[Id]
-
-    def getColumnLabel(column: Int, rsMeta: ResultSetMetaData): EitherT[Id, Throwable, String] =
-      Either.catchNonFatal(rsMeta.getColumnLabel(column)).toEitherT[Id]
-
-    def getColumnType(column: Int, rsMeta: ResultSetMetaData): EitherT[Id, Throwable, String] =
-      Either.catchNonFatal(rsMeta.getColumnClassName(column)).toEitherT[Id]
-
-    def getColumnValue(
-      datatype: String,
-      columnIdx: Int,
-      rs: ResultSet
-    ): EitherT[Id, Throwable, Json] =
-      EitherT[Id, Throwable, Json](for {
-        value <- Either.catchNonFatal(rs.getObject(columnIdx)).map(Option.apply)
-      } yield value.map(JsonOutput.getValue(_, datatype)).getOrElse(Json.Null))
-  }
+      def getColumnValue(
+        datatype: String,
+        columnIdx: Int,
+        rs: ResultSet
+      ): EitherT[Id, Throwable, Json] =
+        EitherT[Id, Throwable, Json](for {
+          value <- Either.catchNonFatal(rs.getObject(columnIdx)).map(Option.apply)
+        } yield value.map(JsonOutput.getValue(_, datatype)).getOrElse(Json.Null))
+    }
 
   /**
    * Transform fetched from DB row (as ResultSet) into JSON object
@@ -278,12 +279,12 @@ object DbExecutor {
       rsMeta <- DbExecutor[F].getMetaData(resultSet)
       columnNumbers <- DbExecutor[F].getColumnCount(rsMeta).map((x: Int) => (1 to x).toList)
       keyValues <- columnNumbers.traverse { idx =>
-        for {
-          colLabel <- DbExecutor[F].getColumnLabel(idx, rsMeta)
-          colType <- DbExecutor[F].getColumnType(idx, rsMeta)
-          value <- DbExecutor[F].getColumnValue(colType, idx, resultSet)
-        } yield propertyNames.transform(colLabel) -> value
-      }
+                     for {
+                       colLabel <- DbExecutor[F].getColumnLabel(idx, rsMeta)
+                       colType <- DbExecutor[F].getColumnType(idx, rsMeta)
+                       value <- DbExecutor[F].getColumnValue(colType, idx, resultSet)
+                     } yield propertyNames.transform(colLabel) -> value
+                   }
     } yield Json.obj(keyValues: _*)
 
   /** Get amount of placeholders (?-signs) in Prepared Statement */
@@ -329,8 +330,8 @@ object DbExecutor {
     for {
       connection <- DbExecutor[F].getConnection(rdbms, connectionRef)
       statement = connection.flatMap { c =>
-        Either.catchNonFatal(c.prepareStatement(sql))
-      }
+                    Either.catchNonFatal(c.prepareStatement(sql))
+                  }
     } yield statement
 
   private val Unitialized: Throwable = InvalidStateException(

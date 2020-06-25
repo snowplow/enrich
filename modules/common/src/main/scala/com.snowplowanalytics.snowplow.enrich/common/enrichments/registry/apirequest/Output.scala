@@ -32,22 +32,24 @@ final case class Output(schema: String, json: Option[JsonOutput]) {
    * @param apiResponse response taken from `ApiMethod`
    * @return parsed extracted JSON
    */
-  def parseResponse(apiResponse: String): Either[Throwable, Json] = json match {
-    case Some(jsonOutput) => jsonOutput.parseResponse(apiResponse)
-    case output =>
-      new InvalidStateException(s"Error: Unknown output [$output]").asLeft // Cannot happen now
-  }
+  def parseResponse(apiResponse: String): Either[Throwable, Json] =
+    json match {
+      case Some(jsonOutput) => jsonOutput.parseResponse(apiResponse)
+      case output =>
+        new InvalidStateException(s"Error: Unknown output [$output]").asLeft // Cannot happen now
+    }
 
   /**
    * Extract value specified by output's path
    * @param value parsed API response
    * @return extracted validated JSON
    */
-  def extract(value: Json): Either[Throwable, Json] = json match {
-    case Some(jsonOutput) => jsonOutput.extract(value)
-    case output =>
-      new InvalidStateException(s"Error: Unknown output [$output]").asLeft // Cannot happen now
-  }
+  def extract(value: Json): Either[Throwable, Json] =
+    json match {
+      case Some(jsonOutput) => jsonOutput.extract(value)
+      case output =>
+        new InvalidStateException(s"Error: Unknown output [$output]").asLeft // Cannot happen now
+    }
 
   /**
    * Add `schema` (Iglu URI) to parsed instance

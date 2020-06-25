@@ -97,44 +97,47 @@ object MarketoAdapter extends Adapter {
   private def payloadBodyToEvent(json: String, payload: CollectorPayload): ValidatedNel[FailureDetails.AdapterFailure, RawEvent] =
     (for {
       parsed <- JU
-        .extractJson(json)
-        .leftMap(e => FailureDetails.AdapterFailure.NotJson("body", json.some, e))
+                  .extractJson(json)
+                  .leftMap(e => FailureDetails.AdapterFailure.NotJson("body", json.some, e))
 
       parsedConverted <- if (parsed.isObject) reformatParameters(parsed).asRight
-      else
-        FailureDetails.AdapterFailure
-          .InputData("body", json.some, "not a json object")
-          .asLeft
+                         else
+                           FailureDetails.AdapterFailure
+                             .InputData("body", json.some, "not a json object")
+                             .asLeft
 
       // The payload doesn't contain a "type" field so we're constraining the eventType to be of
       // type "event"
       eventType = Some("event")
       schema <- lookupSchema(eventType, EventSchemaMap)
       params = toUnstructEventParams(
-        TrackerVersion,
-        toMap(payload.querystring),
-        schema,
-        parsedConverted,
-        "srv"
-      )
+                 TrackerVersion,
+                 toMap(payload.querystring),
+                 schema,
+                 parsedConverted,
+                 "srv"
+               )
       rawEvent = RawEvent(
-        api = payload.api,
-        parameters = params,
-        contentType = payload.contentType,
-        source = payload.source,
-        context = payload.context
-      )
+                   api = payload.api,
+                   parameters = params,
+                   contentType = payload.contentType,
+                   source = payload.source,
+                   context = payload.context
+                 )
     } yield rawEvent).toValidatedNel
 
   private[registry] def reformatParameters(json: Json): Json =
     json.mapObject { obj =>
       val updatedObj = obj.toMap.map {
         case (k, v) if DateFields.contains(k) =>
-          (k, v.mapString { s =>
-            Either
-              .catchNonFatal(JU.toJsonSchemaDateTime(s, MarketoDateTimeFormat))
-              .getOrElse(s)
-          })
+          (
+            k,
+            v.mapString { s =>
+              Either
+                .catchNonFatal(JU.toJsonSchemaDateTime(s, MarketoDateTimeFormat))
+                .getOrElse(s)
+            }
+          )
         case (k, v) if v.isObject => (k, reformatParameters(v))
         case (k, v) => (k, v)
       }

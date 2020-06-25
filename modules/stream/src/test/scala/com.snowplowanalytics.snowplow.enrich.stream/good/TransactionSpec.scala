@@ -311,16 +311,12 @@ class TransactionSpec extends Specification {
       enrichedEvent.toOption.get._3 must not beNone
       val piiFields = enrichedEvent.toOption.get._3.get.split("\t", -1)
       piiFields.size must beEqualTo(TransactionSpec.pii.size)
-      Result.unit(
-        {
-          for (idx <- TransactionSpec.expected.indices) {
-            fields(idx) must beFieldEqualTo(TransactionSpec.expected(idx), withIndex = idx)
-          }
-          for (idx <- TransactionSpec.pii.indices) {
-            piiFields(idx) must beFieldEqualTo(TransactionSpec.pii(idx), withIndex = idx)
-          }
-        }
-      )
+      Result.unit {
+        for (idx <- TransactionSpec.expected.indices)
+          fields(idx) must beFieldEqualTo(TransactionSpec.expected(idx), withIndex = idx)
+        for (idx <- TransactionSpec.pii.indices)
+          piiFields(idx) must beFieldEqualTo(TransactionSpec.pii(idx), withIndex = idx)
+      }
     }
   }
 }

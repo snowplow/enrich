@@ -145,13 +145,12 @@ object CljTomcatLoader extends Loader[String] {
     }
 
     collectorPayload.leftMap(
-      _.map(
-        f =>
-          BadRow.CPFormatViolation(
-            processor,
-            Failure.CPFormatViolation(Instant.now(), CollectorName, f),
-            Payload.RawPayload(line)
-          )
+      _.map(f =>
+        BadRow.CPFormatViolation(
+          processor,
+          Failure.CPFormatViolation(Instant.now(), CollectorName, f),
+          Payload.RawPayload(line)
+        )
       )
     )
   }

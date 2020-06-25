@@ -96,9 +96,7 @@ object GoogleAnalyticsAdapter extends Adapter {
       (value: String) =>
         stringToJInteger(value)
           .map(i => IntType(i.toInt))
-          .leftMap(
-            e => FailureDetails.AdapterFailure.InputData(fieldName, value.some, e)
-          )
+          .leftMap(e => FailureDetails.AdapterFailure.InputData(fieldName, value.some, e))
     )
   private val twoDecimalsTranslation: (String => KVTranslation) = (fieldName: String) =>
     KVTranslation(
@@ -106,9 +104,7 @@ object GoogleAnalyticsAdapter extends Adapter {
       (value: String) =>
         stringToTwoDecimals(value)
           .map(DoubleType)
-          .leftMap(
-            e => FailureDetails.AdapterFailure.InputData(fieldName, value.some, e)
-          )
+          .leftMap(e => FailureDetails.AdapterFailure.InputData(fieldName, value.some, e))
     )
   private val doubleTranslation: (String => KVTranslation) = (fieldName: String) =>
     KVTranslation(
@@ -116,9 +112,7 @@ object GoogleAnalyticsAdapter extends Adapter {
       (value: String) =>
         stringToDouble(value)
           .map(DoubleType)
-          .leftMap(
-            e => FailureDetails.AdapterFailure.InputData(fieldName, value.some, e)
-          )
+          .leftMap(e => FailureDetails.AdapterFailure.InputData(fieldName, value.some, e))
     )
   private val booleanTranslation: (String => KVTranslation) = (fieldName: String) =>
     KVTranslation(
@@ -126,9 +120,7 @@ object GoogleAnalyticsAdapter extends Adapter {
       (value: String) =>
         stringToBoolean(value)
           .map(BooleanType)
-          .leftMap(
-            e => FailureDetails.AdapterFailure.InputData(fieldName, value.some, e)
-          )
+          .leftMap(e => FailureDetails.AdapterFailure.InputData(fieldName, value.some, e))
     )
 
   // unstruct event mappings
@@ -483,11 +475,9 @@ object GoogleAnalyticsAdapter extends Adapter {
       body <- payload.body
       _ = client
       rawEvents <- body.linesIterator
-        .map[ValidatedNel[FailureDetails.AdapterFailure, RawEvent]](
-          (bodyPart: String) => parsePayload(bodyPart, payload)
-        )
-        .toList
-        .toNel
+                     .map[ValidatedNel[FailureDetails.AdapterFailure, RawEvent]]((bodyPart: String) => parsePayload(bodyPart, payload))
+                     .toList
+                     .toNel
     } yield rawEvents
 
     events match {
@@ -509,68 +499,67 @@ object GoogleAnalyticsAdapter extends Adapter {
   private def parsePayload(bodyPart: String, payload: CollectorPayload): ValidatedNel[FailureDetails.AdapterFailure, RawEvent] =
     (for {
       params <- parseUrlEncodedForm(bodyPart)
-        .leftMap(
-          e =>
-            NonEmptyList
-              .one(FailureDetails.AdapterFailure.InputData("body", bodyPart.some, e))
-        )
+                  .leftMap(e =>
+                    NonEmptyList
+                      .one(FailureDetails.AdapterFailure.InputData("body", bodyPart.some, e))
+                  )
       hitType <- params.get("t").toRight {
-        val msg = "no t parameter provided: cannot determine hit type"
-        NonEmptyList
-          .one(FailureDetails.AdapterFailure.InputData("body", bodyPart.some, msg))
-      }
+                   val msg = "no t parameter provided: cannot determine hit type"
+                   NonEmptyList
+                     .one(FailureDetails.AdapterFailure.InputData("body", bodyPart.some, msg))
+                 }
       // direct mappings
       mappings = translatePayload(params, directMappings(hitType))
       translationTable = unstructEventData
-        .get(hitType)
-        .map(_.translationTable)
-        .toValidNel(
-          FailureDetails.AdapterFailure
-            .InputData("t", hitType.some, "no matching hit type")
-        )
+                           .get(hitType)
+                           .map(_.translationTable)
+                           .toValidNel(
+                             FailureDetails.AdapterFailure
+                               .InputData("t", hitType.some, "no matching hit type")
+                           )
       schemaVal = lookupSchema(
-        hitType.some,
-        unstructEventData.mapValues(_.schemaKey)
-      ).toValidatedNel
+                    hitType.some,
+                    unstructEventData.mapValues(_.schemaKey)
+                  ).toValidatedNel
       simpleContexts = buildContexts(params, contextData, fieldToSchemaMap)
       compositeContexts = buildCompositeContexts(
-        params,
-        compositeContextData,
-        compositeContextsWithCU,
-        nrCompFieldsPerSchema,
-        valueInFieldNameIndicator
-      ).toValidatedNel
+                            params,
+                            compositeContextData,
+                            compositeContextsWithCU,
+                            nrCompFieldsPerSchema,
+                            valueInFieldNameIndicator
+                          ).toValidatedNel
       // better-monadic-for doesn't work for some reason?
       result <- (
-        translationTable,
-        schemaVal,
-        simpleContexts,
-        compositeContexts
-      ).mapN { (trTable, schema, contexts, compContexts) =>
-        val contextJsons = (contexts.toList ++ compContexts)
-          .collect {
-            // an unnecessary pageview context might have been built so we need to remove it
-            case (s, d) if hitType != PageViewHitType || s != unstructEventData(PageViewHitType).schemaKey =>
-              SelfDescribingData(s, d.asJson)
-          }
-        val contextParam: Map[String, String] =
-          if (contextJsons.isEmpty) Map.empty
-          else Map("co" -> toContexts(contextJsons).noSpaces)
-        (trTable, schema, contextParam)
-      }.toEither
+                    translationTable,
+                    schemaVal,
+                    simpleContexts,
+                    compositeContexts
+                ).mapN { (trTable, schema, contexts, compContexts) =>
+                  val contextJsons = (contexts.toList ++ compContexts)
+                    .collect {
+                      // an unnecessary pageview context might have been built so we need to remove it
+                      case (s, d) if hitType != PageViewHitType || s != unstructEventData(PageViewHitType).schemaKey =>
+                        SelfDescribingData(s, d.asJson)
+                    }
+                  val contextParam: Map[String, String] =
+                    if (contextJsons.isEmpty) Map.empty
+                    else Map("co" -> toContexts(contextJsons).noSpaces)
+                  (trTable, schema, contextParam)
+                }.toEither
       payload <- translatePayload(params, result._1)
-        .map { e =>
-          val unstructEvent = toUnstructEvent(SelfDescribingData(result._2, e.asJson)).noSpaces
-          RawEvent(
-            api = payload.api,
-            parameters = result._3 ++ mappings ++
-              Map("e" -> "ue", "ue_pr" -> unstructEvent, "tv" -> Protocol, "p" -> "srv"),
-            contentType = payload.contentType,
-            source = payload.source,
-            context = payload.context
-          )
-        }
-        .leftMap(NonEmptyList.one)
+                   .map { e =>
+                     val unstructEvent = toUnstructEvent(SelfDescribingData(result._2, e.asJson)).noSpaces
+                     RawEvent(
+                       api = payload.api,
+                       parameters = result._3 ++ mappings ++
+                         Map("e" -> "ue", "ue_pr" -> unstructEvent, "tv" -> Protocol, "p" -> "srv"),
+                       contentType = payload.contentType,
+                       source = payload.source,
+                       context = payload.context
+                     )
+                   }
+                   .leftMap(NonEmptyList.one)
     } yield payload).toValidated
 
   /**
@@ -668,16 +657,16 @@ object GoogleAnalyticsAdapter extends Adapter {
     for {
       // composite params have digits in their key
       composite <- originalParams
-        .filterKeys(k => k.exists(_.isDigit))
-        .asRight
+                     .filterKeys(k => k.exists(_.isDigit))
+                     .asRight
       brokenDown <- composite.toList.sorted.map {
-        case (k, v) => breakDownCompField(k, v, indicator)
-      }.sequence
+                      case (k, v) => breakDownCompField(k, v, indicator)
+                    }.sequence
       partitioned = brokenDown.map(_.partition(_._1.startsWith(indicator))).unzip
       // we additionally make sure we have a rectangular dataset
       grouped = (partitioned._2 ++ removeConsecutiveDuplicates(partitioned._1)).flatten
-        .groupBy(_._1)
-        .mapValues(_.map(_._2))
+                  .groupBy(_._1)
+                  .mapValues(_.map(_._2))
       translated <- {
         val m = grouped
           .foldLeft(
@@ -701,27 +690,27 @@ object GoogleAnalyticsAdapter extends Adapter {
       }
       // we need to reattach the currency code to the contexts which need it
       transposed = translated.map {
-        case (k, m) =>
-          val values = transpose(m.values.map(_.toList).toList)
-          k -> (originalParams.get("cu") match {
-            case Some(currency) if schemasWithCU.contains(k) =>
-              values
-                .map(m.keys zip _)
-                .map(l => ("currencyCode" -> StringType(currency) :: l.toList).toMap)
-            case _ =>
-              values.map(m.keys zip _).map(_.toMap)
-          })
-      }
+                     case (k, m) =>
+                       val values = transpose(m.values.map(_.toList).toList)
+                       k -> (originalParams.get("cu") match {
+                         case Some(currency) if schemasWithCU.contains(k) =>
+                           values
+                             .map(m.keys zip _)
+                             .map(l => ("currencyCode" -> StringType(currency) :: l.toList).toMap)
+                         case _ =>
+                           values.map(m.keys zip _).map(_.toMap)
+                       })
+                   }
       // we need to filter out composite contexts which might have been built unnecessarily
       // eg due to ${indicator}pr being in 3 different schemas
       // + 1/0 depending on the presence of currencyCode
       filtered = transposed
-        .map {
-          case (k, vs) =>
-            val minSize = nrCompFieldsPerSchema(k)
-            k -> vs.filter(fs => fs.size > minSize + fs.get("currencyCode").foldMap(_ => 1))
-        }
-        .filter(_._2.nonEmpty)
+                   .map {
+                     case (k, vs) =>
+                       val minSize = nrCompFieldsPerSchema(k)
+                       k -> vs.filter(fs => fs.size > minSize + fs.get("currencyCode").foldMap(_ => 1))
+                   }
+                   .filter(_._2.nonEmpty)
       flattened = filtered.toList.flatMap { case (k, vs) => vs.map(k -> _) }
     } yield flattened
 
@@ -746,15 +735,15 @@ object GoogleAnalyticsAdapter extends Adapter {
     for {
       brokenDown <- breakDownCompField(fieldName)
       (strs, ints) = brokenDown
-      m <- if (strs.length == ints.length) {
-        (strs.scanRight("")(_ + _).init.map(indicator + _) zip ints).toMap.asRight
-      } else if (strs.length == ints.length + 1) {
-        (strs.init.scanRight("")(_ + _).init.map(indicator + _) zip ints).toMap.asRight
-      } else {
-        // can't happen without changing breakDownCompField(fieldName)
-        val msg = "cannot parse composite field name: unexpected number of values"
-        FailureDetails.AdapterFailure.InputData(fieldName, value.some, msg).asLeft
-      }
+      m <- if (strs.length == ints.length)
+             (strs.scanRight("")(_ + _).init.map(indicator + _) zip ints).toMap.asRight
+           else if (strs.length == ints.length + 1)
+             (strs.init.scanRight("")(_ + _).init.map(indicator + _) zip ints).toMap.asRight
+           else {
+             // can't happen without changing breakDownCompField(fieldName)
+             val msg = "cannot parse composite field name: unexpected number of values"
+             FailureDetails.AdapterFailure.InputData(fieldName, value.some, msg).asLeft
+           }
       r = m + (strs.reduce(_ + _) -> value)
     } yield r
 
@@ -787,11 +776,12 @@ object GoogleAnalyticsAdapter extends Adapter {
       l: List[T],
       even: List[T],
       odd: List[T]
-    ): (List[T], List[T], List[T]) = l match {
-      case h1 :: h2 :: t => go(t, h1 :: even, h2 :: odd)
-      case h :: Nil => (Nil, h :: even, odd)
-      case Nil => (Nil, even, odd)
-    }
+    ): (List[T], List[T], List[T]) =
+      l match {
+        case h1 :: h2 :: t => go(t, h1 :: even, h2 :: odd)
+        case h :: Nil => (Nil, h :: even, odd)
+        case Nil => (Nil, even, odd)
+      }
     val res = go(list, Nil, Nil)
     (res._2.reverse, res._3.reverse)
   }

@@ -65,14 +65,14 @@ class WeatherEnrichmentSpec extends Specification {
   def e1 = {
     val res = for {
       enr <- WeatherConf(schemaKey, "history.openweathermap.org", "KEY", 10, 5200, 1)
-        .enrichment[Eval]
+               .enrichment[Eval]
       stamp <- EitherT(
-        enr.getWeatherContext(
-          Option(invalidEvent.lat),
-          Option(invalidEvent.lon),
-          Option(invalidEvent.time)
-        )
-      ).leftMap(_.head.toString)
+                 enr.getWeatherContext(
+                   Option(invalidEvent.lat),
+                   Option(invalidEvent.lon),
+                   Option(invalidEvent.time)
+                 )
+               ).leftMap(_.head.toString)
     } yield stamp
     res.value.value must beLeft.like {
       case e =>
@@ -83,14 +83,14 @@ class WeatherEnrichmentSpec extends Specification {
   def e2 = {
     val res = for {
       enr <- WeatherConf(schemaKey, "history.openweathermap.org", validAppKey, 10, 5200, 1)
-        .enrichment[Eval]
+               .enrichment[Eval]
       stamp <- EitherT(
-        enr.getWeatherContext(
-          Option(validEvent.lat),
-          Option(validEvent.lon),
-          Option(validEvent.time)
-        )
-      ).leftMap(_.head.toString)
+                 enr.getWeatherContext(
+                   Option(validEvent.lat),
+                   Option(validEvent.lon),
+                   Option(validEvent.time)
+                 )
+               ).leftMap(_.head.toString)
     } yield stamp
     res.value.value must beRight
   }
@@ -98,14 +98,14 @@ class WeatherEnrichmentSpec extends Specification {
   def e3 = {
     val res = for {
       enr <- WeatherConf(schemaKey, "history.openweathermap.org", "KEY", 10, 5200, 1)
-        .enrichment[Eval]
+               .enrichment[Eval]
       stamp <- EitherT(
-        enr.getWeatherContext(
-          Option(validEvent.lat),
-          Option(validEvent.lon),
-          Option(validEvent.time)
-        )
-      ).leftMap(_.head.toString)
+                 enr.getWeatherContext(
+                   Option(validEvent.lat),
+                   Option(validEvent.lon),
+                   Option(validEvent.time)
+                 )
+               ).leftMap(_.head.toString)
     } yield stamp
     res.value.value must beLeft.like { case e => e must contain("Check your API key") }
   }
@@ -113,14 +113,14 @@ class WeatherEnrichmentSpec extends Specification {
   def e4 = {
     val res = for {
       enr <- WeatherConf(schemaKey, "history.openweathermap.org", validAppKey, 15, 5200, 1)
-        .enrichment[Eval]
+               .enrichment[Eval]
       stamp <- EitherT(
-        enr.getWeatherContext(
-          Option(validEvent.lat),
-          Option(validEvent.lon),
-          Option(validEvent.time)
-        )
-      ).leftMap(_.head.toString)
+                 enr.getWeatherContext(
+                   Option(validEvent.lat),
+                   Option(validEvent.lon),
+                   Option(validEvent.time)
+                 )
+               ).leftMap(_.head.toString)
     } yield stamp
     res.value.value must beRight.like {
       case weather =>
@@ -164,14 +164,14 @@ class WeatherEnrichmentSpec extends Specification {
   def e6 = {
     val res = for {
       enr <- WeatherConf(schemaKey, "history.openweathermap.org", validAppKey, 15, 2, 1)
-        .enrichment[Eval]
+               .enrichment[Eval]
       stamp <- EitherT(
-        enr.getWeatherContext(
-          Option(validEvent.lat),
-          Option(validEvent.lon),
-          Option(validEvent.time)
-        )
-      ).leftMap(_.head.toString)
+                 enr.getWeatherContext(
+                   Option(validEvent.lat),
+                   Option(validEvent.lon),
+                   Option(validEvent.time)
+                 )
+               ).leftMap(_.head.toString)
     } yield stamp
     res.value.value must beRight.like { // successful request
       case weather =>

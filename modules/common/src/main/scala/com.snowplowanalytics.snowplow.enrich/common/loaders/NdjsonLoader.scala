@@ -44,8 +44,8 @@ final case class NdjsonLoader(adapter: String) extends Loader[String] {
       else
         for {
           _ <- JsonUtils
-            .extractJson(line)
-            .leftMap(FailureDetails.CPFormatViolationMessage.Fallback.apply)
+                 .extractJson(line)
+                 .leftMap(FailureDetails.CPFormatViolationMessage.Fallback.apply)
           api <- CollectorPayload.parseApi(adapter)
           source = CollectorPayload.Source(CollectorName, CollectorEncoding, None)
           context = CollectorPayload.Context(None, None, None, None, Nil, None)
@@ -53,13 +53,12 @@ final case class NdjsonLoader(adapter: String) extends Loader[String] {
         } yield payload.some
 
     collectorPayload
-      .leftMap(
-        message =>
-          BadRow.CPFormatViolation(
-            processor,
-            Failure.CPFormatViolation(Instant.now(), CollectorName, message),
-            Payload.RawPayload(line)
-          )
+      .leftMap(message =>
+        BadRow.CPFormatViolation(
+          processor,
+          Failure.CPFormatViolation(Instant.now(), CollectorName, message),
+          Payload.RawPayload(line)
+        )
       )
       .toValidatedNel
   }

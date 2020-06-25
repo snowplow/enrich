@@ -39,12 +39,11 @@ object PageEnrichments {
       // Tracker URL takes precedence
       case (Some(_), Some(t)) => CU.stringToUri(t)
       case (None, None) => None.asRight // No page URI available. Not a failable offence
-    }).leftMap(
-      f =>
-        FailureDetails.EnrichmentFailure(
-          None,
-          FailureDetails.EnrichmentFailureMessage.Simple(f)
-        )
+    }).leftMap(f =>
+      FailureDetails.EnrichmentFailure(
+        None,
+        FailureDetails.EnrichmentFailureMessage.Simple(f)
+      )
     )
 
   /**

@@ -56,7 +56,8 @@ object model {
   /** Represents configurations of all target platforms */
   sealed trait TargetPlatformConfig
 
-  /** Represents configurations of all Stream Enrich targets that is AWS native
+  /**
+   * Represents configurations of all Stream Enrich targets that is AWS native
    *  Credentials of other cloud providers might be provided in case an enrichment
    *  requires a private data hosted on that platform
    */
@@ -64,7 +65,8 @@ object model {
     def aws: AWSCredentials
     def gcp: Option[GCPCredentials]
 
-    /** Represents AWS region
+    /**
+     * Represents AWS region
      *
      *  Note: Stream Enrich has been configured for AWS only until 1.1.0 and
      *  backward compatibility of the configuration requires not to change
@@ -73,7 +75,8 @@ object model {
     def region: String
   }
 
-  /** Represents configurations of all Stream Enrich targets that is cloud agnostic
+  /**
+   * Represents configurations of all Stream Enrich targets that is cloud agnostic
    *  Credentials of any cloud provider might be provided in case an enrichment
    *  requires a private data hosted on that platform
    */
@@ -81,7 +84,8 @@ object model {
     def aws: Option[AWSCredentials]
     def gcp: Option[GCPCredentials]
 
-    /** Represents optional AWS region of the S3 bucket which stores private
+    /**
+     * Represents optional AWS region of the S3 bucket which stores private
      *  data required for any enrichment
      */
     def region: Option[String]

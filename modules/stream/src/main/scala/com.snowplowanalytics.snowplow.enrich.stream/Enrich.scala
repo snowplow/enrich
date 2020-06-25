@@ -64,32 +64,32 @@ trait Enrich {
       config <- parseConfig(args)
       (enrichConfig, resolverArg, enrichmentsArg, forceDownload) = config
       credsWithRegion <- enrichConfig.streams.sourceSink match {
-        case c: CloudAgnosticPlatformConfig => (extractCredentials(c), c.region).asRight
-        case _ => "Configured source/sink is not a cloud agnostic target".asLeft
-      }
+                           case c: CloudAgnosticPlatformConfig => (extractCredentials(c), c.region).asRight
+                           case _ => "Configured source/sink is not a cloud agnostic target".asLeft
+                         }
       (credentials, awsRegion) = credsWithRegion
       client <- parseClient(resolverArg)
       enrichmentsConf <- parseEnrichmentRegistry(enrichmentsArg, client)(implicitly)
       _ <- cacheFiles(
-        enrichmentsConf,
-        forceDownload,
-        credentials.aws,
-        credentials.gcp,
-        awsRegion
-      )
+             enrichmentsConf,
+             forceDownload,
+             credentials.aws,
+             credentials.gcp,
+             awsRegion
+           )
       tracker = enrichConfig.monitoring.map(c => SnowplowTracking.initializeTracker(c.snowplow))
       enrichmentRegistry <- EnrichmentRegistry.build[Id](enrichmentsConf).value
       adapterRegistry = new AdapterRegistry(prepareRemoteAdapters(enrichConfig.remoteAdapters))
       processor = Processor(generated.BuildInfo.name, generated.BuildInfo.version)
       source <- getSource(
-        enrichConfig.streams,
-        enrichConfig.sentry,
-        client,
-        adapterRegistry,
-        enrichmentRegistry,
-        tracker,
-        processor
-      )
+                  enrichConfig.streams,
+                  enrichConfig.sentry,
+                  client,
+                  adapterRegistry,
+                  enrichmentRegistry,
+                  tracker,
+                  processor
+                )
     } yield (tracker, source)
 
     trackerSource match {
@@ -132,23 +132,23 @@ trait Enrich {
   def parseConfig(args: Array[String]): Either[String, (EnrichConfig, String, Option[String], Boolean)] =
     for {
       parsedCliArgs <- parser
-        .parse(args, FileConfig())
-        .toRight("Error while parsing command line arguments")
+                         .parse(args, FileConfig())
+                         .toRight("Error while parsing command line arguments")
       unparsedConfig = Either
-        .catchNonFatal(ConfigFactory.parseFile(parsedCliArgs.config).resolve())
-        .fold(
-          t => t.getMessage.asLeft,
-          c => (c, parsedCliArgs.resolver, parsedCliArgs.enrichmentsDir, parsedCliArgs.forceDownload).asRight
-        )
+                         .catchNonFatal(ConfigFactory.parseFile(parsedCliArgs.config).resolve())
+                         .fold(
+                           t => t.getMessage.asLeft,
+                           c => (c, parsedCliArgs.resolver, parsedCliArgs.enrichmentsDir, parsedCliArgs.forceDownload).asRight
+                         )
       validatedConfig <- unparsedConfig.filterOrElse(
-        t => t._1.hasPath("enrich"),
-        "No top-level \"enrich\" could be found in the configuration"
-      )
+                           t => t._1.hasPath("enrich"),
+                           "No top-level \"enrich\" could be found in the configuration"
+                         )
       (config, resolverArg, enrichmentsArg, forceDownload) = validatedConfig
       parsedConfig <- Either
-        .catchNonFatal(loadConfigOrThrow[EnrichConfig](config.getConfig("enrich")))
-        .map(ec => (ec, resolverArg, enrichmentsArg, forceDownload))
-        .leftMap(_.getMessage)
+                        .catchNonFatal(loadConfigOrThrow[EnrichConfig](config.getConfig("enrich")))
+                        .map(ec => (ec, resolverArg, enrichmentsArg, forceDownload))
+                        .leftMap(_.getMessage)
     } yield parsedConfig
 
   /** Cli arguments parser */
@@ -167,7 +167,7 @@ trait Enrich {
   /**
    * Retrieve and parse an iglu resolver from the corresponding cli argument value
    * @param resolverArg location of the resolver as a cli argument
-a  * @param creds optionally necessary credentials to download the resolver
+   * a  * @param creds optionally necessary credentials to download the resolver
    * @return a validated iglu resolver
    */
   def parseClient(resolverArg: String)(implicit creds: Credentials): Either[String, Client[Id, Json]] =

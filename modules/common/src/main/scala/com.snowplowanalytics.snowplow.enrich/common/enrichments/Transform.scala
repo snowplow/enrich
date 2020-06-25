@@ -28,7 +28,8 @@ import adapters.RawEvent
 
 object Transform {
 
-  /** Map the parameters of the input raw event to the fields of the enriched event,
+  /**
+   * Map the parameters of the input raw event to the fields of the enriched event,
    * with a possible transformation. For instance "ip" in the input would be mapped
    * to "user_ipaddress" in the enriched event
    * @param enriched /!\ MUTABLE enriched event, mutated IN-PLACE /!\

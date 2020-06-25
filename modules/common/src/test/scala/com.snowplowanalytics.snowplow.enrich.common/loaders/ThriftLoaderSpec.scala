@@ -146,7 +146,9 @@ class ThriftLoaderSpec extends Specification with DataTables with ValidatedMatch
         "Host: localhost:4001"
       ) ! UUID.fromString("75a13583-5c99-40e3-81fc-541084dfc784").some |
       "Parameterless" !! "CgABAAABQ9o8zYULABQAAAAQc3NjLTAuMC4xLVN0ZG91dAsAHgAAAAVVVEYtOAsAKAAAAAgxMC4wLjIuMgwAKQgAAQAAAAEIAAIAAAABAAsALQAAAAlsb2NhbGhvc3QLADIAAABRTW96aWxsYS81LjAgKE1hY2ludG9zaDsgSW50ZWwgTWFjIE9TIFggMTAuOTsgcnY6MjYuMCkgR2Vja28vMjAxMDAxMDEgRmlyZWZveC8yNi4wDwBGCwAAAAgAAAAYQ2FjaGUtQ29udHJvbDogbWF4LWFnZT0wAAAAFkNvbm5lY3Rpb246IGtlZXAtYWxpdmUAAAJwQ29va2llOiBfX3V0bWE9MTExODcyMjgxLjg3ODA4NDQ4Ny4xMzkwMjM3MTA3LjEzOTA4NDg0ODcuMTM5MDkzMTUyMS42OyBfX3V0bXo9MTExODcyMjgxLjEzOTAyMzcxMDcuMS4xLnV0bWNzcj0oZGlyZWN0KXx1dG1jY249KGRpcmVjdCl8dXRtY21kPShub25lKTsgX3NwX2lkLjFmZmY9Yjg5YTZmYTYzMWVlZmFjMi4xMzkwMjM3MTA3LjYuMTM5MDkzMTU0NS4xMzkwODQ4NjQxOyBoYmxpZD1DUGpqdWh2RjA1emt0UDdKN001Vm8zTklHUExKeTFTRjsgb2xmc2s9b2xmc2s1NjI5MjM2MzU2MTc1NTQ7IF9fdXRtYz0xMTE4NzIyODE7IHdjc2lkPXVNbG9nMVFKVkQ3anVoRlo3TTVWb0JDeVBQeWlCeVNTOyBfb2tsdj0xMzkwOTMxNTg1NDQ1JTJDdU1sb2cxUUpWRDdqdWhGWjdNNVZvQkN5UFB5aUJ5U1M7IF9vaz05NzUyLTUwMy0xMC01MjI3OyBfb2tiaz1jZDQlM0R0cnVlJTJDdmk1JTNEMCUyQ3ZpNCUzRDEzOTA5MzE1MjExMjMlMkN2aTMlM0RhY3RpdmUlMkN2aTIlM0RmYWxzZSUyQ3ZpMSUzRGZhbHNlJTJDY2Q4JTNEY2hhdCUyQ2NkNiUzRDAlMkNjZDUlM0Rhd2F5JTJDY2QzJTNEZmFsc2UlMkNjZDIlM0QwJTJDY2QxJTNEMCUyQzsgc3A9NzVhMTM1ODMtNWM5OS00MGUzLTgxZmMtNTQxMDg0ZGZjNzg0AAAAHkFjY2VwdC1FbmNvZGluZzogZ3ppcCwgZGVmbGF0ZQAAABpBY2NlcHQtTGFuZ3VhZ2U6IGVuLVVTLCBlbgAAAEpBY2NlcHQ6IHRleHQvaHRtbCwgYXBwbGljYXRpb24veGh0bWwreG1sLCBhcHBsaWNhdGlvbi94bWw7cT0wLjksICovKjtxPTAuOAAAAF1Vc2VyLUFnZW50OiBNb3ppbGxhLzUuMCAoTWFjaW50b3NoOyBJbnRlbCBNYWMgT1MgWCAxMC45OyBydjoyNi4wKSBHZWNrby8yMDEwMDEwMSBGaXJlZm94LzI2LjAAAAAUSG9zdDogbG9jYWxob3N0OjQwMDELAFAAAAAkNzVhMTM1ODMtNWM5OS00MGUzLTgxZmMtNTQxMDg0ZGZjNzg0AA==" !
-        DateTime.parse("2014-01-28T19:04:14.469+00:00") ! toNameValuePairs() ! "localhost".some ! "10.0.2.2".some ! "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:26.0) Gecko/20100101 Firefox/26.0".some ! None ! List(
+        DateTime.parse(
+          "2014-01-28T19:04:14.469+00:00"
+        ) ! toNameValuePairs() ! "localhost".some ! "10.0.2.2".some ! "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:26.0) Gecko/20100101 Firefox/26.0".some ! None ! List(
         "Cache-Control: max-age=0",
         "Connection: keep-alive",
         "Cookie: __utma=111872281.878084487.1390237107.1390848487.1390931521.6; __utmz=111872281.1390237107.1.1.utmcsr=(direct)|utmccn=(direct)|utmcmd=(none); _sp_id.1fff=b89a6fa631eefac2.1390237107.6.1390931545.1390848641; hblid=CPjjuhvF05zktP7J7M5Vo3NIGPLJy1SF; olfsk=olfsk562923635617554; __utmc=111872281; wcsid=uMlog1QJVD7juhFZ7M5VoBCyPPyiBySS; _oklv=1390931585445%2CuMlog1QJVD7juhFZ7M5VoBCyPPyiBySS; _ok=9752-503-10-5227; _okbk=cd4%3Dtrue%2Cvi5%3D0%2Cvi4%3D1390931521123%2Cvi3%3Dactive%2Cvi2%3Dfalse%2Cvi1%3Dfalse%2Ccd8%3Dchat%2Ccd6%3D0%2Ccd5%3Daway%2Ccd3%3Dfalse%2Ccd2%3D0%2Ccd1%3D0%2C; sp=75a13583-5c99-40e3-81fc-541084dfc784",
@@ -158,22 +160,19 @@ class ThriftLoaderSpec extends Specification with DataTables with ValidatedMatch
       ) ! UUID.fromString("75a13583-5c99-40e3-81fc-541084dfc784").some |> {
 
       (_, raw, timestamp, payload, hostname, ipAddress, userAgent, refererUri, headers, userId) =>
-        {
+        val canonicalEvent = ThriftLoader.toCollectorPayload(Base64.decodeBase64(raw), Process)
 
-          val canonicalEvent = ThriftLoader.toCollectorPayload(Base64.decodeBase64(raw), Process)
+        val expected = CollectorPayload(
+          api = Expected.api,
+          querystring = payload,
+          body = None,
+          contentType = None,
+          source = CollectorPayload.Source(Expected.collector, Expected.encoding, hostname),
+          context = CollectorPayload
+            .Context(timestamp.some, ipAddress, userAgent, refererUri, headers, userId)
+        )
 
-          val expected = CollectorPayload(
-            api = Expected.api,
-            querystring = payload,
-            body = None,
-            contentType = None,
-            source = CollectorPayload.Source(Expected.collector, Expected.encoding, hostname),
-            context = CollectorPayload
-              .Context(timestamp.some, ipAddress, userAgent, refererUri, headers, userId)
-          )
-
-          canonicalEvent must beValid(expected.some)
-        }
+        canonicalEvent must beValid(expected.some)
     }
 
   val msg =
@@ -185,12 +184,12 @@ class ThriftLoaderSpec extends Specification with DataTables with ValidatedMatch
     prop { (raw: String) =>
       ThriftLoader.toCollectorPayload(Base64.decodeBase64(raw), Process) must beInvalid.like {
         case NonEmptyList(
-            BadRow.CPFormatViolation(
-              Process,
-              Failure.CPFormatViolation(_, "thrift", f),
-              Payload.RawPayload(_)
-            ),
-            List()
+              BadRow.CPFormatViolation(
+                Process,
+                Failure.CPFormatViolation(_, "thrift", f),
+                Payload.RawPayload(_)
+              ),
+              List()
             ) =>
           f must_== FailureDetails.CPFormatViolationMessage.Fallback(msg)
       }

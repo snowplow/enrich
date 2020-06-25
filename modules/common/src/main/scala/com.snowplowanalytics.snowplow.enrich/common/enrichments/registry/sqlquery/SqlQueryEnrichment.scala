@@ -75,7 +75,7 @@ object SqlQueryEnrichment extends ParseableEnrichment {
         CirceUtils.extract[Query](c, "parameters", "query").toValidatedNel,
         output,
         CirceUtils.extract[Cache](c, "parameters", "cache").toValidatedNel
-      ).mapN { SqlQueryConf(schemaKey, _, _, _, _, _) }.toEither
+      ).mapN(SqlQueryConf(schemaKey, _, _, _, _, _)).toEither
     }.toValidated
 
   def apply[F[_]: CreateSqlQueryEnrichment](conf: SqlQueryConf): F[SqlQueryEnrichment[F]] =
@@ -95,7 +95,6 @@ object SqlQueryEnrichment extends ParseableEnrichment {
 }
 
 /**
- *
  * @param schemaKey configuration schema
  * @param inputs list of inputs, extracted from an original event
  * @param db source DB configuration
@@ -136,16 +135,16 @@ final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor](
   ): F[ValidatedNel[FailureDetails.EnrichmentFailure, List[SelfDescribingData[Json]]]] = {
     val contexts = for {
       map <- Input
-        .buildPlaceholderMap(inputs, event, derivedContexts, customContexts, unstructEvent)
-        .toEitherT[F]
+               .buildPlaceholderMap(inputs, event, derivedContexts, customContexts, unstructEvent)
+               .toEitherT[F]
       _ <- EitherT(DbExecutor.allPlaceholdersFilled(db, connection, query.sql, map))
-        .leftMap(NonEmptyList.one)
+             .leftMap(NonEmptyList.one)
       result <- map match {
-        case Some(m) =>
-          EitherT(get(m)).leftMap(NonEmptyList.one)
-        case None =>
-          EitherT.rightT[F, NonEmptyList[String]](List.empty[SelfDescribingData[Json]])
-      }
+                  case Some(m) =>
+                    EitherT(get(m)).leftMap(NonEmptyList.one)
+                  case None =>
+                    EitherT.rightT[F, NonEmptyList[String]](List.empty[SelfDescribingData[Json]])
+                }
     } yield result
 
     contexts.leftMap(failureDetails).value.map(_.toValidated)
@@ -160,11 +159,11 @@ final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor](
     for {
       gotten <- cache.get(intMap)
       res <- gotten match {
-        case Some(response) =>
-          if (System.currentTimeMillis() / 1000 - response._2 < ttl) Monad[F].pure(response._1)
-          else put(intMap)
-        case None => put(intMap)
-      }
+               case Some(response) =>
+                 if (System.currentTimeMillis() / 1000 - response._2 < ttl) Monad[F].pure(response._1)
+                 else put(intMap)
+               case None => put(intMap)
+             }
     } yield res.leftMap(_.getMessage)
 
   private def put(intMap: IntMap[Input.ExtractedValue]): F[Either[Throwable, List[SelfDescribingData[Json]]]] =

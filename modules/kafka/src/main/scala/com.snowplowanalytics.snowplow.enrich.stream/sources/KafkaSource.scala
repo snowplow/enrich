@@ -49,19 +49,19 @@ object KafkaSource {
   ): Either[String, KafkaSource] =
     for {
       kafkaConfig <- config.sourceSink match {
-        case c: Kafka => c.asRight
-        case _ => "Configured source/sink is not Kafka".asLeft
-      }
+                       case c: Kafka => c.asRight
+                       case _ => "Configured source/sink is not Kafka".asLeft
+                     }
       goodProducer <- KafkaSink.validateAndCreateProducer(kafkaConfig, config.buffer)
       emitPii = utils.emitPii(enrichmentRegistry)
       _ <- utils.validatePii(emitPii, config.out.pii)
       piiProducer <- config.out.pii match {
-        case Some(_) =>
-          KafkaSink
-            .validateAndCreateProducer(kafkaConfig, config.buffer)
-            .map(Some(_))
-        case None => None.asRight
-      }
+                       case Some(_) =>
+                         KafkaSink
+                           .validateAndCreateProducer(kafkaConfig, config.buffer)
+                           .map(Some(_))
+                       case None => None.asRight
+                     }
       badProducer <- KafkaSink.validateAndCreateProducer(kafkaConfig, config.buffer)
     } yield new KafkaSource(
       goodProducer,
@@ -89,14 +89,7 @@ class KafkaSource private (
   config: StreamsConfig,
   kafkaConfig: Kafka,
   sentryConfig: Option[SentryConfig]
-) extends Source(
-      client,
-      adapterRegistry,
-      enrichmentRegistry,
-      processor,
-      config.out.partitionKey,
-      sentryConfig
-    ) {
+) extends Source(client, adapterRegistry, enrichmentRegistry, processor, config.out.partitionKey, sentryConfig) {
 
   override val MaxRecordSize = None
 

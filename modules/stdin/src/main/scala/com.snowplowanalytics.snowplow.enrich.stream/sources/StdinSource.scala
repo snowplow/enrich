@@ -45,9 +45,9 @@ object StdinSource {
   ): Either[String, StdinSource] =
     for {
       _ <- config.sourceSink match {
-        case Stdin(_, _, _) => ().asRight
-        case _ => "Configured source/sink is not Stdin".asLeft
-      }
+             case Stdin(_, _, _) => ().asRight
+             case _ => "Configured source/sink is not Stdin".asLeft
+           }
     } yield new StdinSource(
       client,
       adapterRegistry,
@@ -66,14 +66,7 @@ class StdinSource private (
   processor: Processor,
   partitionKey: String,
   sentryConfig: Option[SentryConfig]
-) extends Source(
-      client,
-      adapterRegistry,
-      enrichmentRegistry,
-      processor,
-      partitionKey,
-      sentryConfig
-    ) {
+) extends Source(client, adapterRegistry, enrichmentRegistry, processor, partitionKey, sentryConfig) {
 
   override val MaxRecordSize = None
 

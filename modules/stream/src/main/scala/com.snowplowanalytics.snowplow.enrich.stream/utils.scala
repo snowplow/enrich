@@ -27,16 +27,18 @@ import java.util.concurrent.TimeUnit
 import cats.Id
 import cats.effect.Clock
 import cats.syntax.either._
-import com.amazonaws.auth.{
-  AWSCredentialsProvider,
-  AWSStaticCredentialsProvider,
-  BasicAWSCredentials,
-  DefaultAWSCredentialsProviderChain,
+import software.amazon.awssdk.auth.credentials.{
+  AwsBasicCredentials,
+  AwsCredentialsProvider,
+  DefaultCredentialsProvider,
   EnvironmentVariableCredentialsProvider,
-  InstanceProfileCredentialsProvider
+  InstanceProfileCredentialsProvider,
+  StaticCredentialsProvider
 }
-import com.amazonaws.services.s3.AmazonS3ClientBuilder
-import com.amazonaws.services.s3.model.GetObjectRequest
+import software.amazon.awssdk.regions.Region
+import software.amazon.awssdk.services.s3.S3Client
+import software.amazon.awssdk.services.s3.model.GetObjectRequest
+
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.storage.{BlobId, StorageOptions}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
@@ -71,7 +73,7 @@ object utils {
     override def generateUUID: Id[UUID] = UUID.randomUUID()
   }
 
-  def getAWSCredentialsProvider(creds: Credentials): Either[String, AWSCredentialsProvider] = {
+  def getAwsCredentialsProvider(creds: Credentials): Either[String, AwsCredentialsProvider] = {
     def isDefault(key: String): Boolean = key == "default"
     def isIam(key: String): Boolean = key == "iam"
     def isEnv(key: String): Boolean = key == "env"
@@ -81,19 +83,23 @@ object utils {
                     case NoCredentials => "No AWS credentials provided".asLeft
                     case _: GCPCredentials => "GCP credentials provided".asLeft
                     case AWSCredentials(a, s) if isDefault(a) && isDefault(s) =>
-                      new DefaultAWSCredentialsProviderChain().asRight
+                      DefaultCredentialsProvider.create().asRight
                     case AWSCredentials(a, s) if isDefault(a) || isDefault(s) =>
                       "accessKey and secretKey must both be set to 'default' or neither".asLeft
                     case AWSCredentials(a, s) if isIam(a) && isIam(s) =>
-                      InstanceProfileCredentialsProvider.getInstance().asRight
+                      InstanceProfileCredentialsProvider.create().asRight
                     case AWSCredentials(a, s) if isIam(a) && isIam(s) =>
                       "accessKey and secretKey must both be set to 'iam' or neither".asLeft
                     case AWSCredentials(a, s) if isEnv(a) && isEnv(s) =>
-                      new EnvironmentVariableCredentialsProvider().asRight
+                      EnvironmentVariableCredentialsProvider.create().asRight
                     case AWSCredentials(a, s) if isEnv(a) || isEnv(s) =>
                       "accessKey and secretKey must both be set to 'env' or neither".asLeft
                     case AWSCredentials(a, s) =>
-                      new AWSStaticCredentialsProvider(new BasicAWSCredentials(a, s)).asRight
+                      StaticCredentialsProvider
+                        .create(
+                          AwsBasicCredentials.create(a, s)
+                        )
+                        .asRight
                   }
     } yield provider
   }
@@ -136,26 +142,21 @@ object utils {
    * @return the download result
    */
   def downloadFromS3(
-    provider: AWSCredentialsProvider,
+    provider: AwsCredentialsProvider,
     uri: URI,
     targetFile: File,
-    region: Option[String]
-  ): Either[String, Unit] =
-    for {
-      s3Client <- Either
-                    .catchNonFatal(
-                      region
-                        .fold(AmazonS3ClientBuilder.standard().withCredentials(provider).build())(r =>
-                          AmazonS3ClientBuilder.standard().withCredentials(provider).withRegion(r).build()
-                        )
-                    )
-                    .leftMap(_.getMessage)
-      bucketName = uri.getHost
-      key = extractObjectKey(uri)
-      _ <- Either
-             .catchNonFatal(s3Client.getObject(new GetObjectRequest(bucketName, key), targetFile))
-             .leftMap(_.getMessage)
-    } yield ()
+    region: Option[Region]
+  ): Either[String, Unit] = {
+    val s3Client = region
+      .foldLeft(S3Client.builder.credentialsProvider(provider)) {
+        case (builder, r) => builder.region(r)
+      }
+      .build
+    val request = GetObjectRequest.builder.bucket(uri.getHost).key(extractObjectKey(uri)).build
+    Either
+      .catchNonFatal(s3Client.getObject(request, targetFile.toPath))
+      .bimap(_.getMessage, _ => ())
+  }
 
   def downloadFromGCS(
     creds: GoogleCredentials,

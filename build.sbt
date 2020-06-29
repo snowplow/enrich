@@ -74,6 +74,7 @@ lazy val allStreamSettings = BuildSettings.basicSettings ++ BuildSettings.sbtAss
     Dependencies.Libraries.sentry,
     Dependencies.Libraries.slf4j,
     Dependencies.Libraries.log4jOverSlf4j,
+    Dependencies.Libraries.authSdk,
     Dependencies.Libraries.s3Sdk,
     Dependencies.Libraries.gsSdk,
     Dependencies.Libraries.scopt,
@@ -103,7 +104,6 @@ lazy val kinesis = project
   .settings(packageName in Docker := "snowplow/stream-enrich-kinesis")
   .settings(libraryDependencies ++= Seq(
     Dependencies.Libraries.kinesisClient,
-    Dependencies.Libraries.kinesisSdk,
     Dependencies.Libraries.dynamodbSdk,
     Dependencies.Libraries.jacksonCbor
   ))

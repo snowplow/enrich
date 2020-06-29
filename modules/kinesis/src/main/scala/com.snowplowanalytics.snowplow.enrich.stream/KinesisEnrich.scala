@@ -19,17 +19,16 @@
 package com.snowplowanalytics.snowplow.enrich.stream
 
 import java.io.File
+import java.net.URI
 
-import scala.annotation.tailrec
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.io.Source
 import cats.Id
 import cats.implicits._
-import com.amazonaws.auth._
-import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
-import com.amazonaws.services.dynamodbv2.model.{AttributeValue, ScanRequest}
-import com.amazonaws.services.dynamodbv2.document.{DynamoDB, Item}
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient
+import software.amazon.awssdk.services.dynamodb.model.{AttributeValue, GetItemRequest, ScanRequest}
+import software.amazon.awssdk.regions.Region
 import com.snowplowanalytics.iglu.client.Client
 import com.snowplowanalytics.iglu.core._
 import com.snowplowanalytics.iglu.core.circe.CirceIgluCodecs._
@@ -43,7 +42,7 @@ import io.circe.syntax._
 import config._
 import model.{Credentials, DualCloudCredentialsPair, Kinesis, NoCredentials, SentryConfig, StreamsConfig}
 import sources.KinesisSource
-import utils.getAWSCredentialsProvider
+import utils.getAwsCredentialsProvider
 
 /** The main entry point for Stream Enrich for Kinesis. */
 object KinesisEnrich extends Enrich {
@@ -59,7 +58,7 @@ object KinesisEnrich extends Enrich {
                            case k: Kinesis =>
                              (
                                DualCloudCredentialsPair(k.aws, k.gcp.fold[Credentials](NoCredentials)(identity)),
-                               k.region
+                               Region.of(k.region)
                              ).asRight
                            case _ => "Configured source/sink is not Kinesis".asLeft
                          }
@@ -152,8 +151,8 @@ object KinesisEnrich extends Enrich {
         else "Iglu resolver configuration file \"%s\" does not exist".format(filepath).asLeft
       case DynamoDBRegex(region, table, key) =>
         for {
-          provider <- getAWSCredentialsProvider(creds)
-          resolver <- lookupDynamoDBResolver(provider, region, table, key)
+          provider <- getAwsCredentialsProvider(creds)
+          resolver <- lookupDynamoDBResolver(provider, Region.of(region), table, key)
         } yield resolver
       case _ => s"Resolver argument [$resolverArgument] must match $regexMsg".asLeft
     }
@@ -168,26 +167,21 @@ object KinesisEnrich extends Enrich {
    * @return The JSON stored in DynamoDB
    */
   private def lookupDynamoDBResolver(
-    provider: AWSCredentialsProvider,
-    region: String,
+    provider: AwsCredentialsProvider,
+    region: Region,
     table: String,
     key: String
   ): Either[String, String] = {
-    val dynamoDBClient = AmazonDynamoDBClientBuilder
-      .standard()
-      .withCredentials(provider)
-      .withEndpointConfiguration(new EndpointConfiguration(getDynamodbEndpoint(region), region))
-      .build()
-    val dynamoDB = new DynamoDB(dynamoDBClient)
+    val dynamoDBClient = DynamoDbClient.builder
+      .credentialsProvider(provider)
+      .endpointOverride(getDynamodbEndpoint(region))
+      .region(region)
+      .build
+    val request = GetItemRequest.builder.tableName(table).key(Map("id" -> AttributeValue.builder.s(key).build).asJava).build
     for {
-      // getTable doesn't involve any IO apparently so it's safe to chain
-      item <- Option(dynamoDB.getTable(table).getItem("id", key))
-                .fold(s"Key $key doesn't exist in DynamoDB table $table".asLeft[Item])(_.asRight[String])
-      json <- Option(item.getString("json"))
-                .fold(s"""Field "json" not found at key $key in DynamoDB table $table""".asLeft[String])(
-                  _.asRight[String]
-                )
-    } yield json
+      response <- Either.catchNonFatal(dynamoDBClient.getItem(request)).leftMap(_.getMessage)
+      field <- response.item.asScala.get("json").toRight(s"""Field "json" not found at key $key in DynamoDB table $table""")
+    } yield field.s
   }
 
   override def extractEnrichmentConfigs(enrichmentArg: Option[String])(implicit creds: Credentials): Either[String, Json] = {
@@ -201,8 +195,8 @@ object KinesisEnrich extends Enrich {
             .asRight
         case DynamoDBRegex(region, table, keyNamePrefix) =>
           for {
-            provider <- getAWSCredentialsProvider(creds)
-            enrichmentList = lookupDynamoDBEnrichments(provider, region, table, keyNamePrefix)
+            provider <- getAwsCredentialsProvider(creds)
+            enrichmentList = lookupDynamoDBEnrichments(provider, Region.of(region), table, keyNamePrefix)
             enrichments <- enrichmentList match {
                              case Nil => s"No enrichments found with prefix $keyNamePrefix".asLeft
                              case js => js.asRight
@@ -233,35 +227,26 @@ object KinesisEnrich extends Enrich {
    * @return List of JSONs
    */
   private def lookupDynamoDBEnrichments(
-    provider: AWSCredentialsProvider,
-    region: String,
+    provider: AwsCredentialsProvider,
+    region: Region,
     table: String,
     keyNamePrefix: String
   ): List[String] = {
-    val dynamoDBClient = AmazonDynamoDBClientBuilder
-      .standard()
-      .withCredentials(provider)
-      .withEndpointConfiguration(new EndpointConfiguration(getDynamodbEndpoint(region), region))
-      .build()
+    val dynamoDBClient = DynamoDbClient.builder
+      .credentialsProvider(provider)
+      .endpointOverride(getDynamodbEndpoint(region))
+      .region(region)
+      .build
 
-    // Each scan can only return up to 1MB
-    // See http://techtraits.com/cloud/nosql/2012/06/27/Amazon-DynamoDB--Understanding-Query-and-Scan-operations/
-    @tailrec
-    def partialScan(
-      sofar: List[Map[String, String]],
-      lastEvaluatedKey: java.util.Map[String, AttributeValue] = null
-    ): List[Map[String, String]] = {
-      val scanRequest = new ScanRequest().withTableName(table)
-      scanRequest.setExclusiveStartKey(lastEvaluatedKey)
-      val lastResult = dynamoDBClient.scan(scanRequest)
-      val combinedResults = sofar ++
-        lastResult.getItems.asScala.map(_.asScala.toMap.mapValues(_.getS))
-      lastResult.getLastEvaluatedKey match {
-        case null => combinedResults
-        case startKey => partialScan(combinedResults, startKey)
+    val scanRequest = ScanRequest.builder.tableName(table).build
+    val allItems = dynamoDBClient
+      .scanPaginator(scanRequest)
+      .asScala
+      .flatMap { response =>
+        response.items.asScala.map(_.asScala.toMap.mapValues(_.s))
       }
-    }
-    val allItems = partialScan(Nil)
+      .toList
+
     allItems
       .filter { item =>
         item.get("id") match {
@@ -272,9 +257,9 @@ object KinesisEnrich extends Enrich {
       .flatMap(_.get("json"))
   }
 
-  private def getDynamodbEndpoint(region: String): String =
+  private def getDynamodbEndpoint(region: Region): URI =
     region match {
-      case cn @ "cn-north-1" => s"https://dynamodb.$cn.amazonaws.com.cn"
-      case _ => s"https://dynamodb.$region.amazonaws.com"
+      case cn @ Region.CN_NORTH_1 => new URI(s"https://dynamodb.$cn.amazonaws.com.cn")
+      case _ => new URI(s"https://dynamodb.$region.amazonaws.com")
     }
 }

@@ -32,8 +32,16 @@ import com.amazonaws.auth.{
   AWSStaticCredentialsProvider,
   BasicAWSCredentials,
   DefaultAWSCredentialsProviderChain,
+  EnvironmentVariableCredentialsProvider => AWSEnvironmentVariableCredentialsProvider,
+  InstanceProfileCredentialsProvider => AWSInstanceProfileCredentialsProvider
+}
+import software.amazon.awssdk.auth.credentials.{
+  AwsBasicCredentials,
+  AwsCredentialsProvider,
+  DefaultCredentialsProvider,
   EnvironmentVariableCredentialsProvider,
-  InstanceProfileCredentialsProvider
+  InstanceProfileCredentialsProvider,
+  StaticCredentialsProvider
 }
 import com.amazonaws.services.s3.AmazonS3ClientBuilder
 import com.amazonaws.services.s3.model.GetObjectRequest
@@ -78,23 +86,54 @@ object utils {
 
     for {
       provider <- creds match {
-                    case NoCredentials => "No AWS credentials provided".asLeft
-                    case _: GCPCredentials => "GCP credentials provided".asLeft
-                    case AWSCredentials(a, s) if isDefault(a) && isDefault(s) =>
-                      new DefaultAWSCredentialsProviderChain().asRight
-                    case AWSCredentials(a, s) if isDefault(a) || isDefault(s) =>
-                      "accessKey and secretKey must both be set to 'default' or neither".asLeft
-                    case AWSCredentials(a, s) if isIam(a) && isIam(s) =>
-                      InstanceProfileCredentialsProvider.getInstance().asRight
-                    case AWSCredentials(a, s) if isIam(a) && isIam(s) =>
-                      "accessKey and secretKey must both be set to 'iam' or neither".asLeft
-                    case AWSCredentials(a, s) if isEnv(a) && isEnv(s) =>
-                      new EnvironmentVariableCredentialsProvider().asRight
-                    case AWSCredentials(a, s) if isEnv(a) || isEnv(s) =>
-                      "accessKey and secretKey must both be set to 'env' or neither".asLeft
-                    case AWSCredentials(a, s) =>
-                      new AWSStaticCredentialsProvider(new BasicAWSCredentials(a, s)).asRight
-                  }
+        case NoCredentials => "No AWS credentials provided".asLeft
+        case _: GCPCredentials => "GCP credentials provided".asLeft
+        case AWSCredentials(a, s) if isDefault(a) && isDefault(s) =>
+          new DefaultAWSCredentialsProviderChain().asRight
+        case AWSCredentials(a, s) if isDefault(a) || isDefault(s) =>
+          "accessKey and secretKey must both be set to 'default' or neither".asLeft
+        case AWSCredentials(a, s) if isIam(a) && isIam(s) =>
+          AWSInstanceProfileCredentialsProvider.getInstance().asRight
+        case AWSCredentials(a, s) if isIam(a) && isIam(s) =>
+          "accessKey and secretKey must both be set to 'iam' or neither".asLeft
+        case AWSCredentials(a, s) if isEnv(a) && isEnv(s) =>
+          new AWSEnvironmentVariableCredentialsProvider().asRight
+        case AWSCredentials(a, s) if isEnv(a) || isEnv(s) =>
+          "accessKey and secretKey must both be set to 'env' or neither".asLeft
+        case AWSCredentials(a, s) =>
+          new AWSStaticCredentialsProvider(new BasicAWSCredentials(a, s)).asRight
+      }
+    } yield provider
+  }
+
+  def getAwsCredentialsProvider(creds: Credentials): Either[String, AwsCredentialsProvider] = {
+    def isDefault(key: String): Boolean = key == "default"
+    def isIam(key: String): Boolean = key == "iam"
+    def isEnv(key: String): Boolean = key == "env"
+
+    for {
+      provider <- creds match {
+        case NoCredentials => "No AWS credentials provided".asLeft
+        case _: GCPCredentials => "GCP credentials provided".asLeft
+        case AWSCredentials(a, s) if isDefault(a) && isDefault(s) =>
+          DefaultCredentialsProvider.create().asRight
+        case AWSCredentials(a, s) if isDefault(a) || isDefault(s) =>
+          "accessKey and secretKey must both be set to 'default' or neither".asLeft
+        case AWSCredentials(a, s) if isIam(a) && isIam(s) =>
+          InstanceProfileCredentialsProvider.create().asRight
+        case AWSCredentials(a, s) if isIam(a) && isIam(s) =>
+          "accessKey and secretKey must both be set to 'iam' or neither".asLeft
+        case AWSCredentials(a, s) if isEnv(a) && isEnv(s) =>
+          EnvironmentVariableCredentialsProvider.create().asRight
+        case AWSCredentials(a, s) if isEnv(a) || isEnv(s) =>
+          "accessKey and secretKey must both be set to 'env' or neither".asLeft
+        case AWSCredentials(a, s) =>
+          StaticCredentialsProvider
+            .create(
+              AwsBasicCredentials.create(a, s)
+            )
+            .asRight
+      }
     } yield provider
   }
 

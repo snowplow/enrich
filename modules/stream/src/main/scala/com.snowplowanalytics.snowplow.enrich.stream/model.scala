@@ -95,12 +95,14 @@ object model {
     aws: AWSCredentials,
     gcp: Option[GCPCredentials],
     region: String,
-    maxRecords: Int,
+    maxRecords: Option[Int],
     initialPosition: String,
     initialTimestamp: Option[String],
     backoffPolicy: KinesisBackoffPolicyConfig,
     customEndpoint: Option[String],
     dynamodbCustomEndpoint: Option[String],
+    dynamodbInitialRCU: Option[Int],
+    dynamodbInitialWCU: Option[Int],
     disableCloudWatch: Option[Boolean]
   ) extends AWSNativePlatformConfig {
     val timestamp = initialTimestamp

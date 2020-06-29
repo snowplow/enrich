@@ -104,6 +104,11 @@ object BuildSettings {
     assemblyMergeStrategy in assembly := {
       case x if x.endsWith("ProjectSettings$.class") => MergeStrategy.first
       case x if x.endsWith("module-info.class") => MergeStrategy.first
+      // Below are AWS SDK v2 configuration files - can be discarded
+      case PathList(ps@_*) if Set("codegen.config" , "service-2.json" , "waiters-2.json" ,
+        "customization.config" , "examples-1.json" , "paginators-1.json", "mime.types", "io.netty.versions.properties")
+        .contains(ps.last) =>
+        MergeStrategy.discard
       case x =>
         val oldStrategy = (assemblyMergeStrategy in assembly).value
         oldStrategy(x)

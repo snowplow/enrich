@@ -17,17 +17,13 @@
 // SBT
 import sbt._
 import Keys._
-
 import bintray.BintrayPlugin._
 import bintray.BintrayKeys._
-
 import com.typesafe.sbt.SbtNativePackager.autoImport._
 import com.typesafe.sbt.packager.linux.LinuxPlugin.autoImport._
 import com.typesafe.sbt.packager.docker.DockerPlugin.autoImport._
-import com.typesafe.sbt.packager.docker.{ ExecCmd, DockerPermissionStrategy }
-
+import com.typesafe.sbt.packager.docker.{DockerPermissionStrategy, DockerVersion, ExecCmd}
 import scoverage.ScoverageKeys._
-
 import org.scalafmt.sbt.ScalafmtPlugin.autoImport._
 
 object BuildSettings {
@@ -123,10 +119,11 @@ object BuildSettings {
     dockerBaseImage := "snowplow-docker-registry.bintray.io/snowplow/base-debian:0.1.0",
     daemonUser in Docker := "snowplow",
     dockerUpdateLatest := true,
+    dockerVersion := Some(DockerVersion(18, 9, 0, Some("ce"))),
 //    dockerPermissionStrategy := DockerPermissionStrategy.Run,
 
     daemonUserUid in Docker := None,
-    defaultLinuxInstallLocation in Docker := "/home/snowplow", // must be home directory of daemonUser
+    defaultLinuxInstallLocation in Docker := "/home/snowplow" // must be home directory of daemonUser
   )
 
   /** Docker settings, used by BE */
@@ -135,6 +132,7 @@ object BuildSettings {
     dockerBaseImage := "snowplow-docker-registry.bintray.io/snowplow/k8s-dataflow:0.1.1",
     daemonUser in Docker := "snowplow",
     dockerUpdateLatest := true,
+    dockerVersion := Some(DockerVersion(18, 9, 0, Some("ce"))),
 //    dockerPermissionStrategy := DockerPermissionStrategy.Run,
 
     dockerCommands := dockerCommands.value.map {

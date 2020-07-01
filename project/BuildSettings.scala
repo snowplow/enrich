@@ -36,7 +36,7 @@ object BuildSettings {
   lazy val basicSettings = Seq(
     organization          :=  "com.snowplowanalytics",
     scalaVersion          :=  "2.12.11",
-    version               :=  "1.3.0-rc6",
+    version               :=  "1.3.0-rc7",
     javacOptions          :=  Seq("-source", "1.8", "-target", "1.8"),
     resolvers             ++= Dependencies.resolutionRepos
   )
@@ -123,7 +123,7 @@ object BuildSettings {
     dockerBaseImage := "snowplow-docker-registry.bintray.io/snowplow/base-debian:0.1.0",
     daemonUser in Docker := "snowplow",
     dockerUpdateLatest := true,
-    dockerPermissionStrategy := DockerPermissionStrategy.Run,
+//    dockerPermissionStrategy := DockerPermissionStrategy.Run,
 
     daemonUserUid in Docker := None,
     defaultLinuxInstallLocation in Docker := "/home/snowplow", // must be home directory of daemonUser
@@ -135,7 +135,7 @@ object BuildSettings {
     dockerBaseImage := "snowplow-docker-registry.bintray.io/snowplow/k8s-dataflow:0.1.1",
     daemonUser in Docker := "snowplow",
     dockerUpdateLatest := true,
-    dockerPermissionStrategy := DockerPermissionStrategy.Run,
+//    dockerPermissionStrategy := DockerPermissionStrategy.Run,
 
     dockerCommands := dockerCommands.value.map {
       case ExecCmd("ENTRYPOINT", args) => ExecCmd("ENTRYPOINT", "docker-entrypoint.sh", args)

@@ -59,6 +59,14 @@ object IabEnrichmentSpec {
     SpecHelpers.buildCollectorPayload(
       path = "/i",
       querystring = "e=pp".some,
+      userAgent =
+        "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Googlebot/2.1; +http://www.google.com/bot.html) Safari/537.36".some,
+      ipAddress = "[2001:db8:0:0:0:ff00:42:8329]:9090",
+      networkUserId = "44444444-4444-4444-4444-444444444444"
+    ),
+    SpecHelpers.buildCollectorPayload(
+      path = "/i",
+      querystring = "e=pp".some,
       ipAddress = "216.160.83.56",
       networkUserId = "55555555-5555-5555-5555-555555555555"
     )
@@ -94,7 +102,15 @@ object IabEnrichmentSpec {
       "event_format" -> "jsonschema",
       "event_version" -> "1-0-0",
       "event" -> "page_ping",
-      "derived_contexts" -> ""
+      "derived_contexts" -> json"""{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[{"schema":"iglu:com.iab.snowplow/spiders_and_robots/jsonschema/1-0-0","data":{"spiderOrRobot":true,"category":"SPIDER_OR_ROBOT","reason":"FAILED_UA_INCLUDE","primaryImpact":"UNKNOWN"}}]}""".noSpaces
+    ),
+    Map(
+      "event_vendor" -> "com.snowplowanalytics.snowplow",
+      "event_name" -> "page_ping",
+      "event_format" -> "jsonschema",
+      "event_version" -> "1-0-0",
+      "event" -> "page_ping",
+      "derived_contexts" -> json"""{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[{"schema":"iglu:com.iab.snowplow/spiders_and_robots/jsonschema/1-0-0","data":{"spiderOrRobot":true,"category":"SPIDER_OR_ROBOT","reason":"FAILED_UA_INCLUDE","primaryImpact":"UNKNOWN"}}]}""".noSpaces
     ),
     Map(
       "event_vendor" -> "com.snowplowanalytics.snowplow",

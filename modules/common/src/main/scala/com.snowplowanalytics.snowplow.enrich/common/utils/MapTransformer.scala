@@ -91,7 +91,7 @@ object MapTransformer {
   )(
     implicit m: Manifest[T]
   ): ValidatedNel[FailureDetails.EnrichmentFailure, T] = {
-    val newInst = m.runtimeClass.newInstance()
+    val newInst = m.runtimeClass.getDeclaredConstructor().newInstance()
     val result = _transform(newInst, sourceMap, transformMap, getSetters(m.runtimeClass))
     // On success, replace the field count with the new instance
     result.map(_ => newInst.asInstanceOf[T])

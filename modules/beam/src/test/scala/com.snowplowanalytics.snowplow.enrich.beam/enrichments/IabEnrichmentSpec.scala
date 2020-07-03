@@ -94,7 +94,7 @@ object IabEnrichmentSpec {
       "event_format" -> "jsonschema",
       "event_version" -> "1-0-0",
       "event" -> "page_ping",
-      "derived_contexts" -> ""
+      "derived_contexts" -> json"""{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[{"schema":"iglu:com.iab.snowplow/spiders_and_robots/jsonschema/1-0-0","data":{"spiderOrRobot":true,"category":"SPIDER_OR_ROBOT","reason":"FAILED_UA_INCLUDE","primaryImpact":"UNKNOWN"}}]}""".noSpaces
     ),
     Map(
       "event_vendor" -> "com.snowplowanalytics.snowplow",

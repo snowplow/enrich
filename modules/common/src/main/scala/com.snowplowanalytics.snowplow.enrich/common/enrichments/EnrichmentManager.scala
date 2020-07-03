@@ -438,21 +438,23 @@ object EnrichmentManager {
     event: EnrichedEvent,
     iabEnrichment: Option[IabEnrichment]
   ): Either[NonEmptyList[FailureDetails.EnrichmentFailure], Option[SelfDescribingData[Json]]] =
-    iabEnrichment match {
-      case Some(iab) =>
-        event.user_ipaddress match {
-          case IPv4Regex(ipv4) if !List(null, "", s"\0").contains(event.useragent) =>
-            iab
-              .getIabContext(
-                Option(event.useragent),
-                Option(ipv4),
-                Option(event.derived_tstamp).map(EventEnrichments.fromTimestamp)
-              )
-              .map(_.some)
-          case _ => None.asRight
-        }
-      case None => None.asRight
-    }
+    if (List(null, "", s"\0").contains(event.useragent)) None.asRight
+    else
+      iabEnrichment match {
+        case Some(iab) =>
+          val ipAddressWithoutPort =  event.user_ipaddress match {
+            case IPv4Regex(ipv4) => ipv4
+            case ipv6 =>
+              if (ipv6.contains('[') && ipv6.contains(']')) ipv6.substring(ipv6.indexOf('[')+1, ipv6.indexOf(']'))
+              else ipv6
+          }
+          iab.getIabContext(
+            Option(event.useragent),
+            Option(ipAddressWithoutPort),
+            Option(event.derived_tstamp).map(EventEnrichments.fromTimestamp)
+          ).map(_.some)
+        case None => None.asRight
+      }
 
   def anonIp(event: EnrichedEvent, anonIp: Option[AnonIpEnrichment]): Option[String] =
     Option(event.user_ipaddress).map { ip =>

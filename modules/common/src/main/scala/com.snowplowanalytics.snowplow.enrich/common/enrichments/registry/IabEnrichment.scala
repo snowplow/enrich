@@ -14,7 +14,9 @@ package com.snowplowanalytics.snowplow.enrich.common
 package enrichments.registry
 
 import java.io.File
-import java.net.{InetAddress, URI}
+import java.net.URI
+
+import inet.ipaddr.HostName
 
 import cats.{Eval, Id, Monad}
 import cats.data.{NonEmptyList, ValidatedNel}
@@ -136,7 +138,7 @@ final case class IabEnrichment(schemaKey: SchemaKey, iabClient: IabClient) exten
   ): Either[FailureDetails.EnrichmentFailure, IabEnrichmentResponse] =
     (for {
       ip <- Either
-              .catchNonFatal(InetAddress.getByName(ipAddress))
+              .catchNonFatal(new HostName(ipAddress).toInetAddress)
               .leftMap(e =>
                 FailureDetails.EnrichmentFailureMessage
                   .InputData("user_ipaddress", ipAddress.some, e.getMessage)

@@ -13,8 +13,6 @@
 package com.snowplowanalytics.snowplow.enrich.common
 package enrichments
 
-import scala.util.matching.Regex
-
 import java.nio.charset.Charset
 import java.net.URI
 import java.time.Instant
@@ -51,9 +49,6 @@ import outputs.EnrichedEvent
 import utils.{IgluUtils, ConversionUtils => CU}
 
 object EnrichmentManager {
-
-  // Regex for IPv4 without port
-  val IPv4Regex: Regex = """(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}).*""".r
 
   /**
    * Run the enrichment workflow

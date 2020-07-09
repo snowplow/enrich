@@ -16,6 +16,8 @@ package registry
 
 import java.net.URI
 
+import inet.ipaddr.HostName
+
 import cats.Functor
 import cats.data.{NonEmptyList, ValidatedNel}
 import cats.implicits._
@@ -120,10 +122,7 @@ final case class IpLookupsEnrichment[F[_]](ipLookups: IpLookups[F]) extends Enri
    * @return an IpLookupResult
    */
   def extractIpInformation(ip: String): F[IpLookupResult] =
-    ip match {
-      case EnrichmentManager.IPv4Regex(ipv4WithoutPort) => ipLookups.performLookups(ipv4WithoutPort)
-      case _ => ipLookups.performLookups(ip)
-    }
+    ipLookups.performLookups(Either.catchNonFatal(new HostName(ip).toAddress).fold(_ => ip, addr => addr.toString))
 }
 
 private[enrichments] final case class IpLookupsDatabase(

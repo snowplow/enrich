@@ -24,8 +24,6 @@ import io.circe.parser
 import com.snowplowanalytics.iglu.core.SelfDescribingData
 import com.snowplowanalytics.iglu.core.circe.instances._
 
-import org.scalatest._
-
 import utils._
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers

@@ -75,8 +75,8 @@ object Dependencies {
     val jinJava          = "2.5.0"
 
     val sentry           = "1.7.30"
-    val scio             = "0.8.1"
-    val beam             = "2.18.0"
+    val scio             = "0.9.2"
+    val beam             = "2.22.0"
     val macros           = "2.1.1"
     val scalaTest        = "3.0.8"
   }

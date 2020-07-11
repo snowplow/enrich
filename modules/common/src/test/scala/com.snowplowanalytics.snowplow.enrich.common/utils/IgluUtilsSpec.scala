@@ -91,8 +91,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
   "extractAndValidateUnstructEvent" should {
     "return None if unstruct_event field is empty" >> {
       IgluUtils
-        .extractAndValidateUnstructEvent(new EnrichedEvent, SpecHelpers.client)
-        .value must beValid(None)
+        .extractAndValidateUnstructEvent(new EnrichedEvent, SpecHelpers.client) must beValid(None)
     }
 
     "return a SchemaViolation.NotJson if unstruct_event does not contain a properly formatted JSON string" >> {
@@ -100,8 +99,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       input.setUnstruct_event(notJson)
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input, SpecHelpers.client)
-        .value must beInvalid.like {
+        .extractAndValidateUnstructEvent(input, SpecHelpers.client) must beInvalid.like {
         case _: FailureDetails.SchemaViolation.NotJson => ok
         case err => ko(s"[$err] is not NotJson")
       }
@@ -112,8 +110,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       input.setUnstruct_event(notIglu)
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input, SpecHelpers.client)
-        .value must beInvalid.like {
+        .extractAndValidateUnstructEvent(input, SpecHelpers.client) must beInvalid.like {
         case _: FailureDetails.SchemaViolation.NotIglu => ok
         case err => ko(s"[$err] is not NotIglu")
       }
@@ -124,8 +121,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       input.setUnstruct_event(noSchema)
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input, SpecHelpers.client)
-        .value must beInvalid.like {
+        .extractAndValidateUnstructEvent(input, SpecHelpers.client) must beInvalid.like {
         case _: FailureDetails.SchemaViolation.CriterionMismatch => ok
         case err => ko(s"[$err] is not CriterionMismatch")
       }
@@ -136,8 +132,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       input.setUnstruct_event(buildUnstruct(notJson))
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input, SpecHelpers.client)
-        .value must beInvalid.like {
+        .extractAndValidateUnstructEvent(input, SpecHelpers.client) must beInvalid.like {
         case _: FailureDetails.SchemaViolation.NotJson => ok
         case err => ko(s"[$err] is not NotJson")
       }
@@ -148,8 +143,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       input.setUnstruct_event(buildUnstruct(notIglu))
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input, SpecHelpers.client)
-        .value must beInvalid.like {
+        .extractAndValidateUnstructEvent(input, SpecHelpers.client) must beInvalid.like {
         case FailureDetails.SchemaViolation.IgluError(_, ValidationError(_)) => ok
         case ie: FailureDetails.SchemaViolation.IgluError =>
           ko(s"IgluError [$ie] is not ValidationError")
@@ -162,8 +156,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       input.setUnstruct_event(buildUnstruct(invalidEmailSent))
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input, SpecHelpers.client)
-        .value must beInvalid.like {
+        .extractAndValidateUnstructEvent(input, SpecHelpers.client) must beInvalid.like {
         case FailureDetails.SchemaViolation.IgluError(_, ValidationError(_)) => ok
         case ie: FailureDetails.SchemaViolation.IgluError =>
           ko(s"IgluError [$ie] is not ValidationError")
@@ -176,8 +169,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       input.setUnstruct_event(buildUnstruct(noSchema))
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input, SpecHelpers.client)
-        .value must beInvalid.like {
+        .extractAndValidateUnstructEvent(input, SpecHelpers.client) must beInvalid.like {
         case FailureDetails.SchemaViolation.IgluError(_, ResolutionError(_)) => ok
         case ie: FailureDetails.SchemaViolation.IgluError =>
           ko(s"IgluError [$ie] is not ResolutionError")
@@ -190,8 +182,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       input.setUnstruct_event(buildUnstruct(emailSent1))
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input, SpecHelpers.client)
-        .value must beValid.like {
+        .extractAndValidateUnstructEvent(input, SpecHelpers.client) must beValid.like {
         case Some(sdj) if sdj.schema == emailSentSchema => ok
         case Some(sdj) =>
           ko(
@@ -205,8 +196,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
   "extractAndValidateInputContexts" should {
     "return Nil if contexts field is empty" >> {
       IgluUtils
-        .extractAndValidateInputContexts(new EnrichedEvent, SpecHelpers.client)
-        .value must beValid(Nil)
+        .extractAndValidateInputContexts(new EnrichedEvent, SpecHelpers.client) must beValid(Nil)
     }
 
     "return a SchemaViolation.NotJson if .contexts does not contain a properly formatted JSON string" >> {
@@ -214,8 +204,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       input.setContexts(notJson)
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client)
-        .value must beInvalid.like {
+        .extractAndValidateInputContexts(input, SpecHelpers.client) must beInvalid.like {
         case NonEmptyList(_: FailureDetails.SchemaViolation.NotJson, Nil) => ok
         case err => ko(s"[$err] is not one NotJson")
       }
@@ -226,8 +215,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       input.setContexts(notIglu)
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client)
-        .value must beInvalid.like {
+        .extractAndValidateInputContexts(input, SpecHelpers.client) must beInvalid.like {
         case NonEmptyList(_: FailureDetails.SchemaViolation.NotIglu, Nil) => ok
         case err => ko(s"[$err] is not one NotIglu")
       }
@@ -238,8 +226,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       input.setContexts(noSchema)
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client)
-        .value must beInvalid.like {
+        .extractAndValidateInputContexts(input, SpecHelpers.client) must beInvalid.like {
         case NonEmptyList(_: FailureDetails.SchemaViolation.CriterionMismatch, Nil) => ok
         case err => ko(s"[$err] is not one CriterionMismatch")
       }
@@ -252,8 +239,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       input.setContexts(notArrayContexts)
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client)
-        .value must beInvalid.like {
+        .extractAndValidateInputContexts(input, SpecHelpers.client) must beInvalid.like {
         case NonEmptyList(FailureDetails.SchemaViolation.IgluError(_, ValidationError(_)), Nil) =>
           ok
         case NonEmptyList(ie: FailureDetails.SchemaViolation.IgluError, Nil) =>
@@ -267,8 +253,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       input.setContexts(buildInputContexts(List(invalidEmailSent)))
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client)
-        .value must beInvalid.like {
+        .extractAndValidateInputContexts(input, SpecHelpers.client) must beInvalid.like {
         case NonEmptyList(FailureDetails.SchemaViolation.IgluError(_, ValidationError(_)), Nil) =>
           ok
         case NonEmptyList(ie: FailureDetails.SchemaViolation.IgluError, Nil) =>
@@ -282,8 +267,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       input.setContexts(buildInputContexts(List(noSchema)))
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client)
-        .value must beInvalid.like {
+        .extractAndValidateInputContexts(input, SpecHelpers.client) must beInvalid.like {
         case NonEmptyList(FailureDetails.SchemaViolation.IgluError(_, ResolutionError(_)), Nil) =>
           ok
         case NonEmptyList(ie: FailureDetails.SchemaViolation.IgluError, Nil) =>
@@ -297,8 +281,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       input.setContexts(buildInputContexts(List(invalidEmailSent, noSchema)))
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client)
-        .value must beInvalid.like {
+        .extractAndValidateInputContexts(input, SpecHelpers.client) must beInvalid.like {
         case NonEmptyList(
               FailureDetails.SchemaViolation.IgluError(_, ValidationError(_)),
               List(FailureDetails.SchemaViolation.IgluError(_, ResolutionError(_)))
@@ -313,8 +296,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       input.setContexts(buildInputContexts(List(emailSent1, noSchema)))
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client)
-        .value must beInvalid.like {
+        .extractAndValidateInputContexts(input, SpecHelpers.client) must beInvalid.like {
         case NonEmptyList(_: FailureDetails.SchemaViolation.IgluError, Nil) => ok
         case err => ko(s"[$err] is not one IgluError")
       }
@@ -325,8 +307,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       input.setContexts(buildInputContexts(List(emailSent1, emailSent2)))
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client)
-        .value must beValid.like {
+        .extractAndValidateInputContexts(input, SpecHelpers.client) must beValid.like {
         case sdjs: List[SelfDescribingData[Json]] if sdjs.size == 2 && sdjs.forall(_.schema == emailSentSchema) =>
           ok
         case res =>
@@ -343,7 +324,6 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
 
       IgluUtils
         .validateEnrichmentsContexts(SpecHelpers.client, contexts, raw, processor, enriched)
-        .value
         .value must beLeft.like {
         case BadRow.EnrichmentFailures(_, failures, _) =>
           failures.messages match {
@@ -369,7 +349,6 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
 
       IgluUtils
         .validateEnrichmentsContexts(SpecHelpers.client, contexts, raw, processor, enriched)
-        .value
         .value must beLeft.like {
         case BadRow.EnrichmentFailures(_, failures, _) =>
           failures.messages match {
@@ -403,7 +382,6 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
 
       IgluUtils
         .validateEnrichmentsContexts(SpecHelpers.client, contexts, raw, processor, enriched)
-        .value
         .value must beLeft.like {
         case BadRow.EnrichmentFailures(_, failures, _) =>
           failures.messages match {
@@ -429,7 +407,6 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
 
       IgluUtils
         .validateEnrichmentsContexts(SpecHelpers.client, contexts, raw, processor, enriched)
-        .value
         .value must beRight
     }
   }
@@ -446,7 +423,6 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
           raw,
           processor
         )
-        .value
         .value must beLeft.like {
         case BadRow.SchemaViolations(_, failure, _) if failure.messages.size == 1 => ok
         case br => ko(s"bad row [$br] is not a SchemaViolations containing 1 error")
@@ -464,7 +440,6 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
           raw,
           processor
         )
-        .value
         .value must beLeft.like {
         case BadRow.SchemaViolations(_, failure, _) if failure.messages.size == 1 => ok
         case br => ko(s"bad row [$br] is not a SchemaViolations containing 1 error")
@@ -483,7 +458,6 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
           raw,
           processor
         )
-        .value
         .value must beLeft.like {
         case BadRow.SchemaViolations(_, failure, _) if failure.messages.size == 2 => ok
         case br => ko(s"bad row [$br] is not a SchemaViolations containing 2 errors")
@@ -502,7 +476,6 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
           raw,
           processor
         )
-        .value
         .value must beRight.like {
         case (sdjs: List[SelfDescribingData[Json]], Some(sdj)) if sdjs.size == 2 && (sdj :: sdjs).forall(_.schema == emailSentSchema) =>
           ok

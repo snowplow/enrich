@@ -13,7 +13,7 @@
 package com.snowplowanalytics.snowplow.enrich.common
 package enrichments.registry.apirequest
 
-import cats.Eval
+import cats.Id
 
 import io.circe._
 import io.circe.literal._
@@ -258,12 +258,12 @@ class ApiRequestEnrichmentIntegrationTest extends Specification {
   def e1 = {
     val enrichment = ApiRequestEnrichment
       .parse(IntegrationTests.configuration, SCHEMA_KEY)
-      .map(_.enrichment[Eval].value)
+      .map(_.enrichment[Id])
       .toEither
     val event = new EnrichedEvent
     event.setApp_id("lookup-test")
     event.setUser_id("snowplower")
-    val context = enrichment.flatMap(_.lookup(event, Nil, Nil, None).value.toEither)
+    val context = enrichment.flatMap(_.lookup(event, Nil, Nil, None).toEither)
     context must beRight.like {
       case context =>
         context must contain(IntegrationTests.correctResultContext) and (context must have size 1)
@@ -273,7 +273,7 @@ class ApiRequestEnrichmentIntegrationTest extends Specification {
   def e2 = {
     val enrichment = ApiRequestEnrichment
       .parse(IntegrationTests.configuration2, SCHEMA_KEY)
-      .map(_.enrichment[Eval].value)
+      .map(_.enrichment[Id])
       .toEither
     val event = new EnrichedEvent
     event.setApp_id("lookup test")
@@ -286,7 +286,7 @@ class ApiRequestEnrichmentIntegrationTest extends Specification {
         List(IntegrationTests.weatherContext),
         List(IntegrationTests.customContexts),
         Some(IntegrationTests.unstructEvent)
-      ).value.toEither
+      ).toEither
     )
     enrichment.flatMap(
       _.lookup(
@@ -294,7 +294,7 @@ class ApiRequestEnrichmentIntegrationTest extends Specification {
         List(IntegrationTests.weatherContext),
         List(IntegrationTests.customContexts),
         Some(IntegrationTests.unstructEvent)
-      ).value.toEither
+      ).toEither
     )
 
     val context = enrichment.flatMap(
@@ -303,7 +303,7 @@ class ApiRequestEnrichmentIntegrationTest extends Specification {
         List(IntegrationTests.weatherContext),
         List(IntegrationTests.customContexts),
         Some(IntegrationTests.unstructEvent)
-      ).value.toEither
+      ).toEither
     )
 
     context must beRight.like {

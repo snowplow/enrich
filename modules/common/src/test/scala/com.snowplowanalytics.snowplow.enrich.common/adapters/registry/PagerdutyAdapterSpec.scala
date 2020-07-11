@@ -133,7 +133,7 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
         Shared.context
       )
     )
-    PagerdutyAdapter.toRawEvents(payload, SpecHelpers.client).value must beValid(expected)
+    PagerdutyAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
   }
 
   def e7 = {
@@ -152,7 +152,7 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
       PagerdutyAdapter.EventSchemaMap,
       "no schema associated with the provided type parameter at index 0"
     )
-    PagerdutyAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(
+    PagerdutyAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(expected)
     )
   }
@@ -160,7 +160,7 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
   def e8 = {
     val payload =
       CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
-    PagerdutyAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(
+    PagerdutyAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(
         FailureDetails.AdapterFailure
           .InputData("body", None, "empty body: no events to process")
@@ -171,7 +171,7 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
   def e9 = {
     val payload =
       CollectorPayload(Shared.api, Nil, None, "stub".some, Shared.cljSource, Shared.context)
-    PagerdutyAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(
+    PagerdutyAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(
         FailureDetails.AdapterFailure.InputData(
           "contentType",
@@ -192,7 +192,7 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
       Shared.cljSource,
       Shared.context
     )
-    PagerdutyAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(
+    PagerdutyAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(
         FailureDetails.AdapterFailure
           .InputData("contentType", ct, "expected application/json")

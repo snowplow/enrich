@@ -97,7 +97,7 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
         Shared.context
       )
     )
-    HubSpotAdapter.toRawEvents(payload, SpecHelpers.client).value must beValid(expected)
+    HubSpotAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
   }
 
   def e4 = {
@@ -116,7 +116,7 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
       HubSpotAdapter.EventSchemaMap,
       "no schema associated with the provided type parameter at index 0"
     )
-    HubSpotAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(
+    HubSpotAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(expected)
     )
   }
@@ -124,7 +124,7 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
   def e5 = {
     val payload =
       CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
-    HubSpotAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(
+    HubSpotAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(
         FailureDetails.AdapterFailure
           .InputData("body", None, "empty body: not events to process")
@@ -135,7 +135,7 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
   def e6 = {
     val payload =
       CollectorPayload(Shared.api, Nil, None, "stub".some, Shared.cljSource, Shared.context)
-    HubSpotAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(
+    HubSpotAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(
         FailureDetails.AdapterFailure.InputData(
           "contentType",
@@ -156,7 +156,7 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
       Shared.cljSource,
       Shared.context
     )
-    HubSpotAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(
+    HubSpotAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(
         FailureDetails.AdapterFailure
           .InputData("contentType", ct, "expected application/json")

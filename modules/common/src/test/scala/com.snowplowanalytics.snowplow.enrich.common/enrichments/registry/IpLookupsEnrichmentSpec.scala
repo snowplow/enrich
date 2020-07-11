@@ -12,12 +12,14 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
-import cats.Eval
-import cats.syntax.option._
-import cats.syntax.either._
+import cats.Id
+import cats.implicits._
+
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 import com.snowplowanalytics.maxmind.iplookups.model.IpLocation
+
 import io.circe.literal._
+
 import org.specs2.Specification
 import org.specs2.matcher.DataTables
 
@@ -95,13 +97,14 @@ class IpLookupsEnrichmentSpec extends Specification with DataTables {
           accuracyRadius = 100
         ).asRight.some |> { (_, ipAddress, expected) =>
       (for {
-        e <- config.enrichment[Eval]
+        e <- config.enrichment[Id]
         res <- e.extractIpInformation(ipAddress)
-      } yield res.ipLocation).value.map(_.leftMap(_.getClass.getSimpleName)) must_== expected
+      } yield res.ipLocation).map(_.leftMap(_.getClass.getSimpleName)) must_== expected
     }
 
   def e2 =
-    config.enrichment
+    config
+      .enrichment[Id]
       .extractIpInformation("70.46.123.145")
       .isp must_== "FDN Communications".asRight.some
 }

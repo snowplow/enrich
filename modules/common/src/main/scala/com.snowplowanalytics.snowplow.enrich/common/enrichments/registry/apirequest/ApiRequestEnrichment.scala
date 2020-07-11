@@ -17,9 +17,8 @@ package apirequest
 
 import java.util.UUID
 
-import cats.{Eval, Id, Monad}
+import cats.{Id, Monad}
 import cats.data.{EitherT, NonEmptyList, ValidatedNel}
-import cats.effect.Sync
 import cats.implicits._
 
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SelfDescribingData}
@@ -214,45 +213,6 @@ sealed trait CreateApiRequestEnrichment[F[_]] {
 
 object CreateApiRequestEnrichment {
   def apply[F[_]](implicit ev: CreateApiRequestEnrichment[F]): CreateApiRequestEnrichment[F] = ev
-
-  implicit def syncCreateApiRequestEnrichment[F[_]: Sync: HttpClient](
-    implicit CLM: CreateLruMap[F, String, (Either[Throwable, Json], Long)]
-  ): CreateApiRequestEnrichment[F] =
-    new CreateApiRequestEnrichment[F] {
-      override def create(conf: ApiRequestConf): F[ApiRequestEnrichment[F]] =
-        CLM
-          .create(conf.cache.size)
-          .map(c =>
-            ApiRequestEnrichment(
-              conf.schemaKey,
-              conf.inputs,
-              conf.api,
-              conf.outputs,
-              conf.cache.ttl,
-              c
-            )
-          )
-    }
-
-  implicit def evalCreateApiRequestEnrichment(
-    implicit CLM: CreateLruMap[Eval, String, (Either[Throwable, Json], Long)],
-    HTTP: HttpClient[Eval]
-  ): CreateApiRequestEnrichment[Eval] =
-    new CreateApiRequestEnrichment[Eval] {
-      override def create(conf: ApiRequestConf): Eval[ApiRequestEnrichment[Eval]] =
-        CLM
-          .create(conf.cache.size)
-          .map(c =>
-            ApiRequestEnrichment(
-              conf.schemaKey,
-              conf.inputs,
-              conf.api,
-              conf.outputs,
-              conf.cache.ttl,
-              c
-            )
-          )
-    }
 
   implicit def idCreateApiRequestEnrichment(
     implicit CLM: CreateLruMap[Id, String, (Either[Throwable, Json], Long)],

@@ -85,7 +85,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
     val payload = loader.toCollectorPayload(input, processor)
 
     val actual = payload.map(
-      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client).value)
+      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client))
     )
 
     val expectedJson =
@@ -133,7 +133,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
     val payload = loader.toCollectorPayload(input, processor)
 
     val actual = payload.map(
-      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client).value)
+      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client))
     )
 
     val expectedJson =
@@ -184,7 +184,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
     val payload = loader.toCollectorPayload(input, processor)
 
     val actual = payload.map(
-      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client).value)
+      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client))
     )
 
     val expectedJson =
@@ -238,7 +238,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
     val payload = loader.toCollectorPayload(input, processor)
 
     val actual = payload.map(
-      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client).value)
+      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client))
     )
 
     val expectedJson =
@@ -293,7 +293,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
     val payload = loader.toCollectorPayload(input, processor)
 
     val actual = payload.map(
-      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client).value)
+      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client))
     )
 
     val expectedJson =
@@ -352,7 +352,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
     val payload = loader.toCollectorPayload(input, processor)
 
     val actual = payload.map(
-      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client).value)
+      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client))
     )
 
     val expectedJson =
@@ -412,7 +412,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
     val payload = loader.toCollectorPayload(input, processor)
 
     val actual = payload.map(
-      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client).value)
+      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client))
     )
 
     val expectedJson =
@@ -478,7 +478,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
         Shared.source,
         Shared.context
       )
-    val actual = CloudfrontAccessLogAdapter.toRawEvents(payload, SpecHelpers.client).value
+    val actual = CloudfrontAccessLogAdapter.toRawEvents(payload, SpecHelpers.client)
 
     actual must beInvalid(
       NonEmptyList
@@ -503,7 +503,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
         Shared.source,
         Shared.context
       )
-    val actual = CloudfrontAccessLogAdapter.toRawEvents(payload, SpecHelpers.client).value
+    val actual = CloudfrontAccessLogAdapter.toRawEvents(payload, SpecHelpers.client)
 
     actual must beInvalid(
       NonEmptyList.of(

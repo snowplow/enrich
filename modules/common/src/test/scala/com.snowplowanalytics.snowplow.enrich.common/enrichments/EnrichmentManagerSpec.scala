@@ -17,7 +17,7 @@ package enrichments
 import org.specs2.mutable.Specification
 import org.specs2.matcher.EitherMatchers
 
-import cats.Eval
+import cats.Id
 import cats.implicits._
 import cats.data.NonEmptyList
 
@@ -37,7 +37,7 @@ import enrichments.registry.JavascriptScriptEnrichment
 import enrichments.registry.YauaaEnrichment
 
 class EnrichmentManagerSpec extends Specification with EitherMatchers {
-  val enrichmentReg = EnrichmentRegistry[Eval](yauaa = Some(YauaaEnrichment(None)))
+  val enrichmentReg = EnrichmentRegistry[Id](yauaa = Some(YauaaEnrichment(None)))
   val client = SpecHelpers.client
   val processor = Processor("ssc-tests", "0.0.0")
   val timestamp = DateTime.now()
@@ -83,7 +83,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         rawEvent
       )
 
-      enriched.value.value must beLeft.like {
+      enriched.value must beLeft.like {
         case _: BadRow.SchemaViolations => ok
         case br => ko(s"bad row [$br] is not SchemaViolations")
       }
@@ -115,7 +115,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         timestamp,
         rawEvent
       )
-      enriched.value.value must beLeft.like {
+      enriched.value must beLeft.like {
         case _: BadRow.SchemaViolations => ok
         case br => ko(s"bad row [$br] is not SchemaViolations")
       }
@@ -142,7 +142,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       val jsEnrichConf =
         JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
       val jsEnrich = JavascriptScriptEnrichment(jsEnrichConf.schemaKey, jsEnrichConf.rawFunction)
-      val enrichmentReg = EnrichmentRegistry[Eval](javascriptScript = Some(jsEnrich))
+      val enrichmentReg = EnrichmentRegistry[Id](javascriptScript = Some(jsEnrich))
 
       val parameters = Map(
         "e" -> "pp",
@@ -157,7 +157,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         timestamp,
         rawEvent
       )
-      enriched.value.value must beLeft.like {
+      enriched.value must beLeft.like {
         case BadRow.EnrichmentFailures(
               _,
               Failure.EnrichmentFailures(
@@ -205,7 +205,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       val jsEnrichConf =
         JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
       val jsEnrich = JavascriptScriptEnrichment(jsEnrichConf.schemaKey, jsEnrichConf.rawFunction)
-      val enrichmentReg = EnrichmentRegistry[Eval](javascriptScript = Some(jsEnrich))
+      val enrichmentReg = EnrichmentRegistry[Id](javascriptScript = Some(jsEnrich))
 
       val parameters = Map(
         "e" -> "pp",
@@ -220,7 +220,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         timestamp,
         rawEvent
       )
-      enriched.value.value must beLeft.like {
+      enriched.value must beLeft.like {
         case BadRow.EnrichmentFailures(
               _,
               Failure.EnrichmentFailures(
@@ -279,7 +279,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         timestamp,
         rawEvent
       )
-      enriched.value.value must beRight
+      enriched.value must beRight
     }
 
     "have a preference of 'ua' query string parameter over user agent of HTTP header" >> {
@@ -299,8 +299,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         timestamp,
         rawEvent
       )
-      enriched.value.value.map(_.useragent) must beRight(qs_ua)
-      enriched.value.value.map(_.derived_contexts) must beRight((_: String).contains("\"agentName\":\"Firefox\""))
+      enriched.value.map(_.useragent) must beRight(qs_ua)
+      enriched.value.map(_.derived_contexts) must beRight((_: String).contains("\"agentName\":\"Firefox\""))
     }
 
     "use user agent of HTTP header if 'ua' query string parameter is not set" >> {
@@ -318,7 +318,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         timestamp,
         rawEvent
       )
-      enriched.value.value.map(_.useragent) must beRight("header-useragent")
+      enriched.value.map(_.useragent) must beRight("header-useragent")
     }
   }
 }

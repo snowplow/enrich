@@ -86,13 +86,13 @@ class StatusGatorAdapterSpec extends Specification with DataTables with Validate
         Shared.context
       )
     )
-    StatusGatorAdapter.toRawEvents(payload, SpecHelpers.client).value must beValid(expected)
+    StatusGatorAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
   }
 
   def e2 = {
     val payload =
       CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
-    StatusGatorAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(
+    StatusGatorAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(
         FailureDetails.AdapterFailure
           .InputData("body", None, "empty body: no events to process")
@@ -105,7 +105,7 @@ class StatusGatorAdapterSpec extends Specification with DataTables with Validate
       "service_name=CloudFlare&favicon_url=https%3A%2F%2Fdwxjd9cd6rwno.cloudfront.net%2Ffavicons%2Fcloudflare.ico&status_page_url=https%3A%2F%2Fwww.cloudflarestatus.com%2F&home_page_url=http%3A%2F%2Fwww.cloudflare.com&current_status=up&last_status=warn&occurred_at=2016-05-19T09%3A26%3A31%2B00%3A00"
     val payload =
       CollectorPayload(Shared.api, Nil, None, body.some, Shared.cljSource, Shared.context)
-    StatusGatorAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(
+    StatusGatorAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(
         FailureDetails.AdapterFailure.InputData(
           "contentType",
@@ -122,7 +122,7 @@ class StatusGatorAdapterSpec extends Specification with DataTables with Validate
     val ct = "application/json"
     val payload =
       CollectorPayload(Shared.api, Nil, ct.some, body.some, Shared.cljSource, Shared.context)
-    StatusGatorAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(
+    StatusGatorAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(
         FailureDetails.AdapterFailure.InputData(
           "contentType",
@@ -148,7 +148,7 @@ class StatusGatorAdapterSpec extends Specification with DataTables with Validate
         FailureDetails.AdapterFailure
           .InputData("body", None, "empty body: no events to process")
       )
-    StatusGatorAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(expected)
+    StatusGatorAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(expected)
   }
 
   def e6 = {
@@ -169,6 +169,6 @@ class StatusGatorAdapterSpec extends Specification with DataTables with Validate
         "could not parse body: Illegal character in query at index 18: http://localhost/?{service_name=CloudFlare&favicon_url=https%3A%2F%2Fdwxjd9cd6rwno.cloudfront.net%2Ffavicons%2Fcloudflare.ico&status_page_url=https%3A%2F%2Fwww.cloudflarestatus.com%2F&home_page_url=http%3A%2F%2Fwww.cloudflare.com&current_status=up&last_status=warn&occurred_at=2016-05-19T09%3A26%3A31%2B00%3A00"
       )
     )
-    StatusGatorAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(expected)
+    StatusGatorAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(expected)
   }
 }

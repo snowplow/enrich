@@ -70,13 +70,13 @@ class MarketoAdapterSpec extends Specification with DataTables with ValidatedMat
         Shared.context
       )
     )
-    MarketoAdapter.toRawEvents(payload, SpecHelpers.client).value must beValid(expected)
+    MarketoAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
   }
 
   def e2 = {
     val payload =
       CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
-    MarketoAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(
+    MarketoAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(
         FailureDetails.AdapterFailure
           .InputData("body", None, "empty body: no events to process")

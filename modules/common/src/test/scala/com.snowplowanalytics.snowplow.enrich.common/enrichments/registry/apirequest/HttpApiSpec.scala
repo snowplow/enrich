@@ -14,7 +14,7 @@ package com.snowplowanalytics.snowplow.enrich.common
 package enrichments.registry
 package apirequest
 
-import cats.Eval
+import cats.Id
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 import org.specs2.Specification
 import org.specs2.matcher.ValidatedMatchers
@@ -58,10 +58,10 @@ class HttpApiSpec extends Specification with ValidatedMatchers with Mockito {
       HttpApi("GET", "http://thishostdoesntexist31337:8123/endpoint", 1000, Authentication(None)),
       List(Output("", Some(JsonOutput("")))),
       Cache(1, 1)
-    ).enrichment[Eval]
+    ).enrichment[Id]
 
     val event = new outputs.EnrichedEvent
-    val request = enrichment.value.lookup(event, Nil, Nil, None).value
+    val request = enrichment.lookup(event, Nil, Nil, None)
     request must beInvalid
   }
 }

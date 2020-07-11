@@ -39,7 +39,7 @@ object Dependencies {
     val jaywayJsonpath   = "2.4.0"
     val iabClient        = "0.2.0"
     val yauaa            = "5.8"
-    val guava            = "28.1-jre" //used only for InetAddress (because it doesn't do dns lookup)
+    val guava            = "28.1-jre"
     val slf4j            = "1.7.26"
 
     val refererParser    = "1.0.0"
@@ -51,7 +51,7 @@ object Dependencies {
     val scalaWeather     = "0.5.0"
     val gatlingJsonpath  = "0.6.14"
     val scalaUri         = "1.4.5"
-    val scalaLruMap      = "0.3.0"
+    val scalaLruMap      = "0.3.1"
     val badRows          = "1.0.0"
 
     val snowplowRawEvent = "0.1.0"

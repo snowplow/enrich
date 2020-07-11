@@ -96,7 +96,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
         Shared.context
       )
     )
-    MailgunAdapter.toRawEvents(payload, SpecHelpers.client).value must beValid(expected)
+    MailgunAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
   }
 
   def e2 = {
@@ -145,7 +145,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
         Shared.context
       )
     )
-    MailgunAdapter.toRawEvents(payload, SpecHelpers.client).value must beValid(expected)
+    MailgunAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
   }
 
   def e3 = {
@@ -195,7 +195,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
         Shared.context
       )
     )
-    MailgunAdapter.toRawEvents(payload, SpecHelpers.client).value must beValid(expected)
+    MailgunAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
   }
 
   def e4 = {
@@ -245,7 +245,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
         Shared.context
       )
     )
-    MailgunAdapter.toRawEvents(payload, SpecHelpers.client).value must beValid(expected)
+    MailgunAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
   }
 
   def e5 = {
@@ -292,13 +292,13 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
         Shared.context
       )
     )
-    MailgunAdapter.toRawEvents(payload, SpecHelpers.client).value must beValid(expected)
+    MailgunAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
   }
 
   def e6 = {
     val payload =
       CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
-    MailgunAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(
+    MailgunAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(
         FailureDetails.AdapterFailure
           .InputData("body", None, "empty body: no events to process")
@@ -310,7 +310,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     val body = "body"
     val payload =
       CollectorPayload(Shared.api, Nil, None, body.some, Shared.cljSource, Shared.context)
-    MailgunAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(
+    MailgunAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(
         FailureDetails.AdapterFailure.InputData(
           "contentType",
@@ -326,7 +326,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     val ct = "application/json"
     val payload =
       CollectorPayload(Shared.api, Nil, ct.some, body.some, Shared.cljSource, Shared.context)
-    MailgunAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(
+    MailgunAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(
         FailureDetails.AdapterFailure.InputData(
           "contentType",
@@ -352,7 +352,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
         FailureDetails.AdapterFailure
           .InputData("body", None, "empty body: no events to process")
       )
-    MailgunAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(expected)
+    MailgunAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(expected)
   }
 
   def e10 = {
@@ -373,7 +373,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
         "could not parse body: Illegal character in query at index 261: http://localhost/?X-MailgunSid=WyIxZjQzMiIsICJyb25ueUBrZGUub3JnIiwgIjliMjYwIl0%3D&event=delivered&timestamp=1467040750&token=c2fc6a36198fa651243afb6042867b7490e480843198008c6b&signature=9387fb0e5ff02de5e159594173f02c95c55d7e681b40a7b930ed4d0a3cbbdd6e&recipient=<>"
       )
     )
-    MailgunAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(expected)
+    MailgunAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(expected)
   }
 
   def e11 = {
@@ -394,7 +394,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
         "no `event` parameter provided: cannot determine event type"
       )
     )
-    MailgunAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(expected)
+    MailgunAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(expected)
   }
 
   def e12 = {
@@ -415,7 +415,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
         "no schema associated with the provided type parameter"
       )
     )
-    MailgunAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(expected)
+    MailgunAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(expected)
   }
 
   def e13 = {
@@ -434,7 +434,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
         FailureDetails.AdapterFailure
           .InputData("timestamp", None, "missing 'timestamp'")
       )
-    MailgunAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(expected)
+    MailgunAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(expected)
   }
 
   def e14 = {
@@ -451,7 +451,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     val expected = NonEmptyList.one(
       FailureDetails.AdapterFailure.InputData("token", None, "missing 'token'")
     )
-    MailgunAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(expected)
+    MailgunAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(expected)
   }
 
   def e15 = {
@@ -470,6 +470,6 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
         FailureDetails.AdapterFailure
           .InputData("signature", None, "missing 'signature'")
       )
-    MailgunAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(expected)
+    MailgunAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(expected)
   }
 }

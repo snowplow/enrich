@@ -90,7 +90,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
         Shared.source,
         Shared.context
       )
-    val actual = Tp1Adapter.toRawEvents(payload, SpecHelpers.client).value
+    val actual = Tp1Adapter.toRawEvents(payload, SpecHelpers.client)
     actual must beValid(
       NonEmptyList
         .one(RawEvent(Snowplow.Tp1, Map("aid" -> "test"), None, Shared.source, Shared.context))
@@ -99,7 +99,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
 
   def e2 = {
     val payload = CollectorPayload(Snowplow.Tp1, Nil, None, None, Shared.source, Shared.context)
-    val actual = Tp1Adapter.toRawEvents(payload, SpecHelpers.client).value
+    val actual = Tp1Adapter.toRawEvents(payload, SpecHelpers.client)
     actual must beInvalid(
       NonEmptyList.one(
         FailureDetails.AdapterFailure.InputData(
@@ -120,7 +120,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       Shared.source,
       Shared.context
     )
-    val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client).value
+    val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client)
     actual must beValid(
       NonEmptyList.one(
         RawEvent(
@@ -146,7 +146,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
         Shared.source,
         Shared.context
       )
-    val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client).value
+    val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client)
     actual must beValid(
       NonEmptyList.one(
         RawEvent(
@@ -173,7 +173,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       Shared.source,
       Shared.context
     )
-    val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client).value
+    val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client)
 
     val rawEvent: RawEventParameters => RawEvent = params =>
       RawEvent(
@@ -203,7 +203,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       Shared.source,
       Shared.context
     )
-    val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client).value
+    val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client)
     actual must beValid(
       NonEmptyList.one(
         RawEvent(
@@ -271,7 +271,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
         Shared.source,
         Shared.context
       )
-      val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client).value
+      val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client)
       actual must beInvalid(expected)
     }
 
@@ -284,7 +284,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       Shared.source,
       Shared.context
     )
-    val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client).value
+    val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client)
     actual must beInvalid(
       NonEmptyList.one(
         FailureDetails.TrackerProtocolViolation
@@ -303,7 +303,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       Shared.source,
       Shared.context
     )
-    val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client).value
+    val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client)
     actual must beInvalid(
       NonEmptyList.one(
         FailureDetails.TrackerProtocolViolation.IgluError(
@@ -434,7 +434,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
           Shared.context
         )
 
-      val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client).value
+      val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client)
       actual must beInvalid(expected)
     }
 
@@ -450,7 +450,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       Shared.source,
       Shared.context
     )
-    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client).value
+    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client)
     actual must beValid(
       NonEmptyList.one(
         RawEvent(
@@ -483,7 +483,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       Shared.source,
       Shared.context
     )
-    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client).value
+    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client)
     actual must beValid(
       NonEmptyList.one(
         RawEvent(
@@ -517,7 +517,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       Shared.source,
       Shared.context
     )
-    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client).value
+    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client)
     actual must beValid(
       NonEmptyList.one(
         RawEvent(
@@ -550,7 +550,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       Shared.source,
       Shared.context
     )
-    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client).value
+    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client)
     actual must beValid(
       NonEmptyList.one(
         RawEvent(
@@ -585,7 +585,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       Shared.source,
       Shared.context
     )
-    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client).value
+    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client)
     actual must beValid(
       NonEmptyList.one(
         RawEvent(
@@ -608,7 +608,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
 
   def e16 = {
     val payload = CollectorPayload(Snowplow.Tp2, Nil, None, None, Shared.source, Shared.context)
-    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client).value
+    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client)
     actual must beInvalid(
       NonEmptyList.one(
         FailureDetails.TrackerProtocolViolation.InputData(
@@ -630,7 +630,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
         Shared.source,
         Shared.context
       )
-    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client).value
+    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client)
     actual must beInvalid(
       NonEmptyList.one(
         FailureDetails.TrackerProtocolViolation.InputData(
@@ -655,7 +655,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       Shared.source,
       Shared.context
     )
-    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client).value
+    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client)
     actual must beInvalid(
       NonEmptyList.one(
         FailureDetails.TrackerProtocolViolation.NotJson(
@@ -680,7 +680,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       Shared.source,
       Shared.context
     )
-    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client).value
+    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client)
     actual must beInvalid(
       NonEmptyList.one(
         FailureDetails.TrackerProtocolViolation

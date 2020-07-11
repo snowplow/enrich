@@ -212,7 +212,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
         Shared.context
       )
     )
-    MandrillAdapter.toRawEvents(payload, SpecHelpers.client).value must beValid(expected)
+    MandrillAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
   }
 
   def e5 = { // Spec for nine seperate events where two have incorrect event names and one does not have event as a parameter
@@ -243,13 +243,13 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
         "cannot determine event type: type parameter not provided at index 2"
       )
     )
-    MandrillAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(expected)
+    MandrillAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(expected)
   }
 
   def e6 = {
     val payload =
       CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
-    MandrillAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(
+    MandrillAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(
         FailureDetails.AdapterFailure
           .InputData("body", None, "empty body: no events to process")
@@ -261,7 +261,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
     val body = "mandrill_events=%5B%7B%22event%22%3A%20%22subscribe%22%7D%5D"
     val payload =
       CollectorPayload(Shared.api, Nil, None, body.some, Shared.cljSource, Shared.context)
-    MandrillAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(
+    MandrillAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(
         FailureDetails.AdapterFailure.InputData(
           "contentType",
@@ -277,7 +277,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
     val ct = "application/x-www-form-urlencoded; charset=utf-8".some
     val payload =
       CollectorPayload(Shared.api, Nil, ct, body.some, Shared.cljSource, Shared.context)
-    MandrillAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(
+    MandrillAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(
         FailureDetails.AdapterFailure
           .InputData("contentType", ct, "expected application/x-www-form-urlencoded")

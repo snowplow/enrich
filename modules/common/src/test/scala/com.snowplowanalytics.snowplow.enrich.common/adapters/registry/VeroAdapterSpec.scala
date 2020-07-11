@@ -78,7 +78,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
         Shared.context
       )
     )
-    VeroAdapter.toRawEvents(payload, SpecHelpers.client).value must beValid(expected)
+    VeroAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
   }
 
   def e2 = {
@@ -106,7 +106,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
         Shared.context
       )
     )
-    VeroAdapter.toRawEvents(payload, SpecHelpers.client).value must beValid(expected)
+    VeroAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
   }
 
   def e3 = {
@@ -134,7 +134,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
         Shared.context
       )
     )
-    VeroAdapter.toRawEvents(payload, SpecHelpers.client).value must beValid(expected)
+    VeroAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
   }
 
   def e4 = {
@@ -162,7 +162,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
         Shared.context
       )
     )
-    VeroAdapter.toRawEvents(payload, SpecHelpers.client).value must beValid(expected)
+    VeroAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
   }
 
   def e5 = {
@@ -190,7 +190,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
         Shared.context
       )
     )
-    VeroAdapter.toRawEvents(payload, SpecHelpers.client).value must beValid(expected)
+    VeroAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
   }
 
   def e6 = {
@@ -218,7 +218,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
         Shared.context
       )
     )
-    VeroAdapter.toRawEvents(payload, SpecHelpers.client).value must beValid(expected)
+    VeroAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
   }
 
   def e7 = {
@@ -246,7 +246,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
         Shared.context
       )
     )
-    VeroAdapter.toRawEvents(payload, SpecHelpers.client).value must beValid(expected)
+    VeroAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
   }
 
   def e8 = {
@@ -274,7 +274,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
         Shared.context
       )
     )
-    VeroAdapter.toRawEvents(payload, SpecHelpers.client).value must beValid(expected)
+    VeroAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
   }
 
   def e9 =
@@ -298,7 +298,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
       )
       val expectedJson =
         "{\"schema\":\"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0\",\"data\":{\"schema\":\"" + expected + "\",\"data\":{}}}"
-      val actual = VeroAdapter.toRawEvents(payload, SpecHelpers.client).value
+      val actual = VeroAdapter.toRawEvents(payload, SpecHelpers.client)
       actual must beValid(
         NonEmptyList.one(
           RawEvent(
@@ -315,7 +315,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
   def e10 = {
     val payload =
       CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
-    VeroAdapter.toRawEvents(payload, SpecHelpers.client).value must beInvalid(
+    VeroAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(
         FailureDetails.AdapterFailure
           .InputData("body", None, "empty body: no events to process")

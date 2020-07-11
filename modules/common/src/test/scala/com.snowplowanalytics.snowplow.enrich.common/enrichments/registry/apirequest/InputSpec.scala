@@ -14,7 +14,7 @@ package com.snowplowanalytics.snowplow.enrich.common
 package enrichments.registry
 package apirequest
 
-import cats.Eval
+import cats.Id
 import cats.data.ValidatedNel
 import cats.syntax.option._
 
@@ -252,11 +252,11 @@ class InputSpec extends Specification with ValidatedMatchers {
       HttpApi("GET", uriTemplate, 1000, Authentication(None)),
       List(Output("iglu:someschema", JsonOutput("$").some)),
       Cache(10, 5)
-    ).enrichment[Eval]
+    ).enrichment[Id]
     val event = new outputs.EnrichedEvent
     event.setUser_id("chuwy")
     // time in true_tstamp won't be found
-    val request = enrichment.value.lookup(event, Nil, Nil, None).value
+    val request = enrichment.lookup(event, Nil, Nil, None)
     request must beValid.like {
       case response => response must be(Nil)
     }

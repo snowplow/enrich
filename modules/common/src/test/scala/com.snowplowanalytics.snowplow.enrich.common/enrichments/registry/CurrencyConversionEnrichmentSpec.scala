@@ -13,14 +13,15 @@
 package com.snowplowanalytics.snowplow.enrich.common
 package enrichments.registry
 
-import cats.Eval
+import cats.Id
 import cats.data.{NonEmptyList, Validated, ValidatedNel}
-import cats.syntax.option._
-import cats.syntax.validated._
+import cats.implicits._
+
 import com.snowplowanalytics.forex.CreateForex._
 import com.snowplowanalytics.forex.model._
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 import com.snowplowanalytics.snowplow.badrows._
+
 import org.joda.money.CurrencyUnit
 import org.joda.time.DateTime
 import org.specs2.Specification
@@ -112,7 +113,7 @@ class CurrencyConversionEnrichmentSpec extends Specification with DataTables {
       ) =>
         (for {
           e <- CurrencyConversionConf(schemaKey, DeveloperAccount, apiKey, CurrencyUnit.EUR)
-                 .enrichment[Eval]
+                 .enrichment[Id]
           res <- e.convertCurrencies(
                    trCurrency,
                    trAmountTotal,
@@ -122,7 +123,7 @@ class CurrencyConversionEnrichmentSpec extends Specification with DataTables {
                    tiPrice,
                    dateTime
                  )
-        } yield res).value must_== expected
+        } yield res) must_== expected
     }
 
   def e2 =
@@ -182,10 +183,7 @@ class CurrencyConversionEnrichmentSpec extends Specification with DataTables {
         expected
       ) =>
         (for {
-          c <- Eval.now(
-                 CurrencyConversionConf(schemaKey, DeveloperAccount, apiKey, CurrencyUnit.EUR)
-               )
-          e <- c.enrichment[Eval]
+          e <- CurrencyConversionConf(schemaKey, DeveloperAccount, apiKey, CurrencyUnit.EUR).enrichment[Id]
           res <- e.convertCurrencies(
                    trCurrency,
                    trAmountTotal,
@@ -195,6 +193,6 @@ class CurrencyConversionEnrichmentSpec extends Specification with DataTables {
                    tiPrice,
                    dateTime
                  )
-        } yield res).value must_== expected
+        } yield res) must_== expected
     }
 }

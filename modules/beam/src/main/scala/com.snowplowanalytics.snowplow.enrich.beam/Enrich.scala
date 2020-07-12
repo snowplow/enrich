@@ -14,31 +14,38 @@
  */
 package com.snowplowanalytics.snowplow.enrich.beam
 
+import scala.collection.JavaConverters._
+
+import io.circe.Json
+
+import io.sentry.Sentry
+
 import cats.Id
 import cats.data.Validated
 import cats.implicits._
+
 import com.snowplowanalytics.iglu.client.Client
-import com.snowplowanalytics.snowplow.badrows._
+import com.snowplowanalytics.snowplow.badrows.{BadRow, Processor}
 import com.snowplowanalytics.snowplow.enrich.common.EtlPipeline
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.loaders.ThriftLoader
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+
 import com.spotify.scio._
 import com.spotify.scio.coders.Coder
 import com.spotify.scio.pubsub.PubSubAdmin
 import com.spotify.scio.values.{DistCache, SCollection}
-import _root_.io.circe.Json
+
 import org.apache.beam.sdk.io.gcp.pubsub.PubsubOptions
 import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions
 import org.joda.time.DateTime
 import org.slf4j.LoggerFactory
-import _root_.io.sentry.Sentry
-import scala.collection.JavaConverters._
-import config._
-import singleton._
-import utils._
+
+import com.snowplowanalytics.snowplow.enrich.beam.config._
+import com.snowplowanalytics.snowplow.enrich.beam.singleton._
+import com.snowplowanalytics.snowplow.enrich.beam.utils._
 
 /** Enrich job using the Beam API through SCIO */
 object Enrich {
@@ -83,7 +90,8 @@ object Enrich {
       resolverJson,
       confs,
       labels,
-      config.sentryDSN
+      config.sentryDSN,
+      config.metrics
     )
 
     parsedConfig match {
@@ -108,7 +116,7 @@ object Enrich {
       sc.withName("raw-from-pubsub").pubsubSubscription[Array[Byte]](config.raw)
 
     val enriched: SCollection[Validated[BadRow, EnrichedEvent]] =
-      enrichEvents(raw, config.resolver, config.enrichmentConfs, cachedFiles, config.sentryDSN)
+      enrichEvents(raw, config.resolver, config.enrichmentConfs, cachedFiles, config.sentryDSN, config.metrics)
 
     val (failures, successes): (SCollection[BadRow], SCollection[EnrichedEvent]) = {
       val enrichedPartitioned = enriched.withName("split-enriched-good-bad").partition(_.isValid)
@@ -126,7 +134,7 @@ object Enrich {
       (failures, successes)
     }
 
-    val (tooBigSuccesses, properlySizedSuccesses) = formatEnrichedEvents(successes)
+    val (tooBigSuccesses, properlySizedSuccesses) = formatEnrichedEvents(config.metrics, successes)
     properlySizedSuccesses
       .withName("get-properly-sized-enriched")
       .map(_._1)
@@ -187,7 +195,8 @@ object Enrich {
     resolver: Json,
     enrichmentConfs: List[EnrichmentConf],
     cachedFiles: DistCache[List[Either[String, String]]],
-    sentryDSN: Option[String]
+    sentryDSN: Option[String],
+    metrics: Boolean
   ): SCollection[Validated[BadRow, EnrichedEvent]] =
     raw
       .withName("enrich")
@@ -201,7 +210,7 @@ object Enrich {
             sentryDSN
           )
         }
-        timeToEnrichDistribution.update(time)
+        if (metrics) timeToEnrichDistribution.update(time) else ()
         enriched
       }
       .withName("flatten-enriched")
@@ -213,15 +222,19 @@ object Enrich {
    * @param enriched collection of events that went through the enrichment phase
    * @return a collection of properly-sized enriched events and another of oversized ones
    */
-  private def formatEnrichedEvents(enriched: SCollection[EnrichedEvent]): (SCollection[(String, Int)], SCollection[(String, Int)]) =
+  private def formatEnrichedEvents(
+    metrics: Boolean,
+    enriched: SCollection[EnrichedEvent]
+  ): (SCollection[(String, Int)], SCollection[(String, Int)]) =
     enriched
       .withName("format-enriched")
       .map { enrichedEvent =>
-        getEnrichedEventMetrics(enrichedEvent)
-          .foreach(ScioMetrics.counter(MetricsNamespace, _).inc())
+        if (metrics)
+          getEnrichedEventMetrics(enrichedEvent).foreach(metric => ScioMetrics.counter(MetricsNamespace, metric).inc())
+        else ()
         val formattedEnrichedEvent = tabSeparatedEnrichedEvent(enrichedEvent)
         val size = getSize(formattedEnrichedEvent)
-        enrichedEventSizeDistribution.update(size.toLong)
+        if (metrics) enrichedEventSizeDistribution.update(size.toLong) else ()
         (formattedEnrichedEvent, size)
       }
       .withName("split-oversized")
@@ -266,7 +279,6 @@ object Enrich {
     client: Client[Id, Json],
     sentryDSN: Option[String]
   ): List[Validated[BadRow, EnrichedEvent]] = {
-    val processor = Processor(generated.BuildInfo.name, generated.BuildInfo.version)
     val collectorPayload = ThriftLoader.toCollectorPayload(data, processor)
     Either.catchNonFatal(
       EtlPipeline.processEvents(
@@ -293,16 +305,15 @@ object Enrich {
   }
 
   /**
-   * Builds a SCIO's [[DistCache]] which downloads the needed files and create the necessary
+   * Builds a Scio's [[DistCache]] which downloads the needed files and create the necessary
    * symlinks.
-   * @param sc [[ScioContext]]
+   * @param sc Scio context
    * @param enrichmentConfs list of enrichment configurations
    * @return a properly build [[DistCache]]
    */
   private def buildDistCache(sc: ScioContext, enrichmentConfs: List[EnrichmentConf]): DistCache[List[Either[String, String]]] = {
     val filesToCache: List[(String, String)] = enrichmentConfs
-      .map(_.filesToCache)
-      .flatten
+      .flatMap(_.filesToCache)
       .map { case (uri, sl) => (uri.toString, sl) }
     sc.distCache(filesToCache.map(_._1)) { files =>
       val symLinks = files.toList
@@ -318,7 +329,7 @@ object Enrich {
 
   /**
    * Checks a PubSub topic exists before launching the job.
-   * @param sc [[ScioContext]]
+   * @param sc Scio Context
    * @param topicName name of the topic to check for existence, projects/{project}/topics/{topic}
    * @return Right if it exists, left otherwise
    */

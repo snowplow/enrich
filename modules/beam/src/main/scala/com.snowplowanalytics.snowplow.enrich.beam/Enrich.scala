@@ -55,7 +55,8 @@ object Enrich {
   implicit val badRowScioCodec: Coder[BadRow] = Coder.kryo[BadRow]
 
   // the maximum record size in Google PubSub is 10Mb
-  private val MaxRecordSize = 10000000
+  // the maximum PubSubIO size is 7Mb to overcome base64-encoding
+  private val MaxRecordSize = 6900000
   private val MetricsNamespace = "snowplow"
 
   val enrichedEventSizeDistribution =

@@ -69,7 +69,7 @@ class ConfigSpec extends AnyFreeSpec with EitherValues {
         EnrichConfig(
           Args(Array("--job-name=j", "--raw=i", "--enriched=o", "--bad=b", "--resolver=r"))
         ) shouldEqual
-          Right(EnrichConfig("j", "i", "o", "b", None, "r", None, None, None))
+          Right(EnrichConfig("j", "i", "o", "b", None, "r", None, None, None, true))
       }
       "which succeeds if --enrichments is present" in {
         val args = Args(
@@ -83,7 +83,7 @@ class ConfigSpec extends AnyFreeSpec with EitherValues {
           )
         )
         EnrichConfig(args) shouldEqual Right(
-          EnrichConfig("j", "i", "o", "b", None, "r", Some("e"), None, None)
+          EnrichConfig("j", "i", "o", "b", None, "r", Some("e"), None, None, true)
         )
       }
       "which succeeds if --pii is present" in {
@@ -91,7 +91,7 @@ class ConfigSpec extends AnyFreeSpec with EitherValues {
           Array("--job-name=j", "--raw=i", "--enriched=o", "--bad=b", "--pii=p", "--resolver=r")
         )
         EnrichConfig(args) shouldEqual Right(
-          EnrichConfig("j", "i", "o", "b", Some("p"), "r", None, None, None)
+          EnrichConfig("j", "i", "o", "b", Some("p"), "r", None, None, None, true)
         )
       }
       "which succeeds if --labels is present" in {
@@ -116,7 +116,8 @@ class ConfigSpec extends AnyFreeSpec with EitherValues {
             "r",
             None,
             Some("{\"env\":\"abc\"}"),
-            None
+            None,
+            true
           )
         )
       }
@@ -133,7 +134,23 @@ class ConfigSpec extends AnyFreeSpec with EitherValues {
           )
         )
         EnrichConfig(args) shouldEqual Right(
-          EnrichConfig("j", "i", "o", "b", Some("p"), "r", None, None, Some("DSN"))
+          EnrichConfig("j", "i", "o", "b", Some("p"), "r", None, None, Some("DSN"), true)
+        )
+      }
+      "which respects --metrics=false" in {
+        val args = Args(
+          Array(
+            "--job-name=j",
+            "--raw=i",
+            "--enriched=o",
+            "--bad=b",
+            "--pii=p",
+            "--resolver=r",
+            "--metrics=false"
+          )
+        )
+        EnrichConfig(args) shouldEqual Right(
+          EnrichConfig("j", "i", "o", "b", Some("p"), "r", None, None, None, false)
         )
       }
     }

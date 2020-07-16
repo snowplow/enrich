@@ -363,7 +363,7 @@ object DbExecutor {
       case Right(placeholderCount) =>
         placeholderMap match {
           case Some(intMap) if intMap.keys.size == placeholderCount => ().asRight
-          case _ => ().asRight
+          case _ => s"The placeholder map error. The map: $placeholderMap, where count is: $placeholderCount".asLeft
         }
       case Left(error) =>
         error.getMessage.asLeft

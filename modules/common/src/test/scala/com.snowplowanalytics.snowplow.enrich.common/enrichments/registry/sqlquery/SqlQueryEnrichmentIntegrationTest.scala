@@ -22,6 +22,8 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData
 import org.specs2.Specification
 
 import outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.badrows.FailureDetails.EnrichmentFailure
+import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
 object SqlQueryEnrichmentIntegrationTest {
   def continuousIntegration: Boolean =
@@ -37,6 +39,7 @@ class SqlQueryEnrichmentIntegrationTest extends Specification {
     skipAllUnless(continuousIntegration) ^ s2"""
   Basic case        $e1
   All-features test $e2
+  Null test case    $e3
   """
 
   val SCHEMA_KEY =
@@ -352,4 +355,64 @@ class SqlQueryEnrichmentIntegrationTest extends Specification {
 
     res1 and res2 and res3 and res4
   }
+
+  def e3 = {
+    // it doesn't matter that user_id is taken into query as city, as the test is check null values
+    val configuration = json"""
+      {
+        "vendor": "com.snowplowanalytics.snowplow.enrichments",
+        "name": "sql_query_enrichment_config",
+        "enabled": true,
+        "parameters": {
+          "inputs": [
+            {
+              "placeholder": 1,
+              "pojo": {
+                "field": "user_id"
+              }
+            }
+          ],
+          "database": {
+            "postgresql": {
+              "host": "localhost",
+              "port": 5432,
+              "sslMode": false,
+              "username": "enricher",
+              "password": "supersecret1",
+              "database": "sql_enrichment_test"
+            }
+          },
+          "query": {
+            "sql": "SELECT city FROM sce_enrichment_test WHERE city = ?"
+          },
+          "output": {
+            "expectedRows": "AT_MOST_ONE",
+            "json": {
+              "schema": "iglu:com.acme/singleColumn/jsonschema/1-0-0",
+              "describes": "ALL_ROWS",
+              "propertyNames": "AS_IS"
+            }
+          },
+          "cache": {
+            "size": 3000,
+            "ttl": 60
+          }
+        }
+      }
+      """
+
+    val event = new EnrichedEvent
+    event.user_id = null
+
+    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment)
+    val context = config.toEither.flatMap(_.lookup(event, Nil, Nil, None).toEither)
+
+    context must beLeft.like {
+      case nel =>
+        nel.head.asInstanceOf[EnrichmentFailure].message must beEqualTo(
+          FailureDetails.EnrichmentFailureMessage.Simple("The placeholder map error. The map: Some(IntMap()), where count is: 1")
+        )
+    }
+  }
+
 }

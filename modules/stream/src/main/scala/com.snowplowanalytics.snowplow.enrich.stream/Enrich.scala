@@ -52,6 +52,9 @@ import utils._
 trait Enrich {
   protected type EitherS[A] = Either[String, A]
 
+  import org.slf4j.MDC
+  MDC.put("host", getEc2InstanceId)
+
   lazy val log = LoggerFactory.getLogger(getClass())
 
   val FilepathRegex = "^file:(.+)$".r

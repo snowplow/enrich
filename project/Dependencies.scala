@@ -41,6 +41,7 @@ object Dependencies {
     val yauaa            = "5.8"
     val guava            = "28.1-jre"
     val slf4j            = "1.7.26"
+    val logback          = "1.2.3"
 
     val refererParser    = "1.0.0"
     val maxmindIplookups = "0.6.1"
@@ -69,6 +70,7 @@ object Dependencies {
     val scopt            = "3.7.1"
     val pureconfig       = "0.11.0"
     val snowplowTracker  = "0.6.1"
+    val scalajHttp       = "2.3.0"
 
     val specs2           = "4.5.1"
     val scalacheck       = "1.14.0"
@@ -112,6 +114,7 @@ object Dependencies {
     val collectorPayload = "com.snowplowanalytics"      %  "collector-payload-1"           % V.collectorPayload
     val schemaSniffer    = "com.snowplowanalytics"      %  "schema-sniffer-1"              % V.schemaSniffer
     val iabClient        = "com.snowplowanalytics"      %  "iab-spiders-and-robots-client" % V.iabClient
+    val logback          = "ch.qos.logback"             %  "logback-classic"               % V.logback
 
     val specs2           = "org.specs2"                 %% "specs2-core"                   % V.specs2                    % Test
     val specs2Cats       = "org.specs2"                 %% "specs2-cats"                   % V.specs2                    % Test
@@ -140,6 +143,7 @@ object Dependencies {
     val pureconfig       = "com.github.pureconfig"            %% "pureconfig"                        % V.pureconfig
     val nsqClient        = "com.snowplowanalytics"            %  "nsq-java-client"                   % V.nsqClient
     val snowplowTracker  = "com.snowplowanalytics"            %% "snowplow-scala-tracker-emitter-id" % V.snowplowTracker
+    val scalajHttp       = "org.scalaj"                       %% "scalaj-http"                       % V.scalajHttp
     val scalacheck       = "org.scalacheck"                   %% "scalacheck"                        % V.scalacheck      % Test
     val kafka            = "org.apache.kafka"                 %% "kafka"                             % V.kafka           % Test
     val jinJava          = "com.hubspot.jinjava"              %  "jinjava"                           % V.jinJava         % Test

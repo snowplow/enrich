@@ -190,4 +190,19 @@ object utils {
       config.aws.fold[Credentials](NoCredentials)(identity),
       config.gcp.fold[Credentials](NoCredentials)(identity)
     )
+
+  def getEc2InstanceId = {
+    import scalaj.http.Http
+    val InstanceIdentityUri = "http://169.254.169.254/latest/dynamic/instance-identity/document/"
+    val identityDoc = Either.catchNonFatal(Http(InstanceIdentityUri).asString.body)
+    identityDoc.flatMap(getInstanceIdFromIdentityDoc).getOrElse("ec2 instance id not found")
+  }
+
+  def getInstanceIdFromIdentityDoc(identityDoc: String): Either[Throwable, String] = {
+    import io.circe.generic.auto._, io.circe.parser._
+    case class DocWithId(instanceId: String)
+
+    decode[DocWithId](identityDoc).map(_.instanceId)
+  }
+
 }

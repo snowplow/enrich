@@ -36,7 +36,7 @@ object BuildSettings {
   lazy val basicSettings = Seq(
     organization          :=  "com.snowplowanalytics",
     scalaVersion          :=  "2.12.11",
-    version               :=  "1.3.1",
+    version               :=  "1.3.1-rc1",
     javacOptions          :=  Seq("-source", "1.8", "-target", "1.8"),
     resolvers             ++= Dependencies.resolutionRepos
   )
@@ -131,7 +131,7 @@ object BuildSettings {
   /** Docker settings, used by BE */
   lazy val dataflowDockerSettings = Seq(
     maintainer in Docker := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
-    dockerBaseImage := "snowplow-docker-registry.bintray.io/snowplow/k8s-dataflow:0.2.0",
+    dockerBaseImage := "snowplow-docker-registry.bintray.io/snowplow/k8s-dataflow:0.2.0-rc4",
     daemonUser in Docker := "snowplow",
     dockerUpdateLatest := true,
     dockerVersion := Some(DockerVersion(18, 9, 0, Some("ce"))),

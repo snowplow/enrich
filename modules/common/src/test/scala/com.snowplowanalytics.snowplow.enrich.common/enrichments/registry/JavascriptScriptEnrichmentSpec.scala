@@ -26,14 +26,17 @@ import outputs.EnrichedEvent
 
 class JavascriptScriptEnrichmentSpec extends Specification {
   def is = s2"""
-  Javascript enrichment should fail if the function isn't valid                     $e1
-  Javascript enrichment should fail if the function doesn't return an array         $e2
-  Javascript enrichment should fail if the function doesn't return an array of SDJs $e3
-  Javascript enrichment should be able to access the fields of the enriched event   $e4
-  Javascript enrichment should be able to update the fields of the enriched event   $e5
-  Javascript enrichment should be able to throw an exception                        $e6
-  Javascript enrichment should be able to return no new context                     $e7
-  Javascript enrichment should be able to return 2 new contexts                     $e8
+  Javascript enrichment should fail if the function isn't valid                      $e1
+  Javascript enrichment should fail if the function doesn't return an array          $e2
+  Javascript enrichment should fail if the function doesn't return an array of SDJs  $e3
+  Javascript enrichment should be able to access the fields of the enriched event    $e4
+  Javascript enrichment should be able to update the fields of the enriched event    $e5
+  Javascript enrichment should be able to throw an exception                         $e6
+  Javascript enrichment should be able to return no new context                      $e7
+  Javascript enrichment should be able to return 2 new contexts                      $e8
+  Javascript enrichment should be able to proceed without return statement           $e9
+  Javascript enrichment should be able to proceed with return null                   $e10
+  Javascript enrichment should be able to update the fields without return statement $e11
   """
 
   val schemaKey =
@@ -135,6 +138,36 @@ class JavascriptScriptEnrichmentSpec extends Specification {
       case List(c1, c2) if c1 == context1 && c2 == context2 => true
       case _ => false
     }
+  }
+
+  def e9 = {
+    val function = s"""
+      function process(event) {
+        var a = 42     // no-op
+      }"""
+
+    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched()) must beRight(Nil)
+  }
+
+  def e10 = {
+    val function = s"""
+      function process(event) {
+        return null
+      }"""
+
+    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched()) must beRight(Nil)
+  }
+
+  def e11 = {
+    val appId = "greatApp"
+    val enriched = buildEnriched(appId)
+    val newAppId = "evenBetterApp"
+    val function = s"""
+      function process(event) {
+        event.setApp_id("$newAppId")
+      }"""
+    JavascriptScriptEnrichment(schemaKey, function).process(enriched)
+    enriched.app_id must beEqualTo(newAppId)
   }
 
   def buildEnriched(appId: String = "my super app"): EnrichedEvent = {

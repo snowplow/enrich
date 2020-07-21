@@ -68,7 +68,12 @@ final case class JavascriptScriptEnrichment(schemaKey: SchemaKey, rawFunction: S
 
   private val stringified = rawFunction + """
     function getJavascriptContexts(event) {
-      return JSON.stringify(process(event));
+      var result = process(event);
+      if (result == null) {
+        return "[]"
+      } else {
+        return JSON.stringify(result);
+      }
     }
     """
 

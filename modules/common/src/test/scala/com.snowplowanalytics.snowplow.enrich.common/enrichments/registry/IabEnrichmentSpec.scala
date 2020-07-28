@@ -14,7 +14,8 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.net.InetAddress
 
-import cats.Eval
+import cats.Id
+import cats.syntax.functor._
 
 import io.circe.literal._
 
@@ -79,15 +80,14 @@ class IabEnrichmentSpec extends Specification with DataTables {
         expectedReason,
         expectedPrimaryImpact
       ) =>
-        (for {
-          e <- validConfig.enrichment[Eval]
-          res = e.performCheck(userAgent, ipAddress, DateTime.now())
-        } yield res).value must beRight.like {
-          case check =>
-            check.spiderOrRobot must_== expectedSpiderOrRobot and
-              (check.category must_== expectedCategory) and
-              (check.reason must_== expectedReason) and
-              (check.primaryImpact must_== expectedPrimaryImpact)
+        validConfig.enrichment[Id].map { e =>
+          e.performCheck(userAgent, ipAddress, DateTime.now()) must beRight.like {
+            case check =>
+              check.spiderOrRobot must_== expectedSpiderOrRobot and
+                (check.category must_== expectedCategory) and
+                (check.reason must_== expectedReason) and
+                (check.primaryImpact must_== expectedPrimaryImpact)
+          }
         }
     }
 
@@ -98,9 +98,8 @@ class IabEnrichmentSpec extends Specification with DataTables {
         json"""{"spiderOrRobot": false, "category": "BROWSER", "reason": "PASSED_ALL", "primaryImpact": "NONE"}"""
       )
     validConfig
-      .enrichment[Eval]
-      .map(_.getIabContext("Xdroid", "192.168.0.1".ip, DateTime.now()))
-      .value must
+      .enrichment[Id]
+      .map(_.getIabContext("Xdroid", "192.168.0.1".ip, DateTime.now())) must
       beRight(responseJson)
   }
 

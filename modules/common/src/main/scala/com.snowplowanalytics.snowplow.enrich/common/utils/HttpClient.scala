@@ -14,7 +14,7 @@ package com.snowplowanalytics.snowplow.enrich.common.utils
 
 import scala.util.control.NonFatal
 
-import cats.{Eval, Id}
+import cats.Id
 import cats.effect.Sync
 import cats.syntax.either._
 import scalaj.http._
@@ -30,12 +30,6 @@ object HttpClient {
     new HttpClient[F] {
       override def getResponse(request: HttpRequest): F[Either[Throwable, String]] =
         Sync[F].delay(getBody(request))
-    }
-
-  implicit def evalHttpClient: HttpClient[Eval] =
-    new HttpClient[Eval] {
-      override def getResponse(request: HttpRequest): Eval[Either[Throwable, String]] =
-        Eval.later(getBody(request))
     }
 
   implicit def idHttpClient: HttpClient[Id] =

@@ -12,7 +12,7 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery
 
-import cats.{Eval, Id}
+import cats.Id
 import cats.effect.Sync
 import cats.syntax.functor._
 import cats.syntax.flatMap._
@@ -34,28 +34,6 @@ object CreateSqlQueryEnrichment {
   ): CreateSqlQueryEnrichment[F] =
     new CreateSqlQueryEnrichment[F] {
       def create(conf: SqlQueryConf): F[SqlQueryEnrichment[F]] =
-        for {
-          cache <- CLM.create(conf.cache.size)
-          connection <- CN.create(1)
-        } yield SqlQueryEnrichment(
-          conf.schemaKey,
-          conf.inputs,
-          conf.db,
-          conf.query,
-          conf.output,
-          conf.cache.ttl,
-          cache,
-          connection
-        )
-    }
-
-  implicit def evalCreateSqlQueryEnrichment(
-    implicit CLM: SqlCacheInit[Eval],
-    CN: ConnectionRefInit[Eval],
-    DB: DbExecutor[Eval]
-  ): CreateSqlQueryEnrichment[Eval] =
-    new CreateSqlQueryEnrichment[Eval] {
-      def create(conf: SqlQueryConf): Eval[SqlQueryEnrichment[Eval]] =
         for {
           cache <- CLM.create(conf.cache.size)
           connection <- CN.create(1)

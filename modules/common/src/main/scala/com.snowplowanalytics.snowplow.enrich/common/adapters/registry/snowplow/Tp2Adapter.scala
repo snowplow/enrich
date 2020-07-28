@@ -10,16 +10,16 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package adapters
-package registry
-package snowplow
+package com.snowplowanalytics.snowplow.enrich.common.adapters.registry.snowplow
 
 import cats.Monad
 import cats.data.{EitherT, NonEmptyList, Validated, ValidatedNel}
 import cats.data.Validated._
 import cats.implicits._
+
 import cats.effect.Clock
+
+import io.circe.Json
 
 import com.snowplowanalytics.iglu.client.Client
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
@@ -28,10 +28,11 @@ import com.snowplowanalytics.iglu.core.circe.instances._
 
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
-import io.circe.Json
-
-import loaders.CollectorPayload
-import utils.{HttpClient, JsonUtils => JU}
+import com.snowplowanalytics.snowplow.enrich.common.RawEventParameters
+import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
+import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.Adapter
+import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
+import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, JsonUtils => JU}
 
 /**
  * Version 2 of the Tracker Protocol supports GET and POST. Note that with POST, data can still be

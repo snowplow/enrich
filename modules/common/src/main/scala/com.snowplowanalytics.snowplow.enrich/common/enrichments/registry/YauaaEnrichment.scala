@@ -10,8 +10,7 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments.registry
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import scala.collection.JavaConverters._
 
@@ -21,11 +20,12 @@ import cats.syntax.either._
 import io.circe.Json
 import io.circe.syntax._
 
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
-
 import nl.basjes.parse.useragent.{UserAgent, UserAgentAnalyzer}
 
-import utils.CirceUtils
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
+
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.YauaaConf
+import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
 
 /** Companion object to create an instance of YauaaEnrichment from the configuration. */
 object YauaaEnrichment extends ParseableEnrichment {

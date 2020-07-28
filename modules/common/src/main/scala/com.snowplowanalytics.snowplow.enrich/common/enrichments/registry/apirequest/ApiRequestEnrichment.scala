@@ -10,10 +10,7 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments
-package registry
-package apirequest
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest
 
 import java.util.UUID
 
@@ -21,17 +18,19 @@ import cats.{Id, Monad}
 import cats.data.{EitherT, NonEmptyList, ValidatedNel}
 import cats.implicits._
 
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SelfDescribingData}
-import com.snowplowanalytics.iglu.core.circe.implicits._
-import com.snowplowanalytics.lrumap._
-
-import com.snowplowanalytics.snowplow.badrows.FailureDetails
-
 import io.circe._
 import io.circe.generic.auto._
 
-import outputs.EnrichedEvent
-import utils.{CirceUtils, HttpClient}
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SelfDescribingData}
+import com.snowplowanalytics.iglu.core.circe.implicits._
+
+import com.snowplowanalytics.lrumap._
+import com.snowplowanalytics.snowplow.badrows.FailureDetails
+
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{Enrichment, ParseableEnrichment}
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.ApiRequestConf
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.utils.{CirceUtils, HttpClient}
 
 object ApiRequestEnrichment extends ParseableEnrichment {
   override val supportedSchema =

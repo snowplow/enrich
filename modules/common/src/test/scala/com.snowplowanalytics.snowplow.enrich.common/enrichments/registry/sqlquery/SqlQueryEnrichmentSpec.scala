@@ -10,14 +10,14 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
-package sqlquery
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery
 
 import io.circe.parser._
 import io.circe.literal._
 
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer}
 
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.SqlQueryConf
 import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
 
 import org.specs2.Specification

@@ -10,20 +10,19 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments.registry
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import cats.data.ValidatedNel
 import cats.syntax.either._
-
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
 
 import io.circe._
 import io.circe.syntax._
 
 import org.apache.http.message.BasicHeaderValueParser
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
 
-import utils.CirceUtils
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.CookieExtractorConf
+import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
 
 object CookieExtractorEnrichment extends ParseableEnrichment {
   override val supportedSchema =

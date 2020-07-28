@@ -10,8 +10,7 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments.registry
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.lang.{Float => JFloat}
 import java.time.{Instant, ZoneOffset, ZonedDateTime}
@@ -23,19 +22,21 @@ import cats.Monad
 import cats.data.{EitherT, NonEmptyList, ValidatedNel}
 import cats.implicits._
 
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
-import com.snowplowanalytics.snowplow.badrows.FailureDetails
-
-import com.snowplowanalytics.weather.providers.openweather._
-import com.snowplowanalytics.weather.providers.openweather.responses._
+import org.joda.time.{DateTime, DateTimeZone}
 
 import io.circe._
 import io.circe.generic.auto._
 import io.circe.syntax._
 
-import org.joda.time.{DateTime, DateTimeZone}
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
 
-import utils.CirceUtils
+import com.snowplowanalytics.snowplow.badrows.FailureDetails
+
+import com.snowplowanalytics.weather.providers.openweather._
+import com.snowplowanalytics.weather.providers.openweather.responses._
+
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.WeatherConf
+import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
 
 /** Companion object. Lets us create an WeatherEnrichment instance from a Json */
 object WeatherEnrichment extends ParseableEnrichment {

@@ -14,12 +14,17 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.net.URI
 
-import com.snowplowanalytics.forex.model._
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer}
 import io.circe.literal._
 import io.circe.parser._
+
 import org.apache.commons.codec.binary.Base64
 import org.joda.money.CurrencyUnit
+
+import com.snowplowanalytics.forex.model._
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer}
+
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf._
+
 import org.specs2.matcher.{DataTables, ValidatedMatchers}
 import org.specs2.mutable.Specification
 

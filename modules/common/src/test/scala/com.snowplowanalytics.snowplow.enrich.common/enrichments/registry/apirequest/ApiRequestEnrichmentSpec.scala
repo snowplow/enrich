@@ -10,9 +10,7 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments.registry
-package apirequest
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest
 
 import cats.Id
 import cats.syntax.either._
@@ -21,16 +19,17 @@ import io.circe.Json
 import io.circe.literal._
 import io.circe.parser._
 
-import org.specs2.Specification
-import org.specs2.matcher.ValidatedMatchers
-import org.specs2.mock.Mockito
-
 import scalaj.http.HttpRequest
 
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
 
-import outputs.EnrichedEvent
-import utils.HttpClient
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.ApiRequestConf
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.utils.HttpClient
+
+import org.specs2.Specification
+import org.specs2.matcher.ValidatedMatchers
+import org.specs2.mock.Mockito
 
 class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with Mockito {
   def is = s2"""

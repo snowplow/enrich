@@ -10,10 +10,7 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package adapters
-package registry
-package snowplow
+package com.snowplowanalytics.snowplow.enrich.common.adapters.registry.snowplow
 
 import cats.Monad
 import cats.data.{NonEmptyList, ValidatedNel}
@@ -26,15 +23,18 @@ import cats.effect.Clock
 import io.circe._
 import io.circe.syntax._
 
-import com.snowplowanalytics.iglu.client.Client
-import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.CirceIgluCodecs._
 
+import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
+
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
-import loaders.CollectorPayload
-import utils.{HttpClient, ConversionUtils => CU, JsonUtils => JU}
+import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
+import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.Adapter
+import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
+import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, JsonUtils => JU, ConversionUtils => CU}
 
 /**
  * The Redirect Adapter is essentially a pre-processor for

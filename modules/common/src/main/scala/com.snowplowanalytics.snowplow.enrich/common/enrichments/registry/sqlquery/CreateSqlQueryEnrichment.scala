@@ -13,11 +13,12 @@
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery
 
 import cats.Id
+
 import cats.effect.Sync
 import cats.syntax.functor._
 import cats.syntax.flatMap._
 
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.SqlQueryConf
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.SqlQueryConf
 
 /** Initialize resources, necessary for SQL Query enrichment: cache and connection */
 sealed trait CreateSqlQueryEnrichment[F[_]] {

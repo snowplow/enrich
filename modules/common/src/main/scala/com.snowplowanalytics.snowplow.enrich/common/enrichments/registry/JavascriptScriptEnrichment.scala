@@ -10,24 +10,24 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments.registry
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import cats.data.{NonEmptyList, ValidatedNel}
 import cats.implicits._
+
+import io.circe._
+import io.circe.parser._
+
+import javax.script._
 
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
-import javax.script._
-
-import io.circe._
-import io.circe.parser._
-
-import outputs.EnrichedEvent
-import utils.{CirceUtils, ConversionUtils}
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.JavascriptScriptConf
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.utils.{CirceUtils, ConversionUtils}
 
 object JavascriptScriptEnrichment extends ParseableEnrichment {
   override val supportedSchema =

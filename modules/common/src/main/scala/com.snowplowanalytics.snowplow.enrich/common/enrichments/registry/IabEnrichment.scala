@@ -18,7 +18,7 @@ import java.net.URI
 
 import inet.ipaddr.HostName
 
-import cats.{Eval, Id, Monad}
+import cats.{Id, Monad}
 import cats.data.{NonEmptyList, ValidatedNel}
 import cats.effect.Sync
 import cats.implicits._
@@ -227,18 +227,6 @@ object CreateIabClient {
         includeUaFile: String
       ): F[IabClient] =
         Sync[F].delay {
-          new IabClient(new File(ipFile), new File(excludeUaFile), new File(includeUaFile))
-        }
-    }
-
-  implicit def evalCreateIabClient: CreateIabClient[Eval] =
-    new CreateIabClient[Eval] {
-      def create(
-        ipFile: String,
-        excludeUaFile: String,
-        includeUaFile: String
-      ): Eval[IabClient] =
-        Eval.later {
           new IabClient(new File(ipFile), new File(excludeUaFile), new File(includeUaFile))
         }
     }

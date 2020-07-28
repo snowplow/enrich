@@ -14,7 +14,7 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.net.URI
 
-import cats.Eval
+import cats.Id
 import cats.data.EitherT
 
 import io.circe.literal._
@@ -75,10 +75,10 @@ class UaParserEnrichmentSpec extends Specification with DataTables {
       "Custom Rules" | "Input UserAgent" | "Parsed UserAgent" |
         Some(badRulefile) !! mobileSafariUserAgent !! "Failed to initialize ua parser" |> { (rules, input, errorPrefix) =>
         (for {
-          c <- EitherT.rightT[Eval, String](UaParserConf(schemaKey, rules))
-          e <- c.enrichment[Eval]
+          c <- EitherT.rightT[Id, String](UaParserConf(schemaKey, rules))
+          e <- c.enrichment[Id]
           res = e.extractUserAgent(input)
-        } yield res).value.value must beLeft.like {
+        } yield res).value must beLeft.like {
           case a => a must startWith(errorPrefix)
         }
       }
@@ -90,11 +90,11 @@ class UaParserEnrichmentSpec extends Specification with DataTables {
         None !! safariUserAgent !! safariJson |
         Some(customRules) !! mobileSafariUserAgent !! testAgentJson |> { (rules, input, expected) =>
         val json = for {
-          c <- EitherT.rightT[Eval, String](UaParserConf(schemaKey, rules))
-          e <- c.enrichment[Eval].leftMap(_.toString)
-          res <- EitherT.fromEither[Eval](e.extractUserAgent(input)).leftMap(_.toString)
+          c <- EitherT.rightT[Id, String](UaParserConf(schemaKey, rules))
+          e <- c.enrichment[Id].leftMap(_.toString)
+          res <- EitherT.fromEither[Id](e.extractUserAgent(input)).leftMap(_.toString)
         } yield res
-        json.value.value must beRight(expected)
+        json.value must beRight(expected)
       }
     }
   }

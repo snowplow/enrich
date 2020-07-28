@@ -14,12 +14,15 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.net.URI
 
-import cats.Eval
+import cats.Id
 import cats.data.EitherT
 import cats.syntax.either._
+
+import io.circe.literal._
+
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 import com.snowplowanalytics.refererparser._
-import io.circe.literal._
+
 import org.specs2.Specification
 import org.specs2.matcher.DataTables
 
@@ -57,7 +60,7 @@ class RefererParserEnrichmentSpec extends Specification with DataTables {
         Medium.Unknown
       ) |> { (_, refererUri, referer) =>
       (for {
-        c <- EitherT.fromEither[Eval](
+        c <- EitherT.fromEither[Id](
                RefererParserEnrichment
                  .parse(
                    json"""{
@@ -81,16 +84,16 @@ class RefererParserEnrichmentSpec extends Specification with DataTables {
                  .toEither
                  .leftMap(_.head)
              )
-        e <- c.enrichment[Eval]
+        e <- c.enrichment[Id]
         res = e.extractRefererDetails(new URI(refererUri), PageHost)
-      } yield res).value.value must beRight.like {
-        case o => o must_== Some(referer)
+      } yield res).value must beRight.like {
+        case o => o must beSome(referer)
       }
     }
 
   def e2 =
     (for {
-      c <- EitherT.fromEither[Eval](
+      c <- EitherT.fromEither[Id](
              RefererParserEnrichment
                .parse(
                  json"""{
@@ -114,16 +117,16 @@ class RefererParserEnrichmentSpec extends Specification with DataTables {
                .toEither
                .leftMap(_.head)
            )
-      e <- c.enrichment[Eval]
+      e <- c.enrichment[Id]
       res = e.extractRefererDetails(
               new URI(
                 "http://www.google.com/search?q=%0Agateway%09oracle%09cards%09denise%09linn&hl=en&client=safari"
               ),
               PageHost
             )
-    } yield res).value.value must beRight.like {
+    } yield res).value must beRight.like {
       case o =>
-        o must_== Some(
+        o must beSome(
           SearchReferer(
             Medium.Search,
             "Google",

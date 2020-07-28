@@ -14,12 +14,16 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.lang.{Float => JFloat}
 
-import cats.Eval
+import cats.Id
 import cats.data.EitherT
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+
 import io.circe.generic.auto._
 import io.circe.literal._
+
 import org.joda.time.DateTime
+
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+
 import org.specs2.Specification
 
 object WeatherEnrichmentSpec {
@@ -43,11 +47,10 @@ class WeatherEnrichmentSpec extends Specification {
   val schemaKey = SchemaKey("vendor", "name", "format", SchemaVer.Full(1, 0, 0))
 
   lazy val validAppKey = sys.env
-    .get(OwmApiKey)
-    .getOrElse(
-      throw new IllegalStateException(
-        s"No $OwmApiKey environment variable found, test should have been skipped"
-      )
+    .getOrElse(OwmApiKey,
+               throw new IllegalStateException(
+                 s"No $OwmApiKey environment variable found, test should have been skipped"
+               )
     )
 
   object invalidEvent {
@@ -65,7 +68,7 @@ class WeatherEnrichmentSpec extends Specification {
   def e1 = {
     val res = for {
       enr <- WeatherConf(schemaKey, "history.openweathermap.org", "KEY", 10, 5200, 1)
-               .enrichment[Eval]
+               .enrichment[Id]
       stamp <- EitherT(
                  enr.getWeatherContext(
                    Option(invalidEvent.lat),
@@ -74,7 +77,7 @@ class WeatherEnrichmentSpec extends Specification {
                  )
                ).leftMap(_.head.toString)
     } yield stamp
-    res.value.value must beLeft.like {
+    res.value must beLeft.like {
       case e =>
         e must contain("InputData(derived_tstamp,None,missing)")
     }
@@ -83,7 +86,7 @@ class WeatherEnrichmentSpec extends Specification {
   def e2 = {
     val res = for {
       enr <- WeatherConf(schemaKey, "history.openweathermap.org", validAppKey, 10, 5200, 1)
-               .enrichment[Eval]
+               .enrichment[Id]
       stamp <- EitherT(
                  enr.getWeatherContext(
                    Option(validEvent.lat),
@@ -92,13 +95,13 @@ class WeatherEnrichmentSpec extends Specification {
                  )
                ).leftMap(_.head.toString)
     } yield stamp
-    res.value.value must beRight
+    res.value must beRight
   }
 
   def e3 = {
     val res = for {
       enr <- WeatherConf(schemaKey, "history.openweathermap.org", "KEY", 10, 5200, 1)
-               .enrichment[Eval]
+               .enrichment[Id]
       stamp <- EitherT(
                  enr.getWeatherContext(
                    Option(validEvent.lat),
@@ -107,13 +110,13 @@ class WeatherEnrichmentSpec extends Specification {
                  )
                ).leftMap(_.head.toString)
     } yield stamp
-    res.value.value must beLeft.like { case e => e must contain("Check your API key") }
+    res.value must beLeft.like { case e => e must contain("Check your API key") }
   }
 
   def e4 = {
     val res = for {
       enr <- WeatherConf(schemaKey, "history.openweathermap.org", validAppKey, 15, 5200, 1)
-               .enrichment[Eval]
+               .enrichment[Id]
       stamp <- EitherT(
                  enr.getWeatherContext(
                    Option(validEvent.lat),
@@ -122,7 +125,7 @@ class WeatherEnrichmentSpec extends Specification {
                  )
                ).leftMap(_.head.toString)
     } yield stamp
-    res.value.value must beRight.like {
+    res.value must beRight.like {
       case weather =>
         val temp = weather.data.hcursor.downField("main").get[Double]("humidity")
         temp must beRight(69.0d)
@@ -164,7 +167,7 @@ class WeatherEnrichmentSpec extends Specification {
   def e6 = {
     val res = for {
       enr <- WeatherConf(schemaKey, "history.openweathermap.org", validAppKey, 15, 2, 1)
-               .enrichment[Eval]
+               .enrichment[Id]
       stamp <- EitherT(
                  enr.getWeatherContext(
                    Option(validEvent.lat),
@@ -173,7 +176,7 @@ class WeatherEnrichmentSpec extends Specification {
                  )
                ).leftMap(_.head.toString)
     } yield stamp
-    res.value.value must beRight.like { // successful request
+    res.value must beRight.like { // successful request
       case weather =>
         weather.data.hcursor.as[TransformedWeather] must beRight.like {
           case w =>

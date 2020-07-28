@@ -25,14 +25,18 @@ import scala.util.Try
 
 import cats.Id
 import cats.effect.Clock
+
 import io.circe.Json
 import io.circe.syntax._
-import com.snowplowanalytics.snowplow.badrows._
-import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+
 import org.joda.time.{DateTime, DateTimeZone}
 import org.joda.time.format.DateTimeFormat
+
+import com.snowplowanalytics.snowplow.badrows._
+
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.PiiPseudonymizerConf
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.PiiPseudonymizerConf
 
 object utils {
 
@@ -88,10 +92,8 @@ object utils {
   /** Determine if we have to emit pii transformation events. */
   def emitPii(confs: List[EnrichmentConf]): Boolean =
     confs
-      .collect { case c: PiiPseudonymizerConf => c }
-      .headOption
-      .map(_.emitIdentificationEvent)
-      .getOrElse(false)
+      .collectFirst { case c: PiiPseudonymizerConf => c }
+      .exists(_.emitIdentificationEvent)
 
   // We want to take one-tenth of the payload characters (not taking into account multi-bytes char)
   private val ReductionFactor = 10

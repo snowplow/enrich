@@ -10,16 +10,19 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments.registry
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import cats.data.{NonEmptyList, ValidatedNel}
 import cats.implicits._
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey}
+
 import io.circe._
 
-import utils.MapTransformer.SourceMap
-import utils.CirceUtils
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey}
+
+import com.snowplowanalytics.snowplow.enrich.common.QueryStringParameters
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.CampaignAttributionConf
+import com.snowplowanalytics.snowplow.enrich.common.utils.MapTransformer.SourceMap
+import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
 
 /** Companion object. Lets us create a CampaignAttributionEnrichment from a Json */
 object CampaignAttributionEnrichment extends ParseableEnrichment {
@@ -97,7 +100,7 @@ final case class MarketingCampaign(
  * @param termParameters List of marketing term parameters
  * @param contentParameters List of marketing content parameters
  * @param campaignParameters List of marketing campaign parameters
- * @param mktClick Map of click ID parameters to networks
+ * @param clickIdParameters Map of click ID parameters to networks
  */
 final case class CampaignAttributionEnrichment(
   mediumParameters: List[String],
@@ -116,7 +119,7 @@ final case class CampaignAttributionEnrichment(
    * @return Option boxing the value of the campaign parameter
    */
   private def getFirstParameter(parameterList: List[String], sourceMap: SourceMap): Option[String] =
-    parameterList.find(sourceMap.contains(_)).map(sourceMap(_))
+    parameterList.find(sourceMap.contains).map(sourceMap(_))
 
   /**
    * Extract the marketing fields from a URL.

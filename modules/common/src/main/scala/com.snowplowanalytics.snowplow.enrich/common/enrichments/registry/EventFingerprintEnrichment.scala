@@ -10,16 +10,19 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments.registry
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import cats.data.{NonEmptyList, ValidatedNel}
 import cats.implicits._
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey}
+
 import io.circe._
+
 import org.apache.commons.codec.digest.DigestUtils
 
-import utils.CirceUtils
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey}
+
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.EventFingerprintConf
+import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
 
 /** Lets us create an EventFingerprintEnrichment from a Json. */
 object EventFingerprintEnrichment extends ParseableEnrichment {

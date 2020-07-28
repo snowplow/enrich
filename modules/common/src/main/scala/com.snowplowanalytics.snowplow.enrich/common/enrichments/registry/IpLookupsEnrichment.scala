@@ -10,26 +10,25 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments
-package registry
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.net.URI
-
-import inet.ipaddr.HostName
 
 import cats.Functor
 import cats.data.{NonEmptyList, ValidatedNel}
 import cats.implicits._
 
-import com.snowplowanalytics.maxmind.iplookups._
-import com.snowplowanalytics.maxmind.iplookups.model._
+import io.circe._
+
+import inet.ipaddr.HostName
 
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey}
 
-import io.circe._
+import com.snowplowanalytics.maxmind.iplookups._
+import com.snowplowanalytics.maxmind.iplookups.model._
 
-import utils.CirceUtils
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.IpLookupsConf
+import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
 
 /** Companion object. Lets us create an IpLookupsEnrichment instance from a Json. */
 object IpLookupsEnrichment extends ParseableEnrichment {

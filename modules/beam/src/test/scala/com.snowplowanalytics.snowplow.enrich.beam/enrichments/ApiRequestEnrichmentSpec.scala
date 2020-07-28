@@ -12,15 +12,18 @@
  * See the Apache License Version 2.0 for the specific language governing permissions and
  * limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.beam
-package enrichments
+package com.snowplowanalytics.snowplow.enrich.beam.enrichments
 
 import java.nio.file.Paths
 
 import cats.syntax.option._
+
+import io.circe.literal._
+
+import com.snowplowanalytics.snowplow.enrich.beam.{CI, Enrich, SpecHelpers}
+
 import com.spotify.scio.io.PubsubIO
 import com.spotify.scio.testing._
-import io.circe.literal._
 
 object ApiRequestEnrichmentSpec {
   val contexts =
@@ -51,8 +54,8 @@ class ApiRequestEnrichmentSpec extends PipelineSpec {
         "--raw=in",
         "--enriched=out",
         "--bad=bad",
-        "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI()),
-        "--enrichments=" + Paths.get(getClass.getResource("/api_request").toURI())
+        "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI),
+        "--enrichments=" + Paths.get(getClass.getResource("/api_request").toURI)
       )
       .input(PubsubIO.readCoder[Array[Byte]]("in"), raw)
       .distCache(DistCacheIO(""), List.empty[Either[String, String]])

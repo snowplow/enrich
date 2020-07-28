@@ -10,23 +10,28 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments.registry
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.time.ZonedDateTime
 
 import cats.Monad
 import cats.data.{EitherT, NonEmptyList, ValidatedNel}
 import cats.implicits._
+
+import io.circe._
+
 import com.snowplowanalytics.forex.{CreateForex, Forex}
 import com.snowplowanalytics.forex.model._
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey}
-import com.snowplowanalytics.snowplow.badrows._
-import io.circe._
+
 import org.joda.money.CurrencyUnit
 import org.joda.time.DateTime
 
-import utils.CirceUtils
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey}
+
+import com.snowplowanalytics.snowplow.badrows.FailureDetails
+
+import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.CurrencyConversionConf
 
 /** Companion object. Lets us create an CurrencyConversionEnrichment instance from a Json. */
 object CurrencyConversionEnrichment extends ParseableEnrichment {
@@ -101,10 +106,10 @@ final case class CurrencyConversionEnrichment[F[_]: Monad](
 
   /**
    * Attempt to convert if the initial currency and value are both defined
-   * @param inputCurrency Option boxing the initial currency if it is present
+   * @param initialCurrency Option boxing the initial currency if it is present
    * @param value Option boxing the amount to convert
    * @return None.success if the inputs were not both defined,
-   * otherwise Validation[Option[_]] boxing the result of the conversion
+   * otherwise `Validation[Option[_]]` boxing the result of the conversion
    */
   private def performConversion(
     initialCurrency: Option[Either[FailureDetails.EnrichmentFailure, CurrencyUnit]],

@@ -10,20 +10,22 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments.registry
-
-import cats.data.ValidatedNel
-import cats.data.Validated
-import cats.syntax.either._
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey}
-import io.circe._
-
-import utils.CirceUtils
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.net.{Inet4Address, Inet6Address}
-import com.google.common.net.{InetAddresses => GuavaInetAddress}
+
 import scala.util.Try
+
+import cats.data.{Validated, ValidatedNel}
+import cats.syntax.either._
+
+import io.circe.Json
+
+import com.google.common.net.{InetAddresses => GuavaInetAddress}
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey}
+
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.AnonIpConf
+import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
 
 /** Companion object. Lets us create a AnonIpConf from a Json. */
 object AnonIpEnrichment extends ParseableEnrichment {
@@ -32,7 +34,7 @@ object AnonIpEnrichment extends ParseableEnrichment {
 
   /**
    * Creates an AnonIpEnrichment instance from a Json.
-   * @param c The anon_ip enrichment JSON
+   * @param config The anon_ip enrichment JSON
    * @param schemaKey provided for the enrichment, must be supported by this enrichment
    * @return an AnonIpEnrichment configuration
    */

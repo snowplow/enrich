@@ -10,22 +10,25 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package adapters
-package registry
-package snowplow
+package com.snowplowanalytics.snowplow.enrich.common.adapters.registry.snowplow
 
 import cats.Monad
 import cats.data.{NonEmptyList, ValidatedNel}
+
 import cats.effect.Clock
 import cats.syntax.validated._
-import com.snowplowanalytics.iglu.client.Client
-import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-import com.snowplowanalytics.snowplow.badrows._
+
 import io.circe.Json
 
-import loaders.CollectorPayload
-import utils.HttpClient
+import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
+
+import com.snowplowanalytics.snowplow.badrows.FailureDetails
+
+import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
+import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.Adapter
+import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
+import com.snowplowanalytics.snowplow.enrich.common.utils.HttpClient
 
 /** Version 1 of the Tracker Protocol is GET only. All data comes in on the querystring. */
 object Tp1Adapter extends Adapter {

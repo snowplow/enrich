@@ -14,13 +14,15 @@
  */
 package com.snowplowanalytics.snowplow.enrich.beam
 
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry._
 import io.circe.literal._
-import org.scalatest._
-import matchers.should.Matchers._
 
-import singleton._
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry._
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.AnonIpConf
+
+import org.scalatest.matchers.should.Matchers._
 import org.scalatest.freespec.AnyFreeSpec
+
+import com.snowplowanalytics.snowplow.enrich.beam.singleton._
 
 class SingletonSpec extends AnyFreeSpec {
   "the singleton object should" - {

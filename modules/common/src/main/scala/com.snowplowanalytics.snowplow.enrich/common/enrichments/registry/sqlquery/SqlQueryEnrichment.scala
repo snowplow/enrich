@@ -10,10 +10,7 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments
-package registry
-package sqlquery
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery
 
 import scala.collection.immutable.IntMap
 
@@ -21,15 +18,17 @@ import cats.Monad
 import cats.data.{EitherT, NonEmptyList, ValidatedNel}
 import cats.implicits._
 
+import io.circe._
+import io.circe.generic.semiauto._
+
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SelfDescribingData}
 
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
-import io.circe._
-import io.circe.generic.semiauto._
-
-import outputs.EnrichedEvent
-import utils.CirceUtils
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.SqlQueryConf
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{Enrichment, ParseableEnrichment}
 
 /** Lets us create an SqlQueryConf from a Json */
 object SqlQueryEnrichment extends ParseableEnrichment {

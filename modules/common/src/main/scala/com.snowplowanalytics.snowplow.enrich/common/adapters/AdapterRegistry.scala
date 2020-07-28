@@ -10,25 +10,27 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package adapters
+package com.snowplowanalytics.snowplow.enrich.common.adapters
 
 import java.time.Instant
 
 import cats.Monad
 import cats.data.{NonEmptyList, Validated}
+
 import cats.effect.Clock
-import cats.syntax.functor._
-import cats.syntax.validated._
-import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-import com.snowplowanalytics.iglu.client.Client
-import com.snowplowanalytics.snowplow.badrows._
+import cats.implicits._
+
 import io.circe.Json
 
-import loaders.CollectorPayload
-import registry._
-import registry.snowplow._
-import utils.HttpClient
+import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
+import com.snowplowanalytics.iglu.client.Client
+
+import com.snowplowanalytics.snowplow.badrows._
+
+import com.snowplowanalytics.snowplow.enrich.common.adapters.registry._
+import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.snowplow.{RedirectAdapter, Tp1Adapter, Tp2Adapter}
+import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
+import com.snowplowanalytics.snowplow.enrich.common.utils.HttpClient
 
 /**
  * The AdapterRegistry lets us convert a CollectorPayload into one or more RawEvents, using a given
@@ -95,14 +97,15 @@ class AdapterRegistry(remoteAdapters: Map[(String, String), RemoteAdapter] = Map
     processor: Processor
   ): F[Validated[BadRow, NonEmptyList[RawEvent]]] =
     (adapters.get((payload.api.vendor, payload.api.version)) match {
-      case Some(adapter) => adapter.toRawEvents(payload, client)
+      case Some(adapter) =>
+        adapter.toRawEvents(payload, client)
       case _ =>
-        val f = FailureDetails.AdapterFailure.InputData(
+        val f: FailureDetails.AdapterFailureOrTrackerProtocolViolation = FailureDetails.AdapterFailure.InputData(
           "vendor/version",
           Some(s"${payload.api.vendor}/${payload.api.version}"),
           "vendor/version combination is not supported"
         )
-        Monad[F].pure(f.invalidNel)
+        Monad[F].pure(f.invalidNel[NonEmptyList[RawEvent]])
     }).map(_.leftMap(enrichFailure(_, payload, payload.api.vendor, payload.api.version, processor)))
 
   private def enrichFailure(

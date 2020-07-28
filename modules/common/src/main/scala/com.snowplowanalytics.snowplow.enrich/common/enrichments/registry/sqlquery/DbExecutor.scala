@@ -19,7 +19,7 @@ import scala.util.control.NonFatal
 
 import io.circe.Json
 
-import cats.{Eval, Id, Monad}
+import cats.{Id, Monad}
 import cats.data.EitherT
 import cats.effect.{Bracket, Sync}
 import cats.implicits._
@@ -140,77 +140,6 @@ object DbExecutor {
             case None => Json.Null
           }
 
-    }
-
-  implicit def evalDbExecutor: DbExecutor[Eval] =
-    new DbExecutor[Eval] {
-      self =>
-      def getConnection(rdbms: Rdbms, connectionRef: ConnectionRef[Eval])(implicit M: Monad[Eval]): Eval[Either[Throwable, Connection]] =
-        for {
-          cachedConnection <- connectionRef.get(()).map(flattenCached)
-          connection <- cachedConnection match {
-                          case Right(conn) =>
-                            for {
-                              closed <- Eval.now(conn.isClosed)
-                              result <- if (!closed) conn.asRight[Throwable].pure[Eval]
-                                        else
-                                          for {
-                                            newConn <- Eval.now {
-                                                         Either.catchNonFatal(DriverManager.getConnection(rdbms.connectionString))
-                                                       }
-                                            _ <- connectionRef.put((), newConn)
-                                          } yield newConn
-                            } yield result
-                          case Left(error) =>
-                            Eval.now(error.asLeft[Connection])
-
-                        }
-        } yield connection
-
-      def execute(query: PreparedStatement): EitherT[Eval, Throwable, ResultSet] =
-        EitherT(Eval.now(Either.catchNonFatal(query.executeQuery())))
-
-      def convert(resultSet: ResultSet, names: JsonOutput.PropertyNameMode): EitherT[Eval, Throwable, List[Json]] =
-        EitherT {
-          Eval.always {
-            try {
-              val buffer = ListBuffer.empty[EitherT[Id, Throwable, Json]]
-              while (resultSet.next())
-                buffer += transform[Id](resultSet, names)(idDbExecutor, Monad[Id])
-              val parsedJsons = buffer.result().sequence
-              resultSet.close()
-              parsedJsons.value: Either[Throwable, List[Json]]
-            } catch {
-              case NonFatal(error) => error.asLeft
-            }
-          }
-        }
-
-      def getMetaData(rs: ResultSet): EitherT[Eval, Throwable, ResultSetMetaData] =
-        Either.catchNonFatal(rs.getMetaData).toEitherT[Eval]
-
-      def getColumnCount(rsMeta: ResultSetMetaData): EitherT[Eval, Throwable, Int] =
-        Either.catchNonFatal(rsMeta.getColumnCount).toEitherT[Eval]
-
-      def getColumnLabel(column: Int, rsMeta: ResultSetMetaData): EitherT[Eval, Throwable, String] =
-        Either.catchNonFatal(rsMeta.getColumnLabel(column)).toEitherT[Eval]
-
-      def getColumnType(column: Int, rsMeta: ResultSetMetaData): EitherT[Eval, Throwable, String] =
-        Either.catchNonFatal(rsMeta.getColumnClassName(column)).toEitherT[Eval]
-
-      def getColumnValue(
-        datatype: String,
-        columnIdx: Int,
-        rs: ResultSet
-      ): EitherT[Eval, Throwable, Json] =
-        Either
-          .catchNonFatal(rs.getObject(columnIdx))
-          .map(Option.apply)
-          .map {
-            case Some(any) => JsonOutput.getValue(any, datatype)
-            case None => Json.Null
-          }
-          .toEitherT
     }
 
   implicit def idDbExecutor: DbExecutor[Id] =

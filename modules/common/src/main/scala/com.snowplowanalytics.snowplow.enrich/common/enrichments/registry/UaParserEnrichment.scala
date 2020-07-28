@@ -15,7 +15,7 @@ package enrichments.registry
 import java.io.{FileInputStream, InputStream}
 import java.net.URI
 
-import cats.{Eval, Id, Monad}
+import cats.{Id, Monad}
 import cats.data.{EitherT, NonEmptyList, ValidatedNel}
 import cats.effect.Sync
 import cats.implicits._
@@ -166,12 +166,6 @@ object CreateUaParser {
     new CreateUaParser[F] {
       def create(uaFile: Option[String]): F[Either[String, Parser]] =
         Sync[F].delay(parser(uaFile))
-    }
-
-  implicit def evalCreateUaParser: CreateUaParser[Eval] =
-    new CreateUaParser[Eval] {
-      def create(uaFile: Option[String]): Eval[Either[String, Parser]] =
-        Eval.later(parser(uaFile))
     }
 
   implicit def idCreateUaParser: CreateUaParser[Id] =

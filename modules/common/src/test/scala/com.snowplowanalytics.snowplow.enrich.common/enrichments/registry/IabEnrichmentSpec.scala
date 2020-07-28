@@ -12,7 +12,8 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
-import cats.Eval
+import cats.Id
+import cats.syntax.functor._
 
 import io.circe.literal._
 
@@ -80,24 +81,23 @@ class IabEnrichmentSpec extends Specification with DataTables {
         expectedReason,
         expectedPrimaryImpact
       ) =>
-        (for {
-          e <- validConfig.enrichment[Eval]
-          res = e.performCheck(userAgent, ipAddress, DateTime.now())
-        } yield res).value must beRight.like {
-          case check =>
-            check.spiderOrRobot must_== expectedSpiderOrRobot and
-              (check.category must_== expectedCategory) and
-              (check.reason must_== expectedReason) and
-              (check.primaryImpact must_== expectedPrimaryImpact)
+        validConfig.enrichment[Id].map { e =>
+          e.performCheck(userAgent, ipAddress, DateTime.now()) must beRight.like {
+            case check =>
+              check.spiderOrRobot must_== expectedSpiderOrRobot and
+                (check.category must_== expectedCategory) and
+                (check.reason must_== expectedReason) and
+                (check.primaryImpact must_== expectedPrimaryImpact)
+          }
         }
     }
 
   def e2 =
-    validConfig.enrichment[Eval].map(_.performCheck("", "foo//bar", DateTime.now())).value must
+    validConfig.enrichment[Id].map(_.performCheck("", "foo//bar", DateTime.now())) must
       beLeft
 
   def e3 =
-    validConfig.enrichment[Eval].map(_.getIabContext(None, None, None)).value must beLeft
+    validConfig.enrichment[Id].map(_.getIabContext(None, None, None)) must beLeft
 
   def e4 = {
     val responseJson =
@@ -106,9 +106,8 @@ class IabEnrichmentSpec extends Specification with DataTables {
         json"""{"spiderOrRobot": false, "category": "BROWSER", "reason": "PASSED_ALL", "primaryImpact": "NONE"}"""
       )
     validConfig
-      .enrichment[Eval]
-      .map(_.getIabContext(Some("Xdroid"), Some("192.168.0.1"), Some(DateTime.now())))
-      .value must
+      .enrichment[Id]
+      .map(_.getIabContext(Some("Xdroid"), Some("192.168.0.1"), Some(DateTime.now()))) must
       beRight(responseJson)
   }
 

@@ -9,28 +9,29 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments.registry
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.io.{FileInputStream, InputStream}
 import java.net.URI
 
 import cats.{Id, Monad}
 import cats.data.{EitherT, NonEmptyList, ValidatedNel}
+
 import cats.effect.Sync
 import cats.implicits._
 
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
-
-import com.snowplowanalytics.snowplow.badrows.FailureDetails
-
-import io.circe._
+import io.circe.Json
 import io.circe.syntax._
 
 import ua_parser.Parser
 import ua_parser.Client
 
-import utils.CirceUtils
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
+
+import com.snowplowanalytics.snowplow.badrows.FailureDetails
+
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.UaParserConf
+import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
 
 /** Companion object. Lets us create a UaParserEnrichment from a Json. */
 object UaParserEnrichment extends ParseableEnrichment {
@@ -105,7 +106,7 @@ final case class UaParserEnrichment(schemaKey: SchemaKey, parser: Parser) extend
   /**
    * Extracts the client attributes from a useragent string, using UserAgentEnrichment.
    * @param useragent to extract from. Should be encoded, i.e. not previously decoded.
-   * @return the json or the message of the exception, boxed in a Scalaz Validation
+   * @return the json or the message of the bad row details
    */
   def extractUserAgent(useragent: String): Either[FailureDetails.EnrichmentFailure, SelfDescribingData[Json]] =
     Either

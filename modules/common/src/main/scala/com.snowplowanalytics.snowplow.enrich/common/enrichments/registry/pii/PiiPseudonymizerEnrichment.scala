@@ -10,9 +10,7 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments.registry
-package pii
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.MutableList
@@ -20,24 +18,26 @@ import scala.collection.mutable.MutableList
 import cats.data.ValidatedNel
 import cats.implicits._
 
+import io.circe._
+import io.circe.jackson._
+import io.circe.syntax._
+
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.{ArrayNode, ObjectNode, TextNode}
 
 import com.jayway.jsonpath.{Configuration, JsonPath => JJsonPath}
 import com.jayway.jsonpath.MapFunction
 
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SelfDescribingData}
-
-import io.circe._
-import io.circe.jackson._
-import io.circe.syntax._
-
 import org.apache.commons.codec.digest.DigestUtils
 
-import adapters.registry.Adapter
-import outputs.EnrichedEvent
-import serializers._
-import utils.CirceUtils
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SelfDescribingData}
+
+import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.Adapter
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.PiiPseudonymizerConf
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{Enrichment, ParseableEnrichment}
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii.serializers._
+import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
 
 /** Companion object. Lets us create a PiiPseudonymizerEnrichment from a Json. */
 object PiiPseudonymizerEnrichment extends ParseableEnrichment {

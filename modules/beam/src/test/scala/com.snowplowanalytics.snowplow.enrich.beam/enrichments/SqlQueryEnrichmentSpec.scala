@@ -12,15 +12,18 @@
  * See the Apache License Version 2.0 for the specific language governing permissions and
  * limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.beam
-package enrichments
+package com.snowplowanalytics.snowplow.enrich.beam.enrichments
 
 import java.nio.file.Paths
 
+import io.circe.literal._
+
 import cats.syntax.option._
+
 import com.spotify.scio.io.PubsubIO
 import com.spotify.scio.testing._
-import io.circe.literal._
+
+import com.snowplowanalytics.snowplow.enrich.beam.{CI, Enrich, SpecHelpers}
 
 object SqlQueryEnrichmentSpec {
   val contexts =
@@ -48,8 +51,8 @@ class SqlQueryEnrichmentSpec extends PipelineSpec {
         "--raw=in",
         "--enriched=out",
         "--bad=bad",
-        "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI()),
-        "--enrichments=" + Paths.get(getClass.getResource("/sql_query").toURI())
+        "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI),
+        "--enrichments=" + Paths.get(getClass.getResource("/sql_query").toURI)
       )
       .input(PubsubIO.readCoder[Array[Byte]]("in"), raw)
       .distCache(DistCacheIO(""), List.empty[Either[String, String]])

@@ -10,31 +10,31 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments.registry
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.io.File
 import java.net.URI
-
-import inet.ipaddr.HostName
 
 import cats.{Id, Monad}
 import cats.data.{NonEmptyList, ValidatedNel}
 import cats.effect.Sync
 import cats.implicits._
 
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
+import org.joda.time.DateTime
 
-import com.snowplowanalytics.iab.spidersandrobotsclient.IabClient
-import com.snowplowanalytics.snowplow.badrows.FailureDetails
+import inet.ipaddr.HostName
 
 import io.circe._
 import io.circe.generic.auto._
 import io.circe.syntax._
 
-import org.joda.time.DateTime
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
 
-import utils.CirceUtils
+import com.snowplowanalytics.iab.spidersandrobotsclient.IabClient
+import com.snowplowanalytics.snowplow.badrows.FailureDetails
+
+import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.IabConf
 
 /** Companion object. Lets us create an IabEnrichment instance from a Json. */
 object IabEnrichment extends ParseableEnrichment {
@@ -111,10 +111,8 @@ object IabEnrichment extends ParseableEnrichment {
 
 /**
  * Contains enrichments based on IAB Spiders&Robots lookup.
- * @param ipFile (Full URI to the IAB excluded IP list, database name)
- * @param excludeUaFile (Full URI to the IAB excluded user agent list, database name)
- * @param includeUaFile (Full URI to the IAB included user agent list, database name)
- * @param localMode Whether to use the local database file. Enabled for tests.
+ * @param schemaKey enrichment's static Iglu Schema Key
+ * @param iabClient worker object
  */
 final case class IabEnrichment(schemaKey: SchemaKey, iabClient: IabClient) extends Enrichment {
   val outputSchema =

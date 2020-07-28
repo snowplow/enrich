@@ -10,16 +10,16 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments
-package registry
-
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import io.circe.parser._
 import io.circe.literal._
 
 import nl.basjes.parse.useragent.UserAgent
+
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
+
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.YauaaConf
 
 import org.specs2.matcher.ValidatedMatchers
 import org.specs2.mutable.Specification

@@ -1,0 +1,192 @@
+/*
+ * Copyright (c) 2012-2020 Snowplow Analytics Ltd. All rights reserved.
+ *
+ * This program is licensed to you under the Apache License Version 2.0,
+ * and you may not use this file except in compliance with the Apache License Version 2.0.
+ * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the Apache License Version 2.0 is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ */
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
+
+import java.net.URI
+
+import cats.{Functor, Monad}
+import cats.data.EitherT
+
+import org.joda.money.CurrencyUnit
+
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+
+import com.snowplowanalytics.forex.CreateForex
+import com.snowplowanalytics.forex.model.AccountType
+import com.snowplowanalytics.maxmind.iplookups.CreateIpLookups
+import com.snowplowanalytics.refererparser.CreateParser
+import com.snowplowanalytics.weather.providers.openweather.CreateOWM
+
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest.{
+  ApiRequestEnrichment,
+  CreateApiRequestEnrichment,
+  HttpApi
+}
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.{CreateSqlQueryEnrichment, Rdbms, SqlQueryEnrichment}
+
+sealed trait EnrichmentConf {
+  def schemaKey: SchemaKey =
+    SchemaKey(
+      "com.acme",
+      "placeholder",
+      "jsonschema",
+      SchemaVer.Full(1, 0, 0)
+    )
+
+  /**
+   * List of files, such as local DBs that need to be downloaded and distributed across workers
+   * First element of pair is URI to download file from, second is a local path to store it in
+   */
+  def filesToCache: List[(URI, String)] = Nil
+}
+
+object EnrichmentConf {
+
+  final case class ApiRequestConf(
+    override val schemaKey: SchemaKey,
+    inputs: List[apirequest.Input],
+    api: HttpApi,
+    outputs: List[apirequest.Output],
+    cache: apirequest.Cache
+  ) extends EnrichmentConf {
+    def enrichment[F[_]: CreateApiRequestEnrichment]: F[ApiRequestEnrichment[F]] =
+      ApiRequestEnrichment[F](this)
+  }
+
+  final case class PiiPseudonymizerConf(
+    fieldList: List[pii.PiiField],
+    emitIdentificationEvent: Boolean,
+    strategy: pii.PiiStrategy
+  ) extends EnrichmentConf {
+    def enrichment: pii.PiiPseudonymizerEnrichment =
+      pii.PiiPseudonymizerEnrichment(fieldList, emitIdentificationEvent, strategy)
+  }
+
+  final case class SqlQueryConf(
+    override val schemaKey: SchemaKey,
+    inputs: List[sqlquery.Input],
+    db: Rdbms,
+    query: SqlQueryEnrichment.Query,
+    output: sqlquery.Output,
+    cache: SqlQueryEnrichment.Cache
+  ) extends EnrichmentConf {
+    def enrichment[F[_]: Monad: CreateSqlQueryEnrichment]: F[SqlQueryEnrichment[F]] =
+      SqlQueryEnrichment[F](this)
+  }
+
+  final case class AnonIpConf(octets: AnonIPv4Octets.AnonIPv4Octets, segments: AnonIPv6Segments.AnonIPv6Segments) extends EnrichmentConf {
+    override val filesToCache: List[(URI, String)] = Nil
+    def enrichment: AnonIpEnrichment = AnonIpEnrichment(octets, segments)
+  }
+
+  final case class CampaignAttributionConf(
+    mediumParameters: List[String],
+    sourceParameters: List[String],
+    termParameters: List[String],
+    contentParameters: List[String],
+    campaignParameters: List[String],
+    clickIdParameters: List[(String, String)]
+  ) extends EnrichmentConf {
+    def enrichment: CampaignAttributionEnrichment =
+      CampaignAttributionEnrichment(
+        mediumParameters,
+        sourceParameters,
+        termParameters,
+        contentParameters,
+        campaignParameters,
+        clickIdParameters
+      )
+  }
+
+  final case class CookieExtractorConf(cookieNames: List[String]) extends EnrichmentConf {
+    def enrichment: CookieExtractorEnrichment = CookieExtractorEnrichment(cookieNames)
+  }
+
+  final case class CurrencyConversionConf(
+    override val schemaKey: SchemaKey,
+    accountType: AccountType,
+    apiKey: String,
+    baseCurrency: CurrencyUnit
+  ) extends EnrichmentConf {
+    def enrichment[F[_]: Monad: CreateForex]: F[CurrencyConversionEnrichment[F]] =
+      CurrencyConversionEnrichment[F](this)
+  }
+
+  final case class EventFingerprintConf(algorithm: String => String, excludedParameters: List[String]) extends EnrichmentConf {
+    def enrichment: EventFingerprintEnrichment =
+      EventFingerprintEnrichment(algorithm, excludedParameters)
+  }
+
+  final case class HttpHeaderExtractorConf(headersPattern: String) extends EnrichmentConf {
+    def enrichment: HttpHeaderExtractorEnrichment = HttpHeaderExtractorEnrichment(headersPattern)
+  }
+
+  final case class IabConf(
+    override val schemaKey: SchemaKey,
+    ipFile: (URI, String),
+    excludeUaFile: (URI, String),
+    includeUaFile: (URI, String)
+  ) extends EnrichmentConf {
+    override val filesToCache: List[(URI, String)] = List(ipFile, excludeUaFile, includeUaFile)
+    def enrichment[F[_]: Monad: CreateIabClient]: F[IabEnrichment] =
+      IabEnrichment[F](this)
+  }
+
+  final case class IpLookupsConf(
+    geoFile: Option[(URI, String)],
+    ispFile: Option[(URI, String)],
+    domainFile: Option[(URI, String)],
+    connectionTypeFile: Option[(URI, String)]
+  ) extends EnrichmentConf {
+    override val filesToCache: List[(URI, String)] =
+      List(geoFile, ispFile, domainFile, connectionTypeFile).flatten
+    def enrichment[F[_]: Functor: CreateIpLookups]: F[IpLookupsEnrichment[F]] =
+      IpLookupsEnrichment[F](this)
+  }
+
+  final case class JavascriptScriptConf(override val schemaKey: SchemaKey, rawFunction: String) extends EnrichmentConf {
+    def enrichment: JavascriptScriptEnrichment = JavascriptScriptEnrichment(schemaKey, rawFunction)
+  }
+
+  final case class RefererParserConf(refererDatabase: (URI, String), internalDomains: List[String]) extends EnrichmentConf {
+    override val filesToCache: List[(URI, String)] = List(refererDatabase)
+    def enrichment[F[_]: Monad: CreateParser]: EitherT[F, String, RefererParserEnrichment] =
+      RefererParserEnrichment[F](this)
+  }
+
+  final case class UaParserConf(override val schemaKey: SchemaKey, uaDatabase: Option[(URI, String)]) extends EnrichmentConf {
+    override val filesToCache: List[(URI, String)] = List(uaDatabase).flatten
+    def enrichment[F[_]: Monad: CreateUaParser]: EitherT[F, String, UaParserEnrichment] =
+      UaParserEnrichment[F](this)
+  }
+
+  final case class UserAgentUtilsConf(override val schemaKey: SchemaKey) extends EnrichmentConf {
+    def enrichment: UserAgentUtilsEnrichment = UserAgentUtilsEnrichment(schemaKey)
+  }
+
+  final case class WeatherConf(
+    override val schemaKey: SchemaKey,
+    apiHost: String,
+    apiKey: String,
+    timeout: Int,
+    cacheSize: Int,
+    geoPrecision: Int
+  ) extends EnrichmentConf {
+    def enrichment[F[_]: Monad: CreateOWM]: EitherT[F, String, WeatherEnrichment[F]] =
+      WeatherEnrichment[F](this)
+  }
+
+  final case class YauaaConf(cacheSize: Option[Int]) extends EnrichmentConf {
+    def enrichment: YauaaEnrichment = YauaaEnrichment(cacheSize)
+  }
+}

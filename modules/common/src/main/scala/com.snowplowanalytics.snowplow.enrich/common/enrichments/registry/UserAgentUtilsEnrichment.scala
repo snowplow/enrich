@@ -9,18 +9,24 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments.registry
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import scala.util.control.NonFatal
 
 import cats.data.ValidatedNel
 import cats.syntax.either._
 import cats.syntax.option._
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey}
-import com.snowplowanalytics.snowplow.badrows._
-import eu.bitwalker.useragentutils._
+
 import io.circe._
+
+import eu.bitwalker.useragentutils._
+
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey}
+
+import com.snowplowanalytics.snowplow.badrows.FailureDetails
+
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.UserAgentUtilsConf
+
 import org.slf4j.LoggerFactory
 
 object UserAgentUtilsEnrichmentConfig extends ParseableEnrichment {

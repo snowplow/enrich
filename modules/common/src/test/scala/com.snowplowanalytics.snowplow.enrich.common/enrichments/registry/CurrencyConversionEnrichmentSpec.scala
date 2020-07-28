@@ -10,8 +10,7 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments.registry
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import cats.Id
 import cats.data.{NonEmptyList, Validated, ValidatedNel}
@@ -19,11 +18,15 @@ import cats.implicits._
 
 import com.snowplowanalytics.forex.CreateForex._
 import com.snowplowanalytics.forex.model._
+
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
-import com.snowplowanalytics.snowplow.badrows._
+
+import com.snowplowanalytics.snowplow.badrows.FailureDetails
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.CurrencyConversionConf
 
 import org.joda.money.CurrencyUnit
 import org.joda.time.DateTime
+
 import org.specs2.Specification
 import org.specs2.matcher.DataTables
 
@@ -42,11 +45,10 @@ class CurrencyConversionEnrichmentSpec extends Specification with DataTables {
   """
 
   lazy val validAppKey = sys.env
-    .get(OerApiKey)
-    .getOrElse(
-      throw new IllegalStateException(
-        s"No ${OerApiKey} environment variable found, test should have been skipped"
-      )
+    .getOrElse(OerApiKey,
+               throw new IllegalStateException(
+                 s"No $OerApiKey environment variable found, test should have been skipped"
+               )
     )
   type Result = ValidatedNel[
     FailureDetails.EnrichmentFailure,

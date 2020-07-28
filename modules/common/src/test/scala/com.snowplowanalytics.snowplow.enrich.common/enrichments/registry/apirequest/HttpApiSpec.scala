@@ -10,12 +10,15 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments.registry
-package apirequest
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest
 
 import cats.Id
+
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.ApiRequestConf
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+
 import org.specs2.Specification
 import org.specs2.matcher.ValidatedMatchers
 import org.specs2.mock.Mockito
@@ -49,7 +52,6 @@ class HttpApiSpec extends Specification with ValidatedMatchers with Mockito {
     request must beSome("http://thishostdoesntexist31337:8123/admin/foo/November+2015/admin")
   }
 
-  // This one uses real actor system
   def e3 = {
     val schemaKey = SchemaKey("vendor", "name", "format", SchemaVer.Full(1, 0, 0))
     val enrichment = ApiRequestConf(
@@ -60,7 +62,7 @@ class HttpApiSpec extends Specification with ValidatedMatchers with Mockito {
       Cache(1, 1)
     ).enrichment[Id]
 
-    val event = new outputs.EnrichedEvent
+    val event = new EnrichedEvent
     val request = enrichment.lookup(event, Nil, Nil, None)
     request must beInvalid
   }

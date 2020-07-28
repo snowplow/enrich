@@ -24,6 +24,8 @@ import org.joda.time.DateTime
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.WeatherConf
+
 import org.specs2.Specification
 
 object WeatherEnrichmentSpec {

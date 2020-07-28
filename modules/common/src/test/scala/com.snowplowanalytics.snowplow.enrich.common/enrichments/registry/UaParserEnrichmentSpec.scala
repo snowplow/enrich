@@ -21,6 +21,8 @@ import io.circe.literal._
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.UaParserConf
+
 import org.specs2.matcher.DataTables
 import org.specs2.mutable.Specification
 

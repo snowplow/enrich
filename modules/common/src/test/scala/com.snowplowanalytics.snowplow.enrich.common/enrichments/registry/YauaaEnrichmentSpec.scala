@@ -246,7 +246,7 @@ class YauaaEnrichmentSpec extends Specification with ValidatedMatchers {
         }
       }""").toOption.get
 
-      val expected = YauaaConf(Some(cacheSize))
+      val expected = YauaaConf(schemaKey, Some(cacheSize))
       val actual = YauaaEnrichment.parse(yauaaConfigJson, schemaKey)
       actual must beValid(expected)
     }
@@ -256,7 +256,7 @@ class YauaaEnrichmentSpec extends Specification with ValidatedMatchers {
         "enabled": true
       }""").toOption.get
 
-      val expected = YauaaConf(None)
+      val expected = YauaaConf(schemaKey, None)
       val actual = YauaaEnrichment.parse(yauaaConfigJson, schemaKey)
       actual must beValid(expected)
     }

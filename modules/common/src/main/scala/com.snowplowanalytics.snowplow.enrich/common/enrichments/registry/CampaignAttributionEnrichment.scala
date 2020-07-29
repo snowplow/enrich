@@ -61,6 +61,7 @@ object CampaignAttributionEnrichment extends ParseableEnrichment {
             .extract[Map[String, String]](c, "parameters", "fields", "mktClickId")
             .fold(_ => Map(), s => s)
           CampaignAttributionConf(
+            schemaKey,
             medium,
             source,
             term,

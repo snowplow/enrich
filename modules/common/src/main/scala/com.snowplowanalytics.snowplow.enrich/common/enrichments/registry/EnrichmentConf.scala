@@ -19,7 +19,7 @@ import cats.data.EitherT
 
 import org.joda.money.CurrencyUnit
 
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+import com.snowplowanalytics.iglu.core.SchemaKey
 
 import com.snowplowanalytics.forex.CreateForex
 import com.snowplowanalytics.forex.model.AccountType
@@ -35,13 +35,9 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequ
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.{CreateSqlQueryEnrichment, Rdbms, SqlQueryEnrichment}
 
 sealed trait EnrichmentConf {
-  def schemaKey: SchemaKey =
-    SchemaKey(
-      "com.acme",
-      "placeholder",
-      "jsonschema",
-      SchemaVer.Full(1, 0, 0)
-    )
+
+  /** Iglu schema key to identify the enrichment in bad row, some enrichments don't use it */
+  def schemaKey: SchemaKey
 
   /**
    * List of files, such as local DBs that need to be downloaded and distributed across workers
@@ -53,7 +49,7 @@ sealed trait EnrichmentConf {
 object EnrichmentConf {
 
   final case class ApiRequestConf(
-    override val schemaKey: SchemaKey,
+    schemaKey: SchemaKey,
     inputs: List[apirequest.Input],
     api: HttpApi,
     outputs: List[apirequest.Output],
@@ -64,6 +60,7 @@ object EnrichmentConf {
   }
 
   final case class PiiPseudonymizerConf(
+    schemaKey: SchemaKey,
     fieldList: List[pii.PiiField],
     emitIdentificationEvent: Boolean,
     strategy: pii.PiiStrategy
@@ -73,7 +70,7 @@ object EnrichmentConf {
   }
 
   final case class SqlQueryConf(
-    override val schemaKey: SchemaKey,
+    schemaKey: SchemaKey,
     inputs: List[sqlquery.Input],
     db: Rdbms,
     query: SqlQueryEnrichment.Query,
@@ -84,12 +81,16 @@ object EnrichmentConf {
       SqlQueryEnrichment[F](this)
   }
 
-  final case class AnonIpConf(octets: AnonIPv4Octets.AnonIPv4Octets, segments: AnonIPv6Segments.AnonIPv6Segments) extends EnrichmentConf {
-    override val filesToCache: List[(URI, String)] = Nil
+  final case class AnonIpConf(
+    schemaKey: SchemaKey,
+    octets: AnonIPv4Octets.AnonIPv4Octets,
+    segments: AnonIPv6Segments.AnonIPv6Segments
+  ) extends EnrichmentConf {
     def enrichment: AnonIpEnrichment = AnonIpEnrichment(octets, segments)
   }
 
   final case class CampaignAttributionConf(
+    schemaKey: SchemaKey,
     mediumParameters: List[String],
     sourceParameters: List[String],
     termParameters: List[String],
@@ -108,12 +109,15 @@ object EnrichmentConf {
       )
   }
 
-  final case class CookieExtractorConf(cookieNames: List[String]) extends EnrichmentConf {
+  final case class CookieExtractorConf(
+    schemaKey: SchemaKey,
+    cookieNames: List[String]
+  ) extends EnrichmentConf {
     def enrichment: CookieExtractorEnrichment = CookieExtractorEnrichment(cookieNames)
   }
 
   final case class CurrencyConversionConf(
-    override val schemaKey: SchemaKey,
+    schemaKey: SchemaKey,
     accountType: AccountType,
     apiKey: String,
     baseCurrency: CurrencyUnit
@@ -122,17 +126,24 @@ object EnrichmentConf {
       CurrencyConversionEnrichment[F](this)
   }
 
-  final case class EventFingerprintConf(algorithm: String => String, excludedParameters: List[String]) extends EnrichmentConf {
+  final case class EventFingerprintConf(
+    schemaKey: SchemaKey,
+    algorithm: String => String,
+    excludedParameters: List[String]
+  ) extends EnrichmentConf {
     def enrichment: EventFingerprintEnrichment =
       EventFingerprintEnrichment(algorithm, excludedParameters)
   }
 
-  final case class HttpHeaderExtractorConf(headersPattern: String) extends EnrichmentConf {
+  final case class HttpHeaderExtractorConf(
+    schemaKey: SchemaKey,
+    headersPattern: String
+  ) extends EnrichmentConf {
     def enrichment: HttpHeaderExtractorEnrichment = HttpHeaderExtractorEnrichment(headersPattern)
   }
 
   final case class IabConf(
-    override val schemaKey: SchemaKey,
+    schemaKey: SchemaKey,
     ipFile: (URI, String),
     excludeUaFile: (URI, String),
     includeUaFile: (URI, String)
@@ -143,6 +154,7 @@ object EnrichmentConf {
   }
 
   final case class IpLookupsConf(
+    schemaKey: SchemaKey,
     geoFile: Option[(URI, String)],
     ispFile: Option[(URI, String)],
     domainFile: Option[(URI, String)],
@@ -154,28 +166,32 @@ object EnrichmentConf {
       IpLookupsEnrichment[F](this)
   }
 
-  final case class JavascriptScriptConf(override val schemaKey: SchemaKey, rawFunction: String) extends EnrichmentConf {
+  final case class JavascriptScriptConf(schemaKey: SchemaKey, rawFunction: String) extends EnrichmentConf {
     def enrichment: JavascriptScriptEnrichment = JavascriptScriptEnrichment(schemaKey, rawFunction)
   }
 
-  final case class RefererParserConf(refererDatabase: (URI, String), internalDomains: List[String]) extends EnrichmentConf {
+  final case class RefererParserConf(
+    schemaKey: SchemaKey,
+    refererDatabase: (URI, String),
+    internalDomains: List[String]
+  ) extends EnrichmentConf {
     override val filesToCache: List[(URI, String)] = List(refererDatabase)
     def enrichment[F[_]: Monad: CreateParser]: EitherT[F, String, RefererParserEnrichment] =
       RefererParserEnrichment[F](this)
   }
 
-  final case class UaParserConf(override val schemaKey: SchemaKey, uaDatabase: Option[(URI, String)]) extends EnrichmentConf {
+  final case class UaParserConf(schemaKey: SchemaKey, uaDatabase: Option[(URI, String)]) extends EnrichmentConf {
     override val filesToCache: List[(URI, String)] = List(uaDatabase).flatten
     def enrichment[F[_]: Monad: CreateUaParser]: EitherT[F, String, UaParserEnrichment] =
       UaParserEnrichment[F](this)
   }
 
-  final case class UserAgentUtilsConf(override val schemaKey: SchemaKey) extends EnrichmentConf {
+  final case class UserAgentUtilsConf(schemaKey: SchemaKey) extends EnrichmentConf {
     def enrichment: UserAgentUtilsEnrichment = UserAgentUtilsEnrichment(schemaKey)
   }
 
   final case class WeatherConf(
-    override val schemaKey: SchemaKey,
+    schemaKey: SchemaKey,
     apiHost: String,
     apiKey: String,
     timeout: Int,
@@ -186,7 +202,7 @@ object EnrichmentConf {
       WeatherEnrichment[F](this)
   }
 
-  final case class YauaaConf(cacheSize: Option[Int]) extends EnrichmentConf {
+  final case class YauaaConf(schemaKey: SchemaKey, cacheSize: Option[Int]) extends EnrichmentConf {
     def enrichment: YauaaEnrichment = YauaaEnrichment(cacheSize)
   }
 }

@@ -16,6 +16,8 @@ package com.snowplowanalytics.snowplow.enrich.beam
 
 import io.circe.literal._
 
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry._
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.AnonIpConf
 
@@ -25,6 +27,9 @@ import org.scalatest.freespec.AnyFreeSpec
 import com.snowplowanalytics.snowplow.enrich.beam.singleton._
 
 class SingletonSpec extends AnyFreeSpec {
+
+  val placeholder = SchemaKey("com.acme", "placeholder", "jsonschema", SchemaVer.Full(1, 0, 0))
+
   "the singleton object should" - {
     "make a ClientSingleton.get function available" - {
       "which throws if the resolver can't be parsed" in {
@@ -44,7 +49,7 @@ class SingletonSpec extends AnyFreeSpec {
       "which builds and stores the registry" in {
         val reg =
           EnrichmentRegistrySingleton.get(
-            List(AnonIpConf(AnonIPv4Octets.Two, AnonIPv6Segments.Two))
+            List(AnonIpConf(placeholder, AnonIPv4Octets.Two, AnonIPv6Segments.Two))
           )
         reg.anonIp shouldBe defined
       }

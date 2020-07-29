@@ -57,7 +57,7 @@ object EventFingerprintEnrichment extends ParseableEnrichment {
                        ).mapN((_, _)).toEither
       algorithm <- getAlgorithm(paramsAndAlgo._2)
                      .leftMap(e => NonEmptyList.one(e))
-    } yield EventFingerprintConf(algorithm, paramsAndAlgo._1)).toValidated
+    } yield EventFingerprintConf(schemaKey, algorithm, paramsAndAlgo._1)).toValidated
 
   /**
    * Look up the fingerprinting algorithm by name

@@ -56,7 +56,7 @@ object RefererParserEnrichment extends ParseableEnrichment {
                 (uri, db, domains)
               }.toEither
       source <- getDatabaseUri(conf._1, conf._2).leftMap(NonEmptyList.one)
-    } yield RefererParserConf(file(source, conf._2, localFile, localMode), conf._3)).toValidated
+    } yield RefererParserConf(schemaKey, file(source, conf._2, localFile, localMode), conf._3)).toValidated
 
   private def file(
     uri: URI,

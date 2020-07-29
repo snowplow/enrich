@@ -54,7 +54,7 @@ object YauaaEnrichment extends ParseableEnrichment {
     (for {
       _ <- isParseable(c, schemaKey)
       cacheSize <- CirceUtils.extract[Option[Int]](c, "parameters", "cacheSize").toEither
-    } yield YauaaConf(cacheSize)).toValidatedNel
+    } yield YauaaConf(schemaKey, cacheSize)).toValidatedNel
 
   /** Helper to decapitalize a string. Used for the names of the fields returned in the context. */
   def decapitalize(s: String): String =

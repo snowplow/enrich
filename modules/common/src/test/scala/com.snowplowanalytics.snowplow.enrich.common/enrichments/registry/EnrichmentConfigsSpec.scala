@@ -47,7 +47,7 @@ class EnrichmentConfigsSpec extends Specification with ValidatedMatchers with Da
         SchemaVer.Full(1, 0, 1)
       )
       val result = AnonIpEnrichment.parse(ipAnonJson, schemaKey)
-      result must beValid(AnonIpConf(AnonIPv4Octets(2), AnonIPv6Segments(3)))
+      result must beValid(AnonIpConf(schemaKey, AnonIPv4Octets(2), AnonIPv6Segments(3)))
     }
 
     "successfully construct an AnonIpEnrichment case class with default value for IPv6" in {
@@ -64,7 +64,7 @@ class EnrichmentConfigsSpec extends Specification with ValidatedMatchers with Da
         SchemaVer.Full(1, 0, 0)
       )
       val result = AnonIpEnrichment.parse(ipAnonJson, schemaKey)
-      result must beValid(AnonIpConf(AnonIPv4Octets(2), AnonIPv6Segments(2)))
+      result must beValid(AnonIpConf(schemaKey, AnonIPv4Octets(2), AnonIPv6Segments(2)))
     }
   }
 
@@ -90,6 +90,7 @@ class EnrichmentConfigsSpec extends Specification with ValidatedMatchers with Da
         SchemaVer.Full(2, 0, 0)
       )
       val expected = IpLookupsConf(
+        schemaKey,
         Some(
           (
             new URI(
@@ -136,6 +137,7 @@ class EnrichmentConfigsSpec extends Specification with ValidatedMatchers with Da
         SchemaVer.Full(2, 0, 0)
       )
       val expected = RefererParserConf(
+        schemaKey,
         (
           new URI(
             "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/referer/referer.json"
@@ -146,7 +148,6 @@ class EnrichmentConfigsSpec extends Specification with ValidatedMatchers with Da
       )
       val result = RefererParserEnrichment.parse(refererParserJson, schemaKey, false)
       result must beValid(expected)
-
     }
   }
 
@@ -179,6 +180,7 @@ class EnrichmentConfigsSpec extends Specification with ValidatedMatchers with Da
         SchemaVer.Full(1, 0, 0)
       )
       val expected = CampaignAttributionConf(
+        schemaKey,
         List("utm_medium", "medium"),
         List("utm_source", "source"),
         List("utm_term"),
@@ -336,7 +338,7 @@ class EnrichmentConfigsSpec extends Specification with ValidatedMatchers with Da
         SchemaVer.Full(1, 0, 0)
       )
       val result = CookieExtractorEnrichment.parse(cookieExtractorEnrichmentJson, schemaKey)
-      result must beValid(CookieExtractorConf(List("foo", "bar")))
+      result must beValid(CookieExtractorConf(schemaKey, List("foo", "bar")))
     }
   }
 

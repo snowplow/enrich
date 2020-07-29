@@ -54,7 +54,7 @@ object AnonIpEnrichment extends ParseableEnrichment {
                             .toEither
       ipv4Octets <- AnonIPv4Octets.fromInt(paramIPv4Octet)
       ipv6Segment <- AnonIPv6Segments.fromInt(paramIPv6Segment)
-    } yield AnonIpConf(ipv4Octets, ipv6Segment)).toValidatedNel
+    } yield AnonIpConf(schemaKey, ipv4Octets, ipv6Segment)).toValidatedNel
 }
 
 /** How many octets (ipv4) to anonymize */

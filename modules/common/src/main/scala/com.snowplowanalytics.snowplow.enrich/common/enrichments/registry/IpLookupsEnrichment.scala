@@ -57,6 +57,7 @@ object IpLookupsEnrichment extends ParseableEnrichment {
           getArgumentFromName(c, "connectionType").sequence
         ).mapN { (geo, isp, domain, connection) =>
           IpLookupsConf(
+            schemaKey,
             file(geo, localMode),
             file(isp, localMode),
             file(domain, localMode),
@@ -107,6 +108,7 @@ object IpLookupsEnrichment extends ParseableEnrichment {
         lruCacheSize = 20000
       )
       .map(i => IpLookupsEnrichment(i))
+
 }
 
 /**

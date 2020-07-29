@@ -43,7 +43,7 @@ object CookieExtractorEnrichment extends ParseableEnrichment {
     (for {
       _ <- isParseable(config, schemaKey)
       cookieNames <- CirceUtils.extract[List[String]](config, "parameters", "cookies").toEither
-    } yield CookieExtractorConf(cookieNames)).toValidatedNel
+    } yield CookieExtractorConf(schemaKey, cookieNames)).toValidatedNel
 }
 
 /**

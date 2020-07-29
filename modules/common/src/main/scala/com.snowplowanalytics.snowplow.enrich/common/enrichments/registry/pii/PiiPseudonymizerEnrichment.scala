@@ -58,7 +58,7 @@ object PiiPseudonymizerEnrichment extends ParseableEnrichment {
     localMode: Boolean = false
   ): ValidatedNel[String, PiiPseudonymizerConf] = {
     for {
-      conf <- matchesSchema(config, schemaKey)
+      conf <- isParseable(config, schemaKey)
       emitIdentificationEvent = CirceUtils
                                   .extract[Boolean](conf, "emitEvent")
                                   .toOption
@@ -70,7 +70,7 @@ object PiiPseudonymizerEnrichment extends ParseableEnrichment {
                        .extract[PiiStrategyPseudonymize](config, "parameters", "strategy")
                        .toEither
       piiFieldList <- extractFields(piiFields)
-    } yield PiiPseudonymizerConf(piiFieldList, emitIdentificationEvent, piiStrategy)
+    } yield PiiPseudonymizerConf(schemaKey, piiFieldList, emitIdentificationEvent, piiStrategy)
   }.toValidatedNel
 
   private[pii] def getHashFunction(strategyFunction: String): Either[String, DigestFunction] =
@@ -132,12 +132,6 @@ object PiiPseudonymizerEnrichment extends ParseableEnrichment {
       .get(fieldName)
       .map(_.asRight)
       .getOrElse(s"The specified json field $fieldName is not supported".asLeft)
-
-  private def matchesSchema(config: Json, schemaKey: SchemaKey): Either[String, Json] =
-    if (supportedSchema.matches(schemaKey))
-      config.asRight
-    else
-      s"Schema key $schemaKey is not supported. A '${supportedSchema.name}' enrichment must have schema '$supportedSchema'.".asLeft
 }
 
 /**

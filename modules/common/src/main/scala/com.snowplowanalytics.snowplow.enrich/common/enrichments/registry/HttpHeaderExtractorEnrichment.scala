@@ -48,7 +48,7 @@ object HttpHeaderExtractorEnrichment extends ParseableEnrichment {
     (for {
       _ <- isParseable(config, schemaKey)
       headersPattern <- CirceUtils.extract[String](config, "parameters", "headersPattern").toEither
-    } yield HttpHeaderExtractorConf(headersPattern)).toValidatedNel
+    } yield HttpHeaderExtractorConf(schemaKey, headersPattern)).toValidatedNel
 }
 
 /**

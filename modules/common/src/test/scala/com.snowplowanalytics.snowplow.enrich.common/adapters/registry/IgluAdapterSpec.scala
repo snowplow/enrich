@@ -43,6 +43,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
   toRawEvents should return a NEL containing one RawEvent if a querystring is found in the POST body                     $e15
   toRawEvents should return a NEL with RawEvents if the schema is in the qs and the body contains an array               $e16
   toRawEvents should return a Validation Failure if the schema is in the qs and the body contains an empty array         $e17
+  [BUG] toRawEvents should return a Validation Failure if the schema is URL-encoded                                      $e18
   """
 
   object Shared {
@@ -556,6 +557,28 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
       NonEmptyList.one(
         FailureDetails.AdapterFailure
           .InputData("body", "[]".some, "empty array of events")
+      )
+    )
+  }
+
+  // Confirms buggy behaviour in 1.3.0. Must fail when bug is fixed.
+  def e18 = {
+    val params = SpecHelpers.toNameValuePairs(
+      "schema" -> "iglu%3Acom.acme%2Fcampaign%2Fjsonschema%2F1-0-0",
+      "user" -> "6353af9b-e288-4cf3-9f1c-b377a9c84dac",
+      "name" -> "download",
+      "publisher_name" -> "Organic",
+      "source" -> "",
+      "tracking_id" -> "",
+      "ad_unit" -> ""
+    )
+    val payload = CollectorPayload(Shared.api, params, None, None, Shared.cfSource, Shared.context)
+    val actual = IgluAdapter.toRawEvents(payload, SpecHelpers.client)
+
+    actual must beInvalid(
+      NonEmptyList.one(
+        FailureDetails.AdapterFailure
+          .InputData("schema", Some("iglu%3Acom.acme%2Fcampaign%2Fjsonschema%2F1-0-0"), "INVALID_IGLUURI")
       )
     )
   }

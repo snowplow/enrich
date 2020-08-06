@@ -16,32 +16,35 @@ package com.snowplowanalytics.snowplow.enrich.beam
 
 import scala.collection.JavaConverters._
 
-import io.circe.Json
-
-import io.sentry.Sentry
-
 import cats.Id
 import cats.data.Validated
 import cats.implicits._
 
+import io.circe.Json
+
+import io.sentry.Sentry
+
+import com.spotify.scio._
+import com.spotify.scio.coders.Coder
+import com.spotify.scio.pubsub.PubSubAdmin
+import com.spotify.scio.values.SCollection
+
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubOptions
+import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions
+
+import org.joda.time.{DateTime, Duration}
+import org.slf4j.LoggerFactory
+
 import com.snowplowanalytics.iglu.client.Client
+
 import com.snowplowanalytics.snowplow.badrows.{BadRow, Processor}
+
 import com.snowplowanalytics.snowplow.enrich.common.EtlPipeline
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.loaders.ThriftLoader
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-
-import com.spotify.scio._
-import com.spotify.scio.coders.Coder
-import com.spotify.scio.pubsub.PubSubAdmin
-import com.spotify.scio.values.{DistCache, SCollection}
-
-import org.apache.beam.sdk.io.gcp.pubsub.PubsubOptions
-import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions
-import org.joda.time.DateTime
-import org.slf4j.LoggerFactory
 
 import com.snowplowanalytics.snowplow.enrich.beam.config._
 import com.snowplowanalytics.snowplow.enrich.beam.singleton._
@@ -69,7 +72,7 @@ object Enrich {
   def main(cmdlineArgs: Array[String]): Unit = {
     val (sc, args) = ContextAndArgs(cmdlineArgs)
     val parsedConfig = for {
-      config <- EnrichConfig(args)
+      config <- EnrichConfig.from(args)
       _ = sc.setJobName(config.jobName)
       _ <- checkTopicExists(sc, config.enriched)
       _ <- checkTopicExists(sc, config.bad)
@@ -83,6 +86,7 @@ object Enrich {
              "A pii topic needs to be used in order to use the pii enrichment".asLeft
            else
              ().asRight
+      refreshRate = if (config.assetsRefreshDuration == 0) None else Some(Duration.standardMinutes(config.assetsRefreshDuration.toLong))
     } yield ParsedEnrichConfig(
       config.raw,
       config.enriched,
@@ -92,7 +96,8 @@ object Enrich {
       confs,
       labels,
       config.sentryDSN,
-      config.metrics
+      config.metrics,
+      refreshRate
     )
 
     parsedConfig match {
@@ -110,14 +115,17 @@ object Enrich {
     if (config.labels.nonEmpty)
       sc.optionsAs[DataflowPipelineOptions].setLabels(config.labels.asJava)
 
-    val cachedFiles: DistCache[List[Either[String, String]]] =
-      buildDistCache(sc, config.enrichmentConfs)
+    /** Either plain no-op or assets-updating transformation no-op */
+    val withAssetUpdate = AssetsManagement.mkTransformation[Array[Byte]](sc, config.assetsRefreshRate, config.enrichmentConfs)
 
     val raw: SCollection[Array[Byte]] =
-      sc.withName("raw-from-pubsub").pubsubSubscription[Array[Byte]](config.raw)
+      sc.withName("raw-from-pubsub")
+        .pubsubSubscription[Array[Byte]](config.raw)
+        .withName("assets-refresh-transformation")
+        .transform(withAssetUpdate)
 
     val enriched: SCollection[Validated[BadRow, EnrichedEvent]] =
-      enrichEvents(raw, config.resolver, config.enrichmentConfs, cachedFiles, config.sentryDSN, config.metrics)
+      enrichEvents(raw, config.resolver, config.enrichmentConfs, config.sentryDSN, config.metrics)
 
     val (failures, successes): (SCollection[BadRow], SCollection[EnrichedEvent]) = {
       val enrichedPartitioned = enriched.withName("split-enriched-good-bad").partition(_.isValid)
@@ -189,20 +197,17 @@ object Enrich {
    * @param raw collection of events
    * @param resolver Json representing the iglu resolver
    * @param enrichmentConfs list of enabled enrichment configuration
-   * @param cachedFiles list of files to cache
    */
   private def enrichEvents(
     raw: SCollection[Array[Byte]],
     resolver: Json,
     enrichmentConfs: List[EnrichmentConf],
-    cachedFiles: DistCache[List[Either[String, String]]],
     sentryDSN: Option[String],
     metrics: Boolean
   ): SCollection[Validated[BadRow, EnrichedEvent]] =
     raw
       .withName("enrich")
       .map { rawEvent =>
-        cachedFiles()
         val (enriched, time) = timeMs {
           enrich(
             rawEvent,
@@ -302,29 +307,6 @@ object Enrich {
         }
         Nil
       case Right(events) => events
-    }
-  }
-
-  /**
-   * Builds a Scio's [[DistCache]] which downloads the needed files and create the necessary
-   * symlinks.
-   * @param sc Scio context
-   * @param enrichmentConfs list of enrichment configurations
-   * @return a properly build [[DistCache]]
-   */
-  private def buildDistCache(sc: ScioContext, enrichmentConfs: List[EnrichmentConf]): DistCache[List[Either[String, String]]] = {
-    val filesToCache: List[(String, String)] = enrichmentConfs
-      .flatMap(_.filesToCache)
-      .map { case (uri, sl) => (uri.toString, sl) }
-    sc.distCache(filesToCache.map(_._1)) { files =>
-      val symLinks = files.toList
-        .zip(filesToCache.map(_._2))
-        .map { case (file, symLink) => createSymLink(file, symLink) }
-      symLinks.zip(files).foreach {
-        case (Right(p), file) => logger.info(s"File $file cached at $p")
-        case (Left(e), file) => logger.warn(s"File $file could not be cached: $e")
-      }
-      symLinks.map(_.map(_.toString))
     }
   }
 

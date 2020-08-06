@@ -24,13 +24,19 @@ import scala.io.Source
 import cats.Id
 import cats.data.ValidatedNel
 import cats.implicits._
+
+import org.joda.time.Duration
+
+import com.spotify.scio.Args
+
 import com.snowplowanalytics.iglu.client.Client
 import com.snowplowanalytics.iglu.core._
 import com.snowplowanalytics.iglu.core.circe.CirceIgluCodecs._
+
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.utils.JsonUtils
-import com.spotify.scio.Args
+
 import io.circe.Json
 import io.circe.parser.decode
 import io.circe.syntax._
@@ -52,12 +58,13 @@ object config {
     enrichments: Option[String],
     labels: Option[String],
     sentryDSN: Option[String],
-    metrics: Boolean
+    metrics: Boolean,
+    assetsRefreshDuration: Int
   )
   object EnrichConfig {
 
     /** Smart constructor taking SCIO's [[Args]] */
-    def apply(args: Args): Either[String, EnrichConfig] =
+    def from(args: Args): Either[String, EnrichConfig] =
       for {
         _ <- if (args.optional("help").isDefined) helpString(configurations).asLeft else "".asRight
         l <- configurations
@@ -79,7 +86,8 @@ object config {
         args.optional("enrichments"),
         args.optional("labels"),
         args.optional("sentry-dsn"),
-        args.boolean("metrics", true)
+        args.boolean("metrics", default = true),
+        args.int("assets-refresh-rate", 0)
       )
 
     private val configurations = List(
@@ -98,10 +106,11 @@ object config {
       Configuration.Optional("enrichments", "Path to the directory containing the enrichment files"),
       Configuration.Optional("labels", "Dataflow labels to be set ie. env=qa1;region=eu"),
       Configuration.Optional("sentry-dsn", "Sentry DSN"),
-      Configuration.Optional("metrics", "Enable ScioMetrics (default: true)")
+      Configuration.Optional("metrics", "Enable ScioMetrics (default: true)"),
+      Configuration.Optional("assets-refresh-rate", "How often (in minutes) enrich should try to update worker assets (e.g. MaxMind DB)")
     )
 
-    /** Generates an help string from a list of conifugration */
+    /** Generates an help string from a list of configuration */
     private def helpString(configs: List[Configuration]): String =
       "Possible configuration are:\n" +
         configs
@@ -135,7 +144,8 @@ object config {
     enrichmentConfs: List[EnrichmentConf],
     labels: Map[String, String],
     sentryDSN: Option[String],
-    metrics: Boolean
+    metrics: Boolean,
+    assetsRefreshRate: Option[Duration]
   )
 
   /**
@@ -150,11 +160,15 @@ object config {
       _ <- Client.parseDefault[Id](json).leftMap(_.message).value
     } yield json
 
-  /** Reads a resolver file at the specfied path. */
+  /** Reads a resolver file at the specified path. */
   private def readResolverFile(path: String): Either[String, String] = {
     val file = new File(path)
-    if (file.exists) Source.fromFile(file).mkString.asRight
-    else s"Iglu resolver configuration file `$path` does not exist".asLeft
+    if (file.exists) {
+      val source = Source.fromFile(file)
+      val config = source.mkString
+      source.close()
+      config.asRight
+    } else s"Iglu resolver configuration file `$path` does not exist".asLeft
   }
 
   /**
@@ -165,7 +179,7 @@ object config {
   def parseEnrichmentRegistry(enrichmentsPath: Option[String], client: Client[Id, Json]): Either[String, Json] =
     for {
       fileContents <- readEnrichmentFiles(enrichmentsPath)
-      jsons <- fileContents.map(JsonUtils.extractJson(_)).sequence[EitherS, Json]
+      jsons <- fileContents.map(JsonUtils.extractJson).sequence[EitherS, Json]
       schemaKey = SchemaKey(
                     "com.snowplowanalytics.snowplow",
                     "enrichments",

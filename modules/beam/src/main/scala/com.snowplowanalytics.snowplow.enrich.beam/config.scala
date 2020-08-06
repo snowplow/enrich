@@ -24,13 +24,19 @@ import scala.io.Source
 import cats.Id
 import cats.data.ValidatedNel
 import cats.implicits._
+
+import org.joda.time.Duration
+
+import com.spotify.scio.Args
+
 import com.snowplowanalytics.iglu.client.Client
 import com.snowplowanalytics.iglu.core._
 import com.snowplowanalytics.iglu.core.circe.CirceIgluCodecs._
+
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.utils.JsonUtils
-import com.spotify.scio.Args
+
 import io.circe.Json
 import io.circe.parser.decode
 import io.circe.syntax._
@@ -52,12 +58,13 @@ object config {
     enrichments: Option[String],
     labels: Option[String],
     sentryDSN: Option[String],
-    metrics: Boolean
+    metrics: Boolean,
+    assetsRefreshDuration: Int
   )
   object EnrichConfig {
 
     /** Smart constructor taking SCIO's [[Args]] */
-    def apply(args: Args): Either[String, EnrichConfig] =
+    def from(args: Args): Either[String, EnrichConfig] =
       for {
         _ <- if (args.optional("help").isDefined) helpString(configurations).asLeft else "".asRight
         l <- configurations
@@ -79,7 +86,8 @@ object config {
         args.optional("enrichments"),
         args.optional("labels"),
         args.optional("sentry-dsn"),
-        args.boolean("metrics", true)
+        args.boolean("metrics", true),
+        args.int("assets-refresh-rate", 0)
       )
 
     private val configurations = List(
@@ -98,7 +106,8 @@ object config {
       Configuration.Optional("enrichments", "Path to the directory containing the enrichment files"),
       Configuration.Optional("labels", "Dataflow labels to be set ie. env=qa1;region=eu"),
       Configuration.Optional("sentry-dsn", "Sentry DSN"),
-      Configuration.Optional("metrics", "Enable ScioMetrics (default: true)")
+      Configuration.Optional("metrics", "Enable ScioMetrics (default: true)"),
+      Configuration.Optional("assets-refresh-rate", "How often (in minutes) enrich should try to update worker assets (e.g. MaxMind DB)")
     )
 
     /** Generates an help string from a list of conifugration */
@@ -135,7 +144,8 @@ object config {
     enrichmentConfs: List[EnrichmentConf],
     labels: Map[String, String],
     sentryDSN: Option[String],
-    metrics: Boolean
+    metrics: Boolean,
+    assetsRefreshRate: Option[Duration]
   )
 
   /**

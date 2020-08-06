@@ -16,23 +16,26 @@ package com.snowplowanalytics.snowplow.enrich.beam
 
 import java.nio.file.Files
 
-import com.snowplowanalytics.iglu.core.SelfDescribingData
-import com.snowplowanalytics.iglu.core.circe.CirceIgluCodecs._
 import com.spotify.scio.Args
+
 import io.circe.Json
 import io.circe.syntax._
-import org.scalatest._
-import matchers.should.Matchers._
 
-import config._
-import SpecHelpers._
+import com.snowplowanalytics.iglu.core.SelfDescribingData
+import com.snowplowanalytics.iglu.core.circe.CirceIgluCodecs._
+
+import org.scalatest._
+import org.scalatest.matchers.should.Matchers._
 import org.scalatest.freespec.AnyFreeSpec
+
+import com.snowplowanalytics.snowplow.enrich.beam.config._
+import com.snowplowanalytics.snowplow.enrich.beam.SpecHelpers._
 
 class ConfigSpec extends AnyFreeSpec with EitherValues {
   "the config object should" - {
     "make an EnrichConfig smart ctor available" - {
       "which fails if --job-name is not present" in {
-        EnrichConfig(Args(Array.empty)) shouldEqual Left(
+        EnrichConfig.from(Args(Array.empty)) shouldEqual Left(
           "Missing `job-name` argument\n" +
             "Missing `raw` argument\n" +
             "Missing `enriched` argument\n" +
@@ -41,7 +44,7 @@ class ConfigSpec extends AnyFreeSpec with EitherValues {
         )
       }
       "which fails if --raw is not present" in {
-        EnrichConfig(Args(Array("--job-name=j"))) shouldEqual Left(
+        EnrichConfig.from(Args(Array("--job-name=j"))) shouldEqual Left(
           "Missing `raw` argument\n" +
             "Missing `enriched` argument\n" +
             "Missing `bad` argument\n" +
@@ -49,27 +52,27 @@ class ConfigSpec extends AnyFreeSpec with EitherValues {
         )
       }
       "which fails if --enriched is not present" in {
-        EnrichConfig(Args(Array("--job-name=j", "--raw=i"))) shouldEqual Left(
+        EnrichConfig.from(Args(Array("--job-name=j", "--raw=i"))) shouldEqual Left(
           "Missing `enriched` argument\n" +
             "Missing `bad` argument\n" +
             "Missing `resolver` argument"
         )
       }
       "which fails if --bad is not present" in {
-        EnrichConfig(Args(Array("--job-name=j", "--raw=i", "--enriched=o"))) shouldEqual Left(
+        EnrichConfig.from(Args(Array("--job-name=j", "--raw=i", "--enriched=o"))) shouldEqual Left(
           "Missing `bad` argument\n" +
             "Missing `resolver` argument"
         )
       }
       "which fails if --resolver is not present" in {
-        EnrichConfig(Args(Array("--job-name=j", "--raw=i", "--enriched=o", "--bad=b"))) shouldEqual
+        EnrichConfig.from(Args(Array("--job-name=j", "--raw=i", "--enriched=o", "--bad=b"))) shouldEqual
           Left("Missing `resolver` argument")
       }
       "which succeeds otherwise" in {
-        EnrichConfig(
+        EnrichConfig.from(
           Args(Array("--job-name=j", "--raw=i", "--enriched=o", "--bad=b", "--resolver=r"))
         ) shouldEqual
-          Right(EnrichConfig("j", "i", "o", "b", None, "r", None, None, None, true))
+          Right(EnrichConfig("j", "i", "o", "b", None, "r", None, None, None, true, 0))
       }
       "which succeeds if --enrichments is present" in {
         val args = Args(
@@ -82,16 +85,16 @@ class ConfigSpec extends AnyFreeSpec with EitherValues {
             "--enrichments=e"
           )
         )
-        EnrichConfig(args) shouldEqual Right(
-          EnrichConfig("j", "i", "o", "b", None, "r", Some("e"), None, None, true)
+        EnrichConfig.from(args) shouldEqual Right(
+          EnrichConfig("j", "i", "o", "b", None, "r", Some("e"), None, None, true, 0)
         )
       }
       "which succeeds if --pii is present" in {
         val args = Args(
           Array("--job-name=j", "--raw=i", "--enriched=o", "--bad=b", "--pii=p", "--resolver=r")
         )
-        EnrichConfig(args) shouldEqual Right(
-          EnrichConfig("j", "i", "o", "b", Some("p"), "r", None, None, None, true)
+        EnrichConfig.from(args) shouldEqual Right(
+          EnrichConfig("j", "i", "o", "b", Some("p"), "r", None, None, None, true, 0)
         )
       }
       "which succeeds if --labels is present" in {
@@ -106,7 +109,7 @@ class ConfigSpec extends AnyFreeSpec with EitherValues {
             "--labels={\"env\":\"abc\"}"
           )
         )
-        EnrichConfig(args) shouldEqual Right(
+        EnrichConfig.from(args) shouldEqual Right(
           EnrichConfig(
             "j",
             "i",
@@ -117,7 +120,8 @@ class ConfigSpec extends AnyFreeSpec with EitherValues {
             None,
             Some("{\"env\":\"abc\"}"),
             None,
-            true
+            true,
+            0
           )
         )
       }
@@ -133,8 +137,8 @@ class ConfigSpec extends AnyFreeSpec with EitherValues {
             "--sentry-dsn=DSN"
           )
         )
-        EnrichConfig(args) shouldEqual Right(
-          EnrichConfig("j", "i", "o", "b", Some("p"), "r", None, None, Some("DSN"), true)
+        EnrichConfig.from(args) shouldEqual Right(
+          EnrichConfig("j", "i", "o", "b", Some("p"), "r", None, None, Some("DSN"), true, 0)
         )
       }
       "which respects --metrics=false" in {
@@ -149,8 +153,24 @@ class ConfigSpec extends AnyFreeSpec with EitherValues {
             "--metrics=false"
           )
         )
-        EnrichConfig(args) shouldEqual Right(
-          EnrichConfig("j", "i", "o", "b", Some("p"), "r", None, None, None, false)
+        EnrichConfig.from(args) shouldEqual Right(
+          EnrichConfig("j", "i", "o", "b", Some("p"), "r", None, None, None, false, 0)
+        )
+      }
+      "which succeeds if --assets-refresh-rate is present" in {
+        val args = Args(
+          Array(
+            "--job-name=j",
+            "--raw=i",
+            "--enriched=o",
+            "--bad=b",
+            "--pii=p",
+            "--resolver=r",
+            "--assets-refresh-rate=6000"
+          )
+        )
+        EnrichConfig.from(args) shouldEqual Right(
+          EnrichConfig("j", "i", "o", "b", Some("p"), "r", None, None, None, true, 6000)
         )
       }
     }
@@ -248,7 +268,7 @@ class ConfigSpec extends AnyFreeSpec with EitherValues {
       .write(Files.createTempFile(d.toAbsolutePath, name, ".json"), content.getBytes)
       .toFile
       .deleteOnExit()
-    val f = d.toFile()
+    val f = d.toFile
     f.deleteOnExit()
     f.getAbsolutePath
   }

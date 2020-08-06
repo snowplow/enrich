@@ -17,7 +17,7 @@ package com.snowplowanalytics.snowplow.enrich.beam
 import java.nio.file.Paths
 
 import com.spotify.scio.ScioMetrics
-import com.spotify.scio.io.PubsubIO
+import com.spotify.scio.io.{CustomIO, PubsubIO}
 import com.spotify.scio.testing._
 import org.apache.commons.codec.binary.Base64
 
@@ -131,4 +131,69 @@ class EnrichSpec extends PipelineSpec {
       .run()
   }
 
+  "Enrich" should "enrich a struct event with --assets-refresh-rate with IAB enrichment" in {
+    // This test doesn't assert refresh behavior, but will fail at start if windowing is invalid
+    // and from logging it should be apparent it tried to download and delete assets 3 times
+    val localIpFile = "./iab_ipFile"
+    val resourceIpFile = "/iab/ip_exclude_current_cidr.txt"
+    val localExcludeUaFile = "./iab_excludeUseragentFile"
+    val resourceExcludeUaFile = "/iab/exclude_current.txt"
+    val localIncludeUaFile = "./iab_includeUseragentFile"
+    val resourceIncludeUaFile = "/iab/include_current.txt"
+    val uriIpFile = s"http://snowplow-hosted-assets.s3.amazonaws.com/third-party$resourceIpFile"
+    val uriExcludeUaFile = s"http://snowplow-hosted-assets.s3.amazonaws.com/third-party$resourceExcludeUaFile"
+    val uriIncludeUaFile = s"http://snowplow-hosted-assets.s3.amazonaws.com/third-party$resourceIncludeUaFile"
+
+    JobTest[Enrich.type]
+      .args(
+        "--job-name=j",
+        "--raw=in",
+        "--enriched=out",
+        "--bad=bad",
+        "--assets-refresh-rate=3", // Actual value doesn't matter
+        "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI),
+        "--enrichments=" + Paths.get(getClass.getResource("/iab").toURI)
+      )
+      .input(PubsubIO.readCoder[Array[Byte]]("in"), raw.flatMap(x => Seq(x, x, x)).map(Base64.decodeBase64))
+      .input(CustomIO(AssetsManagement.SideInputName), List(0L))
+      .distCache(
+        DistCacheIO(
+          Seq(
+            uriIpFile,
+            uriExcludeUaFile,
+            uriIncludeUaFile
+          )
+        ),
+        List(
+          Right(AssetsManagement.FileLink(uriIpFile, resourceIpFile, localIpFile)),
+          Right(AssetsManagement.FileLink(uriExcludeUaFile, resourceExcludeUaFile, localExcludeUaFile)),
+          Right(AssetsManagement.FileLink(uriIncludeUaFile, resourceIncludeUaFile, localIncludeUaFile))
+        )
+      )
+      .output(PubsubIO.readString("out")) { o =>
+        o should forAll { c: String =>
+          expected.forall(c.contains)
+        }; ()
+      }
+      .output(PubsubIO.readString("bad")) { b =>
+        b should beEmpty; ()
+      }
+      .distribution(Enrich.enrichedEventSizeDistribution) { d =>
+        d.getCount shouldBe 3
+        ()
+      }
+      .distribution(Enrich.timeToEnrichDistribution) { d =>
+        d.getCount shouldBe 3
+        ()
+      }
+      .counter(ScioMetrics.counter("snowplow", "vendor_com_google_analytics")) { c =>
+        c shouldBe 3
+        ()
+      }
+      .counter(ScioMetrics.counter("snowplow", "tracker_js_0_13_1")) { c =>
+        c shouldBe 3
+        ()
+      }
+      .run()
+  }
 }

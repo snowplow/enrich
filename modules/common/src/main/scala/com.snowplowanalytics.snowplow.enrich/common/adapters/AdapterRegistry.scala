@@ -97,10 +97,9 @@ class AdapterRegistry(remoteAdapters: Map[(String, String), RemoteAdapter] = Map
     processor: Processor
   ): F[Validated[BadRow, NonEmptyList[RawEvent]]] =
     (adapters.get((payload.api.vendor, payload.api.version)) match {
-      case Some(adapter) =>
-        adapter.toRawEvents(payload, client)
-      case _ =>
-        val f: FailureDetails.AdapterFailureOrTrackerProtocolViolation = FailureDetails.AdapterFailure.InputData(
+      case Some(adapter) => adapter.toRawEvents(payload, client)
+      case None =>
+        val f = FailureDetails.AdapterFailure.InputData(
           "vendor/version",
           Some(s"${payload.api.vendor}/${payload.api.version}"),
           "vendor/version combination is not supported"

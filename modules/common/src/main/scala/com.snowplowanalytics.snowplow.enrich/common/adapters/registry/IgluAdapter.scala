@@ -77,9 +77,7 @@ object IgluAdapter extends Adapter {
         )
       case (None, Some(body), Some(contentType)) =>
         Monad[F].pure(payloadSdJsonToEvent(payload, body, contentType, params))
-      case (Some(schemaUri), Some(_), Some(_)) =>
-        Monad[F].pure(payloadToEventWithSchema(payload, schemaUri, params))
-      case (Some(schemaUri), None, _) =>
+      case (Some(schemaUri), _, _) => // Ignore body
         Monad[F].pure(payloadToEventWithSchema(payload, schemaUri, params))
       case (None, None, _) =>
         val nel = NonEmptyList.of(

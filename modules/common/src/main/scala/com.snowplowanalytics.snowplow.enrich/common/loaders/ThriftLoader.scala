@@ -41,7 +41,7 @@ import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, ParseError =
 object ThriftLoader extends Loader[Array[Byte]] {
   private val thriftDeserializer = new TDeserializer
 
-  private val ExpectedSchema =
+  private[loaders] val ExpectedSchema =
     SchemaCriterion("com.snowplowanalytics.snowplow", "CollectorPayload", "thrift", 1, 0)
 
   /** Parse Error -> Collector Payload violation */
@@ -133,7 +133,7 @@ object ThriftLoader extends Loader[Array[Byte]] {
 
     val headers = Option(collectorPayload.headers).map(_.asScala.toList).getOrElse(Nil)
 
-    val ip = IpAddressExtractor.extractIpAddress(headers, collectorPayload.ipAddress).some // Required
+    val ip = Option(IpAddressExtractor.extractIpAddress(headers, collectorPayload.ipAddress)) // Required
 
     val api = Option(collectorPayload.path) match {
       case None =>
@@ -196,7 +196,7 @@ object ThriftLoader extends Loader[Array[Byte]] {
 
     val headers = Option(snowplowRawEvent.headers).map(_.asScala.toList).getOrElse(Nil)
 
-    val ip = IpAddressExtractor.extractIpAddress(headers, snowplowRawEvent.ipAddress).some // Required
+    val ip = Option(IpAddressExtractor.extractIpAddress(headers, snowplowRawEvent.ipAddress)) // Required
 
     (querystring.toValidatedNel, networkUserId).mapN { (q, nuid) =>
       val timestamp = Some(new DateTime(snowplowRawEvent.timestamp, DateTimeZone.UTC))

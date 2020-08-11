@@ -358,12 +358,12 @@ object DbExecutor {
     connectionRef: ConnectionRef[F],
     sql: String,
     placeholderMap: Input.PlaceholderMap
-  ): F[Either[String, Unit]] =
+  ): F[Either[String, Input.PlaceholderMap]] =
     getPlaceholderCount(rdbms, connectionRef, sql).map {
       case Right(placeholderCount) =>
         placeholderMap match {
-          case Some(intMap) if intMap.keys.size == placeholderCount => ().asRight
-          case _ => s"The placeholder map error. The map: $placeholderMap, where count is: $placeholderCount".asLeft
+          case Some(intMap) if intMap.keys.size == placeholderCount => placeholderMap.asRight
+          case _ => None.asRight
         }
       case Left(error) =>
         error.getMessage.asLeft

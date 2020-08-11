@@ -22,8 +22,6 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData
 import org.specs2.Specification
 
 import outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.badrows.FailureDetails.EnrichmentFailure
-import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
 object SqlQueryEnrichmentIntegrationTest {
   def continuousIntegration: Boolean =
@@ -407,12 +405,7 @@ class SqlQueryEnrichmentIntegrationTest extends Specification {
     val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment)
     val context = config.toEither.flatMap(_.lookup(event, Nil, Nil, None).toEither)
 
-    context must beLeft.like {
-      case nel =>
-        nel.head.asInstanceOf[EnrichmentFailure].message must beEqualTo(
-          FailureDetails.EnrichmentFailureMessage.Simple("The placeholder map error. The map: Some(IntMap()), where count is: 1")
-        )
-    }
+    context must beRight(Nil)
   }
 
 }

@@ -134,12 +134,12 @@ final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor](
     unstructEvent: Option[SelfDescribingData[Json]]
   ): F[ValidatedNel[FailureDetails.EnrichmentFailure, List[SelfDescribingData[Json]]]] = {
     val contexts = for {
-      map <- Input
-               .buildPlaceholderMap(inputs, event, derivedContexts, customContexts, unstructEvent)
-               .toEitherT[F]
-      _ <- EitherT(DbExecutor.allPlaceholdersFilled(db, connection, query.sql, map))
-             .leftMap(NonEmptyList.one)
-      result <- map match {
+      placeholders <- Input
+                        .buildPlaceholderMap(inputs, event, derivedContexts, customContexts, unstructEvent)
+                        .toEitherT[F]
+      verifiedPlaceholders <- EitherT(DbExecutor.allPlaceholdersFilled(db, connection, query.sql, placeholders))
+                                .leftMap(NonEmptyList.one)
+      result <- verifiedPlaceholders match {
                   case Some(m) =>
                     EitherT(get(m)).leftMap(NonEmptyList.one)
                   case None =>

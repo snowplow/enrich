@@ -39,6 +39,11 @@ class InputSpec extends Specification with ValidatedMatchers {
   check all EnrichedEvent properties can be handled        $e10
   extract correct path-dependent values from EnrichedEvent $e11
   getBySchemaCriterion should return a data payload        $e12
+  inputsToIntmap                                           $e13
+  json decoding when missing placeholders                  $e14
+  json decoding when placeholder number is lt 1            $e15
+  json decoding when both pojo and json is provided        $e16
+  json decoding when neither pojo nor json is provided     $e17
   """
 
   object ContextCase {
@@ -302,13 +307,17 @@ class InputSpec extends Specification with ValidatedMatchers {
     val jsonBool = Input.extractFromJson(json"true")
     val jsonBigInt =
       Input.extractFromJson(parse((java.lang.Long.MAX_VALUE - 1).toString).toOption.get)
+    val jsonDouble = Input.extractFromJson(json"12.6")
+    val jsonArray = Input.extractFromJson(json"[4,8,16]")
 
     val o = jsonObject must beNone
     val n = jsonNull must beNone
     val b = jsonBool must beSome(Input.BooleanPlaceholder.Value(true))
     val l = jsonBigInt must beSome(Input.LongPlaceholder.Value(java.lang.Long.MAX_VALUE - 1))
+    val d = jsonDouble must beSome(Input.DoublePlaceholder.Value(12.6))
+    val a = jsonArray must beNone
 
-    o.and(n).and(b).and(l)
+    o.and(n).and(b).and(l).and(d).and(a)
   }
 
   def e11 = {
@@ -344,4 +353,68 @@ class InputSpec extends Specification with ValidatedMatchers {
 
     result must beSome(ContextCase.overriderContext.data)
   }
+
+  def e13 = {
+    import ContextCase._
+    val result = Input.inputsToIntmap(List(ccInput, derInput))
+    result ==== IntMap(1 -> ccInput, 2 -> derInput)
+  }
+
+  def testJsonDecoding(json: String, decodeErrorMsg: String) = {
+    import io.circe.parser._
+    implicit val foo = Input.inputCirceDecoder
+
+    val result = decode[Input](json)
+
+    result must beLeft.like {
+      case e => e.getMessage ==== decodeErrorMsg
+    }
+  }
+
+  def e14 = {
+    val in =
+      """{
+           "placeholder_wrong": 1,
+           "pojo": {
+             "field": "user_id"
+           }
+         }"""
+    testJsonDecoding(in, "Placeholder is missing")
+  }
+
+  def e15 = {
+    val in =
+      """{
+           "placeholder": 0,
+           "pojo": {
+             "field": "user_id"
+           }
+         }"""
+    testJsonDecoding(in, "Placeholder must be greater than 1")
+  }
+
+  def e16 = {
+    val in =
+      """{
+           "placeholder": 1,
+           "pojo": {
+             "field": "user_id"
+           },
+           "json": {
+             "field": "derived_contexts",
+             "schemaCriterion": "iglu:org.openweathermap/weather/jsonschema/*-*-*",
+             "jsonPath": "$.dt"
+           }
+         }"""
+    testJsonDecoding(in, "Either json or pojo input must be specified, both provided")
+  }
+
+  def e17 = {
+    val in =
+      """{
+           "placeholder": 1
+         }"""
+    testJsonDecoding(in, "Either json or pojo input must be specified")
+  }
+
 }

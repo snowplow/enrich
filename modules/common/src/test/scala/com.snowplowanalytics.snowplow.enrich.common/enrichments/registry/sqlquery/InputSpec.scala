@@ -10,20 +10,20 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments.registry.sqlquery
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery
 
 import scala.collection.immutable.IntMap
 
+import io.circe.DecodingFailure
 import io.circe.literal._
 import io.circe.parser._
 
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
 
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+
 import org.specs2.Specification
 import org.specs2.matcher.ValidatedMatchers
-
-import outputs.EnrichedEvent
 
 class InputSpec extends Specification with ValidatedMatchers {
   def is = s2"""
@@ -39,6 +39,11 @@ class InputSpec extends Specification with ValidatedMatchers {
   check all EnrichedEvent properties can be handled        $e10
   extract correct path-dependent values from EnrichedEvent $e11
   getBySchemaCriterion should return a data payload        $e12
+  inputsToIntmap assigns inputs to proper positions        $e13
+  JSON decoding when missing placeholders                  $e14
+  JSON decoding when placeholder number is lt 1            $e15
+  JSON decoding when both pojo and json is provided        $e16
+  JSON decoding when neither pojo nor json is provided     $e17
   """
 
   object ContextCase {
@@ -302,13 +307,17 @@ class InputSpec extends Specification with ValidatedMatchers {
     val jsonBool = Input.extractFromJson(json"true")
     val jsonBigInt =
       Input.extractFromJson(parse((java.lang.Long.MAX_VALUE - 1).toString).toOption.get)
+    val jsonDouble = Input.extractFromJson(json"12.6")
+    val jsonArray = Input.extractFromJson(json"[4,8,16]")
 
     val o = jsonObject must beNone
     val n = jsonNull must beNone
     val b = jsonBool must beSome(Input.BooleanPlaceholder.Value(true))
     val l = jsonBigInt must beSome(Input.LongPlaceholder.Value(java.lang.Long.MAX_VALUE - 1))
+    val d = jsonDouble must beSome(Input.DoublePlaceholder.Value(12.6))
+    val a = jsonArray must beNone
 
-    o.and(n).and(b).and(l)
+    o.and(n).and(b).and(l).and(d).and(a)
   }
 
   def e11 = {
@@ -343,5 +352,57 @@ class InputSpec extends Specification with ValidatedMatchers {
     )
 
     result must beSome(ContextCase.overriderContext.data)
+  }
+
+  def e13 = {
+    val result = Input.inputsToIntmap(List(ContextCase.ccInput, ContextCase.derInput))
+    result ==== IntMap(1 -> ContextCase.ccInput, 2 -> ContextCase.derInput)
+  }
+
+  def e14 = {
+    val in =
+      json"""{
+           "placeholder_wrong": 1,
+           "pojo": {
+             "field": "user_id"
+           }
+         }"""
+    val result = in.as[Input]
+    result must beLeft(DecodingFailure("Placeholder is missing", Nil))
+  }
+
+  def e15 = {
+    val in =
+      json"""{
+           "placeholder": 0,
+           "pojo": {
+             "field": "user_id"
+           }
+         }"""
+    val result = in.as[Input]
+    result must beLeft(DecodingFailure("Placeholder must be greater than 1", Nil))
+  }
+
+  def e16 = {
+    val in =
+      json"""{
+           "placeholder": 1,
+           "pojo": {
+             "field": "user_id"
+           },
+           "json": {
+             "field": "derived_contexts",
+             "schemaCriterion": "iglu:org.openweathermap/weather/jsonschema/*-*-*",
+             "jsonPath": "$$.dt"
+           }
+         }"""
+    val result = in.as[Input]
+    result must beLeft(DecodingFailure("Either json or pojo input must be specified, both provided", Nil))
+  }
+
+  def e17 = {
+    val in = json"""{"placeholder": 1}"""
+    val result = in.as[Input]
+    result must beLeft(DecodingFailure("Either json or pojo input must be specified", Nil))
   }
 }

@@ -1,3 +1,11 @@
+Version 1.4.0 (2020-08-25)
+--------------------------
+Beam: add mechanism for assets refresh (#319)
+Beam: bump Scio to 0.9.3 (#308)
+Common: get rid of placeholder schema in enrichment configurations (#302)
+Common: move EnrichmentConf into its own module (#303)
+Common: get rid of Eval instances (#300)
+
 Version 1.3.1 (2020-07-28)
 --------------------------
 Common: fix JS enrichment failing without return statement (#295)

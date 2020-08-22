@@ -175,8 +175,10 @@ class ThriftLoaderSpec extends Specification with DataTables with ValidatedMatch
         canonicalEvent must beValid(expected.some)
     }
 
-  val msg =
-    "error deserializing raw event: Cannot read. Remote side has closed. Tried to read 1 bytes, but only got 0 bytes. (This is often indicative of an internal error on the server side. Please check your server logs.)"
+  val violation1byte: FailureDetails.CPFormatViolationMessage =
+    FailureDetails.CPFormatViolationMessage.Fallback("error deserializing raw event: Cannot read. Remote side has closed. Tried to read 1 bytes, but only got 0 bytes. (This is often indicative of an internal error on the server side. Please check your server logs.)")
+  val violation2bytes: FailureDetails.CPFormatViolationMessage =
+    FailureDetails.CPFormatViolationMessage.Fallback("error deserializing raw event: Cannot read. Remote side has closed. Tried to read 2 bytes, but only got 0 bytes. (This is often indicative of an internal error on the server side. Please check your server logs.)")
 
   // A bit of fun: the chances of generating a valid Thrift CollectorPayload at random are
   // so low that we can just use ScalaCheck here
@@ -191,7 +193,7 @@ class ThriftLoaderSpec extends Specification with DataTables with ValidatedMatch
               ),
               List()
             ) =>
-          f must_== FailureDetails.CPFormatViolationMessage.Fallback(msg)
+          (f must beEqualTo(violation1byte)) or (f must beEqualTo(violation2bytes))
       }
     }
 

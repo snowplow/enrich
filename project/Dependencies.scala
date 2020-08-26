@@ -43,7 +43,7 @@ object Dependencies {
     val slf4j            = "1.7.26"
 
     val refererParser    = "1.0.0"
-    val maxmindIplookups = "0.6.1"
+    val maxmindIplookups = "0.7.1"
     val circe            = "0.13.0"
     val circeOptics      = "0.13.0"
     val circeJackson     = "0.13.0"
@@ -63,7 +63,7 @@ object Dependencies {
     val kinesisClient    = "1.13.3"
     val kafka            = "2.2.1"
     val nsqClient        = "1.2.0"
-    val jackson          = "2.9.9"
+    val jackson          = "2.10.3"
     val config           = "1.3.4"
 
     val scopt            = "3.7.1"
@@ -100,7 +100,7 @@ object Dependencies {
     val circeJava8       = "io.circe"                   %% "circe-java8"                   % V.circe
     val circeJawn        = "io.circe"                   %% "circe-jawn"                    % V.circe
     val circeOptics      = "io.circe"                   %% "circe-optics"                  % V.circeOptics
-    val circeJackson     = "io.circe"                   %% "circe-jackson29"               % V.circeJackson
+    val circeJackson     = "io.circe"                   %% "circe-jackson210"              % V.circeJackson
     val scalaUri         = "io.lemonlabs"               %% "scala-uri"                     % V.scalaUri
     val gatlingJsonpath  = "io.gatling"                 %% "jsonpath"                      % V.gatlingJsonpath
     val scalaForex       = "com.snowplowanalytics"      %% "scala-forex"                   % V.scalaForex

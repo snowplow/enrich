@@ -24,10 +24,9 @@ import java.time.Instant
 import com.snowplowanalytics.iglu.client.{Client, ClientError}
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 
-import com.snowplowanalytics.iglu.core.circe.instances._
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SelfDescribingData}
+import com.snowplowanalytics.iglu.core.circe.implicits._
 
-import com.snowplowanalytics.snowplow.badrows.FailureDetails
 import com.snowplowanalytics.snowplow.badrows._
 
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
@@ -281,7 +280,7 @@ object IgluUtils {
     pee: Payload.PartiallyEnrichedEvent,
     re: Payload.RawEvent,
     processor: Processor
-  ) =
+  ): BadRow.SchemaViolations =
     BadRow.SchemaViolations(
       processor,
       Failure.SchemaViolations(Instant.now(), vs),

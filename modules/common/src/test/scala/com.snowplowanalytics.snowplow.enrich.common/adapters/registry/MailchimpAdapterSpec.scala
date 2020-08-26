@@ -10,21 +10,26 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package adapters
-package registry
+package com.snowplowanalytics.snowplow.enrich.common.adapters.registry
 
 import cats.data.NonEmptyList
 import cats.syntax.option._
+
 import com.snowplowanalytics.snowplow.badrows._
+
 import io.circe._
 import io.circe.literal._
+
 import org.joda.time.DateTime
+
 import org.specs2.Specification
 import org.specs2.matcher.{DataTables, ValidatedMatchers}
 
-import loaders._
-import utils.Clock._
+import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
+import com.snowplowanalytics.snowplow.enrich.common.loaders._
+import com.snowplowanalytics.snowplow.enrich.common.utils.Clock._
+
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 
 class MailchimpAdapterSpec extends Specification with DataTables with ValidatedMatchers {
   def is = s2"""

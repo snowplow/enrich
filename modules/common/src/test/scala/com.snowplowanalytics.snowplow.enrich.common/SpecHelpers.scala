@@ -14,14 +14,19 @@ package com.snowplowanalytics.snowplow.enrich.common
 
 import cats.Id
 import cats.implicits._
+
 import com.snowplowanalytics.iglu.client.Client
 import com.snowplowanalytics.iglu.core.SelfDescribingData
-import com.snowplowanalytics.iglu.core.circe.instances._
+import com.snowplowanalytics.iglu.core.circe.implicits._
+
 import com.snowplowanalytics.lrumap.CreateLruMap._
+
 import io.circe.Json
 import io.circe.literal._
+
 import org.apache.http.NameValuePair
 import org.apache.http.message.BasicNameValuePair
+
 import com.snowplowanalytics.snowplow.enrich.common.utils.JsonUtils
 
 object SpecHelpers {

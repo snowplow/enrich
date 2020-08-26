@@ -10,9 +10,7 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package adapters
-package registry
+package com.snowplowanalytics.snowplow.enrich.common.adapters.registry
 
 import cats.Monad
 import cats.data.{NonEmptyList, ValidatedNel}
@@ -20,16 +18,21 @@ import cats.effect.Clock
 import cats.syntax.either._
 import cats.syntax.option._
 import cats.syntax.validated._
+
+import com.snowplowanalytics.iglu.core.{SchemaKey, SelfDescribingData}
+import com.snowplowanalytics.iglu.core.circe.implicits._
+
 import com.snowplowanalytics.iglu.client.Client
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-import com.snowplowanalytics.iglu.core.{SchemaKey, SelfDescribingData}
-import com.snowplowanalytics.iglu.core.circe.instances._
+
 import com.snowplowanalytics.snowplow.badrows._
+
 import io.circe._
 import io.circe.syntax._
 
-import loaders.CollectorPayload
-import utils.{ConversionUtils, HttpClient, JsonUtils}
+import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
+import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
+import com.snowplowanalytics.snowplow.enrich.common.utils.{ConversionUtils, HttpClient, JsonUtils}
 
 /**
  * Transforms a collector payload which either:

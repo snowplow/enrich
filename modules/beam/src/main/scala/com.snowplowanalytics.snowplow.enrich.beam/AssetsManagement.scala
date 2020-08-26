@@ -106,9 +106,7 @@ object AssetsManagement {
           .withRate(1L, period)
       )
       .withName("assets-refresh-window")
-      .withFixedWindows(
-        duration = period,
-        offset = Duration.ZERO,
+      .withGlobalWindow(
         options = WindowOptions(
           trigger = Repeatedly.forever(AfterPane.elementCountAtLeast(1)),
           accumulationMode = AccumulationMode.DISCARDING_FIRED_PANES,
@@ -128,7 +126,6 @@ object AssetsManagement {
     raw: SCollection[A]
   ): SCollection[A] =
     raw
-      .withFixedWindows(Duration.standardSeconds(10))
       .withSideInputs(refreshInput)
       .withName("assets-refresh")
       .map { (raw, side) =>
@@ -154,7 +151,6 @@ object AssetsManagement {
         raw
       }
       .toSCollection
-      .withGlobalWindow()
 
   /**
    * Builds a Scio's [[DistCache]] which downloads the needed files and create the necessary

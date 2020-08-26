@@ -98,13 +98,14 @@ object AssetsManagement {
 
   /** Get a side-input producing `true` only after specified period */
   def getSideInput(sc: ScioContext, period: Duration): SideInput[JLong] =
-    sc
-      .customInput(
-        SideInputName,
-        GenerateSequence
-          .from(1L)
-          .withRate(1L, period)
-      )
+    (sc.parallelize(List(1L.asInstanceOf[JLong])) ++
+      sc
+        .customInput(
+          SideInputName,
+          GenerateSequence
+            .from(2L)
+            .withRate(1L, period)
+        ))
       .withName("assets-refresh-window")
       .withFixedWindows(
         duration = period,

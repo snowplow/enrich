@@ -106,7 +106,8 @@ object AssetsManagement {
           .withRate(1L, period)
       )
       .withName("assets-refresh-window")
-      .withGlobalWindow(
+      .withFixedWindows(
+        duration = period,
         options = WindowOptions(
           trigger = Repeatedly.forever(AfterPane.elementCountAtLeast(1)),
           accumulationMode = AccumulationMode.DISCARDING_FIRED_PANES,
@@ -114,7 +115,7 @@ object AssetsManagement {
           allowedLateness = Duration.standardSeconds(0)
         )
       )
-      .withName("assets-refresh-false")
+      .withName("assets-refresh-noupdate")
       .asSingletonSideInput(DefaultValue)
 
   /** Transformation that only updates DBs and returns data as is */
@@ -126,11 +127,13 @@ object AssetsManagement {
     raw: SCollection[A]
   ): SCollection[A] =
     raw
+      .withFixedWindows(Duration.standardSeconds(10))
       .withSideInputs(refreshInput)
       .withName("assets-refresh")
       .map { (raw, side) =>
         val update = side(refreshInput)
         if (update == 1L || update == DefaultValue) {
+          logger.debug(s"Not ticking on $update")
           val _ = cachedFiles() // Download for the first time or re-download (update)
         } else {
           logger.info(s"Updating cached assets on $update tick")
@@ -151,6 +154,7 @@ object AssetsManagement {
         raw
       }
       .toSCollection
+      .withGlobalWindow()
 
   /**
    * Builds a Scio's [[DistCache]] which downloads the needed files and create the necessary

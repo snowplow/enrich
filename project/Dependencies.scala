@@ -44,15 +44,15 @@ object Dependencies {
 
     val refererParser    = "1.0.0"
     val maxmindIplookups = "0.6.1"
-    val circe            = "0.11.1"
-    val circeOptics      = "0.11.0"
-    val circeJackson     = "0.11.1"
+    val circe            = "0.13.0"
+    val circeOptics      = "0.13.0"
+    val circeJackson     = "0.13.0"
     val scalaForex       = "0.7.0"
     val scalaWeather     = "0.5.0"
     val gatlingJsonpath  = "0.6.14"
     val scalaUri         = "1.4.5"
     val scalaLruMap      = "0.3.1"
-    val badRows          = "1.0.0"
+    val badRows          = "2.1.0"
 
     val snowplowRawEvent = "0.1.0"
     val collectorPayload = "0.0.0"
@@ -98,6 +98,7 @@ object Dependencies {
     val circeParser      = "io.circe"                   %% "circe-parser"                  % V.circe
     val circeLiteral     = "io.circe"                   %% "circe-literal"                 % V.circe
     val circeJava8       = "io.circe"                   %% "circe-java8"                   % V.circe
+    val circeJawn        = "io.circe"                   %% "circe-jawn"                    % V.circe
     val circeOptics      = "io.circe"                   %% "circe-optics"                  % V.circeOptics
     val circeJackson     = "io.circe"                   %% "circe-jackson29"               % V.circeJackson
     val scalaUri         = "io.lemonlabs"               %% "scala-uri"                     % V.scalaUri

@@ -19,10 +19,13 @@ import java.time.Instant
 
 import com.snowplowanalytics.snowplow.badrows._
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+
 import cats.implicits._
+
 import io.circe.parser
+
 import com.snowplowanalytics.iglu.core.SelfDescribingData
-import com.snowplowanalytics.iglu.core.circe.instances._
+import com.snowplowanalytics.iglu.core.circe.implicits._
 
 import utils._
 import org.scalatest.freespec.AnyFreeSpec
@@ -111,7 +114,7 @@ class UtilsSpec extends AnyFreeSpec with Matchers {
         badRowSizeViolation.failure.maximumAllowedSizeBytes shouldEqual 150
         badRowSizeViolation.failure.actualSizeBytes shouldEqual 267
         badRowSizeViolation.failure.expectation shouldEqual "bad row exceeded the maximum size"
-        badRowSizeViolation.payload.line shouldEqual "{\"schema\":\"iglu"
+        badRowSizeViolation.payload.event shouldEqual "{\"schema\":\"iglu"
         badRowSizeViolation.processor shouldEqual processor
       }
     }
@@ -124,7 +127,7 @@ class UtilsSpec extends AnyFreeSpec with Matchers {
         badRowSizeViolation.failure.maximumAllowedSizeBytes shouldEqual 400
         badRowSizeViolation.failure.actualSizeBytes shouldEqual 100
         badRowSizeViolation.failure.expectation shouldEqual "event passed enrichment but exceeded the maximum allowed size as a result"
-        badRowSizeViolation.payload.line shouldEqual ("a" * 40)
+        badRowSizeViolation.payload.event shouldEqual ("a" * 40)
         badRowSizeViolation.processor shouldEqual processor
       }
     }

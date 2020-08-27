@@ -135,12 +135,15 @@ object AssetsManagement {
       .map { (raw, side) =>
         val update = side(refreshInput)
         if (update) {
-          logger.info(s"Updating cached assets")
           val existing = cachedFiles() // Get already downloaded
-          existing.foreach(updateFile(rfu))
-          val _ = cachedFiles() // Re-download (update)
+          // Traverse all existing files and find out if at least one had to be deleted
+          val atLeastOne = existing.foldLeft(false)((acc, cur) => updateFile(rfu, cur) || acc)
+          if (atLeastOne) {
+            logger.info(s"Updating cached assets")
+            val _ = cachedFiles()
+          }
         } else {
-          val _ = cachedFiles() // In case side-input's first value wasn't true
+          val _ = cachedFiles() // In case side-input's first value wasn't true somehow, should be no-op
         }
 
         raw
@@ -165,12 +168,14 @@ object AssetsManagement {
 
   /**
    * Check if link is older than 1 minute and try to delete it and its original file
-   * Checking that its older than one minute allows to not re-trigger downloading
+   * Checking that it's old allows to not re-trigger downloading
    * multiple times because refreshing side input will be true for one minute
    * @param rfu Remote File System maintaining a map of remote URIs to local files
    * @param fileLink data structure containing all information about the file
+   * @return true if thread managed to delete a link and RFU
+   *         false if there was any error or it wasn't necessary to delete it
    */
-  private def updateFile(rfu: RemoteFileUtil)(fileLink: Either[String, FileLink]): Unit =
+  private def updateFile(rfu: RemoteFileUtil, fileLink: Either[String, FileLink]): Boolean =
     fileLink match {
       case Right(FileLink(originalUri, originalPath, link)) =>
         val linkPath = Paths.get(link)
@@ -181,21 +186,25 @@ object AssetsManagement {
             .toMillis
           catch {
             case _: NoSuchFileException =>
-              logger.warn(s"Link $link does not exist for lastModifiedTime")
+              logger.warn(s"Link $link does not exist for lastModifiedTime, possibly another thread deleted it")
               Long.MaxValue
           }
 
-        if (System.currentTimeMillis() - lastModified > 60000L) {
+        if (System.currentTimeMillis() - lastModified > 60000L)
           Either.catchOnly[NoSuchFileException](Files.delete(linkPath)) match {
-            case Right(_) => ()
-            case Left(e) => logger.warn(s"Missing expired link $link for purge: ${e.getMessage}")
+            case Right(_) =>
+              // Only winner thread will purge the RFU and re-download assets
+              rfu.delete(URI.create(originalUri))
+              logger.info(s"$originalUri (with path $originalPath, link $link and timestamp $lastModified) has been deleted")
+              true
+            case Left(e) =>
+              logger.warn(s"Missing expired link $link for purge: ${e.getMessage}")
+              false
           }
-          rfu.delete(URI.create(originalUri))
-          logger.info(s"$originalUri (with path $originalPath, link $link and timestamp $lastModified) has been deleted")
-        }
+        else false
       case Left(_) =>
         // Threads ran into race condition and cannot overwrite each other's link - not a failure
-        ()
+        false
     }
 
   /**

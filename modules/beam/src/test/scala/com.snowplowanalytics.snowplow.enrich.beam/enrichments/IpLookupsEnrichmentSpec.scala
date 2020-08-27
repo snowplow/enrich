@@ -36,12 +36,12 @@ object IpLookupsEnrichmentSpec {
     "37.228.225.32",
     "10d96bc7-e400-4b29-8a41-6911ad00ee98",
     "IE",
-    "LH",
-    "Dundalk",
-    "A91",
-    "53.999",
-    "-6.4183",
-    "Louth",
+    "L",
+    "Dublin",
+    "D02",
+    "53.3331",
+    "-6.2489",
+    "Leinster",
     """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.snowplowanalytics.snowplow/screen_view/jsonschema/1-0-0","data":{"name":"hello from Snowplow"}}}""",
     "curl/7.50.3",
     "com.snowplowanalytics.snowplow",
@@ -73,6 +73,7 @@ class IpLookupsEnrichmentSpec extends PipelineSpec {
       .output(PubsubIO.readString("out")) { o =>
         o should satisfySingleValue { c: String =>
           expected.forall(c.contains) // Add `println(c);` before `expected` to see the enrichment output
+                                      // see https://github.com/snowplow/enrich/issues/327
         }; ()
       }
       .output(PubsubIO.readString("bad")) { b =>

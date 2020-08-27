@@ -108,11 +108,7 @@ object AssetsManagement {
           .from(0L)
           .withRate(1L, Duration.standardMinutes(1))
       )
-      .map { x =>
-        val update = x % period.getStandardMinutes == 0
-        if (update) logger.info(s"Ticking with true on $x")
-        x
-      }
+      .map(x => x % period.getStandardMinutes == 0)
       .withName("assets-refresh-window")
       .withGlobalWindow(
         options = WindowOptions(
@@ -177,9 +173,10 @@ object AssetsManagement {
   private def updateFile(rfu: RemoteFileUtil)(fileLink: Either[String, FileLink]): Unit =
     fileLink match {
       case Right(FileLink(originalUri, originalPath, link)) =>
+        val linkPath = Paths.get(link)
         val lastModified =
           try Files
-            .readAttributes(Paths.get(link), classOf[BasicFileAttributes])
+            .readAttributes(linkPath, classOf[BasicFileAttributes])
             .lastModifiedTime()
             .toMillis
           catch {
@@ -189,11 +186,16 @@ object AssetsManagement {
           }
 
         if (System.currentTimeMillis() - lastModified > 60000L) {
+          Either.catchOnly[NoSuchFileException](Files.delete(linkPath)) match {
+            case Right(_) => ()
+            case Left(e) => logger.warn(s"Missing expired link $link for purge: ${e.getMessage}")
+          }
           rfu.delete(URI.create(originalUri))
-          logger.info(s"$originalUri (with path $originalPath, link $link and timestamp ${lastModified}) has been deleted")
+          logger.info(s"$originalUri (with path $originalPath, link $link and timestamp $lastModified) has been deleted")
         }
-      case Left(error) =>
-        logger.warn(s"Error during asset update: $error")
+      case Left(_) =>
+        // Threads ran into race condition and cannot overwrite each other's link - not a failure
+        ()
     }
 
   /**

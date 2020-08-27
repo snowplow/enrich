@@ -163,18 +163,12 @@ object utils {
    */
   def createSymLink(file: File, symLink: String): Either[String, Path] = {
     val symLinkPath = Paths.get(symLink)
-    def create() =
+    if (!Files.exists(symLinkPath))
       Try(Files.createSymbolicLink(symLinkPath, file.toPath)) match {
         case scala.util.Success(p) => Right(p)
         case scala.util.Failure(t) => Left(s"Symlink can't be created: ${t.getMessage}")
       }
-
-    if (!Files.exists(symLinkPath)) {
-      create()
-    } else {
-      Files.delete(symLinkPath)
-      create()
-    }
+    else Left(s"A file at path $symLinkPath already exists")
   }
 
   /**

@@ -16,7 +16,6 @@ package com.snowplowanalytics.snowplow.enrich.beam
 
 import java.io.File
 import java.net.URI
-import java.lang.{Long => JLong}
 
 import cats.syntax.either._
 
@@ -25,7 +24,7 @@ import org.joda.time.Duration
 import org.slf4j.LoggerFactory
 
 import org.apache.beam.sdk.extensions.gcp.options.GcsOptions
-import org.apache.beam.sdk.io.GenerateSequence
+import org.apache.beam.sdk.io.{FileSystems, GenerateSequence}
 import org.apache.beam.sdk.values.WindowingStrategy.AccumulationMode
 import org.apache.beam.sdk.transforms.windowing.{AfterPane, Repeatedly}
 import org.apache.beam.sdk.transforms.windowing.Window.ClosingBehavior
@@ -47,7 +46,7 @@ object AssetsManagement {
   val SideInputName = "assets-refresh-tick"
 
   /** Value to tick with when assets should not get updated */
-  val DefaultValue: JLong = 0L
+  val DefaultValue: Boolean = false
 
   /** List of linked files or error messages */
   type DbList = List[Either[String, FileLink]]
@@ -81,7 +80,7 @@ object AssetsManagement {
     refreshRate match {
       case Some(rate) =>
         val rfu = RemoteFileUtil.create(sc.optionsAs[GcsOptions])
-        val refreshInput = getSideInput(sc, rate)
+        val refreshInput = getSideInput(sc, rate).asSingletonSideInput(DefaultValue)
         val distCache = buildDistCache(sc, enrichmentConfs)
         withAssetsUpdate[A](distCache, refreshInput, rfu)
       case None =>
@@ -96,19 +95,18 @@ object AssetsManagement {
             }
     }
 
-  /** Get a side-input producing `true` only after specified period */
-  def getSideInput(sc: ScioContext, period: Duration): SideInput[JLong] =
-    (sc.parallelize(List(1L.asInstanceOf[JLong])) ++
-      sc
-        .customInput(
-          SideInputName,
-          GenerateSequence
-            .from(2L)
-            .withRate(1L, period)
-        ))
+  /** `SCollection` ticking with `true` for a minute, after specified period of time */
+  def getSideInput(sc: ScioContext, period: Duration): SCollection[Boolean] =
+    sc
+      .customInput(
+        SideInputName,
+        GenerateSequence
+          .from(0L)
+          .withRate(1L, period)
+      )
+      .map(x => x % period.getStandardMinutes == 0)
       .withName("assets-refresh-window")
-      .withFixedWindows(
-        duration = period,
+      .withGlobalWindow(
         options = WindowOptions(
           trigger = Repeatedly.forever(AfterPane.elementCountAtLeast(1)),
           accumulationMode = AccumulationMode.DISCARDING_FIRED_PANES,
@@ -117,45 +115,33 @@ object AssetsManagement {
         )
       )
       .withName("assets-refresh-noupdate")
-      .asSingletonSideInput(DefaultValue)
 
   /** Transformation that only updates DBs and returns data as is */
   def withAssetsUpdate[A: Coder](
     cachedFiles: DistCache[DbList],
-    refreshInput: SideInput[JLong],
+    refreshInput: SideInput[Boolean],
     rfu: RemoteFileUtil
   )(
     raw: SCollection[A]
   ): SCollection[A] =
     raw
-      .withFixedWindows(Duration.standardSeconds(10))
+      .withGlobalWindow()
       .withSideInputs(refreshInput)
-      .withName("assets-refresh")
+      .withName("assets-refresh") // aggregate somehow, if there's true in acc - return false
       .map { (raw, side) =>
         val update = side(refreshInput)
-        if (update == 1L || update == DefaultValue) {
-          logger.debug(s"Not ticking on $update")
-          val _ = cachedFiles() // Download for the first time or re-download (update)
-        } else {
-          logger.info(s"Updating cached assets on $update tick")
+        if (update) {
+          logger.info(s"Updating cached assets")
           val existing = cachedFiles() // Get already downloaded
-          existing.foreach { // Delete all already downloaded
-            case Right(FileLink(original, link)) =>
-              val originalUri = URI.create(original)
-              rfu.delete(originalUri)
-              val linkUri = URI.create(link)
-              rfu.delete(linkUri)
-              logger.info(s"$originalUri and $linkUri deleted")
-            case Left(error) =>
-              logger.warn(s"Error during asset update: $error")
-          }
+          existing.foreach(updateFile(rfu))
           val _ = cachedFiles() // Re-download (update)
+        } else {
+          val _ = cachedFiles() // In case side-input's first value wasn't true
         }
 
         raw
       }
       .toSCollection
-      .withGlobalWindow()
 
   /**
    * Builds a Scio's [[DistCache]] which downloads the needed files and create the necessary
@@ -172,6 +158,20 @@ object AssetsManagement {
 
     sc.distCache(filesToDownload)(linkFiles(filesDestinations))
   }
+
+  private def updateFile(rfu: RemoteFileUtil)(fileLink: Either[String, FileLink]): Unit =
+    fileLink match {
+      case Right(FileLink(original, link)) =>
+        val lastModified = FileSystems.matchSingleFileSpec(original).lastModifiedMillis()
+        if (System.currentTimeMillis() - lastModified > 60000L) {
+          rfu.delete(URI.create(original))
+          rfu.delete(URI.create(link))
+          logger.info(s"$original and $link deleted")
+        } else
+          logger.info(s"Timestamp $lastModified for $original ($link) is not old enough")
+      case Left(error) =>
+        logger.warn(s"Error during asset update: $error")
+    }
 
   /**
    * Link every `downloaded` file to a destination from `links`

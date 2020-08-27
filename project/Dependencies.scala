@@ -51,8 +51,8 @@ object Dependencies {
     val scalaWeather     = "0.5.0"
     val gatlingJsonpath  = "0.6.14"
     val scalaUri         = "1.4.5"
-    val scalaLruMap      = "0.3.1"
     val badRows          = "2.1.0"
+    val igluClient       = "1.0.2"
 
     val snowplowRawEvent = "0.1.0"
     val collectorPayload = "0.0.0"
@@ -107,8 +107,8 @@ object Dependencies {
     val refererParser    = "com.snowplowanalytics"      %% "scala-referer-parser"          % V.refererParser
     val maxmindIplookups = "com.snowplowanalytics"      %% "scala-maxmind-iplookups"       % V.maxmindIplookups
     val scalaWeather     = "com.snowplowanalytics"      %% "scala-weather"                 % V.scalaWeather
-    val scalaLruMap      = "com.snowplowanalytics"      %% "scala-lru-map"                 % V.scalaLruMap
     val badRows          = "com.snowplowanalytics"      %% "snowplow-badrows"              % V.badRows
+    val igluClient       = "com.snowplowanalytics"      %% "iglu-scala-client"             % V.igluClient
     val snowplowRawEvent = "com.snowplowanalytics"      %  "snowplow-thrift-raw-event"     % V.snowplowRawEvent
     val collectorPayload = "com.snowplowanalytics"      %  "collector-payload-1"           % V.collectorPayload
     val schemaSniffer    = "com.snowplowanalytics"      %  "schema-sniffer-1"              % V.schemaSniffer

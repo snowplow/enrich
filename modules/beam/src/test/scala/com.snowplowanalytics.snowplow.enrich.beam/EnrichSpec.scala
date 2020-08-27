@@ -140,6 +140,9 @@ class EnrichSpec extends PipelineSpec {
     val resourceExcludeUaFile = "/iab/exclude_current.txt"
     val localIncludeUaFile = "./iab_includeUseragentFile"
     val resourceIncludeUaFile = "/iab/include_current.txt"
+    val uriIpFile = s"http://snowplow-hosted-assets.s3.amazonaws.com/third-party$resourceIpFile"
+    val uriExcludeUaFile = s"http://snowplow-hosted-assets.s3.amazonaws.com/third-party$resourceExcludeUaFile"
+    val uriIncludeUaFile = s"http://snowplow-hosted-assets.s3.amazonaws.com/third-party$resourceIncludeUaFile"
 
     JobTest[Enrich.type]
       .args(
@@ -152,19 +155,19 @@ class EnrichSpec extends PipelineSpec {
         "--enrichments=" + Paths.get(getClass.getResource("/iab").toURI)
       )
       .input(PubsubIO.readCoder[Array[Byte]]("in"), raw.flatMap(x => Seq(x, x, x)).map(Base64.decodeBase64))
-      .input(CustomIO(AssetsManagement.SideInputName), List(1L, 2L, 3L))
+      .input(CustomIO(AssetsManagement.SideInputName), List(0L))
       .distCache(
         DistCacheIO(
           Seq(
-            s"http://snowplow-hosted-assets.s3.amazonaws.com/third-party$resourceIpFile",
-            s"http://snowplow-hosted-assets.s3.amazonaws.com/third-party$resourceExcludeUaFile",
-            s"http://snowplow-hosted-assets.s3.amazonaws.com/third-party$resourceIncludeUaFile"
+            uriIpFile,
+            uriExcludeUaFile,
+            uriIncludeUaFile
           )
         ),
         List(
-          Right(AssetsManagement.FileLink(resourceIpFile, localIpFile)),
-          Right(AssetsManagement.FileLink(resourceExcludeUaFile, localExcludeUaFile)),
-          Right(AssetsManagement.FileLink(resourceIncludeUaFile, localIncludeUaFile))
+          Right(AssetsManagement.FileLink(uriIpFile, resourceIpFile, localIpFile)),
+          Right(AssetsManagement.FileLink(uriExcludeUaFile, resourceExcludeUaFile, localExcludeUaFile)),
+          Right(AssetsManagement.FileLink(uriIncludeUaFile, resourceIncludeUaFile, localIncludeUaFile))
         )
       )
       .output(PubsubIO.readString("out")) { o =>

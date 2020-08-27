@@ -87,7 +87,7 @@ object config {
         args.optional("labels"),
         args.optional("sentry-dsn"),
         args.boolean("metrics", default = true),
-        args.int("assets-refresh-rate", 0)
+        args.int("assets-refresh-rate", default = 0)
       )
 
     private val configurations = List(

@@ -16,6 +16,9 @@ package com.snowplowanalytics.snowplow.enrich.beam
 
 import java.io.File
 import java.net.URI
+import java.nio.file.NoSuchFileException
+import java.nio.file.attribute.BasicFileAttributes
+import java.nio.file.{Files, Paths}
 
 import cats.syntax.either._
 
@@ -24,7 +27,7 @@ import org.joda.time.Duration
 import org.slf4j.LoggerFactory
 
 import org.apache.beam.sdk.extensions.gcp.options.GcsOptions
-import org.apache.beam.sdk.io.{FileSystems, GenerateSequence}
+import org.apache.beam.sdk.io.GenerateSequence
 import org.apache.beam.sdk.values.WindowingStrategy.AccumulationMode
 import org.apache.beam.sdk.transforms.windowing.{AfterPane, Repeatedly}
 import org.apache.beam.sdk.transforms.windowing.Window.ClosingBehavior
@@ -53,12 +56,17 @@ object AssetsManagement {
 
   /**
    * A downloaded asset. `Path` not used because its not serializable
+   * @param uri an original GCS URI
    * @param original real file path on a worker
    * @param link link path to `original`. Its used because enrichments
    *             refer to static/hardcoded filepath, whereas `original`
    *             is dynamic
    */
-  case class FileLink(original: String, link: String)
+  case class FileLink(
+    uri: String,
+    original: String,
+    link: String
+  )
 
   private val logger = LoggerFactory.getLogger(this.getClass)
 
@@ -156,19 +164,34 @@ object AssetsManagement {
     val filesToDownload = filesToCache.map(_._1.toString)
     val filesDestinations = filesToCache.map(_._2)
 
-    sc.distCache(filesToDownload)(linkFiles(filesDestinations))
+    sc.distCache(filesToDownload)(linkFiles(filesToDownload, filesDestinations))
   }
 
+  /**
+   * Check if link is older than 1 minute and try to delete it and its original file
+   * Checking that its older than one minute allows to not re-trigger downloading
+   * multiple times because refreshing side input will be true for one minute
+   * @param rfu Remote File System maintaining a map of remote URIs to local files
+   * @param fileLink data structure containing all information about the file
+   */
   private def updateFile(rfu: RemoteFileUtil)(fileLink: Either[String, FileLink]): Unit =
     fileLink match {
-      case Right(FileLink(original, link)) =>
-        val lastModified = FileSystems.matchSingleFileSpec(original).lastModifiedMillis()
+      case Right(FileLink(originalUri, originalPath, link)) =>
+        val lastModified =
+          try Files
+            .readAttributes(Paths.get(link), classOf[BasicFileAttributes])
+            .lastModifiedTime()
+            .toMillis
+          catch {
+            case _: NoSuchFileException =>
+              logger.warn(s"Link $link does not exist for lastModifiedTime")
+              Long.MaxValue
+          }
+
         if (System.currentTimeMillis() - lastModified > 60000L) {
-          rfu.delete(URI.create(original))
-          rfu.delete(URI.create(link))
-          logger.info(s"$original and $link deleted")
-        } else
-          logger.info(s"Timestamp $lastModified for $original ($link) is not old enough")
+          rfu.delete(URI.create(originalUri))
+          logger.info(s"$originalUri (with path $originalPath and link $link) has been deleted")
+        }
       case Left(error) =>
         logger.warn(s"Error during asset update: $error")
     }
@@ -177,17 +200,17 @@ object AssetsManagement {
    * Link every `downloaded` file to a destination from `links`
    * Both `downloaded` and `links` must have same amount of elements
    */
-  private def linkFiles(links: List[String])(downloaded: Seq[File]): DbList = {
+  private def linkFiles(uris: List[String], links: List[String])(downloaded: Seq[File]): DbList = {
     val mapped = downloaded.toList
       .zip(links)
       .map { case (file, symLink) => createSymLink(file, symLink) }
 
-    mapped.zip(downloaded).map {
-      case (Right(p), file) =>
+    uris.zip(mapped).zip(downloaded).map {
+      case ((uri, Right(p)), file) =>
         logger.info(s"File $file cached at $p")
-        FileLink(file.toString, p.toString).asRight
-      case (Left(e), file) =>
-        logger.warn(s"File $file could not be cached: $e")
+        FileLink(uri, file.toString, p.toString).asRight
+      case ((uri, Left(e)), file) =>
+        logger.warn(s"File $file (downloaded from $uri) could not be cached: $e")
         e.asLeft
     }
   }

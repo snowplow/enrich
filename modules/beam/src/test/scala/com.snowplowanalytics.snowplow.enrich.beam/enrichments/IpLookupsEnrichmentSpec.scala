@@ -73,7 +73,7 @@ class IpLookupsEnrichmentSpec extends PipelineSpec {
       .output(PubsubIO.readString("out")) { o =>
         o should satisfySingleValue { c: String =>
           expected.forall(c.contains) // Add `println(c);` before `expected` to see the enrichment output
-                                      // see https://github.com/snowplow/enrich/issues/327
+        // see https://github.com/snowplow/enrich/issues/327
         }; ()
       }
       .output(PubsubIO.readString("bad")) { b =>

@@ -137,9 +137,11 @@ object AssetsManagement {
         if (update) {
           val existing = cachedFiles() // Get already downloaded
           // Traverse all existing files and find out if at least one had to be deleted
-          val atLeastOne = existing.foldLeft(false)((acc, cur) => updateFile(rfu, cur) || acc)
+          val atLeastOne = existing.foldLeft(false)((acc, cur) => shouldUpdate(cur) || acc)
           if (atLeastOne) {
-            logger.info(s"Updating cached assets")
+            logger.info(s"Deleting all assets: ${}")
+            existing.foreach(deleteFile(rfu))
+            logger.info("Re-downloading expired assets")
             val _ = cachedFiles()
           }
         } else {
@@ -167,44 +169,59 @@ object AssetsManagement {
   }
 
   /**
-   * Check if link is older than 1 minute and try to delete it and its original file
+   * Check if link is older than 2 minutes and try to delete it and its original file
    * Checking that it's old allows to not re-trigger downloading
    * multiple times because refreshing side input will be true for one minute
-   * @param rfu Remote File System maintaining a map of remote URIs to local files
-   * @param fileLink data structure containing all information about the file
+   * @param fileLink data structure containing all information about a file
+   *                 that potentially has to be deleted and re-downloaded
    * @return true if thread managed to delete a link and RFU
    *         false if there was any error or it wasn't necessary to delete it
    */
-  private def updateFile(rfu: RemoteFileUtil, fileLink: Either[String, FileLink]): Boolean =
+  private def shouldUpdate(fileLink: Either[String, FileLink]): Boolean =
     fileLink match {
-      case Right(FileLink(originalUri, originalPath, link)) =>
-        val linkPath = Paths.get(link)
-        val lastModified =
-          try Files
-            .readAttributes(linkPath, classOf[BasicFileAttributes])
+      case Right(FileLink(_, originalPath, _)) =>
+        val path = Paths.get(originalPath)
+        try {
+          val lastModified = Files
+            .readAttributes(path, classOf[BasicFileAttributes])
             .lastModifiedTime()
             .toMillis
-          catch {
-            case _: NoSuchFileException =>
-              logger.warn(s"Link $link does not exist for lastModifiedTime, possibly another thread deleted it")
-              Long.MaxValue
-          }
-
-        if (System.currentTimeMillis() - lastModified > 60000L)
-          Either.catchOnly[NoSuchFileException](Files.delete(linkPath)) match {
-            case Right(_) =>
-              // Only winner thread will purge the RFU and re-download assets
-              rfu.delete(URI.create(originalUri))
-              logger.info(s"$originalUri (with path $originalPath, link $link and timestamp $lastModified) has been deleted")
-              true
-            case Left(e) =>
-              logger.warn(s"Missing expired link $link for purge: ${e.getMessage}")
-              false
-          }
-        else false
+          val now = System.currentTimeMillis()
+          val should = now - lastModified > 120000L
+          if (should) logger.info(s"File $originalPath is timestamped with $lastModified at $now")
+          should
+        } catch {
+          case _: NoSuchFileException =>
+            logger.warn(
+              s"File $path does not exist for lastModifiedTime, possibly another thread deleted it. Blocking the worker to avoid futher racing"
+            )
+            Thread.sleep(2000)
+            false
+        }
       case Left(_) =>
         // Threads ran into race condition and cannot overwrite each other's link - not a failure
         false
+    }
+
+  private def deleteFile(rfu: RemoteFileUtil)(fileLink: Either[String, FileLink]): Unit =
+    fileLink match {
+      case Right(FileLink(originalUri, originalPath, linkPath)) =>
+        val deleted = deleteFilePhysically(originalPath) || deleteFilePhysically(linkPath)
+        if (deleted) {
+          rfu.delete(URI.create(originalUri))
+          logger.info(s"Deleted $fileLink")
+        }
+      case Left(_) =>
+        ()
+    }
+
+  private def deleteFilePhysically(path: String): Boolean =
+    Either.catchOnly[NoSuchFileException](Files.delete(Paths.get(path))) match {
+      case Left(_) =>
+        logger.warn(s"Tried to delete nonexisting $path")
+        false
+      case Right(_) =>
+        true
     }
 
   /**

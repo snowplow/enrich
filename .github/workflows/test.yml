@@ -78,8 +78,10 @@ jobs:
       run: sbt "project kinesis" docker:publish
     - name: Build and publish Stream Kafka Docker image
       run: sbt "project kafka" docker:publish
-    - name: Build and publish Stream NSQ Docker images
+    - name: Build and publish Stream NSQ Docker image
       run: sbt "project nsq" docker:publish
+    - name: Build and publish Stream NH Docker image
+      run: sbt "project fs2" docker:publish
 
   deploy_sce:
     needs: test

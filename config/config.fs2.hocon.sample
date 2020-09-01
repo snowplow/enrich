@@ -1,0 +1,47 @@
+// "Gcp" is the only valid option now
+auth = {
+  type = "Gcp"
+}
+
+// Collector input
+input = {
+  type = "PubSub"
+  subscription = "projects/test-project/subscriptions/inputSub"
+
+  // Local FS supported for testing purposes
+  // type = "FileSystem"
+  // dir = "/var/collector"
+}
+
+// Enriched events output
+good = {
+  type = "PubSub"
+  topic = "projects/test-project/topics/good-topic"
+
+  // Local FS supported for testing purposes
+  // type = "FileSystem"
+  // dir = "/var/enriched"
+}
+
+// Bad rows output
+bad = {
+  type = "PubSub"
+  topic = "projects/test-project/topics/bad-topic"
+
+  // Local FS supported for testing purposes
+  // type = "FileSystem"
+  // dir = "/var/bad"
+}
+
+// Optional, for tracking runtime exceptions
+sentry = {
+  dsn = "http://sentry.acme.com"
+}
+
+// Optional, period after which enrich assets should be checked for updates
+// no assets will be updated if the key is absent
+assetsUpdatePeriod = "7 days"
+
+// Optional, period after Dropwizard will print out its metrics
+// no metrics will be printed if the key is absent
+metricsReportPeriod = "1 second"

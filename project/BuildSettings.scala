@@ -38,7 +38,8 @@ object BuildSettings {
     scalaVersion          :=  "2.12.11",
     version               :=  "1.3.2",
     javacOptions          :=  Seq("-source", "11", "-target", "11"),
-    resolvers             ++= Dependencies.resolutionRepos
+    resolvers             ++= Dependencies.resolutionRepos,
+    licenses              += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html")),
   )
 
   /** Custom sbt-buildinfo replacement, used by SCE only */
@@ -62,7 +63,6 @@ object BuildSettings {
     publishMavenStyle := true,
     publishArtifact := true,
     publishArtifact in Test := false,
-    licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html")),
     bintrayOrganization := Some("snowplow"),
     bintrayRepository := "snowplow-maven",
     pomIncludeRepository := { _ => false },

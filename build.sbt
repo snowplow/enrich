@@ -19,7 +19,7 @@
 lazy val root = project.in(file("."))
   .settings(name := "enrich")
   .settings(BuildSettings.basicSettings)
-  .aggregate(common, beam, stream, kinesis, kafka, nsq, stdin)
+  .aggregate(common, beam, stream, kinesis, kafka, nsq, stdin, fs2)
 
 lazy val common = project
   .in(file("modules/common"))

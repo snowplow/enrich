@@ -86,7 +86,7 @@ object Enrich {
   }
 
   /**
-   * Enrich a single [[CollectorPayload]] to get list of bad rows and/or enriched events
+   * Enrich a single `CollectorPayload` to get list of bad rows and/or enriched events
    *
    * Along with actual `ack` the `enrichLatency` gauge will be updated
    */
@@ -127,7 +127,7 @@ object Enrich {
       }
       .mkString("\t")
 
-  /** Log an error, turn the problematic [[CollectorPayload]] into [[BadRow]] and notify Sentry if configured */
+  /** Log an error, turn the problematic `CollectorPayload` into `BadRow` and notify Sentry if configured */
   def sendToSentry[F[_]: Sync: Clock](original: Payload[F, Array[Byte]], sentry: Option[SentryClient])(error: Throwable): F[Result[F]] =
     for {
       _ <- Logger[F].error("Runtime exception during payload enrichment. CollectorPayload converted to generic_error and ack'ed")

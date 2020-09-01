@@ -1,0 +1,24 @@
+auth = {
+  type = "Gcp"
+  projectId = "test-project"
+}
+input = {
+  type = "PubSub"
+  subscriptionId = "inputSub"
+}
+good = {
+  type = "PubSub"
+  topic = "good-topic"
+}
+bad = {
+  type = "PubSub"
+  topic = "bad-topic"
+}
+
+assetsUpdatePeriod = "7 days"
+
+sentry = {
+  dsn = "http://sentry.acme.com"
+}
+
+metricsReportPeriod = "1 second"

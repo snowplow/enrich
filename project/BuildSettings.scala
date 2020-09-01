@@ -102,6 +102,9 @@ object BuildSettings {
   lazy val sbtAssemblySettings = Seq(
     assemblyJarName in assembly := { s"${moduleName.value}-${version.value}.jar" },
     assemblyMergeStrategy in assembly := {
+      case x if x.endsWith("native-image.properties") => MergeStrategy.first
+      case x if x.endsWith("io.netty.versions.properties") => MergeStrategy.first
+      case x if x.endsWith("public-suffix-list.txt") => MergeStrategy.first
       case x if x.endsWith("ProjectSettings$.class") => MergeStrategy.first
       case x if x.endsWith("module-info.class") => MergeStrategy.first
       case x =>

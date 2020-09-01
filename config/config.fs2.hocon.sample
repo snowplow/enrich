@@ -1,0 +1,32 @@
+raw = {
+  type = "pubsub"
+  project = "project"
+  subscription = "subscription"
+}
+
+//  raw = {
+//    type = "fs"
+//    path = "/Users/chuwy/enriched"
+//  }
+
+good = {
+  type = "pubsub"
+  project = "project"
+  subscription = "subscription"
+}
+
+bad = {
+  type = "pubsub"
+  project = "project"
+  subscription = "subscription"
+}
+
+pii = {
+  type = "pubsub"
+  project = "project"
+  subscription = "subscription"
+}
+
+sentry = {
+  dsn = "http://smth"
+}

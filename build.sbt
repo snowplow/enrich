@@ -178,6 +178,45 @@ lazy val beam =
     )
     .enablePlugins(JavaAppPackaging, DockerPlugin, BuildInfoPlugin)
 
+lazy val fs2 = project
+  .in(file("modules/fs2"))
+  .dependsOn(common)
+  .settings(BuildSettings.basicSettings)
+  .settings(BuildSettings.formatting)
+  .settings(BuildSettings.scoverageSettings)
+  .settings(
+    name := "fs2-enrich",
+    description := "High-performance streaming Snowplow Enrich job built on top of functional streams",
+    buildInfoKeys := Seq[BuildInfoKey](organization, name, version, "sceVersion" -> version.value, description),
+    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.fs2.generated",
+  )
+  .settings(
+    libraryDependencies ++= Seq(
+      Dependencies.Libraries.decline,
+      Dependencies.Libraries.fs2PubSub,
+      Dependencies.Libraries.circeExtras,
+      Dependencies.Libraries.circeLiteral,
+      Dependencies.Libraries.circeConfig,
+      Dependencies.Libraries.fs2,
+      Dependencies.Libraries.fs2Io,
+      Dependencies.Libraries.slf4j,
+      Dependencies.Libraries.sentry,
+      Dependencies.Libraries.log4cats,
+      Dependencies.Libraries.catsRetry,
+      Dependencies.Libraries.http4sClient,
+      Dependencies.Libraries.fs2BlobS3,
+      Dependencies.Libraries.fs2BlobGcs,
+      Dependencies.Libraries.pureconfig,
+      Dependencies.Libraries.pureconfigCats,
+      Dependencies.Libraries.pureconfigCirce,
+      Dependencies.Libraries.specs2,
+      Dependencies.Libraries.http4sDsl,
+      Dependencies.Libraries.http4sServer
+    ),
+    addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
+  )
+  .enablePlugins(BuildInfoPlugin)
+
 lazy val integrationTests = project
   .in(file("modules/integration-tests"))
   .settings(moduleName := "integration-tests")

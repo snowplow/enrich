@@ -13,12 +13,9 @@
 package com.snowplowanalytics.snowplow.enrich.common.adapters.registry
 
 import cats.Monad
-import cats.data.{NonEmptyList, ValidatedNel}
+import cats.data.{NonEmptyList, Validated, ValidatedNel}
 import cats.data.Validated._
-import cats.syntax.either._
-import cats.syntax.eq._
-import cats.syntax.option._
-import cats.syntax.validated._
+import cats.implicits._
 
 import cats.effect.Clock
 
@@ -265,17 +262,11 @@ trait Adapter {
    * or Failures
    */
   protected[registry] def rawEventsListProcessor(
-    rawEventsList: List[ValidatedNel[FailureDetails.AdapterFailure, RawEvent]]
+    rawEventsList: List[Validated[NonEmptyList[FailureDetails.AdapterFailure], RawEvent]]
   ): ValidatedNel[FailureDetails.AdapterFailure, NonEmptyList[RawEvent]] = {
-    val successes: List[RawEvent] =
-      for {
-        Valid(s) <- rawEventsList
-      } yield s
-
-    val failures: List[FailureDetails.AdapterFailure] =
-      (for {
-        Invalid(NonEmptyList(h, t)) <- rawEventsList
-      } yield h :: t).flatten
+    val (failures, successes) = rawEventsList.separate match {
+      case (nel, list) => (nel.flatMap(_.toList), list)
+    }
 
     (successes, failures) match {
       // No Failures collected.

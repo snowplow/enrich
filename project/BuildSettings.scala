@@ -38,7 +38,8 @@ object BuildSettings {
     scalaVersion          :=  "2.12.11",
     version               :=  "1.3.2",
     javacOptions          :=  Seq("-source", "11", "-target", "11"),
-    resolvers             ++= Dependencies.resolutionRepos
+    resolvers             ++= Dependencies.resolutionRepos,
+    licenses              += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html")),
   )
 
   /** Custom sbt-buildinfo replacement, used by SCE only */
@@ -62,7 +63,6 @@ object BuildSettings {
     publishMavenStyle := true,
     publishArtifact := true,
     publishArtifact in Test := false,
-    licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html")),
     bintrayOrganization := Some("snowplow"),
     bintrayRepository := "snowplow-maven",
     pomIncludeRepository := { _ => false },
@@ -102,6 +102,9 @@ object BuildSettings {
   lazy val sbtAssemblySettings = Seq(
     assemblyJarName in assembly := { s"${moduleName.value}-${version.value}.jar" },
     assemblyMergeStrategy in assembly := {
+      case x if x.endsWith("native-image.properties") => MergeStrategy.first
+      case x if x.endsWith("io.netty.versions.properties") => MergeStrategy.first
+      case x if x.endsWith("public-suffix-list.txt") => MergeStrategy.first
       case x if x.endsWith("ProjectSettings$.class") => MergeStrategy.first
       case x if x.endsWith("module-info.class") => MergeStrategy.first
       case x =>

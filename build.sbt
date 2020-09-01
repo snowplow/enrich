@@ -19,7 +19,7 @@
 lazy val root = project.in(file("."))
   .settings(name := "enrich")
   .settings(BuildSettings.basicSettings)
-  .aggregate(common, beam, stream, kinesis, kafka, nsq, stdin)
+  .aggregate(common, beam, stream, kinesis, kafka, nsq, stdin, fs2)
 
 lazy val common = project
   .in(file("modules/common"))
@@ -183,3 +183,53 @@ lazy val beam =
     .enablePlugins(JavaAppPackaging, DockerPlugin, BuildInfoPlugin)
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
+
+lazy val fs2 = project
+  .in(file("modules/fs2"))
+  .dependsOn(common)
+  .settings(BuildSettings.basicSettings)
+  .settings(BuildSettings.formatting)
+  .settings(BuildSettings.scoverageSettings)
+  .settings(BuildSettings.addExampleConfToTestCp)
+  .settings(BuildSettings.sbtAssemblySettings)
+  .settings(
+    name := "fs2-enrich",
+    description := "High-performance streaming Snowplow Enrich job built on top of functional streams",
+    buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
+    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.fs2.generated",
+    packageName in Docker := "snowplow/fs2-enrich",
+  )
+  .settings(parallelExecution in Test := false)
+  .settings(
+    libraryDependencies ++= Seq(
+      Dependencies.Libraries.decline,
+      Dependencies.Libraries.fs2PubSub,
+      Dependencies.Libraries.circeExtras,
+      Dependencies.Libraries.circeLiteral,
+      Dependencies.Libraries.circeConfig,
+      Dependencies.Libraries.catsEffect,
+      Dependencies.Libraries.fs2,
+      Dependencies.Libraries.fs2Io,
+      Dependencies.Libraries.slf4j,
+      Dependencies.Libraries.sentry,
+      Dependencies.Libraries.log4cats,
+      Dependencies.Libraries.catsRetry,
+      Dependencies.Libraries.http4sClient,
+      Dependencies.Libraries.fs2BlobS3,
+      Dependencies.Libraries.fs2BlobGcs,
+      Dependencies.Libraries.metrics,
+      Dependencies.Libraries.pureconfig.withRevision(Dependencies.V.pureconfig013),
+      Dependencies.Libraries.pureconfigCats.withRevision(Dependencies.V.pureconfig013),
+      Dependencies.Libraries.pureconfigCirce.withRevision(Dependencies.V.pureconfig013),
+      Dependencies.Libraries.specs2,
+      Dependencies.Libraries.specs2CE,
+      Dependencies.Libraries.scalacheck,
+      Dependencies.Libraries.specs2Scalacheck,
+      Dependencies.Libraries.http4sDsl,
+      Dependencies.Libraries.http4sServer
+    ),
+    addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
+  )
+  .enablePlugins(BuildInfoPlugin)
+  .settings(BuildSettings.dockerSettings)
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)

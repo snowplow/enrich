@@ -18,6 +18,8 @@ import cats.{Id, Monad}
 import cats.data.{EitherT, NonEmptyList, ValidatedNel}
 import cats.implicits._
 
+import cats.effect.Sync
+
 import io.circe._
 import io.circe.generic.auto._
 
@@ -26,7 +28,6 @@ import com.snowplowanalytics.iglu.core.circe.implicits._
 
 import com.snowplowanalytics.lrumap._
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
-
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{Enrichment, ParseableEnrichment}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.ApiRequestConf
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
@@ -218,6 +219,26 @@ object CreateApiRequestEnrichment {
   ): CreateApiRequestEnrichment[Id] =
     new CreateApiRequestEnrichment[Id] {
       override def create(conf: ApiRequestConf): Id[ApiRequestEnrichment[Id]] =
+        CLM
+          .create(conf.cache.size)
+          .map(c =>
+            ApiRequestEnrichment(
+              conf.schemaKey,
+              conf.inputs,
+              conf.api,
+              conf.outputs,
+              conf.cache.ttl,
+              c
+            )
+          )
+    }
+
+  implicit def syncCreateApiRequestEnrichment[F[_]: Sync](
+    implicit CLM: CreateLruMap[F, String, (Either[Throwable, Json], Long)],
+    HTTP: HttpClient[F]
+  ): CreateApiRequestEnrichment[F] =
+    new CreateApiRequestEnrichment[F] {
+      def create(conf: ApiRequestConf): F[ApiRequestEnrichment[F]] =
         CLM
           .create(conf.cache.size)
           .map(c =>

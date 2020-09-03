@@ -14,9 +14,6 @@ package com.snowplowanalytics.snowplow.enrich.common
 
 package enrichments
 
-import org.specs2.mutable.Specification
-import org.specs2.matcher.EitherMatchers
-
 import cats.Id
 import cats.implicits._
 import cats.data.NonEmptyList
@@ -26,32 +23,20 @@ import io.circe.literal._
 import org.joda.time.DateTime
 
 import com.snowplowanalytics.snowplow.badrows._
-
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
 import loaders._
 import adapters.RawEvent
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import utils.Clock._
 import utils.ConversionUtils
-import enrichments.registry.JavascriptScriptEnrichment
-import enrichments.registry.YauaaEnrichment
+import enrichments.registry.{IabEnrichment, JavascriptScriptEnrichment, YauaaEnrichment}
+
+import org.specs2.mutable.Specification
+import org.specs2.matcher.EitherMatchers
 
 class EnrichmentManagerSpec extends Specification with EitherMatchers {
-  val enrichmentReg = EnrichmentRegistry[Id](yauaa = Some(YauaaEnrichment(None)))
-  val client = SpecHelpers.client
-  val processor = Processor("ssc-tests", "0.0.0")
-  val timestamp = DateTime.now()
-
-  val api = CollectorPayload.Api("com.snowplowanalytics.snowplow", "tp2")
-  val source = CollectorPayload.Source("clj-tomcat", "UTF-8", None)
-  val context = CollectorPayload.Context(
-    DateTime.parse("2013-08-29T00:18:48.000+00:00").some,
-    "37.157.33.123".some,
-    None,
-    None,
-    Nil,
-    None
-  )
+  import EnrichmentManagerSpec._
 
   "enrichEvent" should {
     "return a SchemaViolations bad row if the input event contains an invalid context" >> {
@@ -321,4 +306,96 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       enriched.value.map(_.useragent) must beRight("header-useragent")
     }
   }
+
+  "getIabContext" should {
+    "return None if useragent is null" >> {
+      val input = new EnrichedEvent()
+      input.setUser_ipaddress("127.0.0.1")
+      input.setDerived_tstamp("2010-06-30 01:20:01.000")
+      EnrichmentManager.getIabContext(input, iabEnrichment) must beRight(None)
+    }
+
+    "return None if user_ipaddress is null" >> {
+      val input = new EnrichedEvent()
+      input.setUseragent("Firefox")
+      input.setDerived_tstamp("2010-06-30 01:20:01.000")
+      EnrichmentManager.getIabContext(input, iabEnrichment) must beRight(None)
+    }
+
+    "return None if derived_tstamp is null" >> {
+      val input = new EnrichedEvent()
+      input.setUser_ipaddress("127.0.0.1")
+      input.setUseragent("Firefox")
+      EnrichmentManager.getIabContext(input, iabEnrichment) must beRight(None)
+    }
+
+    "return None if user_ipaddress in invalid" >> {
+      val input = new EnrichedEvent()
+      input.setUser_ipaddress("invalid")
+      input.setUseragent("Firefox")
+      input.setDerived_tstamp("2010-06-30 01:20:01.000")
+      EnrichmentManager.getIabContext(input, iabEnrichment) must beRight(None)
+    }
+
+    "return Some if all arguments are valid" >> {
+      val input = new EnrichedEvent()
+      input.setUser_ipaddress("127.0.0.1")
+      input.setUseragent("Firefox")
+      input.setDerived_tstamp("2010-06-30 01:20:01.000")
+      EnrichmentManager.getIabContext(input, iabEnrichment) must beRight.like { case ctx => ctx must beSome }
+    }
+  }
+}
+
+object EnrichmentManagerSpec {
+
+  val enrichmentReg = EnrichmentRegistry[Id](yauaa = Some(YauaaEnrichment(None)))
+  val client = SpecHelpers.client
+  val processor = Processor("ssc-tests", "0.0.0")
+  val timestamp = DateTime.now()
+
+  val api = CollectorPayload.Api("com.snowplowanalytics.snowplow", "tp2")
+  val source = CollectorPayload.Source("clj-tomcat", "UTF-8", None)
+  val context = CollectorPayload.Context(
+    DateTime.parse("2013-08-29T00:18:48.000+00:00").some,
+    "37.157.33.123".some,
+    None,
+    None,
+    Nil,
+    None
+  )
+
+  val iabEnrichment = IabEnrichment
+    .parse(
+      json"""{
+      "name": "iab_spiders_and_robots_enrichment",
+      "vendor": "com.snowplowanalytics.snowplow.enrichments",
+      "enabled": false,
+      "parameters": {
+        "ipFile": {
+          "database": "ip_exclude_current_cidr.txt",
+          "uri": "s3://my-private-bucket/iab"
+        },
+        "excludeUseragentFile": {
+          "database": "exclude_current.txt",
+          "uri": "s3://my-private-bucket/iab"
+        },
+        "includeUseragentFile": {
+          "database": "include_current.txt",
+          "uri": "s3://my-private-bucket/iab"
+        }
+      }
+    }""",
+      SchemaKey(
+        "com.snowplowanalytics.snowplow.enrichments",
+        "iab_spiders_and_robots_enrichment",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      ),
+      true
+    )
+    .toOption
+    .getOrElse(throw new RuntimeException("IAB enrichment couldn't be initialised")) // to make sure it's not none
+    .enrichment[Id]
+    .some
 }

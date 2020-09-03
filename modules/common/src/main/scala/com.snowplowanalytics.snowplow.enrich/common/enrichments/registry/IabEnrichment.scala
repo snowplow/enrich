@@ -14,12 +14,11 @@ package com.snowplowanalytics.snowplow.enrich.common
 package enrichments.registry
 
 import java.io.File
-import java.net.URI
-
-import inet.ipaddr.HostName
+import java.net.{InetAddress, URI}
 
 import cats.{Eval, Id, Monad}
 import cats.data.{NonEmptyList, ValidatedNel}
+
 import cats.effect.Sync
 import cats.implicits._
 
@@ -33,7 +32,6 @@ import io.circe.generic.auto._
 import io.circe.syntax._
 
 import org.joda.time.DateTime
-
 import utils.CirceUtils
 
 /** Companion object. Lets us create an IabEnrichment instance from a Json. */
@@ -133,25 +131,22 @@ final case class IabEnrichment(schemaKey: SchemaKey, iabClient: IabClient) exten
    */
   private[enrichments] def performCheck(
     userAgent: String,
-    ipAddress: String,
+    ipAddress: InetAddress,
     accurateAt: DateTime
   ): Either[FailureDetails.EnrichmentFailure, IabEnrichmentResponse] =
-    (for {
-      ip <- Either
-              .catchNonFatal(new HostName(ipAddress).toInetAddress)
-              .leftMap(e =>
-                FailureDetails.EnrichmentFailureMessage
-                  .InputData("user_ipaddress", ipAddress.some, e.getMessage)
-              )
-      result <- Either
-                  .catchNonFatal(iabClient.checkAt(userAgent, ip, accurateAt.toDate))
-                  .leftMap(e => FailureDetails.EnrichmentFailureMessage.Simple(e.getMessage))
-    } yield IabEnrichmentResponse(
-      result.isSpiderOrRobot,
-      result.getCategory.toString,
-      result.getReason.toString,
-      result.getPrimaryImpact.toString
-    )).leftMap(FailureDetails.EnrichmentFailure(enrichmentInfo, _))
+    Either
+      .catchNonFatal(iabClient.checkAt(userAgent, ipAddress, accurateAt.toDate)) match {
+      case Right(result) =>
+        IabEnrichmentResponse(
+          result.isSpiderOrRobot,
+          result.getCategory.toString,
+          result.getReason.toString,
+          result.getPrimaryImpact.toString
+        ).asRight
+      case Left(exception) =>
+        val message = FailureDetails.EnrichmentFailureMessage.Simple(exception.getMessage)
+        FailureDetails.EnrichmentFailure(enrichmentInfo, message).asLeft
+    }
 
   /**
    * Get the IAB response as a JSON context for a specific event
@@ -161,50 +156,12 @@ final case class IabEnrichment(schemaKey: SchemaKey, iabClient: IabClient) exten
    * @return IAB response as a self-describing JSON object
    */
   def getIabContext(
-    userAgent: Option[String],
-    ipAddress: Option[String],
-    accurateAt: Option[DateTime]
-  ): Either[NonEmptyList[FailureDetails.EnrichmentFailure], SelfDescribingData[Json]] =
-    getIab(userAgent, ipAddress, accurateAt).map { iab =>
-      SelfDescribingData(outputSchema, iab)
-    }
-
-  /**
-   * Get IAB check response received from the client library and extracted as a JSON object
-   * @param userAgent enriched event optional user agent
-   * @param ipAddress enriched event optional IP address
-   * @param time enriched event optional datetime
-   * @return IAB response as JSON object
-   */
-  private def getIab(
-    userAgent: Option[String],
-    ipAddress: Option[String],
-    time: Option[DateTime]
-  ): Either[NonEmptyList[FailureDetails.EnrichmentFailure], Json] =
-    (userAgent, ipAddress, time) match {
-      case (Some(ua), Some(ip), Some(t)) =>
-        performCheck(ua, ip, t)
-          .map(_.asJson)
-          .leftMap(NonEmptyList.one)
-      case (a, b, c) =>
-        val failures = List((a, "useragent"), (b, "user_ipaddress"), (c, "derived_tstamp"))
-          .collect {
-            case (None, n) =>
-              val f = FailureDetails.EnrichmentFailureMessage.InputData(
-                n,
-                none,
-                "missing"
-              )
-              FailureDetails.EnrichmentFailure(enrichmentInfo, f)
-          }
-        NonEmptyList
-          .fromList(failures)
-          .getOrElse(NonEmptyList.of {
-            val f = FailureDetails.EnrichmentFailureMessage
-              .Simple("could not construct failures")
-            FailureDetails.EnrichmentFailure(enrichmentInfo, f)
-          })
-          .asLeft
+    userAgent: String,
+    ipAddress: InetAddress,
+    accurateAt: DateTime
+  ): Either[FailureDetails.EnrichmentFailure, SelfDescribingData[Json]] =
+    performCheck(userAgent, ipAddress, accurateAt).map { iab =>
+      SelfDescribingData(outputSchema, iab.asJson)
     }
 }
 

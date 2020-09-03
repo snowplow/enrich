@@ -15,7 +15,7 @@ package utils
 
 import java.lang.{Byte => JByte, Integer => JInteger}
 import java.math.{BigDecimal => JBigDecimal}
-import java.net.{URI, URLDecoder, URLEncoder}
+import java.net.{InetAddress, URI, URLDecoder, URLEncoder}
 import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets.UTF_8
 import java.util.UUID
@@ -28,6 +28,8 @@ import cats.syntax.either._
 import cats.syntax.option._
 
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
+
+import inet.ipaddr.HostName
 
 import io.lemonlabs.uri.{Uri, Url}
 import io.lemonlabs.uri.config.UriConfig
@@ -471,4 +473,8 @@ object ConversionUtils {
       nvps = r.asScala.toList
       pairs = nvps.map(p => p.getName() -> p.getValue())
     } yield pairs.toMap
+
+  /** Extract valid IP (v4 or v6) address from a string */
+  def extractInetAddress(arg: String): Option[InetAddress] =
+    Either.catchNonFatal(new HostName(arg).toInetAddress).toOption
 }

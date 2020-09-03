@@ -123,7 +123,7 @@ object EnrichmentManager {
         getDerivedTstamp(enriched)
 
       // Fetch IAB enrichment context (before anonymizing the IP address)
-      val iabContext: Either[NonEmptyList[FailureDetails.EnrichmentFailure], Option[
+      val iabContext: Either[FailureDetails.EnrichmentFailure, Option[
         SelfDescribingData[Json]
       ]] =
         getIabContext(enriched, registry.iab)
@@ -201,7 +201,7 @@ object EnrichmentManager {
           collectorVersionSet.toValidatedNel,
           pageUri.toValidatedNel,
           derivedTstamp.toValidatedNel,
-          iabContext.toValidated,
+          iabContext.toValidatedNel,
           uaUtils.toValidatedNel,
           uaParser.toValidatedNel,
           refererUri.toValidatedNel,
@@ -432,20 +432,17 @@ object EnrichmentManager {
   def getIabContext(
     event: EnrichedEvent,
     iabEnrichment: Option[IabEnrichment]
-  ): Either[NonEmptyList[FailureDetails.EnrichmentFailure], Option[SelfDescribingData[Json]]] =
-    if ((event.useragent == null) || event.useragent.trim.isEmpty) None.asRight
-    else
-      iabEnrichment match {
-        case Some(iab) =>
-          iab
-            .getIabContext(
-              Option(event.useragent),
-              Option(event.user_ipaddress),
-              Option(event.derived_tstamp).map(EventEnrichments.fromTimestamp)
-            )
-            .map(_.some)
-        case None => None.asRight
-      }
+  ): Either[FailureDetails.EnrichmentFailure, Option[SelfDescribingData[Json]]] = {
+    val result = for {
+      iab <- iabEnrichment
+      useragent <- Option(event.useragent).filter(_.trim.nonEmpty)
+      ipString <- Option(event.user_ipaddress)
+      ip <- CU.extractInetAddress(ipString)
+      tstamp <- Option(event.derived_tstamp).map(EventEnrichments.fromTimestamp)
+    } yield iab.getIabContext(useragent, ip, tstamp)
+
+    result.sequence
+  }
 
   def anonIp(event: EnrichedEvent, anonIp: Option[AnonIpEnrichment]): Option[String] =
     Option(event.user_ipaddress).map { ip =>

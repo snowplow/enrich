@@ -37,6 +37,7 @@ import com.snowplowanalytics.snowplow.badrows.{BadRow, Processor}
 import com.snowplowanalytics.snowplow.enrich.common.{EtlPipeline, SpecHelpers}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.IpLookupsEnrichment
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.CampaignAttributionEnrichment
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.loaders._
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
@@ -76,6 +77,17 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
         "uid" -> "john@acme.com",
         "ip" -> "70.46.123.145",
         "fp" -> "its_you_again!",
+        "url" -> "http://foo.bar?utm_term=hello&utm_content=world&msclkid=500&_sp=duid",
+        "dnuid" -> "gfhdgjfgndf",
+        "nuid" -> "kuykyfkfykukfuy",
+        "tr_id" -> "t5465463",
+        "ti_id" -> "6546b56356b354bbv",
+        "se_ca" -> "super category",
+        "se_ac" -> "great action",
+        "se_la" -> "awesome label",
+        "se_pr" -> "good property",
+        "duid" -> "786d1b69-a603-4eb8-9178-fed2a195a1ed",
+        "sid" -> "87857856-a603-4eb8-9178-fed2a195a1ed",
         "co" ->
           """
         |{
@@ -100,6 +112,12 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
         |        "someInt": 1
         |      },
         |      "schema":  "iglu:com.acme/email_sent/jsonschema/1-1-0"
+        |    },
+        |    {
+        |      "schema": "iglu:com.test/array/jsonschema/1-0-0",
+        |      "data": {
+        |        "field" : ["hello", "world"]
+        |      }
         |    }
         |  ]
         |}
@@ -178,19 +196,75 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
     IpLookupsEnrichment.parse(js, schemaKey, true).toOption.get.enrichment[Id]
   }
 
+  private val campaignAttributionEnrichment = {
+    val js = json"""{
+		  "enabled": true,
+		  "parameters": {
+		    "mapping": "static",
+		    "fields": {
+          "mktMedium": ["utm_medium"],
+          "mktSource": ["utm_source"],
+          "mktTerm": ["utm_term"],
+          "mktContent": ["utm_content"],
+          "mktCampaign": ["utm_campaign"]
+		    }
+		  }
+    }"""
+    val schemaKey = SchemaKey(
+      "com.snowplowanalytics.snowplow",
+      "campaign_attribution",
+      "jsonschema",
+      SchemaVer.Full(1, 0, 1)
+    )
+    CampaignAttributionEnrichment.parse(js, schemaKey).toOption.get.enrichment
+  }
+
   def e1 = {
     val enrichmentReg = EnrichmentRegistry[Id](
       ipLookups = ipEnrichment.some,
+      campaignAttribution = campaignAttributionEnrichment.some,
       piiPseudonymizer = PiiPseudonymizerEnrichment(
         List(
           PiiScalar(fieldMutator = ScalarMutators("user_id")),
           PiiScalar(
             fieldMutator = ScalarMutators("user_ipaddress")
           ),
-          PiiScalar(fieldMutator = ScalarMutators("ip_domain")),
           PiiScalar(
             fieldMutator = ScalarMutators("user_fingerprint")
-          )
+          ),
+          PiiScalar(
+            fieldMutator = ScalarMutators("domain_userid")
+          ),
+          PiiScalar(
+            fieldMutator = ScalarMutators("network_userid")
+          ),
+          PiiScalar(
+            fieldMutator = ScalarMutators("ip_organization")
+          ),
+          PiiScalar(
+            fieldMutator = ScalarMutators("ip_domain")
+          ),
+          PiiScalar(
+            fieldMutator = ScalarMutators("tr_orderid")
+          ),
+          PiiScalar(
+            fieldMutator = ScalarMutators("ti_orderid")
+          ),
+          PiiScalar(
+            fieldMutator = ScalarMutators("mkt_term")
+          ),
+          PiiScalar(
+            fieldMutator = ScalarMutators("mkt_clickid")
+          ),
+          PiiScalar(
+            fieldMutator = ScalarMutators("mkt_content")
+          ),
+          PiiScalar(fieldMutator = ScalarMutators("se_category")),
+          PiiScalar(fieldMutator = ScalarMutators("se_action")),
+          PiiScalar(fieldMutator = ScalarMutators("se_label")),
+          PiiScalar(fieldMutator = ScalarMutators("se_property")),
+          PiiScalar(fieldMutator = ScalarMutators("refr_domain_userid")),
+          PiiScalar(fieldMutator = ScalarMutators("domain_sessionid"))
         ),
         false,
         PiiStrategyPseudonymize(
@@ -203,24 +277,52 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
     val output = commonSetup(enrichmentReg)
     val expected = new EnrichedEvent()
     expected.app_id = "ads"
-    expected.user_id = "7d8a4beae5bc9d314600667d2f410918f9af265017a6ade99f60a9c8f3aac6e9"
-    expected.user_ipaddress = "dd9720903c89ae891ed5c74bb7a9f2f90f6487927ac99afe73b096ad0287f3f5"
-    expected.ip_domain = null
-    expected.user_fingerprint = "27abac60dff12792c6088b8d00ce7f25c86b396b8c3740480cd18e21068ecff4"
     expected.geo_city = null
     expected.etl_tstamp = "1970-01-18 08:40:00.000"
     expected.collector_tstamp = "2017-07-14 03:39:39.000"
+    expected.user_id = "7d8a4beae5bc9d314600667d2f410918f9af265017a6ade99f60a9c8f3aac6e9"
+    expected.user_ipaddress = "dd9720903c89ae891ed5c74bb7a9f2f90f6487927ac99afe73b096ad0287f3f5"
+    expected.user_fingerprint = "27abac60dff12792c6088b8d00ce7f25c86b396b8c3740480cd18e21068ecff4"
+    expected.domain_userid = "e97d86d49b16397e8fd654b32a0ed03cfe3a4d8d867d913620ce08e3ca855d6d"
+    expected.network_userid = "47453d3c4428207d22005463bb3d945b137f9342d445b7114776e88311bbe648"
+    expected.ip_organization = "4d5dd7eebeb9d47f9ebff5993502c0380a110c34711ef5062fdb84a563759f3b"
+    expected.ip_domain = null
+    expected.tr_orderid = "5139219b15f3d1ab0c5056296cf5246eeb0b934ee5d1c96cb2027e694005bbce"
+    expected.ti_orderid = "326c0bfc5857f21695406ebd93068341c9f2d975cf00d117479e01e9012e196c"
+    expected.mkt_term = "b62f3a2475ac957009088f9b8ab77ceb7b4ed7c5a6fd920daa204a1953334acb"
+    expected.mkt_clickid = "fae3733fa03cdf57d82e89ac63026afd8782d07ba3c918acb415a4343457785f"
+    expected.mkt_content = "8ad32723b7435cbf535025e519cc94dbf1568e17ced2aeb4b9e7941f6346d7d0"
+    expected.se_category = "f33daec1ed4cb688f4f1762390735fd78f6a06083f855422a7303ed63707c962"
+    expected.se_action = "53f3e1ca4a0dccce4a1b2900a6bcfd21b22a0f444253067e2fe022948a0b3be7"
+    expected.se_label = "b243defc0d3b86333a104fb2b3a2f43371b8d73359c429b9177dfc5bb3840efd"
+    expected.se_property = "eb19004c52cd4557aacfa0b30035160c417c3a6a5fad44b96f03c9e2bebaf0b3"
+    expected.refr_domain_userid = "f3e68fd96eaef0cafc1257ec7132b4b3dbae20b1073155531f909999e5da9b2c"
+    expected.domain_sessionid = "7378a72b0183f456df98453b2ff9ed5685206a67f312edb099dc74aed76e1b34"
     val size = output.size must_== 1
     val validOut = output.head must beValid.like {
       case enrichedEvent =>
         (enrichedEvent.app_id must_== expected.app_id) and
-          (enrichedEvent.user_id must_== expected.user_id) and
-          (enrichedEvent.user_ipaddress must_== expected.user_ipaddress) and
-          (enrichedEvent.ip_domain must_== expected.ip_domain) and
-          (enrichedEvent.user_fingerprint must_== expected.user_fingerprint) and
           (enrichedEvent.geo_city must_== expected.geo_city) and
           (enrichedEvent.etl_tstamp must_== expected.etl_tstamp) and
-          (enrichedEvent.collector_tstamp must_== expected.collector_tstamp)
+          (enrichedEvent.collector_tstamp must_== expected.collector_tstamp) and
+          (enrichedEvent.user_id must_== expected.user_id) and
+          (enrichedEvent.user_ipaddress must_== expected.user_ipaddress) and
+          (enrichedEvent.user_fingerprint must_== expected.user_fingerprint) and
+          (enrichedEvent.domain_userid must_== expected.domain_userid) and
+          (enrichedEvent.network_userid must_== expected.network_userid) and
+          (enrichedEvent.ip_organization must_== expected.ip_organization) and
+          (enrichedEvent.ip_domain must_== expected.ip_domain) and
+          (enrichedEvent.tr_orderid must_== expected.tr_orderid) and
+          (enrichedEvent.ti_orderid must_== expected.ti_orderid) and
+          (enrichedEvent.mkt_term must_== expected.mkt_term) and
+          (enrichedEvent.mkt_clickid must_== expected.mkt_clickid) and
+          (enrichedEvent.mkt_content must_== expected.mkt_content) and
+          (enrichedEvent.se_category must_== expected.se_category) and
+          (enrichedEvent.se_action must_== expected.se_action) and
+          (enrichedEvent.se_label must_== expected.se_label) and
+          (enrichedEvent.se_property must_== expected.se_property) and
+          (enrichedEvent.refr_domain_userid must_== expected.refr_domain_userid) and
+          (enrichedEvent.domain_sessionid must_== expected.domain_sessionid)
     }
     size and validOut
   }
@@ -241,6 +343,11 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
             jsonPath = "$.data.emailAddress2"
           ),
           PiiJson(
+            fieldMutator = JsonMutators("contexts"),
+            schemaCriterion = SchemaCriterion("com.test", "array", "jsonschema", 1, 0, 0),
+            jsonPath = "$.field"
+          ),
+          PiiJson(
             fieldMutator = JsonMutators("unstruct_event"),
             schemaCriterion = SchemaCriterion("com.mailgun", "message_clicked", "jsonschema", 1, 0, 0),
             jsonPath = "$.ip"
@@ -248,7 +355,7 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
         ),
         false,
         PiiStrategyPseudonymize(
-          "SHA-256",
+          "MD5",
           hashFunction = DigestUtils.sha256Hex(_: Array[Byte]),
           "pepper123"
         )
@@ -271,10 +378,10 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
         val contextJ = parse(enrichedEvent.contexts).toOption.get.hcursor
         val contextJFirstElement = contextJ.downField("data").downArray
         val contextJSecondElement = contextJFirstElement.right
+        val contextJThirdElement = contextJSecondElement.right
         val unstructEventJ = parse(enrichedEvent.unstruct_event).toOption.get.hcursor
           .downField("data")
           .downField("data")
-
         val first = (contextJFirstElement
           .downField("data")
           .get[String]("emailAddress") must beRight(
@@ -311,7 +418,16 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
           )) and
           (unstructEventJ.get[String]("myVar2") must beRight("awesome"))
 
-        first and second
+        val third = contextJThirdElement
+          .downField("data")
+          .get[List[String]]("field") must
+          beRight(
+            List[String]("b62f3a2475ac957009088f9b8ab77ceb7b4ed7c5a6fd920daa204a1953334acb",
+                         "8ad32723b7435cbf535025e519cc94dbf1568e17ced2aeb4b9e7941f6346d7d0"
+            )
+          )
+
+        first and second and third
     }
 
     size and validOut
@@ -330,7 +446,7 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
         ),
         false,
         PiiStrategyPseudonymize(
-          "SHA-256",
+          "SHA-384",
           hashFunction = DigestUtils.sha256Hex(_: Array[Byte]),
           "pepper123"
         )
@@ -375,7 +491,7 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
         ),
         false,
         PiiStrategyPseudonymize(
-          "SHA-256",
+          "SHA-512",
           hashFunction = DigestUtils.sha256Hex(_: Array[Byte]),
           "pepper123"
         )
@@ -423,7 +539,7 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
         ),
         false,
         PiiStrategyPseudonymize(
-          "SHA-256",
+          "MD-2",
           hashFunction = DigestUtils.sha256Hex(_: Array[Byte]),
           "pepper123"
         )

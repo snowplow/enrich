@@ -24,6 +24,7 @@ import io.circe.syntax._
 
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.{ArrayNode, ObjectNode, TextNode}
+import com.fasterxml.jackson.databind.ObjectMapper
 
 import com.jayway.jsonpath.{Configuration, JsonPath => JJsonPath}
 import com.jayway.jsonpath.MapFunction
@@ -290,7 +291,9 @@ private final case class ScrambleMapFunction(
         val _ = modifiedFields += JsonModifiedField(fieldName, s, newValue, jsonPath, schema)
         newValue
       case a: ArrayNode =>
-        a.elements.asScala.map {
+        val mapper = new ObjectMapper()
+        val arr = mapper.createArrayNode()
+        a.elements.asScala.foreach {
           case t: TextNode =>
             val originalValue = t.asText()
             val newValue = strategy.scramble(originalValue)
@@ -301,9 +304,10 @@ private final case class ScrambleMapFunction(
               jsonPath,
               schema
             )
-            newValue
-          case default: AnyRef => default
+            arr.add(newValue)
+          case default: AnyRef => arr.add(default)
         }
+        arr
       case default: AnyRef => default
     }
 }

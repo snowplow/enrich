@@ -22,6 +22,7 @@ import com.snowplowanalytics.iglu.client.resolver.registries.Registry
 import com.snowplowanalytics.iglu.client.validator.CirceValidator
 
 import com.snowplowanalytics.snowplow.badrows.Processor
+import com.snowplowanalytics.snowplow.badrows.BadRow
 
 import org.apache.thrift.TSerializer
 
@@ -44,6 +45,8 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers {
   def is = s2"""
   EtlPipeline should always produce either bad or good row for each event of the payload   $e1
   Processing of events with malformed query string should be supported                     $e2
+  Processing of invalid CollectorPayload (CPFormatViolation bad row) should be supported   $e3
+  Absence of CollectorPayload (None) should be supported                                   $e4
   """
 
   val adapterRegistry = new AdapterRegistry()
@@ -87,6 +90,33 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers {
       case Validated.Valid(_: EnrichedEvent) :: Nil => ok
       case res => ko(s"[$res] doesn't contain one enriched event")
     }
+  }
+
+  def e3 = {
+    val invalidCollectorPayload = ThriftLoader.toCollectorPayload(Array(1.toByte), processor)
+    EtlPipeline.processEvents[Id](
+      adapterRegistry,
+      enrichmentReg,
+      client,
+      processor,
+      dateTime,
+      invalidCollectorPayload
+    ) must be like {
+      case Validated.Invalid(_: BadRow.CPFormatViolation) :: Nil => ok
+      case other => ko(s"One invalid CPFormatViolation expected, got ${other}")
+    }
+  }
+
+  def e4 = {
+    val collectorPayload: Option[CollectorPayload] = None
+    EtlPipeline.processEvents[Id](
+      adapterRegistry,
+      enrichmentReg,
+      client,
+      processor,
+      dateTime,
+      collectorPayload.validNel[BadRow]
+    ) must beEqualTo(Nil)
   }
 }
 

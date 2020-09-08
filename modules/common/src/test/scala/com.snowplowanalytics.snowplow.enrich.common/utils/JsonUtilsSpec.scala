@@ -15,12 +15,19 @@ package utils
 
 import org.specs2.Specification
 
+import org.joda.time.format.DateTimeFormat
+
 import io.circe.Json
+
+import cats.data.NonEmptyList
 
 class JsonUtilsSpec extends Specification {
   def is = s2"""
   toJson can deal with non-null String    $e1
   toJson can deal with null String        $e2
+  toJson can deal with booleans           $e3
+  toJson can deal with integers           $e4
+  toJson can deal with dates              $e5
   """
 
   def e1 = {
@@ -35,5 +42,53 @@ class JsonUtilsSpec extends Specification {
     val value: String = null
     JsonUtils.toJson(key, value, Nil, Nil, None) must
       beEqualTo((key, Json.Null))
+  }
+
+  def e3 = {
+    val key = "field"
+
+    val truE = "true"
+    val exp1 = JsonUtils.toJson(key, truE, List(key), Nil, None) must
+      beEqualTo(key -> Json.True)
+
+    val falsE = "false"
+    val exp2 = JsonUtils.toJson(key, falsE, List(key), Nil, None) must
+      beEqualTo(key -> Json.False)
+
+    val foo = "foo"
+    val exp3 = JsonUtils.toJson(key, foo, List(key), Nil, None) must
+      beEqualTo(key -> Json.fromString(foo))
+
+    exp1 and exp2 and exp3
+  }
+
+  def e4 = {
+    val key = "field"
+
+    val number = 123
+    val exp1 = JsonUtils.toJson(key, number.toString(), Nil, List(key), None) must
+      beEqualTo(key -> Json.fromBigInt(number))
+
+    val notNumber = "abc"
+    val exp2 = JsonUtils.toJson(key, notNumber, Nil, List(key), None) must
+      beEqualTo(key -> Json.fromString(notNumber))
+
+    exp1 and exp2
+  }
+
+  def e5 = {
+    val key = "field"
+
+    val formatter = DateTimeFormat.forPattern("yyyy-MM-dd")
+    val malformedDate = "2020-09-02"
+    val correctDate = "2020-09-02T22:00:00.000Z"
+
+    val exp1 = JsonUtils.toJson(key, malformedDate, Nil, Nil, Some(NonEmptyList.one(key) -> formatter)) must
+      be !== (key -> Json.fromString(malformedDate))
+
+    val exp2 = JsonUtils.toJson(key, correctDate, Nil, Nil, Some(NonEmptyList.one(key) -> formatter)) must
+      beEqualTo(key -> Json.fromString(correctDate))
+
+    exp1 and exp2
   }
 }

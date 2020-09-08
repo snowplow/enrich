@@ -353,6 +353,27 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       EnrichmentManager.getIabContext(input, iabEnrichment) must beRight.like { case ctx => ctx must beSome }
     }
   }
+
+  "getCollectorVersionSet" should {
+    "return an enrichment failure if v_collector is null or empty" >> {
+      val input = new EnrichedEvent()
+      EnrichmentManager.getCollectorVersionSet(input) must beLeft.like {
+        case _: FailureDetails.EnrichmentFailure => ok
+        case other => ko(s"expected EnrichmentFailure but got $other")
+      }
+      input.v_collector = ""
+      EnrichmentManager.getCollectorVersionSet(input) must beLeft.like {
+        case _: FailureDetails.EnrichmentFailure => ok
+        case other => ko(s"expected EnrichmentFailure but got $other")
+      }
+    }
+
+    "return Unit if v_collector is set" >> {
+      val input = new EnrichedEvent()
+      input.v_collector = "v42"
+      EnrichmentManager.getCollectorVersionSet(input) must beRight(())
+    }
+  }
 }
 
 object EnrichmentManagerSpec {

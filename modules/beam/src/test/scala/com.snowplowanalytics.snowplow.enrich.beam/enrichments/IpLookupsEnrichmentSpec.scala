@@ -57,7 +57,7 @@ class IpLookupsEnrichmentSpec extends PipelineSpec {
     val url =
       "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind/GeoLite2-City.mmdb"
     val localFile = "./ip_geo"
-    SpecHelpers.downloadLocalEnrichmentFile(url, localFile)
+    SpecHelpers.copyLocalEnrichmentFile("/beam-enrich-geolite2-city.mmdb", localFile)
 
     JobTest[Enrich.type]
       .args(

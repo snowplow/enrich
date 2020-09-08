@@ -15,6 +15,7 @@ package utils
 
 import java.net.{Inet6Address, InetAddress, URI}
 import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets
 
 import cats.syntax.either._
 import cats.syntax.option._
@@ -273,6 +274,49 @@ class ValidateUuidSpec extends Specification with DataTables with ScalaCheck {
         )
       )
     }
+}
+
+class ValidateIntegerSpec extends Specification {
+  def is = s2"""
+  validateInteger should return the original string if it contains an integer                     $e1
+  validateInteger should return an enrichment failure for a string not containing a valid integer $e2
+  """
+
+  val FieldName = "integer"
+
+  def e1 = ConversionUtils.validateInteger(FieldName, "123") must beRight("123")
+
+  def e2 = {
+    val str = "abc"
+    ConversionUtils.validateInteger(FieldName, str) must beLeft(
+      FailureDetails.EnrichmentFailure(
+        None,
+        FailureDetails.EnrichmentFailureMessage.InputData(
+          FieldName,
+          Some(str),
+          "not a valid integer"
+        )
+      )
+    )
+  }
+}
+
+class DecodeStringSpec extends Specification {
+  def is = s2"""
+  decodeString should decode a correctly URL-encoded string            $e1
+  decodeString should fail decoding a string not correctly URL-encoded $e2
+  """
+
+  val utf8 = StandardCharsets.UTF_8
+
+  def e1 = {
+    val clear = "12 ++---=&&3abc%%%34%2234%$#@%^PLLPbgfxbf$#%$@#@^"
+    val encoded = ConversionUtils.encodeString(utf8.toString(), clear)
+    ConversionUtils.decodeString(utf8, encoded) must beRight(clear)
+  }
+
+  def e2 =
+    ConversionUtils.decodeString(utf8, "%%23") must beLeft
 }
 
 class StringToDoubleLikeSpec extends Specification with DataTables {

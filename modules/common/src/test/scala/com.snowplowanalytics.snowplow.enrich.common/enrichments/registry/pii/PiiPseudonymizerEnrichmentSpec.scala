@@ -116,7 +116,8 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
         |    {
         |      "schema": "iglu:com.test/array/jsonschema/1-0-0",
         |      "data": {
-        |        "field" : ["hello", "world"]
+        |        "field" : ["hello", "world"],
+        |        "field2" : null
         |      }
         |    }
         |  ]
@@ -346,6 +347,11 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
             fieldMutator = JsonMutators("contexts"),
             schemaCriterion = SchemaCriterion("com.test", "array", "jsonschema", 1, 0, 0),
             jsonPath = "$.field"
+          ),
+          PiiJson(
+            fieldMutator = JsonMutators("contexts"),
+            schemaCriterion = SchemaCriterion("com.test", "array", "jsonschema", 1, 0, 0),
+            jsonPath = "$.field2"
           ),
           PiiJson(
             fieldMutator = JsonMutators("unstruct_event"),

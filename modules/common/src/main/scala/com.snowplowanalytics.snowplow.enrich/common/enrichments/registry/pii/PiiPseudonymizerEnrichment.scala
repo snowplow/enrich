@@ -265,15 +265,19 @@ final case class PiiJson(
     val objectNode = io.circe.jackson.mapper.valueToTree[ObjectNode](json)
     val documentContext = JJsonPath.using(JsonPathConf).parse(objectNode)
     val modifiedFields = MutableList[JsonModifiedField]()
-    val documentContext2 = documentContext.map(
-      jsonPath,
-      new ScrambleMapFunction(strategy, modifiedFields, fieldMutator.fieldName, jsonPath, schema)
-    )
-    // make sure it is a structure preserving method, see #3636
-    //val transformedJValue = JsonMethods.fromJsonNode(documentContext.json[JsonNode]())
-    //val Diff(_, erroneouslyAdded, _) = jValue diff transformedJValue
-    //val Diff(_, withoutCruft, _) = erroneouslyAdded diff transformedJValue
-    (jacksonToCirce(documentContext2.json[JsonNode]()), modifiedFields.toList)
+    Option(documentContext.read[AnyRef](jsonPath)) match { // check that json object not null
+      case None => (jacksonToCirce(documentContext.json[JsonNode]()), modifiedFields.toList)
+      case _ =>
+        val documentContext2 = documentContext.map(
+          jsonPath,
+          new ScrambleMapFunction(strategy, modifiedFields, fieldMutator.fieldName, jsonPath, schema)
+        )
+        // make sure it is a structure preserving method, see #3636
+        //val transformedJValue = JsonMethods.fromJsonNode(documentContext.json[JsonNode]())
+        //val Diff(_, erroneouslyAdded, _) = jValue diff transformedJValue
+        //val Diff(_, withoutCruft, _) = erroneouslyAdded diff transformedJValue
+        (jacksonToCirce(documentContext2.json[JsonNode]()), modifiedFields.toList)
+    }
   }
 }
 

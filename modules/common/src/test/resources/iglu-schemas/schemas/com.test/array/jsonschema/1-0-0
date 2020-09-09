@@ -17,6 +17,17 @@
       },
       "field2": {
         "type": ["string", "null"]
+      },
+      "field3": {
+        "type": ["object", "null"],
+        "properties": {
+          "a": {
+            "type": "string"
+          },
+          "b": {
+            "type": "string"
+          }
+        }
       }
     },
     "required": ["field"],

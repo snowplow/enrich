@@ -117,7 +117,8 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
         |      "schema": "iglu:com.test/array/jsonschema/1-0-0",
         |      "data": {
         |        "field" : ["hello", "world"],
-        |        "field2" : null
+        |        "field2" : null,
+        |        "field3": null
         |      }
         |    }
         |  ]
@@ -354,6 +355,11 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
             jsonPath = "$.field2"
           ),
           PiiJson(
+            fieldMutator = JsonMutators("contexts"),
+            schemaCriterion = SchemaCriterion("com.test", "array", "jsonschema", 1, 0, 0),
+            jsonPath = "$.field3.a"
+          ),
+          PiiJson(
             fieldMutator = JsonMutators("unstruct_event"),
             schemaCriterion = SchemaCriterion("com.mailgun", "message_clicked", "jsonschema", 1, 0, 0),
             jsonPath = "$.ip"
@@ -424,14 +430,22 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
           )) and
           (unstructEventJ.get[String]("myVar2") must beRight("awesome"))
 
-        val third = contextJThirdElement
+        val third = (contextJThirdElement
           .downField("data")
           .get[List[String]]("field") must
           beRight(
             List[String]("b62f3a2475ac957009088f9b8ab77ceb7b4ed7c5a6fd920daa204a1953334acb",
                          "8ad32723b7435cbf535025e519cc94dbf1568e17ced2aeb4b9e7941f6346d7d0"
             )
-          )
+          )) and
+          (contextJThirdElement
+            .downField("data")
+            .downField("field2")
+            .focus must beSome.like { case json => json.isNull }) and
+          (contextJThirdElement
+            .downField("data")
+            .downField("field3")
+            .focus must beSome.like { case json => json.isNull })
 
         first and second and third
     }

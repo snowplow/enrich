@@ -24,6 +24,8 @@ import org.specs2.matcher.{DataTables, ValidatedMatchers}
 import loaders._
 import utils.Clock._
 
+import SpecHelpers._
+
 class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with ValidatedMatchers {
   val processor = Processor("CloudfrontAccessLogAdapterSpec", "v1")
 
@@ -72,10 +74,10 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
       "tv" -> "com.amazon.aws.cloudfront/wd_access_log",
       "e" -> "ue",
       "url" -> url
-    )
+    ).toOpt
     val static = staticNoPlatform ++ Map(
       "p" -> "srv"
-    )
+    ).toOpt
   }
 
   def e1 = {
@@ -115,7 +117,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
           NonEmptyList.one(
             RawEvent(
               Shared.api,
-              Expected.static ++ Map("ue_pr" -> expectedJson),
+              Expected.static ++ Map("ue_pr" -> expectedJson).toOpt,
               None,
               Shared.source,
               Shared.context
@@ -166,7 +168,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
           NonEmptyList.one(
             RawEvent(
               Shared.api,
-              Expected.static ++ Map("ue_pr" -> expectedJson),
+              Expected.static ++ Map("ue_pr" -> expectedJson).toOpt,
               None,
               Shared.source,
               Shared.context
@@ -220,7 +222,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
           NonEmptyList.one(
             RawEvent(
               Shared.api,
-              Expected.static ++ Map("ue_pr" -> expectedJson),
+              Expected.static ++ Map("ue_pr" -> expectedJson).toOpt,
               None,
               Shared.source,
               Shared.context
@@ -275,7 +277,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
           NonEmptyList.one(
             RawEvent(
               Shared.api,
-              Expected.static ++ Map("ue_pr" -> expectedJson),
+              Expected.static ++ Map("ue_pr" -> expectedJson).toOpt,
               None,
               Shared.source,
               Shared.context
@@ -334,7 +336,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
           NonEmptyList.one(
             RawEvent(
               Shared.api,
-              Expected.static ++ Map("ue_pr" -> expectedJson),
+              Expected.static ++ Map("ue_pr" -> expectedJson).toOpt,
               None,
               Shared.source,
               Shared.context
@@ -394,7 +396,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
           NonEmptyList.one(
             RawEvent(
               Shared.api,
-              Expected.static ++ Map("ue_pr" -> expectedJson),
+              Expected.static ++ Map("ue_pr" -> expectedJson).toOpt,
               None,
               Shared.source,
               Shared.context
@@ -456,7 +458,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
           NonEmptyList.one(
             RawEvent(
               Shared.api,
-              Expected.static ++ Map("ue_pr" -> expectedJson),
+              Expected.static ++ Map("ue_pr" -> expectedJson).toOpt,
               None,
               Shared.source,
               Shared.context

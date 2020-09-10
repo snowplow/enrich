@@ -101,9 +101,11 @@ object MailchimpAdapter extends Adapter {
           params <- ConversionUtils
                       .parseUrlEncodedForm(body)
                       .leftMap(e => FailureDetails.AdapterFailure.InputData("body", body.some, e))
-          eventType <- params.get("type").toRight {
-                         val msg = "no `type` parameter provided: cannot determine event type"
-                         FailureDetails.AdapterFailure.InputData("body", body.some, msg)
+          eventType <- params.get("type") match {
+                         case Some(Some(typE)) => Right(typE)
+                         case _ =>
+                           val msg = "no `type` parameter provided: cannot determine event type"
+                           Left(FailureDetails.AdapterFailure.InputData("body", body.some, msg))
                        }
           schema <- lookupSchema(eventType.some, EventSchemaMap)
           allParams = toMap(payload.querystring) ++ reformatParameters(params)
@@ -130,7 +132,7 @@ object MailchimpAdapter extends Adapter {
    */
   private[registry] def toJsons(parameters: RawEventParameters): List[(String, Json)] =
     for {
-      (k, v) <- parameters.toList
+      (k, v) <- parameters.toList.collect { case (k, Some(v)) => (k, v) }
     } yield toNestedJson(toKeys(k), v)
 
   /**
@@ -180,8 +182,8 @@ object MailchimpAdapter extends Adapter {
    */
   private[registry] def reformatParameters(parameters: RawEventParameters): RawEventParameters =
     parameters.get("fired_at") match {
-      case Some(firedAt) =>
-        parameters.updated("fired_at", JU.toJsonSchemaDateTime(firedAt, MailchimpDateTimeFormat))
-      case None => parameters
+      case Some(Some(firedAt)) =>
+        parameters.updated("fired_at", Some((JU.toJsonSchemaDateTime(firedAt, MailchimpDateTimeFormat))))
+      case _ => parameters
     }
 }

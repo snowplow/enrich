@@ -29,6 +29,8 @@ import loaders._
 import GoogleAnalyticsAdapter._
 import utils.Clock._
 
+import SpecHelpers._
+
 class GoogleAnalyticsAdapterSpec extends Specification with DataTables with ValidatedMatchers {
 
   def is = s2"""
@@ -66,7 +68,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
     "tv" -> "com.google.analytics.measurement-protocol-v1",
     "e" -> "ue",
     "p" -> "srv"
-  )
+  ).toOpt
 
   val hitContext = (hitType: String) => s"""
     |{
@@ -137,7 +139,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
            |"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1",
            |"data":[${hitContext("pageview")}]
          |}""".stripMargin.replaceAll("[\n\r]", "")
-    val expectedParams = static ++ Map("ue_pr" -> expectedJson, "co" -> expectedCO)
+    val expectedParams = static ++ Map("ue_pr" -> expectedJson, "co" -> expectedCO).toOpt
     actual must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
   }
 
@@ -167,7 +169,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
              |"data":{"protocolVersion":"version"}
            |}]
          |}""".stripMargin.replaceAll("[\n\r]", "")
-    val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO)
+    val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO).toOpt
     actual must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
   }
 
@@ -193,7 +195,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
              |"data":{"ipOverride":"ip"}
            |}]
          |}""".stripMargin.replaceAll("[\n\r]", "")
-    val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO, "ip" -> "ip")
+    val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO, "ip" -> "ip").toOpt
     actual must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
   }
 
@@ -229,7 +231,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
       "ti_pr" -> "12.228",
       "ti_qu" -> "12",
       "ti_nm" -> "name"
-    )
+    ).toOpt
     actual must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
   }
 
@@ -254,7 +256,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
              |"data":{"documentHostName":"host"}
            |}]
          |}""".stripMargin.replaceAll("[\n\r]", "")
-    val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO)
+    val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO).toOpt
     actual must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
   }
 
@@ -287,7 +289,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
       "co" -> expectedCO,
       "tr_cu" -> "EUR",
       "tr_id" -> "tr"
-    )
+    ).toOpt
     actual must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
   }
 
@@ -315,7 +317,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
              |"data":{"productIndex":42,"sku":"s","listIndex":12}
            |}]
          |}""".stripMargin.replaceAll("[\n\r]", "")
-    val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO)
+    val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO).toOpt
     actual must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
   }
 
@@ -340,7 +342,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
              |"data":{"value":"dim","index":12}
            |}]
          |}""".stripMargin.replaceAll("[\n\r]", "")
-    val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO)
+    val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO).toOpt
     actual must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
   }
 
@@ -374,7 +376,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
              |"data":{"sku":"s2","index":2}
            |}]
          |}""".stripMargin.replaceAll("[\n\r]", "")
-    val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO)
+    val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO).toOpt
     actual must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
   }
 
@@ -402,7 +404,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
              |"data":{"index":12,"id":"id"}
            |}]
          |}""".stripMargin.replaceAll("[\n\r]", "")
-    val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO)
+    val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO).toOpt
     actual must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
   }
 
@@ -427,7 +429,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
            |"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1",
            |"data":[${hitContext("pageview")}]
          |}""".stripMargin.replaceAll("[\n\r]", "")
-    val expectedParams = static ++ Map("ue_pr" -> expectedJson, "co" -> expectedCO)
+    val expectedParams = static ++ Map("ue_pr" -> expectedJson, "co" -> expectedCO).toOpt
     val event = RawEvent(api, expectedParams, None, source, context)
     actual must beValid(NonEmptyList.of(event, event))
   }
@@ -467,7 +469,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
       "ue_pr" -> expectedJson,
       "co" -> expectedCO,
       "ti_cu" -> "EUR"
-    )
+    ).toOpt
     actual must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
   }
 

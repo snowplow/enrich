@@ -133,11 +133,11 @@ object Tp2Adapter extends Adapter {
     FailureDetails.TrackerProtocolViolation
   ], NonEmptyList[RawEventParameters]] = {
     val events: Option[
-      Vector[Vector[Validated[FailureDetails.TrackerProtocolViolation, (String, String)]]]
+      Vector[Vector[Validated[FailureDetails.TrackerProtocolViolation, (String, Option[String])]]]
     ] = for {
       topLevel <- instance.asArray
       fields <- topLevel.map(_.asObject).sequence
-      res = fields.map(_.toVector.map(toParameter))
+      res = fields.map(_.toVector.map(toParameter).map(_.map { case (k, v) => (k, Some(v)) }))
     } yield res
 
     events match {

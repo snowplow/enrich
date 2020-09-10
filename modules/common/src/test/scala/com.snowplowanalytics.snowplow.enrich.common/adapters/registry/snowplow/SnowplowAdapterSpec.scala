@@ -35,6 +35,8 @@ import loaders._
 import utils.{ConversionUtils => CU}
 import utils.Clock._
 
+import SpecHelpers._
+
 class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMatchers with ScalaCheck {
   def is = s2"""
   Tp1.toRawEvents should return a NEL containing one RawEvent if the querystring is populated                             $e1
@@ -56,6 +58,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
   Redirect.toRawEvents should return a Validation Failure if the querystring does not contain a u parameter               $e17
   Redirect.toRawEvents should return a Validation Failure if the event type is specified and the co JSON is corrupted     $e18
   Redirect.toRawEvents should return a Validation Failure if the event type is specified and the cx Base64 is corrupted   $e19
+  Redirect.toRawEvents should return a Validation Failure if the URI is null (&u param without a value)                   $e20
   """
 
   object Snowplow {
@@ -93,7 +96,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
     val actual = Tp1Adapter.toRawEvents(payload, SpecHelpers.client)
     actual must beValid(
       NonEmptyList
-        .one(RawEvent(Snowplow.Tp1, Map("aid" -> "test"), None, Shared.source, Shared.context))
+        .one(RawEvent(Snowplow.Tp1, Map("aid" -> "test").toOpt, None, Shared.source, Shared.context))
     )
   }
 
@@ -125,7 +128,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       NonEmptyList.one(
         RawEvent(
           Snowplow.Tp2,
-          Map("aid" -> "tp2", "e" -> "se"),
+          Map("aid" -> "tp2", "e" -> "se").toOpt,
           None,
           Shared.source,
           Shared.context
@@ -151,7 +154,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       NonEmptyList.one(
         RawEvent(
           Snowplow.Tp2,
-          Map("tv" -> "ios-0.1.0", "p" -> "mob", "e" -> "se"),
+          Map("tv" -> "ios-0.1.0", "p" -> "mob", "e" -> "se").toOpt,
           ApplicationJsonWithCharset.some,
           Shared.source,
           Shared.context
@@ -185,9 +188,9 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       )
     actual must beValid(
       NonEmptyList.of(
-        rawEvent(Map("tv" -> "0", "p" -> "1", "e" -> "1", "nuid" -> "123")),
-        rawEvent(Map("tv" -> "0", "p" -> "2", "e" -> "2", "nuid" -> "123")),
-        rawEvent(Map("tv" -> "0", "p" -> "3", "e" -> "3", "nuid" -> "123"))
+        rawEvent(Map("tv" -> "0", "p" -> "1", "e" -> "1", "nuid" -> "123").toOpt),
+        rawEvent(Map("tv" -> "0", "p" -> "2", "e" -> "2", "nuid" -> "123").toOpt),
+        rawEvent(Map("tv" -> "0", "p" -> "3", "e" -> "3", "nuid" -> "123").toOpt)
       )
     )
   }
@@ -208,7 +211,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       NonEmptyList.one(
         RawEvent(
           Snowplow.Tp2,
-          Map("tv" -> "ios-0.1.0", "p" -> "mob", "e" -> "se"),
+          Map("tv" -> "ios-0.1.0", "p" -> "mob", "e" -> "se").toOpt,
           ApplicationJsonWithCapitalCharset.some,
           Shared.source,
           Shared.context
@@ -461,7 +464,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
             "ue_pr" -> """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.snowplowanalytics.snowplow/uri_redirect/jsonschema/1-0-0","data":{"uri":"https://github.com/snowplow/snowplow"}}}""",
             "p" -> "web",
             "cx" -> "dGVzdHRlc3R0ZXN0"
-          ),
+          ).toOpt,
           None,
           Shared.source,
           Shared.context
@@ -494,7 +497,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
             "tv" -> "r-tp2",
             "co" -> """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/uri_redirect/jsonschema/1-0-0","data":{"uri":"https://github.com/snowplow/snowplow"}}]}""",
             "p" -> "web"
-          ),
+          ).toOpt,
           None,
           Shared.source,
           Shared.context
@@ -528,7 +531,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
             "tv" -> "r-tp2",
             "co" -> """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/uri_redirect/jsonschema/1-0-0","data":{"uri":"https://github.com/snowplow/snowplow"}}]}""",
             "p" -> "web"
-          ),
+          ).toOpt,
           None,
           Shared.source,
           Shared.context
@@ -560,7 +563,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
             "tv" -> "r-tp2",
             "co" -> """{"data":[{"schema":"iglu:com.snowplowanalytics.snowplow/uri_redirect/jsonschema/1-0-0","data":{"uri":"https://github.com/snowplow/snowplow"}},{"data":{"osType":"OSX","appleIdfv":"some_appleIdfv","openIdfa":"some_Idfa","carrier":"some_carrier","deviceModel":"large","osVersion":"3.0.0","appleIdfa":"some_appleIdfa","androidIdfa":"some_androidIdfa","deviceManufacturer":"Amstrad"},"schema":"iglu:com.snowplowanalytics.snowplow/mobile_context/jsonschema/1-0-0"},{"data":{"longitude":10,"bearing":50,"speed":16,"altitude":20,"altitudeAccuracy":0.3,"latitudeLongitudeAccuracy":0.5,"latitude":7},"schema":"iglu:com.snowplowanalytics.snowplow/geolocation_context/jsonschema/1-0-0"}],"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0"}""",
             "p" -> "web"
-          ),
+          ).toOpt,
           None,
           Shared.source,
           Shared.context
@@ -597,7 +600,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
               """{"data":[{"schema":"iglu:com.snowplowanalytics.snowplow/uri_redirect/jsonschema/1-0-0","data":{"uri":"https://github.com/snowplow/snowplow"}},{"data":{"osType":"OSX","appleIdfv":"some_appleIdfv","openIdfa":"some_Idfa","carrier":"some_carrier","deviceModel":"large","osVersion":"3.0.0","appleIdfa":"some_appleIdfa","androidIdfa":"some_androidIdfa","deviceManufacturer":"Amstrad"},"schema":"iglu:com.snowplowanalytics.snowplow/mobile_context/jsonschema/1-0-0"},{"data":{"longitude":10,"bearing":50,"speed":16,"altitude":20,"altitudeAccuracy":0.3,"latitudeLongitudeAccuracy":0.5,"latitude":7},"schema":"iglu:com.snowplowanalytics.snowplow/geolocation_context/jsonschema/1-0-0"}],"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0"}"""
             ),
             "p" -> "web"
-          ),
+          ).toOpt,
           None,
           Shared.source,
           Shared.context
@@ -689,4 +692,27 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
     )
   }
 
+  def e20 = {
+    val payload = CollectorPayload(
+      Snowplow.Tp2,
+      SpecHelpers.toNameValuePairs(
+        "u" -> null, // happens with &u in the query string
+        "cx" -> "dGVzdHRlc3R0ZXN0"
+      ),
+      None,
+      None,
+      Shared.source,
+      Shared.context
+    )
+    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client)
+    actual must beInvalid(
+      NonEmptyList.one(
+        FailureDetails.TrackerProtocolViolation.InputData(
+          "querystring",
+          "u=null&cx=dGVzdHRlc3R0ZXN0".some,
+          "missing `u` parameter: not a valid URI redirect"
+        )
+      )
+    )
+  }
 }

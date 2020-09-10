@@ -69,7 +69,7 @@ object IgluAdapter extends Adapter {
   ] = {
     val _ = client
     val params = toMap(payload.querystring)
-    (params.get("schema"), payload.body, payload.contentType) match {
+    (params.get("schema").flatten, payload.body, payload.contentType) match {
       case (_, Some(_), None) =>
         val msg = s"expected one of $contentTypesStr"
         Monad[F].pure(
@@ -104,7 +104,7 @@ object IgluAdapter extends Adapter {
     payload: CollectorPayload,
     body: String,
     contentType: String,
-    params: Map[String, String]
+    params: Map[String, Option[String]]
   ): ValidatedNel[FailureDetails.AdapterFailure, NonEmptyList[RawEvent]] =
     contentType match {
       case contentTypes._1 => sdJsonBodyToEvent(payload, body, params)
@@ -125,7 +125,7 @@ object IgluAdapter extends Adapter {
   private[registry] def sdJsonBodyToEvent(
     payload: CollectorPayload,
     body: String,
-    params: Map[String, String]
+    params: Map[String, Option[String]]
   ): ValidatedNel[FailureDetails.AdapterFailure, NonEmptyList[RawEvent]] =
     JsonUtils.extractJson(body) match {
       case Right(parsed) =>
@@ -166,7 +166,7 @@ object IgluAdapter extends Adapter {
   private[registry] def payloadToEventWithSchema(
     payload: CollectorPayload,
     schemaUri: String,
-    params: Map[String, String]
+    params: Map[String, Option[String]]
   ): ValidatedNel[FailureDetails.AdapterFailure, NonEmptyList[RawEvent]] =
     SchemaKey.fromUri(schemaUri) match {
       case Left(parseError) =>
@@ -224,7 +224,7 @@ object IgluAdapter extends Adapter {
     payload: CollectorPayload,
     body: String,
     schemaUri: SchemaKey,
-    params: Map[String, String]
+    params: Map[String, Option[String]]
   ): ValidatedNel[FailureDetails.AdapterFailure, NonEmptyList[RawEvent]] = {
     def buildRawEvent(e: Json): RawEvent =
       RawEvent(
@@ -271,7 +271,7 @@ object IgluAdapter extends Adapter {
     payload: CollectorPayload,
     body: String,
     schemaUri: SchemaKey,
-    params: Map[String, String]
+    params: Map[String, Option[String]]
   ): ValidatedNel[FailureDetails.AdapterFailure, NonEmptyList[RawEvent]] =
     (for {
       bodyMap <- ConversionUtils

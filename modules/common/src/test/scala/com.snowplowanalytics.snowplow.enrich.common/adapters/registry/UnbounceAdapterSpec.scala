@@ -24,6 +24,8 @@ import org.specs2.matcher.{DataTables, ValidatedMatchers}
 import loaders._
 import utils.Clock._
 
+import SpecHelpers._
+
 class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMatchers {
   def is = s2"""
   toRawEvents must return a Success Nel if the query string is valid                            $e1
@@ -109,7 +111,7 @@ class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMa
     val expected = NonEmptyList.one(
       RawEvent(
         Shared.api,
-        Map("tv" -> "com.unbounce-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson),
+        Map("tv" -> "com.unbounce-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context

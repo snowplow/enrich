@@ -117,19 +117,19 @@ object JsonUtils {
    */
   def toJson(
     key: String,
-    value: String,
+    value: Option[String],
     bools: List[String],
     ints: List[String],
     dateTimes: DateTimeFields
   ): (String, Json) = {
     val v = (value, dateTimes) match {
-      case (null, _) => Json.Null
-      case ("", _) => Json.Null
-      case _ if bools.contains(key) => booleanToJson(value)
-      case _ if ints.contains(key) => integerToJson(value)
-      case (_, Some((nel, fmt))) if nel.toList.contains(key) =>
-        Json.fromString(toJsonSchemaDateTime(value, fmt))
-      case _ => Json.fromString(value)
+      case (Some(""), _) => Json.Null
+      case (None, _) => Json.Null
+      case (Some(bool), _) if bools.contains(key) => booleanToJson(bool)
+      case (Some(nb), _) if ints.contains(key) => integerToJson(nb)
+      case (Some(datetime), Some((nel, fmt))) if nel.toList.contains(key) =>
+        Json.fromString(toJsonSchemaDateTime(datetime, fmt))
+      case (Some(str), _) => Json.fromString(str)
     }
     (key, v)
   }

@@ -24,6 +24,8 @@ import org.specs2.matcher.{DataTables, ValidatedMatchers}
 import loaders._
 import utils.Clock._
 
+import SpecHelpers._
+
 class MailgunAdapterSpec extends Specification with DataTables with ValidatedMatchers {
   def is = s2"""
   toRawEvents must return a Success Nel if every event 'delivered' in the payload is successful                $e1
@@ -90,7 +92,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     val expected = NonEmptyList.one(
       RawEvent(
         Shared.api,
-        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson),
+        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context
@@ -139,7 +141,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     val expected = NonEmptyList.one(
       RawEvent(
         Shared.api,
-        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson),
+        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context
@@ -189,7 +191,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     val expected = NonEmptyList.one(
       RawEvent(
         Shared.api,
-        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson),
+        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context
@@ -239,7 +241,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     val expected = NonEmptyList.one(
       RawEvent(
         Shared.api,
-        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson),
+        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context
@@ -286,7 +288,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     val expected = NonEmptyList.one(
       RawEvent(
         Shared.api,
-        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson),
+        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson).toOpt,
         Some("multipart/form-data; boundary=353d603f-eede-4b49-97ac-724fbc54ea3c"),
         Shared.cljSource,
         Shared.context

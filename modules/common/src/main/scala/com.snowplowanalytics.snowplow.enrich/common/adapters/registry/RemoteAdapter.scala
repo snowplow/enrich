@@ -115,7 +115,7 @@ final case class RemoteAdapter(
       rawEvents = nonEmptyEvents.map { e =>
                     RawEvent(
                       api = payload.api,
-                      parameters = e,
+                      parameters = e.map { case (k, v) => (k, Option(v)) },
                       contentType = payload.contentType,
                       source = payload.source,
                       context = payload.context

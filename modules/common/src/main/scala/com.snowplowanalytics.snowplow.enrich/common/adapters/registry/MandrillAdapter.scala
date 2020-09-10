@@ -140,6 +140,7 @@ object MandrillAdapter extends Adapter {
     for {
       bodyMap <- ConversionUtils
                    .parseUrlEncodedForm(rawEventString)
+                   .map(_.collect { case (k, Some(v)) => (k, v) })
                    .leftMap(e => FailureDetails.AdapterFailure.InputData("body", rawEventString.some, e))
       res <- bodyMap match {
                case map if map.size != 1 =>

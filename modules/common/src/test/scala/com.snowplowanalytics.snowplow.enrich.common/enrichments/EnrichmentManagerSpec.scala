@@ -37,6 +37,8 @@ import org.apache.commons.codec.digest.DigestUtils
 import org.specs2.mutable.Specification
 import org.specs2.matcher.EitherMatchers
 
+import SpecHelpers._
+
 class EnrichmentManagerSpec extends Specification with EitherMatchers {
   import EnrichmentManagerSpec._
 
@@ -60,7 +62,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
             ]
           }
         """
-      )
+      ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
       val enriched = EnrichmentManager.enrichEvent(
         enrichmentReg,
@@ -93,7 +95,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
               }
             }
           }"""
-      )
+      ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
       val enriched = EnrichmentManager.enrichEvent(
         enrichmentReg,
@@ -135,7 +137,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         "e" -> "pp",
         "tv" -> "js-0.13.1",
         "p" -> "web"
-      )
+      ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
       val enriched = EnrichmentManager.enrichEvent(
         enrichmentReg,
@@ -198,7 +200,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         "e" -> "pp",
         "tv" -> "js-0.13.1",
         "p" -> "web"
-      )
+      ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
       val enriched = EnrichmentManager.enrichEvent(
         enrichmentReg,
@@ -257,7 +259,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
               }
             }
           }"""
-      )
+      ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
       val enriched = EnrichmentManager.enrichEvent(
         enrichmentReg,
@@ -300,7 +302,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
               }
             }
           }"""
-      )
+      ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
       val enrichmentReg = EnrichmentRegistry[Id](
         piiPseudonymizer = PiiPseudonymizerEnrichment(
@@ -360,7 +362,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
               }
             }
           }"""
-      )
+      ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
       val enrichmentReg = EnrichmentRegistry[Id](
         piiPseudonymizer = PiiPseudonymizerEnrichment(
@@ -420,7 +422,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
               }
             }
           }"""
-      )
+      ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
       val enrichmentReg = EnrichmentRegistry[Id](
         piiPseudonymizer = PiiPseudonymizerEnrichment(
@@ -480,7 +482,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
               }
             }
           }"""
-      )
+      ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
       val enrichmentReg = EnrichmentRegistry[Id](
         piiPseudonymizer = PiiPseudonymizerEnrichment(
@@ -542,7 +544,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
               }
             }
           }"""
-      )
+      ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
       val enrichmentReg = EnrichmentRegistry[Id](
         piiPseudonymizer = PiiPseudonymizerEnrichment(
@@ -584,7 +586,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         "tv" -> "js-0.13.1",
         "ua" -> qs_ua,
         "p" -> "web"
-      )
+      ).toOpt
       val contextWithUa = context.copy(useragent = Some("header-useragent"))
       val rawEvent = RawEvent(api, parameters, None, source, contextWithUa)
       val enriched = EnrichmentManager.enrichEvent(
@@ -603,7 +605,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         "e" -> "pp",
         "tv" -> "js-0.13.1",
         "p" -> "web"
-      )
+      ).toOpt
       val contextWithUa = context.copy(useragent = Some("header-useragent"))
       val rawEvent = RawEvent(api, parameters, None, source, contextWithUa)
       val enriched = EnrichmentManager.enrichEvent(

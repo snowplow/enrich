@@ -24,7 +24,7 @@ package object common {
   type EnrichmentMap = Map[String, Enrichment]
 
   /** Parameters inside of a raw event */
-  type RawEventParameters = Map[String, String]
+  type RawEventParameters = Map[String, Option[String]]
 
   /** Parameters extracted from query string */
   type QueryStringParameters = List[(String, Option[String])]

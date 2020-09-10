@@ -503,10 +503,14 @@ object GoogleAnalyticsAdapter extends Adapter {
                     NonEmptyList
                       .one(FailureDetails.AdapterFailure.InputData("body", bodyPart.some, e))
                   )
-      hitType <- params.get("t").toRight {
-                   val msg = "no t parameter provided: cannot determine hit type"
-                   NonEmptyList
-                     .one(FailureDetails.AdapterFailure.InputData("body", bodyPart.some, msg))
+      hitType <- params.get("t") match {
+                   case Some(Some(t)) => Right(t)
+                   case _ =>
+                     val msg = "no t parameter provided: cannot determine hit type"
+                     Left(
+                       NonEmptyList
+                         .one(FailureDetails.AdapterFailure.InputData("body", bodyPart.some, msg))
+                     )
                  }
       // direct mappings
       mappings = translatePayload(params, directMappings(hitType))
@@ -542,9 +546,9 @@ object GoogleAnalyticsAdapter extends Adapter {
                       case (s, d) if hitType != PageViewHitType || s != unstructEventData(PageViewHitType).schemaKey =>
                         SelfDescribingData(s, d.asJson)
                     }
-                  val contextParam: Map[String, String] =
+                  val contextParam: Map[String, Option[String]] =
                     if (contextJsons.isEmpty) Map.empty
-                    else Map("co" -> toContexts(contextJsons).noSpaces)
+                    else Map("co" -> Some(toContexts(contextJsons).noSpaces))
                   (trTable, schema, contextParam)
                 }.toEither
       payload <- translatePayload(params, result._1)
@@ -553,7 +557,7 @@ object GoogleAnalyticsAdapter extends Adapter {
                      RawEvent(
                        api = payload.api,
                        parameters = result._3 ++ mappings ++
-                         Map("e" -> "ue", "ue_pr" -> unstructEvent, "tv" -> Protocol, "p" -> "srv"),
+                         Map("e" -> Some("ue"), "ue_pr" -> Some(unstructEvent), "tv" -> Some(Protocol), "p" -> Some("srv")),
                        contentType = payload.contentType,
                        source = payload.source,
                        context = payload.context
@@ -569,10 +573,11 @@ object GoogleAnalyticsAdapter extends Adapter {
    * @return a translated params
    */
   private def translatePayload(
-    originalParams: Map[String, String],
+    originalParams: Map[String, Option[String]],
     translationTable: Map[String, KVTranslation]
   ): Either[FailureDetails.AdapterFailure, Map[String, FieldType]] = {
     val m = originalParams
+      .collect { case (k, Some(v)) => (k, v) }
       .foldLeft(Map.empty[String, Either[FailureDetails.AdapterFailure, FieldType]]) {
         case (m, (fieldName, value)) =>
           translationTable
@@ -592,8 +597,11 @@ object GoogleAnalyticsAdapter extends Adapter {
    * @param translationTable mapping between original params and the wanted format
    * @return a translated params
    */
-  private def translatePayload(originalParams: Map[String, String], translationTable: Map[String, String]): Map[String, String] =
-    originalParams.foldLeft(Map.empty[String, String]) {
+  private def translatePayload(
+    originalParams: Map[String, Option[String]],
+    translationTable: Map[String, String]
+  ): Map[String, Option[String]] =
+    originalParams.foldLeft(Map.empty[String, Option[String]]) {
       case (m, (fieldName, value)) =>
         translationTable
           .get(fieldName)
@@ -610,11 +618,12 @@ object GoogleAnalyticsAdapter extends Adapter {
    * @return a map containing the discovered contexts keyed by schema
    */
   private def buildContexts(
-    originalParams: Map[String, String],
+    originalParams: Map[String, Option[String]],
     referenceTable: Map[SchemaKey, Map[String, KVTranslation]],
     fieldToSchemaMap: Map[String, SchemaKey]
   ): ValidatedNel[FailureDetails.AdapterFailure, Map[SchemaKey, Map[String, FieldType]]] = {
     val m = originalParams
+      .collect { case (k, Some(v)) => (k, v) }
       .foldLeft(
         Map.empty[SchemaKey, Map[String, ValidatedNel[FailureDetails.AdapterFailure, FieldType]]]
       ) {
@@ -648,7 +657,7 @@ object GoogleAnalyticsAdapter extends Adapter {
    * @return a map containing the composite contexts keyed by schema
    */
   private def buildCompositeContexts(
-    originalParams: Map[String, String],
+    originalParams: Map[String, Option[String]],
     referenceTable: List[MPData],
     schemasWithCU: List[SchemaKey],
     nrCompFieldsPerSchema: Map[SchemaKey, Int],
@@ -657,6 +666,7 @@ object GoogleAnalyticsAdapter extends Adapter {
     for {
       // composite params have digits in their key
       composite <- originalParams
+                     .collect { case (k, Some(v)) => (k, v) }
                      .filterKeys(k => k.exists(_.isDigit))
                      .asRight
       brokenDown <- composite.toList.sorted.map {
@@ -693,7 +703,7 @@ object GoogleAnalyticsAdapter extends Adapter {
                      case (k, m) =>
                        val values = transpose(m.values.map(_.toList).toList)
                        k -> (originalParams.get("cu") match {
-                         case Some(currency) if schemasWithCU.contains(k) =>
+                         case Some(Some(currency)) if schemasWithCU.contains(k) =>
                            values
                              .map(m.keys zip _)
                              .map(l => ("currencyCode" -> StringType(currency) :: l.toList).toMap)

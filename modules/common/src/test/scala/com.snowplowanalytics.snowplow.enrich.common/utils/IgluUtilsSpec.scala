@@ -34,7 +34,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
 
   val raw = RawEvent(
     CollectorPayload.Api("vendor", "version"),
-    Map.empty[String, String],
+    Map.empty[String, Option[String]],
     None,
     CollectorPayload.Source("source", "enc", None),
     CollectorPayload.Context(None, None, None, None, Nil, None)

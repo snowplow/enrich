@@ -126,8 +126,8 @@ trait Adapter {
    * @param parameters A NonEmptyList of name:value pairs
    * @return the name:value pairs in Map form
    */
-  protected[registry] def toMap(parameters: List[NameValuePair]): Map[String, String] =
-    parameters.map(p => p.getName -> p.getValue).toMap
+  protected[registry] def toMap(parameters: List[NameValuePair]): Map[String, Option[String]] =
+    parameters.map(p => p.getName -> Option(p.getValue)).toMap
 
   /**
    * Convenience function to build a simple formatter of RawEventParameters.
@@ -169,10 +169,10 @@ trait Adapter {
     val params = formatter(parameters - ("nuid", "aid", "cv", "p"))
     val json = toUnstructEvent(SelfDescribingData(schema, params)).noSpaces
     Map(
-      "tv" -> tracker,
-      "e" -> "ue",
-      "p" -> parameters.getOrElse("p", platform), // Required field
-      "ue_pr" -> json
+      "tv" -> Option(tracker),
+      "e" -> Some("ue"),
+      "p" -> parameters.getOrElse("p", Option(platform)), // Required field
+      "ue_pr" -> Option(json)
     ) ++
       parameters.filterKeys(AcceptedQueryParameters)
   }
@@ -224,10 +224,10 @@ trait Adapter {
   ): RawEventParameters = {
     val json = toUnstructEvent(SelfDescribingData(schema, eventJson.asJson)).noSpaces
     Map(
-      "tv" -> tracker,
-      "e" -> "ue",
-      "p" -> qsParams.getOrElse("p", platform), // Required field
-      "ue_pr" -> json
+      "tv" -> Option(tracker),
+      "e" -> Some("ue"),
+      "p" -> qsParams.getOrElse("p", Option(platform)), // Required field
+      "ue_pr" -> Option(json)
     ) ++
       qsParams.filterKeys(AcceptedQueryParameters)
   }
@@ -253,10 +253,10 @@ trait Adapter {
     val json = toUnstructEvent(SelfDescribingData(schema, eventJson)).noSpaces
 
     Map(
-      "tv" -> tracker,
-      "e" -> "ue",
-      "p" -> qsParams.getOrElse("p", platform), // Required field
-      "ue_pr" -> json
+      "tv" -> Option(tracker),
+      "e" -> Some("ue"),
+      "p" -> qsParams.getOrElse("p", Option(platform)), // Required field
+      "ue_pr" -> Option(json)
     ) ++
       qsParams.filterKeys(AcceptedQueryParameters)
   }

@@ -113,7 +113,7 @@ class UrbanAirshipAdapterSpec extends Specification with ValidatedMatchers {
       correctType must be equalTo (Right("CLOSE"))
 
       val items = actual.toList.head.toList
-      val sentSchema = parse(items.head.parameters("ue_pr"))
+      val sentSchema = parse(items.head.parameters("ue_pr").getOrElse("{}"))
         .leftMap(_.getMessage)
         .flatMap(_.hcursor.downField("data").get[String]("schema").leftMap(_.getMessage))
       sentSchema must beRight("""iglu:com.urbanairship.connect/CLOSE/jsonschema/1-0-0""")
@@ -193,7 +193,7 @@ class UrbanAirshipAdapterSpec extends Specification with ValidatedMatchers {
       actual match {
         case Validated.Valid(successes) =>
           val event = successes.head
-          parse(event.parameters("ue_pr")) must beRight(expectedUnstructEventJson)
+          parse(event.parameters("ue_pr").getOrElse("{}")) must beRight(expectedUnstructEventJson)
         case _ => ko("payload was not accepted")
       }
     }
@@ -203,7 +203,7 @@ class UrbanAirshipAdapterSpec extends Specification with ValidatedMatchers {
         case Validated.Valid(successes) =>
           val event = successes.head
           // "occurred" field value in ms past epoch (2015-11-13T16:31:52.393Z)
-          event.parameters("ttm") must beEqualTo("1447432312393")
+          event.parameters("ttm") must beEqualTo(Some("1447432312393"))
         case _ => ko("payload was not populated")
       }
     }
@@ -213,7 +213,7 @@ class UrbanAirshipAdapterSpec extends Specification with ValidatedMatchers {
         case Validated.Valid(successes) =>
           val event = successes.head
           // id field value
-          event.parameters("eid") must beEqualTo("e3314efb-9058-dbaf-c4bb-b754fca73613")
+          event.parameters("eid") must beEqualTo(Some("e3314efb-9058-dbaf-c4bb-b754fca73613"))
         case _ => ko("payload was not populated")
       }
     }

@@ -84,13 +84,13 @@ class AdapterSpec extends Specification with DataTables with ValidatedMatchers {
 
   def e1 = {
     val pairs = toNameValuePairs("a" -> "1", "b" -> "2", "c" -> "3")
-    BaseAdapter.toMap(pairs) must_== Map("a" -> "1", "b" -> "2", "c" -> "3")
+    BaseAdapter.toMap(pairs) must_== Map("a" -> "1", "b" -> "2", "c" -> "3").toOpt
   }
 
   def e2 = {
     val params = BaseAdapter.toUnstructEventParams(
       "tv",
-      Map[String, String](),
+      Map.empty[String, Option[String]],
       SchemaKey("com.acme", "foo", "jsonschema", SchemaVer.Full(1, 0, 1)),
       _ => Json.fromJsonObject(JsonObject.empty),
       "app"
@@ -100,7 +100,7 @@ class AdapterSpec extends Specification with DataTables with ValidatedMatchers {
       "e" -> "ue",
       "p" -> "app",
       "ue_pr" -> """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.acme/foo/jsonschema/1-0-1","data":{}}}"""
-    )
+    ).toOpt
   }
 
   def e3 = {
@@ -112,7 +112,7 @@ class AdapterSpec extends Specification with DataTables with ValidatedMatchers {
       "eid" -> "321",
       "ttm" -> "2015-11-13T16:31:52.393Z",
       "url" -> "http://localhost"
-    )
+    ).toOpt
     val params = BaseAdapter.toUnstructEventParams(
       "tv",
       shared,
@@ -127,7 +127,7 @@ class AdapterSpec extends Specification with DataTables with ValidatedMatchers {
       "ttm" -> "2015-11-13T16:31:52.393Z",
       "url" -> "http://localhost",
       "ue_pr" -> """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.acme/foo/jsonschema/1-0-1","data":{}}}"""
-    )
+    ).toOpt
   }
 
   def e4 = {
@@ -168,7 +168,7 @@ class AdapterSpec extends Specification with DataTables with ValidatedMatchers {
   def e7 = {
     val rawEvent = RawEvent(
       Shared.api,
-      Map("tv" -> "com.adapter-v1", "e" -> "ue", "p" -> "srv"),
+      Map("tv" -> "com.adapter-v1", "e" -> "ue", "p" -> "srv").toOpt,
       Shared.contentType.some,
       Shared.cljSource,
       Shared.context
@@ -195,7 +195,7 @@ class AdapterSpec extends Specification with DataTables with ValidatedMatchers {
   def e8 = {
     val rawEvent = RawEvent(
       Shared.api,
-      Map("tv" -> "com.adapter-v1", "e" -> "ue", "p" -> "srv"),
+      Map("tv" -> "com.adapter-v1", "e" -> "ue", "p" -> "srv").toOpt,
       Shared.contentType.some,
       Shared.cljSource,
       Shared.context
@@ -205,21 +205,21 @@ class AdapterSpec extends Specification with DataTables with ValidatedMatchers {
     val expected = NonEmptyList.of(
       RawEvent(
         Shared.api,
-        Map("tv" -> "com.adapter-v1", "e" -> "ue", "p" -> "srv"),
+        Map("tv" -> "com.adapter-v1", "e" -> "ue", "p" -> "srv").toOpt,
         Shared.contentType.some,
         Shared.cljSource,
         Shared.context
       ),
       RawEvent(
         Shared.api,
-        Map("tv" -> "com.adapter-v1", "e" -> "ue", "p" -> "srv"),
+        Map("tv" -> "com.adapter-v1", "e" -> "ue", "p" -> "srv").toOpt,
         Shared.contentType.some,
         Shared.cljSource,
         Shared.context
       ),
       RawEvent(
         Shared.api,
-        Map("tv" -> "com.adapter-v1", "e" -> "ue", "p" -> "srv"),
+        Map("tv" -> "com.adapter-v1", "e" -> "ue", "p" -> "srv").toOpt,
         Shared.contentType.some,
         Shared.cljSource,
         Shared.context

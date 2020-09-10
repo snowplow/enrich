@@ -42,6 +42,8 @@ import org.specs2.specification.BeforeAfter
 import loaders.CollectorPayload
 import utils.Clock._
 
+import SpecHelpers._
+
 class RemoteAdapterSpec extends Specification with ValidatedMatchers {
 
   def is =
@@ -189,7 +191,7 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers {
             "e" -> "ue",
             "p" -> mockPlatform,
             "ue_pr" -> s"""{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:$mockSchemaVendor/$mockSchemaName/$mockSchemaFormat/$mockSchemaVersion","data":$evtJson}}"""
-          ),
+          ).toOpt,
           None,
           Shared.cljSource,
           Shared.context

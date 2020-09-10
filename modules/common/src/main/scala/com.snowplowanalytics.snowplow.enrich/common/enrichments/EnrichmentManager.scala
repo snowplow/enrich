@@ -633,11 +633,11 @@ object EnrichmentManager {
 
   def setEventFingerprint(
     event: EnrichedEvent,
-    sourceMap: Map[String, String],
+    parameters: RawEventParameters,
     eventFingerprint: Option[EventFingerprintEnrichment]
   ): Unit =
     eventFingerprint match {
-      case Some(efe) => event.event_fingerprint = efe.getEventFingerprint(sourceMap)
+      case Some(efe) => event.event_fingerprint = efe.getEventFingerprint(parameters)
       case _ => ()
     }
 

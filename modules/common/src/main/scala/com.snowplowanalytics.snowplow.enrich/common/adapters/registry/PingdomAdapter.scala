@@ -76,16 +76,7 @@ object PingdomAdapter extends Adapter {
           case Left(f) => Monad[F].pure(f.invalid)
           case Right(s) =>
             s.get("message") match {
-              case None =>
-                val msg = "no `message` parameter provided"
-                val formattedQS = s.map { case (k, v) => s"$k=$v" }.mkString("&")
-                val failure = FailureDetails.AdapterFailure.InputData(
-                  "querystring",
-                  formattedQS.some,
-                  msg
-                )
-                Monad[F].pure(failure.invalidNel)
-              case Some(event) =>
+              case Some(Some(event)) =>
                 Monad[F].pure((for {
                   parsedEvent <- JsonUtils
                                    .extractJson(event)
@@ -117,6 +108,15 @@ object PingdomAdapter extends Adapter {
                     )
                   )
                 }).toValidatedNel)
+              case _ =>
+                val msg = "no `message` parameter provided"
+                val formattedQS = s.map { case (k, v) => s"$k=${v.getOrElse("null")}" }.mkString("&")
+                val failure = FailureDetails.AdapterFailure.InputData(
+                  "querystring",
+                  formattedQS.some,
+                  msg
+                )
+                Monad[F].pure(failure.invalidNel)
             }
         }
     }
@@ -133,10 +133,10 @@ object PingdomAdapter extends Adapter {
    */
   private[registry] def reformatMapParams(
     params: List[NameValuePair]
-  ): Either[NonEmptyList[FailureDetails.AdapterFailure], Map[String, String]] = {
-    val formatted = params.map { value =>
-      (value.getName, value.getValue) match {
-        case (k, PingdomValueRegex(v)) =>
+  ): Either[NonEmptyList[FailureDetails.AdapterFailure], Map[String, Option[String]]] = {
+    val formatted = params.map { nvp =>
+      (nvp.getName, Option(nvp.getValue)) match {
+        case (k, Some(PingdomValueRegex(v))) =>
           FailureDetails.AdapterFailure
             .InputData(k, v.some, s"should not pass regex $PingdomValueRegex")
             .asLeft
@@ -144,7 +144,7 @@ object PingdomAdapter extends Adapter {
       }
     }
 
-    val successes: List[(String, String)] = formatted.collect { case Right(s) => s }
+    val successes: List[(String, Option[String])] = formatted.collect { case Right(s) => s }
     val failures: List[FailureDetails.AdapterFailure] = formatted.collect { case Left(f) => f }
 
     (successes, failures) match {

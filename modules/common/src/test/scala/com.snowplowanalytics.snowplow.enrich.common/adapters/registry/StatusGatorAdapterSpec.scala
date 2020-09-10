@@ -24,6 +24,8 @@ import org.specs2.matcher.{DataTables, ValidatedMatchers}
 import loaders._
 import utils.Clock._
 
+import SpecHelpers._
+
 class StatusGatorAdapterSpec extends Specification with DataTables with ValidatedMatchers {
   def is = s2"""
   toRawEvents must return a Success Nel if every event in the payload is successful          $e1
@@ -80,7 +82,7 @@ class StatusGatorAdapterSpec extends Specification with DataTables with Validate
     val expected = NonEmptyList.one(
       RawEvent(
         Shared.api,
-        Map("tv" -> "com.statusgator-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson),
+        Map("tv" -> "com.statusgator-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context

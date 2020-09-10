@@ -111,6 +111,7 @@ object MailgunAdapter extends Adapter {
               toMap(
                 URLEncodedUtils.parse(URI.create("http://localhost/?" + body), UTF_8).asScala.toList
               )
+                .collect { case (k, Some(v)) => (k, v) }
             )
         } match {
           case TF(e) =>

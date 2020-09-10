@@ -24,6 +24,8 @@ import org.specs2.matcher.{DataTables, ValidatedMatchers}
 import loaders._
 import utils.Clock._
 
+import SpecHelpers._
+
 class IgluAdapterSpec extends Specification with DataTables with ValidatedMatchers {
   def is = s2"""
   toRawEvents should return a NEL containing one RawEvent if the CloudFront querystring is minimally populated           $e1
@@ -63,10 +65,10 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
     val staticNoPlatform = Map(
       "tv" -> "com.snowplowanalytics.iglu-v1",
       "e" -> "ue"
-    )
+    ).toOpt
     val static = staticNoPlatform ++ Map(
       "p" -> "app"
-    )
+    ).toOpt
   }
 
   def e1 = {
@@ -102,7 +104,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
       NonEmptyList.one(
         RawEvent(
           Shared.api,
-          Expected.static ++ Map("ue_pr" -> expectedJson),
+          Expected.static ++ Map("ue_pr" -> expectedJson).toOpt,
           None,
           Shared.cfSource,
           Shared.context
@@ -142,7 +144,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
       Map(
         "ue_pr" -> json,
         "aid" -> "webhooks"
-      )
+      ).toOpt
     }
 
     actual must beValid(
@@ -187,7 +189,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
         "aid" -> "my webhook project",
         "cv" -> "clj-0.5.0-tom-0.0.4",
         "nuid" -> ""
-      )
+      ).toOpt
     }
 
     actual must beValid(
@@ -223,7 +225,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
       NonEmptyList.one(
         RawEvent(
           Shared.api,
-          Expected.staticNoPlatform ++ Map("p" -> "mob", "ue_pr" -> expectedJson),
+          Expected.staticNoPlatform ++ Map("p" -> "mob", "ue_pr" -> expectedJson).toOpt,
           None,
           Shared.cfSource,
           Shared.context
@@ -304,7 +306,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
         "e" -> "ue",
         "p" -> "mob",
         "ue_pr" -> """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.acme/campaign/jsonschema/1-0-1","data":{"key":"value","everwets":"processed"}}}"""
-      ),
+      ).toOpt,
       "application/json".some,
       Shared.cljSource,
       Shared.context
@@ -409,7 +411,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
         "e" -> "ue",
         "p" -> "mob",
         "ue_pr" -> """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.acme/campaign/jsonschema/1-0-1","data":{"some_param":"foo"}}}"""
-      ),
+      ).toOpt,
       "application/json".some,
       Shared.cljSource,
       Shared.context
@@ -490,7 +492,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
         "e" -> "ue",
         "p" -> "srv",
         "ue_pr" -> """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.acme/campaign/jsonschema/1-0-1","data":{"some_param":"foo","hello":"world"}}}"""
-      ),
+      ).toOpt,
       "application/x-www-form-urlencoded".some,
       Shared.cljSource,
       Shared.context
@@ -525,7 +527,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
         "e" -> "ue",
         "p" -> "mob",
         "ue_pr" -> """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.acme/campaign/jsonschema/1-0-1","data":{"key":"value","everwets":"processed"}}}"""
-      ),
+      ).toOpt,
       "application/json".some,
       Shared.cljSource,
       Shared.context

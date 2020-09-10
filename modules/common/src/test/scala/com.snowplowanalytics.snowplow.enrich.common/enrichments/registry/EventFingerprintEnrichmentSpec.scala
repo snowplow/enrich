@@ -14,6 +14,8 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import org.specs2.Specification
 
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
+
 class EventFingerprintEnrichmentSpec extends Specification {
   def is = s2"""
   getEventFingerprint should combine fields into a hash                       $e1
@@ -43,7 +45,7 @@ class EventFingerprintEnrichmentSpec extends Specification {
         "stm" -> "1000000000000",
         "e" -> "se",
         "se_ac" -> "buy"
-      )
+      ).toOpt
     ) must_== "15"
   }
 
@@ -53,14 +55,14 @@ class EventFingerprintEnrichmentSpec extends Specification {
       "se_ac" -> "action",
       "se_ca" -> "category",
       "se_pr" -> "property"
-    )
+    ).toOpt
 
     val permutedVersion = Map(
       "se_ca" -> "category",
       "se_ac" -> "action",
       "se_pr" -> "property",
       "e" -> "se"
-    )
+    ).toOpt
 
     standardConfig.getEventFingerprint(permutedVersion) must_== standardConfig.getEventFingerprint(
       initialVersion
@@ -73,12 +75,12 @@ class EventFingerprintEnrichmentSpec extends Specification {
       "eid" -> "123e4567-e89b-12d3-a456-426655440000",
       "e" -> "se",
       "se_ac" -> "buy"
-    )
+    ).toOpt
     val delayedVersion = Map(
       "stm" -> "9999999999999",
       "e" -> "se",
       "se_ac" -> "buy"
-    )
+    ).toOpt
 
     standardConfig.getEventFingerprint(delayedVersion) must_== standardConfig.getEventFingerprint(
       initialVersion
@@ -88,7 +90,7 @@ class EventFingerprintEnrichmentSpec extends Specification {
   def e4 = {
     val initialVersion = Map(
       "prefix" -> "suffix"
-    )
+    ).toOpt
 
     standardConfig.getEventFingerprint(initialVersion) should not be standardConfig
       .getEventFingerprint(initialVersion)
@@ -104,7 +106,7 @@ class EventFingerprintEnrichmentSpec extends Specification {
     val initialVersion = Map(
       "e" -> "se",
       "se_ac" -> "action"
-    )
+    ).toOpt
 
     sha1Config.getEventFingerprint(initialVersion).length() must_== 40
   }
@@ -119,7 +121,7 @@ class EventFingerprintEnrichmentSpec extends Specification {
     val initialVersion = Map(
       "e" -> "se",
       "se_ac" -> "action"
-    )
+    ).toOpt
 
     sha256Config.getEventFingerprint(initialVersion).length() must_== 64
   }
@@ -134,7 +136,7 @@ class EventFingerprintEnrichmentSpec extends Specification {
     val initialVersion = Map(
       "e" -> "se",
       "se_ac" -> "action"
-    )
+    ).toOpt
 
     sha384Config.getEventFingerprint(initialVersion).length() must_== 96
   }
@@ -149,7 +151,7 @@ class EventFingerprintEnrichmentSpec extends Specification {
     val initialVersion = Map(
       "e" -> "se",
       "se_ac" -> "action"
-    )
+    ).toOpt
 
     sha512Config.getEventFingerprint(initialVersion).length() must_== 128
   }

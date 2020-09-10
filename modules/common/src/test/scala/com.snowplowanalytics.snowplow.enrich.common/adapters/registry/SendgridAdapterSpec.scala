@@ -24,6 +24,8 @@ import org.specs2.mutable.Specification
 import loaders._
 import utils.Clock._
 
+import SpecHelpers._
+
 class SendgridAdapterSpec extends Specification with ValidatedMatchers {
   object Shared {
     val api = CollectorPayload.Api("com.sendgrid", "v3")
@@ -459,7 +461,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers {
               "e" -> "ue",
               "p" -> "srv",
               "ue_pr" -> expectedJson // NB this includes removing the "event" keypair as redundant
-            ),
+            ).toOpt,
             ContentType.some,
             Shared.cljSource,
             Shared.context

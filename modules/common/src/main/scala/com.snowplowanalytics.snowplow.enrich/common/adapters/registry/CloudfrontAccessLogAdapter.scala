@@ -135,9 +135,9 @@ object CloudfrontAccessLogAdapter extends Adapter {
       case "" => None
       case nonempty => nonempty.some
     }
-    val qsParams: Map[String, String] = schemaCompatibleFields(8) match {
+    val qsParams: Map[String, Option[String]] = schemaCompatibleFields(8) match {
       case "" => Map()
-      case url => Map("url" -> url)
+      case url => Map("url" -> Option(url))
     }
     val userAgent = schemaCompatibleFields(9) match {
       case "" => None

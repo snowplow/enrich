@@ -27,6 +27,8 @@ import org.specs2.matcher.{DataTables, ValidatedMatchers}
 import loaders._
 import utils.Clock._
 
+import SpecHelpers._
+
 class OlarkAdapterSpec extends Specification with DataTables with ValidatedMatchers {
   def is = s2"""
   toRawEvents must return a Success Nel if the transcript event in the payload is successful      $e1
@@ -134,7 +136,7 @@ class OlarkAdapterSpec extends Specification with DataTables with ValidatedMatch
     val expected = NonEmptyList.one(
       RawEvent(
         Shared.api,
-        Map("tv" -> "com.olark-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson),
+        Map("tv" -> "com.olark-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context
@@ -198,7 +200,7 @@ class OlarkAdapterSpec extends Specification with DataTables with ValidatedMatch
     val expected = NonEmptyList.one(
       RawEvent(
         Shared.api,
-        Map("tv" -> "com.olark-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson),
+        Map("tv" -> "com.olark-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context

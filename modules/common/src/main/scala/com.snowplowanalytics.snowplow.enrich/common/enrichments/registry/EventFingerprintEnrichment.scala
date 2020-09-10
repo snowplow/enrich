@@ -23,6 +23,7 @@ import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey}
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.EventFingerprintConf
 import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
+import com.snowplowanalytics.snowplow.enrich.common.`package`.RawEventParameters
 
 /** Lets us create an EventFingerprintEnrichment from a Json. */
 object EventFingerprintEnrichment extends ParseableEnrichment {
@@ -86,12 +87,11 @@ final case class EventFingerprintEnrichment(algorithm: String => String, exclude
 
   /**
    * Calculate an event fingerprint using all querystring fields except the excludedParameters
-   * @param parameterMap
    * @return Event fingerprint
    */
-  def getEventFingerprint(parameterMap: Map[String, String]): String = {
+  def getEventFingerprint(parameters: RawEventParameters): String = {
     val builder = new StringBuilder
-    parameterMap.toList.sortWith(_._1 < _._1).foreach {
+    parameters.toList.collect { case (k, Some(v)) => (k, v) }.sortWith(_._1 < _._1).foreach {
       case (key, value) =>
         if (!excludedParameters.contains(key)) {
           builder.append(key)

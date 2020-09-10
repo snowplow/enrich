@@ -35,7 +35,7 @@ object Transform {
    * @param enriched /!\ MUTABLE enriched event, mutated IN-PLACE /!\
    */
   private[enrichments] def transform(raw: RawEvent, enriched: EnrichedEvent): ValidatedNel[FailureDetails.EnrichmentFailure, Unit] = {
-    val sourceMap: SourceMap = raw.parameters
+    val sourceMap: SourceMap = raw.parameters.collect { case (k, Some(v)) => (k, v) }
     val firstPassTransform = enriched.transform(sourceMap, firstPassTransformMap)
     val secondPassTransform = enriched.transform(sourceMap, secondPassTransformMap)
 

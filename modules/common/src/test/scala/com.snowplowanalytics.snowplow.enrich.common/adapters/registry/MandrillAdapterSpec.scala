@@ -25,6 +25,8 @@ import org.specs2.matcher.{DataTables, ValidatedMatchers}
 import loaders._
 import utils.Clock._
 
+import SpecHelpers._
+
 class MandrillAdapterSpec extends Specification with DataTables with ValidatedMatchers {
   def is = s2"""
   payloadBodyToEvents must return a Success List[JValue] for a valid events string                      $e1
@@ -110,7 +112,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
           "e" -> "ue",
           "p" -> "srv",
           "ue_pr" -> """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.mandrill/message_sent/jsonschema/1-0-0","data":{"msg":{"_version":"exampleaaaaaaaaaaaaaaa","subject":"This an example webhook message","email":"example.webhook@mandrillapp.com","state":"sent","_id":"exampleaaaaaaaaaaaaaaaaaaaaaaaaa","tags":["webhook-example"],"ts":"2013-04-04T21:13:19.000Z","clicks":[],"metadata":{"user_id":111},"sender":"example.sender@mandrillapp.com","opens":[]},"_id":"exampleaaaaaaaaaaaaaaaaaaaaaaaaa","ts":"2014-11-06T09:49:26.000Z"}}}"""
-        ),
+        ).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context
@@ -122,7 +124,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
           "e" -> "ue",
           "p" -> "srv",
           "ue_pr" -> """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.mandrill/message_delayed/jsonschema/1-0-1","data":{"msg":{"_version":"exampleaaaaaaaaaaaaaaa","subject":"This an example webhook message","email":"example.webhook@mandrillapp.com","state":"deferred","_id":"exampleaaaaaaaaaaaaaaaaaaaaaaaaa1","tags":["webhook-example"],"ts":"2013-04-04T21:13:19.000Z","smtp_events":[{"size":0,"destination_ip":"127.0.0.1","diag":"451 4.3.5 Temporarily unavailable, try again later.","ts":"2013-04-04T21:31:51.000Z","source_ip":"127.0.0.1","type":"deferred"}],"clicks":[],"metadata":{"user_id":111},"sender":"example.sender@mandrillapp.com","opens":[]},"_id":"exampleaaaaaaaaaaaaaaaaaaaaaaaaa1","ts":"2014-11-06T09:49:26.000Z"}}}"""
-        ),
+        ).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context
@@ -134,7 +136,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
           "e" -> "ue",
           "p" -> "srv",
           "ue_pr" -> """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.mandrill/message_bounced/jsonschema/1-0-1","data":{"msg":{"_version":"exampleaaaaaaaaaaaaaaa","subject":"This an example webhook message","email":"example.webhook@mandrillapp.com","state":"bounced","_id":"exampleaaaaaaaaaaaaaaaaaaaaaaaaa2","tags":["webhook-example"],"diag":"smtp;550 5.1.1 The email account that you tried to reach does not exist. Please try double-checking the recipient's email address for typos or unnecessary spaces.","ts":"2013-04-04T21:13:19.000Z","metadata":{"user_id":111},"sender":"example.sender@mandrillapp.com","bounce_description":"bad_mailbox","bgtools_code":10},"_id":"exampleaaaaaaaaaaaaaaaaaaaaaaaaa2","ts":"2014-11-06T09:49:26.000Z"}}}"""
-        ),
+        ).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context
@@ -146,7 +148,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
           "e" -> "ue",
           "p" -> "srv",
           "ue_pr" -> """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.mandrill/message_soft_bounced/jsonschema/1-0-1","data":{"msg":{"_version":"exampleaaaaaaaaaaaaaaa","subject":"This an example webhook message","email":"example.webhook@mandrillapp.com","state":"soft-bounced","_id":"exampleaaaaaaaaaaaaaaaaaaaaaaaaa3","tags":["webhook-example"],"diag":"smtp;552 5.2.2 Over Quota","ts":"2013-04-04T21:13:19.000Z","metadata":{"user_id":111},"sender":"example.sender@mandrillapp.com","bounce_description":"mailbox_full","bgtools_code":22},"_id":"exampleaaaaaaaaaaaaaaaaaaaaaaaaa3","ts":"2014-11-06T09:49:26.000Z"}}}"""
-        ),
+        ).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context
@@ -158,7 +160,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
           "e" -> "ue",
           "p" -> "srv",
           "ue_pr" -> """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.mandrill/message_opened/jsonschema/1-0-1","data":{"ip":"127.0.0.1","location":{"city":"Oklahoma City","latitude":35.4675598145,"timezone":"-05:00","country":"United States","longitude":-97.5164337158,"country_short":"US","postal_code":"73101","region":"Oklahoma"},"_id":"exampleaaaaaaaaaaaaaaaaaaaaaaaaa4","ts":"2014-11-06T09:49:26.000Z","user_agent":"Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.6; en-US; rv:1.9.1.8) Gecko/20100317 Postbox/1.1.3","msg":{"_version":"exampleaaaaaaaaaaaaaaa","subject":"This an example webhook message","email":"example.webhook@mandrillapp.com","state":"sent","_id":"exampleaaaaaaaaaaaaaaaaaaaaaaaaa4","tags":["webhook-example"],"ts":"2013-04-04T21:13:19.000Z","clicks":[{"ts":"2013-04-04T21:31:51.000Z","url":"http://mandrill.com"}],"metadata":{"user_id":111},"sender":"example.sender@mandrillapp.com","opens":[{"ts":"2013-04-04T21:31:51.000Z"}]},"user_agent_parsed":{"os_company_url":"http://www.apple.com/","os_family":"OS X","os_company":"Apple Computer, Inc.","os_url":"http://www.apple.com/osx/","ua_url":"http://www.postbox-inc.com/","ua_icon":"http://cdn.mandrill.com/img/email-client-icons/postbox.png","ua_version":"1.1.3","os_name":"OS X 10.6 Snow Leopard","ua_company":"Postbox, Inc.","ua_family":"Postbox","os_icon":"http://cdn.mandrill.com/img/email-client-icons/macosx.png","ua_company_url":"http://www.postbox-inc.com/","ua_name":"Postbox 1.1.3","type":"Email Client","mobile":false}}}}"""
-        ),
+        ).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context
@@ -170,7 +172,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
           "e" -> "ue",
           "p" -> "srv",
           "ue_pr" -> """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.mandrill/message_clicked/jsonschema/1-0-1","data":{"ip":"127.0.0.1","location":{"city":"Oklahoma City","latitude":35.4675598145,"timezone":"-05:00","country":"United States","longitude":-97.5164337158,"country_short":"US","postal_code":"73101","region":"Oklahoma"},"url":"http://mandrill.com","_id":"exampleaaaaaaaaaaaaaaaaaaaaaaaaa5","ts":"2014-11-06T09:49:26.000Z","user_agent":"Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.6; en-US; rv:1.9.1.8) Gecko/20100317 Postbox/1.1.3","msg":{"_version":"exampleaaaaaaaaaaaaaaa","subject":"This an example webhook message","email":"example.webhook@mandrillapp.com","state":"sent","_id":"exampleaaaaaaaaaaaaaaaaaaaaaaaaa5","tags":["webhook-example"],"ts":"2013-04-04T21:13:19.000Z","clicks":[{"ts":"2013-04-04T21:31:51.000Z","url":"http://mandrill.com"}],"metadata":{"user_id":111},"sender":"example.sender@mandrillapp.com","opens":[{"ts":"2013-04-04T21:31:51.000Z"}]},"user_agent_parsed":{"os_company_url":"http://www.apple.com/","os_family":"OS X","os_company":"Apple Computer, Inc.","os_url":"http://www.apple.com/osx/","ua_url":"http://www.postbox-inc.com/","ua_icon":"http://cdn.mandrill.com/img/email-client-icons/postbox.png","ua_version":"1.1.3","os_name":"OS X 10.6 Snow Leopard","ua_company":"Postbox, Inc.","ua_family":"Postbox","os_icon":"http://cdn.mandrill.com/img/email-client-icons/macosx.png","ua_company_url":"http://www.postbox-inc.com/","ua_name":"Postbox 1.1.3","type":"Email Client","mobile":false}}}}"""
-        ),
+        ).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context
@@ -182,7 +184,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
           "e" -> "ue",
           "p" -> "srv",
           "ue_pr" -> """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.mandrill/message_marked_as_spam/jsonschema/1-0-1","data":{"msg":{"_version":"exampleaaaaaaaaaaaaaaa","subject":"This an example webhook message","email":"example.webhook@mandrillapp.com","state":"sent","_id":"exampleaaaaaaaaaaaaaaaaaaaaaaaaa6","tags":["webhook-example"],"ts":"2013-04-04T21:13:19.000Z","clicks":[{"ts":"2013-04-04T21:31:51.000Z","url":"http://mandrill.com"}],"metadata":{"user_id":111},"sender":"example.sender@mandrillapp.com","opens":[{"ts":"2013-04-04T21:31:51.000Z"}]},"_id":"exampleaaaaaaaaaaaaaaaaaaaaaaaaa6","ts":"2014-11-06T09:49:26.000Z"}}}"""
-        ),
+        ).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context
@@ -194,7 +196,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
           "e" -> "ue",
           "p" -> "srv",
           "ue_pr" -> """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.mandrill/recipient_unsubscribed/jsonschema/1-0-1","data":{"msg":{"_version":"exampleaaaaaaaaaaaaaaa","subject":"This an example webhook message","email":"example.webhook@mandrillapp.com","state":"sent","_id":"exampleaaaaaaaaaaaaaaaaaaaaaaaaa7","tags":["webhook-example"],"ts":"2013-04-04T21:13:19.000Z","clicks":[{"ts":"2013-04-04T21:31:51.000Z","url":"http://mandrill.com"}],"metadata":{"user_id":111},"sender":"example.sender@mandrillapp.com","opens":[{"ts":"2013-04-04T21:31:51.000Z"}]},"_id":"exampleaaaaaaaaaaaaaaaaaaaaaaaaa7","ts":"2014-11-06T09:49:26.000Z"}}}"""
-        ),
+        ).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context
@@ -206,7 +208,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
           "e" -> "ue",
           "p" -> "srv",
           "ue_pr" -> """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.mandrill/message_rejected/jsonschema/1-0-0","data":{"msg":{"_version":"exampleaaaaaaaaaaaaaaa","subject":"This an example webhook message","email":"example.webhook@mandrillapp.com","state":"rejected","_id":"exampleaaaaaaaaaaaaaaaaaaaaaaaaa8","tags":["webhook-example"],"ts":"2013-04-04T21:13:19.000Z","clicks":[],"metadata":{"user_id":111},"sender":"example.sender@mandrillapp.com","opens":[]},"_id":"exampleaaaaaaaaaaaaaaaaaaaaaaaaa8","ts":"2014-11-06T09:49:26.000Z"}}}"""
-        ),
+        ).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context

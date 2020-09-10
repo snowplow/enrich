@@ -136,7 +136,7 @@ object UrbanAirshipAdapter extends Adapter {
             api = payload.api,
             parameters = toUnstructEventParams(
               TrackerVersion,
-              toMap(payload.querystring) ++ Map("ttm" -> toTtmFormat(tts), "eid" -> id),
+              toMap(payload.querystring) ++ Map("ttm" -> Option(toTtmFormat(tts)), "eid" -> Option(id)),
               schema,
               json,
               "srv"

@@ -26,6 +26,8 @@ import org.specs2.matcher.{DataTables, ValidatedMatchers}
 import loaders._
 import utils.Clock._
 
+import SpecHelpers._
+
 class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMatchers {
   def is = s2"""
   payloadBodyToEvents must return a Success list of event JSON's from a valid payload body $e1
@@ -91,7 +93,7 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
           "e" -> "ue",
           "p" -> "srv",
           "ue_pr" -> """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.hubspot/contact_creation/jsonschema/1-0-0","data":{"eventId":1,"subscriptionId":25458,"portalId":4737818,"occurredAt":"2018-10-10T04:23:19.845Z","attemptNumber":0,"objectId":123,"changeSource":"CRM","changeFlag":"NEW","appId":177698}}}"""
-        ),
+        ).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context

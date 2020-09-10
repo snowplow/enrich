@@ -29,6 +29,8 @@ import org.specs2.matcher.{DataTables, ValidatedMatchers}
 import loaders._
 import utils.Clock._
 
+import SpecHelpers._
+
 class PingdomAdapterSpec extends Specification with DataTables with ValidatedMatchers {
   def is = s2"""
   reformatParameters should return either an updated JSON without the 'action' field or the same JSON $e1
@@ -84,7 +86,7 @@ class PingdomAdapterSpec extends Specification with DataTables with ValidatedMat
         "e" -> "ue",
         "p" -> "apps",
         "ue_pr" -> """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.pingdom/incident_assign/jsonschema/1-0-0","data":{"check":"1421338","checkname":"Webhooks_Test","host":"7eef51c2.ngrok.com","incidentid":3,"description":"down"}}}"""
-      ),
+      ).toOpt,
       None,
       Shared.cljSource,
       Shared.context

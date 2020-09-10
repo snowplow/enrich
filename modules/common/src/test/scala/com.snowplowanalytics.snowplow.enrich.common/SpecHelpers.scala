@@ -103,4 +103,8 @@ object SpecHelpers {
       .leftMap(err => s"Can't parse [$rawJson] as Json, error: [$err]")
       .flatMap(SelfDescribingData.parse[Json])
       .leftMap(err => s"Can't parse Json [$rawJson] as as SelfDescribingData, error: [$err]")
+
+  implicit class MapOps[A, B](underlying: Map[A, B]) {
+    def toOpt: Map[A, Option[B]] = underlying.map { case (a, b) => (a, Option(b)) }
+  }
 }

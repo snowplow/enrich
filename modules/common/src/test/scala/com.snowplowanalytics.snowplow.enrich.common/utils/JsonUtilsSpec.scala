@@ -33,14 +33,14 @@ class JsonUtilsSpec extends Specification {
   def e1 = {
     val key = "key"
     val value = "value"
-    JsonUtils.toJson(key, value, Nil, Nil, None) must
+    JsonUtils.toJson(key, Option(value), Nil, Nil, None) must
       beEqualTo((key, Json.fromString(value)))
   }
 
   def e2 = {
     val key = "key"
     val value: String = null
-    JsonUtils.toJson(key, value, Nil, Nil, None) must
+    JsonUtils.toJson(key, Option(value), Nil, Nil, None) must
       beEqualTo((key, Json.Null))
   }
 
@@ -48,15 +48,15 @@ class JsonUtilsSpec extends Specification {
     val key = "field"
 
     val truE = "true"
-    val exp1 = JsonUtils.toJson(key, truE, List(key), Nil, None) must
+    val exp1 = JsonUtils.toJson(key, Option(truE), List(key), Nil, None) must
       beEqualTo(key -> Json.True)
 
     val falsE = "false"
-    val exp2 = JsonUtils.toJson(key, falsE, List(key), Nil, None) must
+    val exp2 = JsonUtils.toJson(key, Option(falsE), List(key), Nil, None) must
       beEqualTo(key -> Json.False)
 
     val foo = "foo"
-    val exp3 = JsonUtils.toJson(key, foo, List(key), Nil, None) must
+    val exp3 = JsonUtils.toJson(key, Option(foo), List(key), Nil, None) must
       beEqualTo(key -> Json.fromString(foo))
 
     exp1 and exp2 and exp3
@@ -66,11 +66,11 @@ class JsonUtilsSpec extends Specification {
     val key = "field"
 
     val number = 123
-    val exp1 = JsonUtils.toJson(key, number.toString(), Nil, List(key), None) must
+    val exp1 = JsonUtils.toJson(key, Option(number.toString()), Nil, List(key), None) must
       beEqualTo(key -> Json.fromBigInt(number))
 
     val notNumber = "abc"
-    val exp2 = JsonUtils.toJson(key, notNumber, Nil, List(key), None) must
+    val exp2 = JsonUtils.toJson(key, Option(notNumber), Nil, List(key), None) must
       beEqualTo(key -> Json.fromString(notNumber))
 
     exp1 and exp2
@@ -83,10 +83,10 @@ class JsonUtilsSpec extends Specification {
     val malformedDate = "2020-09-02"
     val correctDate = "2020-09-02T22:00:00.000Z"
 
-    val exp1 = JsonUtils.toJson(key, malformedDate, Nil, Nil, Some(NonEmptyList.one(key) -> formatter)) must
+    val exp1 = JsonUtils.toJson(key, Option(malformedDate), Nil, Nil, Some(NonEmptyList.one(key) -> formatter)) must
       be !== (key -> Json.fromString(malformedDate))
 
-    val exp2 = JsonUtils.toJson(key, correctDate, Nil, Nil, Some(NonEmptyList.one(key) -> formatter)) must
+    val exp2 = JsonUtils.toJson(key, Option(correctDate), Nil, Nil, Some(NonEmptyList.one(key) -> formatter)) must
       beEqualTo(key -> Json.fromString(correctDate))
 
     exp1 and exp2

@@ -38,7 +38,7 @@ object RawEvent {
     RE(
       re.api.vendor,
       re.api.version,
-      re.parameters.toList.map { case (k, v) => NVP(k, Option(v)) },
+      re.parameters.toList.map { case (k, v) => NVP(k, v) },
       re.contentType,
       re.source.name,
       re.source.encoding,

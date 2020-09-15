@@ -56,6 +56,7 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
   Hashing configured JSON fields in POJO should silently ignore unsupported types                             $e6
   Hashing configured JSON and scalar fields in POJO emits a correct pii_transformation event                  $e7
   Hashing configured JSON fields in POJO should not create new fields                                         $e8
+  removeAddedFields should remove fields added by PII enrichment                                              $e9
   """
 
   def commonSetup(enrichmentReg: EnrichmentRegistry[Id]): List[Validated[BadRow, EnrichedEvent]] = {
@@ -118,7 +119,8 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
         |      "data": {
         |        "field" : ["hello", "world"],
         |        "field2" : null,
-        |        "field3": null
+        |        "field3": null,
+        |        "field4": ""
         |      }
         |    }
         |  ]
@@ -363,6 +365,11 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
             fieldMutator = JsonMutators("unstruct_event"),
             schemaCriterion = SchemaCriterion("com.mailgun", "message_clicked", "jsonschema", 1, 0, 0),
             jsonPath = "$.ip"
+          ),
+          PiiJson(
+            fieldMutator = JsonMutators("contexts"),
+            schemaCriterion = SchemaCriterion("com.test", "array", "jsonschema", 1, 0, 0),
+            jsonPath = "$.field4"
           )
         ),
         false,
@@ -447,7 +454,12 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
             .downField("field3")
             .focus must beSome.like { case json => json.isNull })
 
-        first and second and third
+        // Test that empty string in Pii field gets hashed
+        val fourth = contextJThirdElement
+          .downField("data")
+          .get[String]("field4") must beRight("7a3477dad66e666bd203b834c54b6dfe8b546bdbc5283462ad14052abfb06600")
+
+        first and second and third and fourth
     }
 
     size and validOut
@@ -729,30 +741,68 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
       ).some
     )
     val output = commonSetup(enrichmentReg)
-    val expected = new EnrichedEvent()
-    expected.app_id = "ads"
-    expected.user_id = "john@acme.com"
-    expected.user_ipaddress = "70.46.123.145"
-    expected.ip_domain = null
-    expected.user_fingerprint = "its_you_again!"
-    expected.geo_city = "Delray Beach"
-    expected.etl_tstamp = "1970-01-18 08:40:00.000"
-    expected.collector_tstamp = "2017-07-14 03:39:39.000"
     val size = output.size must_== 1
     val validOut = output.head must beValid.like {
       case enrichedEvent =>
-        val contextJ = parse(enrichedEvent.contexts).toOption.get.hcursor.downField("data")
-        val firstElem = contextJ.downArray.downField("data")
-        val secondElem = contextJ.downArray.right.downField("data")
+        val context = parse(enrichedEvent.contexts).toOption.get.hcursor.downField("data").downArray
+        val data = context.downField("data")
 
-        (firstElem.get[String]("emailAddress") must beRight(
-          "72f323d5359eabefc69836369e4cabc6257c43ab6419b05dfb2211d0e44284c6"
-        )) and
-          (firstElem.downField("data").get[String]("nonExistentEmailAddress") must beLeft) and
-          (firstElem.get[String]("emailAddress2") must beRight("bob@acme.com")) and
-          (secondElem.get[String]("emailAddress") must beRight("tim@acme.com")) and
-          (secondElem.get[String]("emailAddress2") must beRight("tom@acme.com"))
+        val one = data.get[String]("emailAddress") must beRight("72f323d5359eabefc69836369e4cabc6257c43ab6419b05dfb2211d0e44284c6")
+        val two = data.get[String]("emailAddress2") must beRight("bob@acme.com")
+        val three = data.downField("nonExistentEmailAddress").focus must beNone
+
+        one and two and three
     }
     size and validOut
+  }
+
+  def e9 = {
+    val orig = json"""
+    {
+      "schema" : "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
+      "data" : [
+        {
+          "schema" : "iglu:com.acme/email_sent/jsonschema/1-0-0",
+          "data" : {
+            "emailAddress" : "foo@bar.com",
+            "emailAddress2" : "bob@acme.com"
+          }
+        }
+      ]
+    }
+    """
+
+    val hashed = json"""
+    {
+      "schema" : "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
+      "data" : [
+        {
+          "schema" : "iglu:com.acme/email_sent/jsonschema/1-0-0",
+          "data" : {
+            "emailAddress" : "72f323d5359eabefc69836369e4cabc6257c43ab6419b05dfb2211d0e44284c6",
+            "emailAddress2" : "bob@acme.com",
+            "nonExistentEmailAddress" : {}
+          }
+        }
+      ]
+    }
+    """
+
+    val expected = json"""
+    {
+      "schema" : "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
+      "data" : [
+        {
+          "schema" : "iglu:com.acme/email_sent/jsonschema/1-0-0",
+          "data" : {
+            "emailAddress" : "72f323d5359eabefc69836369e4cabc6257c43ab6419b05dfb2211d0e44284c6",
+            "emailAddress2" : "bob@acme.com"
+          }
+        }
+      ]
+    }
+    """
+
+    PiiPseudonymizerEnrichment.removeAddedFields(hashed, orig) must beEqualTo(expected)
   }
 }

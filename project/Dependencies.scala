@@ -48,7 +48,7 @@ object Dependencies {
     val circeOptics      = "0.13.0"
     val circeJackson     = "0.13.0"
     val scalaForex       = "0.7.0"
-    val scalaWeather     = "0.5.0"
+    val scalaWeather     = "1.0.0"
     val gatlingJsonpath  = "0.6.14"
     val scalaUri         = "1.4.5"
     val badRows          = "2.1.0"

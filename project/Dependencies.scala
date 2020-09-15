@@ -42,7 +42,7 @@ object Dependencies {
     val guava            = "28.1-jre"
     val slf4j            = "1.7.26"
 
-    val refererParser    = "1.0.0"
+    val refererParser    = "1.1.0"
     val maxmindIplookups = "0.7.1"
     val circe            = "0.13.0"
     val circeOptics      = "0.13.0"

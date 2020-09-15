@@ -16,7 +16,7 @@
       "type": "string"
     },
     "emailAddress3": {
-      "type": "string"
+      "type": ["string", "null"]
     }
   },
   "required": ["emailAddress", "emailAddress2"],

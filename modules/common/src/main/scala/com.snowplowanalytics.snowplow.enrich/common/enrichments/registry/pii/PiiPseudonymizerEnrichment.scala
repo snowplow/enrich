@@ -133,6 +133,25 @@ object PiiPseudonymizerEnrichment extends ParseableEnrichment {
       .get(fieldName)
       .map(_.asRight)
       .getOrElse(s"The specified json field $fieldName is not supported".asLeft)
+
+  /** Helper to remove fields that were wrongly added and are not in the original JSON. See #351. */
+  private[pii] def removeAddedFields(hashed: Json, original: Json): Json = {
+    val fixedObject = for {
+      hashedFields <- hashed.asObject
+      originalFields <- original.asObject
+      newFields = hashedFields.toList.flatMap {
+                    case (k, v) => originalFields(k).map(origV => (k, removeAddedFields(v, origV)))
+                  }
+    } yield Json.fromFields(newFields)
+
+    lazy val fixedArray = for {
+      hashedArr <- hashed.asArray
+      originalArr <- original.asArray
+      newArr = hashedArr.zip(originalArr).map { case (hashed, orig) => removeAddedFields(hashed, orig) }
+    } yield Json.fromValues(newArr)
+
+    fixedObject.orElse(fixedArray).getOrElse(hashed)
+  }
 }
 
 /**
@@ -204,7 +223,8 @@ final case class PiiJson(
                                           )
                                         }
                                         .getOrElse((parsed, List.empty[JsonModifiedField]))
-    } yield (substituted.noSpaces, modifiedFields.toList)).getOrElse((null, List.empty))
+    } yield (PiiPseudonymizerEnrichment.removeAddedFields(substituted, parsed).noSpaces, modifiedFields.toList))
+      .getOrElse((null, List.empty))
 
   /** Map context top fields with strategy if they match. */
   private def mapContextTopFields(tuple: (String, Json), strategy: PiiStrategy): (String, (Json, List[JsonModifiedField])) =
@@ -272,10 +292,6 @@ final case class PiiJson(
           jsonPath,
           new ScrambleMapFunction(strategy, modifiedFields, fieldMutator.fieldName, jsonPath, schema)
         )
-        // make sure it is a structure preserving method, see #3636
-        //val transformedJValue = JsonMethods.fromJsonNode(documentContext.json[JsonNode]())
-        //val Diff(_, erroneouslyAdded, _) = jValue diff transformedJValue
-        //val Diff(_, withoutCruft, _) = erroneouslyAdded diff transformedJValue
         (jacksonToCirce(documentContext2.json[JsonNode]()), modifiedFields.toList)
     }
   }

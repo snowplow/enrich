@@ -17,21 +17,23 @@ package enrichments
 import cats.Id
 import cats.implicits._
 import cats.data.NonEmptyList
-
 import io.circe.literal._
-
 import org.joda.time.DateTime
-
 import com.snowplowanalytics.snowplow.badrows._
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
-
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer}
 import loaders._
 import adapters.RawEvent
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii.{
+  JsonMutators,
+  PiiJson,
+  PiiPseudonymizerEnrichment,
+  PiiStrategyPseudonymize
+}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import utils.Clock._
 import utils.ConversionUtils
 import enrichments.registry.{IabEnrichment, JavascriptScriptEnrichment, YauaaEnrichment}
-
+import org.apache.commons.codec.digest.DigestUtils
 import org.specs2.mutable.Specification
 import org.specs2.matcher.EitherMatchers
 
@@ -87,7 +89,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
               "data": {
                 "emailAddress": "hello@world.com",
                 "emailAddress2": "foo@bar.org",
-                "emailAddress3": "foo@bar.org"
+                "unallowedAdditionalField": "foo@bar.org"
               }
             }
           }"""
@@ -265,6 +267,314 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         rawEvent
       )
       enriched.value must beRight
+    }
+
+    "emit an EnrichedEvent if a PII value that needs to be hashed is an empty string" >> {
+      val parameters = Map(
+        "e" -> "ue",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "co" -> """
+          {
+            "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
+            "data": [
+              {
+                "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+                "data": {
+                  "emailAddress": "hello@world.com",
+                  "emailAddress2": "foo@bar.org"
+                }
+              }
+            ]
+          }
+        """,
+        "ue_pr" -> """
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data":{
+              "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+              "data": {
+                "emailAddress": "hello@world.com",
+                "emailAddress2": "foo@bar.org",
+                "emailAddress3": ""
+              }
+            }
+          }"""
+      )
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      val enrichmentReg = EnrichmentRegistry[Id](
+        piiPseudonymizer = PiiPseudonymizerEnrichment(
+          List(
+            PiiJson(
+              fieldMutator = JsonMutators("unstruct_event"),
+              schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0, 0),
+              jsonPath = "$.emailAddress3"
+            )
+          ),
+          false,
+          PiiStrategyPseudonymize(
+            "MD5",
+            hashFunction = DigestUtils.sha256Hex(_: Array[Byte]),
+            "pepper123"
+          )
+        ).some
+      )
+      val enriched = EnrichmentManager.enrichEvent(
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent
+      )
+      enriched.value must beRight
+    }
+
+    "emit an EnrichedEvent if a PII value that needs to be hashed is null" >> {
+      val parameters = Map(
+        "e" -> "ue",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "co" -> """
+          {
+            "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
+            "data": [
+              {
+                "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+                "data": {
+                  "emailAddress": "hello@world.com",
+                  "emailAddress2": "foo@bar.org"
+                }
+              }
+            ]
+          }
+        """,
+        "ue_pr" -> """
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data":{
+              "schema":"iglu:com.acme/email_sent/jsonschema/2-0-0",
+              "data": {
+                "emailAddress": "hello@world.com",
+                "emailAddress2": "foo@bar.org",
+                "emailAddress3": null
+              }
+            }
+          }"""
+      )
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      val enrichmentReg = EnrichmentRegistry[Id](
+        piiPseudonymizer = PiiPseudonymizerEnrichment(
+          List(
+            PiiJson(
+              fieldMutator = JsonMutators("unstruct_event"),
+              schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0, 0),
+              jsonPath = "$.emailAddress3"
+            )
+          ),
+          false,
+          PiiStrategyPseudonymize(
+            "MD5",
+            hashFunction = DigestUtils.sha256Hex(_: Array[Byte]),
+            "pepper123"
+          )
+        ).some
+      )
+      val enriched = EnrichmentManager.enrichEvent(
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent
+      )
+      enriched.value must beRight
+    }
+
+    "fail to emit an EnrichedEvent if a PII value that needs to be hashed is an empty object" >> {
+      val parameters = Map(
+        "e" -> "ue",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "co" -> """
+          {
+            "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
+            "data": [
+              {
+                "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+                "data": {
+                  "emailAddress": "hello@world.com",
+                  "emailAddress2": "foo@bar.org"
+                }
+              }
+            ]
+          }
+        """,
+        "ue_pr" -> """
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data":{
+              "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+              "data": {
+                "emailAddress": "hello@world.com",
+                "emailAddress2": "foo@bar.org",
+                "emailAddress3": {}
+              }
+            }
+          }"""
+      )
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      val enrichmentReg = EnrichmentRegistry[Id](
+        piiPseudonymizer = PiiPseudonymizerEnrichment(
+          List(
+            PiiJson(
+              fieldMutator = JsonMutators("unstruct_event"),
+              schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0, 0),
+              jsonPath = "$.emailAddress3"
+            )
+          ),
+          false,
+          PiiStrategyPseudonymize(
+            "MD5",
+            hashFunction = DigestUtils.sha256Hex(_: Array[Byte]),
+            "pepper123"
+          )
+        ).some
+      )
+      val enriched = EnrichmentManager.enrichEvent(
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent
+      )
+      enriched.value must beLeft
+    }
+
+    "fail to emit an EnrichedEvent if a context PII value that needs to be hashed is an empty object" >> {
+      val parameters = Map(
+        "e" -> "ue",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "co" -> """
+          {
+            "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
+            "data": [
+              {
+                "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+                "data": {
+                  "emailAddress": "hello@world.com",
+                  "emailAddress2": "foo@bar.org",
+                  "emailAddress3": {}
+                }
+              }
+            ]
+          }
+        """,
+        "ue_pr" -> """
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data":{
+              "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+              "data": {
+                "emailAddress": "hello@world.com",
+                "emailAddress2": "foo@bar.org"
+              }
+            }
+          }"""
+      )
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      val enrichmentReg = EnrichmentRegistry[Id](
+        piiPseudonymizer = PiiPseudonymizerEnrichment(
+          List(
+            PiiJson(
+              fieldMutator = JsonMutators("contexts"),
+              schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0, 0),
+              jsonPath = "$.emailAddress3"
+            )
+          ),
+          false,
+          PiiStrategyPseudonymize(
+            "MD5",
+            hashFunction = DigestUtils.sha256Hex(_: Array[Byte]),
+            "pepper123"
+          )
+        ).some
+      )
+      def enriched =
+        EnrichmentManager.enrichEvent(
+          enrichmentReg,
+          client,
+          processor,
+          timestamp,
+          rawEvent
+        )
+      enriched.value must beLeft
+    }
+
+    "fail to emit an EnrichedEvent if a PII value needs to be hashed in both co and ue and is invalid in one of them" >> {
+      val parameters = Map(
+        "e" -> "ue",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "co" -> """
+          {
+            "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
+            "data": [
+              {
+                "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+                "data": {
+                  "emailAddress": "hello@world.com",
+                  "emailAddress2": "foo@bar.org",
+                  "emailAddress3": {}
+                }
+              }
+            ]
+          }
+        """,
+        "ue_pr" -> """
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data":{
+              "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+              "data": {
+                "emailAddress": "hello@world.com",
+                "emailAddress2": "foo@bar.org",
+                "emailAddress3": ""
+              }
+            }
+          }"""
+      )
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      val enrichmentReg = EnrichmentRegistry[Id](
+        piiPseudonymizer = PiiPseudonymizerEnrichment(
+          List(
+            PiiJson(
+              fieldMutator = JsonMutators("contexts"),
+              schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0, 0),
+              jsonPath = "$.emailAddress3"
+            ),
+            PiiJson(
+              fieldMutator = JsonMutators("unstruct_event"),
+              schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0, 0),
+              jsonPath = "$.emailAddress3"
+            )
+          ),
+          false,
+          PiiStrategyPseudonymize(
+            "MD5",
+            hashFunction = DigestUtils.sha256Hex(_: Array[Byte]),
+            "pepper123"
+          )
+        ).some
+      )
+      def enriched =
+        EnrichmentManager.enrichEvent(
+          enrichmentReg,
+          client,
+          processor,
+          timestamp,
+          rawEvent
+        )
+      enriched.value must beLeft
     }
 
     "have a preference of 'ua' query string parameter over user agent of HTTP header" >> {

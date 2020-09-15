@@ -28,6 +28,10 @@
             "type": "string"
           }
         }
+      },
+      "field4": {
+        "type": "string",
+        "maxLength": 64
       }
     },
     "required": ["field"],

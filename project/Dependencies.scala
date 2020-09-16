@@ -38,7 +38,7 @@ object Dependencies {
     val mysqlConnector   = "8.0.16"
     val jaywayJsonpath   = "2.4.0"
     val iabClient        = "0.2.0"
-    val yauaa            = "5.8"
+    val yauaa            = "5.19"
     val guava            = "28.1-jre"
     val slf4j            = "1.7.26"
 

@@ -12,14 +12,10 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
-import io.circe.parser._
 import io.circe.literal._
 
 import nl.basjes.parse.useragent.UserAgent
-
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
-
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.YauaaConf
 
 import org.specs2.matcher.ValidatedMatchers
 import org.specs2.mutable.Specification
@@ -28,6 +24,7 @@ class YauaaEnrichmentSpec extends Specification with ValidatedMatchers {
 
   import YauaaEnrichment.decapitalize
 
+  /** Default enrichment with 1-0-0 context */
   val yauaaEnrichment = YauaaEnrichment(None)
 
   // Devices
@@ -68,11 +65,11 @@ class YauaaEnrichmentSpec extends Specification with ValidatedMatchers {
 
   "YAUAA enrichment should" >> {
     "return default value for null" >> {
-      yauaaEnrichment.parseUserAgent(null) shouldEqual yauaaEnrichment.defaultResult
+      yauaaEnrichment.parseUserAgent(null) shouldEqual YauaaEnrichment.DefaultResult
     }
 
     "return default value for empty user agent" >> {
-      yauaaEnrichment.parseUserAgent("") shouldEqual yauaaEnrichment.defaultResult
+      yauaaEnrichment.parseUserAgent("") shouldEqual YauaaEnrichment.DefaultResult
     }
 
     "detect correctly DeviceClass" >> {
@@ -185,18 +182,41 @@ class YauaaEnrichmentSpec extends Specification with ValidatedMatchers {
       )
     }
 
-    "create a JSON with the schema and the data" >> {
+    "create a JSON with the schema 1-0-0 and the data" >> {
       val expected =
         SelfDescribingData(
-          yauaaEnrichment.outputSchema,
-          json"""{"deviceBrand":"Samsung","deviceName":"Samsung SM-G960F","layoutEngineNameVersion":"Blink 62.0","operatingSystemNameVersion":"Android 8.0.0","operatingSystemVersionBuild":"R16NW","layoutEngineNameVersionMajor":"Blink 62","operatingSystemName":"Android","agentVersionMajor":"62","layoutEngineVersionMajor":"62","deviceClass":"Phone","agentNameVersionMajor":"Chrome 62","operatingSystemClass":"Mobile","layoutEngineName":"Blink","agentName":"Chrome","agentVersion":"62.0.3202.84","layoutEngineClass":"Browser","agentNameVersion":"Chrome 62.0.3202.84","operatingSystemVersion":"8.0.0","agentClass":"Browser","layoutEngineVersion":"62.0"}"""
+          YauaaEnrichment.outputSchema,
+          json"""{
+            "deviceBrand":"Samsung",
+            "deviceName":"Samsung SM-G960F",
+            "layoutEngineNameVersion":"Blink 62.0",
+            "operatingSystemNameVersion":"Android 8.0.0",
+            "operatingSystemVersionBuild":"R16NW",
+            "layoutEngineNameVersionMajor":"Blink 62",
+            "operatingSystemName":"Android",
+            "agentVersionMajor":"62",
+            "layoutEngineVersionMajor":"62",
+            "deviceClass":"Phone",
+            "agentNameVersionMajor":"Chrome 62",
+            "operatingSystemClass":"Mobile",
+            "layoutEngineName":"Blink",
+            "agentName":"Chrome",
+            "agentVersion":"62.0.3202.84",
+            "layoutEngineClass":"Browser",
+            "agentNameVersion":"Chrome 62.0.3202.84",
+            "operatingSystemVersion":"8.0.0",
+            "agentClass":"Browser",
+            "layoutEngineVersion":"62.0",
+            "operatingSystemNameVersionMajor":"Android 8",
+            "operatingSystemVersionMajor":"8"
+          }"""
         )
       val actual = yauaaEnrichment.getYauaaContext(uaGalaxyS9)
       actual shouldEqual expected
 
       val defaultJson =
         SelfDescribingData(
-          yauaaEnrichment.outputSchema,
+          YauaaEnrichment.outputSchema,
           json"""{"deviceClass":"Unknown"}"""
         )
       yauaaEnrichment.getYauaaContext("") shouldEqual defaultJson
@@ -239,24 +259,22 @@ class YauaaEnrichmentSpec extends Specification with ValidatedMatchers {
     "successfully construct a YauaaEnrichment case class with the right cache size if specified" in {
       val cacheSize = 42
 
-      val yauaaConfigJson = parse(s"""{
+      val yauaaConfigJson = json"""{
         "enabled": true,
         "parameters": {
           "cacheSize": $cacheSize
         }
-      }""").toOption.get
+      }"""
 
-      val expected = YauaaConf(schemaKey, Some(cacheSize))
+      val expected = EnrichmentConf.YauaaConf(schemaKey, Some(cacheSize))
       val actual = YauaaEnrichment.parse(yauaaConfigJson, schemaKey)
       actual must beValid(expected)
     }
 
     "successfully construct a YauaaEnrichment case class with a default cache size if none specified" in {
-      val yauaaConfigJson = parse(s"""{
-        "enabled": true
-      }""").toOption.get
+      val yauaaConfigJson = json"""{"enabled": true }"""
 
-      val expected = YauaaConf(schemaKey, None)
+      val expected = EnrichmentConf.YauaaConf(schemaKey, None)
       val actual = YauaaEnrichment.parse(yauaaConfigJson, schemaKey)
       actual must beValid(expected)
     }

@@ -29,7 +29,7 @@ import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
 
 /** Companion object to create an instance of YauaaEnrichment from the configuration. */
 object YauaaEnrichment extends ParseableEnrichment {
-  val supportedSchema =
+  val supportedSchema: SchemaCriterion =
     SchemaCriterion(
       "com.snowplowanalytics.snowplow.enrichments",
       "yauaa_enrichment_config",
@@ -37,6 +37,11 @@ object YauaaEnrichment extends ParseableEnrichment {
       1,
       0
     )
+
+  val DefaultDeviceClass = "Unknown"
+  val DefaultResult = Map(decapitalize(UserAgent.DEVICE_CLASS) -> DefaultDeviceClass)
+
+  val outputSchema: SchemaKey = SchemaKey("nl.basjes", "yauaa_context", "jsonschema", SchemaVer.Full(1, 0, 1))
 
   /**
    * Creates a YauaaConf instance from a JValue containing the configuration of the enrichment.
@@ -81,18 +86,13 @@ final case class YauaaEnrichment(cacheSize: Option[Int]) extends Enrichment {
     a
   }
 
-  val outputSchema = SchemaKey("nl.basjes", "yauaa_context", "jsonschema", SchemaVer.Full(1, 0, 0))
-
-  val defaultDeviceClass = "Unknown"
-  val defaultResult = Map(decapitalize(UserAgent.DEVICE_CLASS) -> defaultDeviceClass)
-
   /**
    * Gets the result of YAUAA user agent analysis as self-describing JSON, for a specific event.
    * @param userAgent User agent of the event.
    * @return Attributes retrieved thanks to the user agent (if any), as self-describing JSON.
    */
   def getYauaaContext(userAgent: String): SelfDescribingData[Json] =
-    SelfDescribingData(outputSchema, parseUserAgent(userAgent).asJson)
+    SelfDescribingData(YauaaEnrichment.outputSchema, parseUserAgent(userAgent).asJson)
 
   /**
    * Gets the map of attributes retrieved by YAUAA from the user agent.
@@ -102,10 +102,10 @@ final case class YauaaEnrichment(cacheSize: Option[Int]) extends Enrichment {
   def parseUserAgent(userAgent: String): Map[String, String] =
     userAgent match {
       case null | "" =>
-        defaultResult
+        YauaaEnrichment.DefaultResult
       case _ =>
         val parsedUA = uaa.parse(userAgent)
-        parsedUA.getAvailableFieldNames.asScala
+        parsedUA.getAvailableFieldNamesSorted.asScala
           .map(field => decapitalize(field) -> parsedUA.getValue(field))
           .toMap
     }

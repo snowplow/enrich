@@ -202,7 +202,10 @@ object EnrichmentConf {
       WeatherEnrichment[F](this)
   }
 
-  final case class YauaaConf(schemaKey: SchemaKey, cacheSize: Option[Int]) extends EnrichmentConf {
+  final case class YauaaConf(
+    schemaKey: SchemaKey,
+    cacheSize: Option[Int]
+  ) extends EnrichmentConf {
     def enrichment: YauaaEnrichment = YauaaEnrichment(cacheSize)
   }
 }

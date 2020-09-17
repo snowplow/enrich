@@ -476,5 +476,5 @@ object ConversionUtils {
 
   /** Extract valid IP (v4 or v6) address from a string */
   def extractInetAddress(arg: String): Option[InetAddress] =
-    Either.catchNonFatal(new HostName(arg).toInetAddress).toOption
+    Option(new HostName(arg).asInetAddress)
 }

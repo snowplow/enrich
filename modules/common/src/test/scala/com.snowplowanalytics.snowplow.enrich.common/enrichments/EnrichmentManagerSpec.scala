@@ -329,9 +329,17 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       EnrichmentManager.getIabContext(input, iabEnrichment) must beRight(None)
     }
 
-    "return None if user_ipaddress in invalid" >> {
+    "return None if user_ipaddress is invalid" >> {
       val input = new EnrichedEvent()
       input.setUser_ipaddress("invalid")
+      input.setUseragent("Firefox")
+      input.setDerived_tstamp("2010-06-30 01:20:01.000")
+      EnrichmentManager.getIabContext(input, iabEnrichment) must beRight(None)
+    }
+
+    "return None if user_ipaddress is hostname (don't try to resovle it)" >> {
+      val input = new EnrichedEvent()
+      input.setUser_ipaddress("localhost")
       input.setUseragent("Firefox")
       input.setDerived_tstamp("2010-06-30 01:20:01.000")
       EnrichmentManager.getIabContext(input, iabEnrichment) must beRight(None)

@@ -82,7 +82,7 @@ object BuildSettings {
 
   lazy val formatting = Seq(
     scalafmtConfig    := file(".scalafmt.conf"),
-    scalafmtOnCompile := true
+    scalafmtOnCompile := false
   )
 
   lazy val scoverageSettings = Seq(

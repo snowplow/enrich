@@ -48,6 +48,9 @@ jobs:
       run: sbt coveralls
       env:
         COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
+    - name: Check Scala formatting
+      if: ${{ always() }}
+      run: sbt scalafmtCheck
     - name: Check assets can be published
       if: ${{ always() }}
       run: sbt publishLocal

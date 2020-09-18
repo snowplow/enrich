@@ -19,8 +19,8 @@ import scala.concurrent.duration._
 
 import fs2.{Pipe, Stream}
 import fs2.io.file.{deleteIfExists, exists, readAll}
-import cats.implicits._
 
+import cats.implicits._
 import cats.effect.{Blocker, IO, Resource, Timer}
 import cats.effect.concurrent.Ref
 
@@ -30,10 +30,10 @@ import org.http4s.implicits._
 import org.http4s.Method.GET
 import org.http4s.server.blaze.BlazeServerBuilder
 
+import org.specs2.mutable.Specification
+
 import com.snowplowanalytics.snowplow.enrich.fs2.io.Clients
 import com.snowplowanalytics.snowplow.enrich.fs2.AssetsRefresh.Hash
-
-import org.specs2.mutable.Specification
 import com.snowplowanalytics.snowplow.enrich.fs2.SpecHelpers.{CS, T}
 
 class AssetsRefreshSpec extends Specification {

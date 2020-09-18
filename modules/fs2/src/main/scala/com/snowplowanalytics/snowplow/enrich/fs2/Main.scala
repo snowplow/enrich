@@ -31,21 +31,22 @@ object Main extends IOApp {
           _ <- logger.info("Initialising resources for Enrich job")
           environment <- Environment.init[IO](cfg).value
           exit <- environment match {
-            case Right(e) => e.use { env =>
-              val enrich = Enrich.run[IO](env)
-              val updates = AssetsRefresh.run[IO](env)
-              val log = logger.info("Running enrichment stream")
-              log *> enrich.merge(updates).compile.drain.attempt.flatMap {
-                case Left(exception) =>
-                  unsafeSendSentry(exception, env.sentry)
-                  IO.raiseError[ExitCode](exception).as(ExitCode.Error)
-                case Right(_) =>
-                  IO.pure(ExitCode.Success)
-              }
-            }
-            case Left(error) =>
-              logger.error(s"Cannot initialise enrichment resources\n$error").as(ExitCode.Error)
-          }
+                    case Right(e) =>
+                      e.use { env =>
+                        val enrich = Enrich.run[IO](env)
+                        val updates = AssetsRefresh.run[IO](env)
+                        val log = logger.info("Running enrichment stream")
+                        log *> enrich.merge(updates).compile.drain.attempt.flatMap {
+                          case Left(exception) =>
+                            unsafeSendSentry(exception, env.sentry)
+                            IO.raiseError[ExitCode](exception).as(ExitCode.Error)
+                          case Right(_) =>
+                            IO.pure(ExitCode.Success)
+                        }
+                      }
+                    case Left(error) =>
+                      logger.error(s"Cannot initialise enrichment resources\n$error").as(ExitCode.Error)
+                  }
         } yield exit
       case Left(error) =>
         IO(System.err.println(error)).as(ExitCode.Error)

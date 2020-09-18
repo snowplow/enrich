@@ -17,6 +17,7 @@ import java.util.UUID
 
 import cats.Applicative
 import cats.data.Validated
+
 import cats.effect.IO
 
 import _root_.io.circe.syntax._
@@ -26,6 +27,8 @@ import org.apache.http.message.BasicNameValuePair
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.fs2.SpecHelpers.staticIoClock
+
+import org.apache.http.NameValuePair
 
 import org.specs2.mutable.Specification
 
@@ -44,7 +47,7 @@ class EnrichSpec extends Specification {
           EnrichSpec.eventId,
           Instant.ofEpochMilli(0L),
           "ssc-0.0.0-test",
-          "fs2-enrich-1.3.1-common-1.3.1"
+          s"fs2-enrich-${generated.BuildInfo.version}-common-${generated.BuildInfo.version}"
         )
         .copy(
           etl_tstamp = Some(Instant.ofEpochMilli(SpecHelpers.StaticTime)),
@@ -71,15 +74,17 @@ class EnrichSpec extends Specification {
 }
 
 object EnrichSpec {
-  val eventId = UUID.fromString("deadbeef-dead-beef-dead-beefdead")
+  val eventId: UUID = UUID.fromString("deadbeef-dead-beef-dead-beefdead")
 
-  val api = CollectorPayload.Api("com.snowplowanalytics.snowplow", "tp2")
-  val source = CollectorPayload.Source("ssc-0.0.0-test", "UTF-8", Some("collector.snplow.net"))
-  val context = CollectorPayload.Context(None, Some("127.10.1.3"), None, None, List(), None)
-  val querystring = List(
+  val api: CollectorPayload.Api =
+    CollectorPayload.Api("com.snowplowanalytics.snowplow", "tp2")
+  val source: CollectorPayload.Source =
+    CollectorPayload.Source("ssc-0.0.0-test", "UTF-8", Some("collector.snplow.net"))
+  val context: CollectorPayload.Context = CollectorPayload.Context(None, Some("127.10.1.3"), None, None, List(), None)
+  val querystring: List[NameValuePair] = List(
     new BasicNameValuePair("e", "pv"),
     new BasicNameValuePair("eid", eventId.toString)
   )
-  val colllectorPayload = CollectorPayload(api, querystring, None, None, source, context)
+  val colllectorPayload: CollectorPayload = CollectorPayload(api, querystring, None, None, source, context)
   def payload[F[_]: Applicative] = Payload(colllectorPayload.toRaw, Applicative[F].unit)
 }

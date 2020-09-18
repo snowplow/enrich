@@ -71,12 +71,13 @@ object Dependencies {
     val fs2              = "2.4.4"
     val fs2PubSub        = "0.16.0"
     val fs2BlobStorage   = "0.7.3"
-    val http4s           = "0.21.6"
+    val http4s           = "0.21.7"
     val log4cats         = "1.1.1"
     val catsRetry        = "1.1.1"
 
     val scopt            = "3.7.1"
-    val pureconfig       = "0.13.0"
+    val pureconfig       = "0.11.0"
+    val pureconfig013    = "0.13.0"
     val snowplowTracker  = "0.6.1"
 
     val specs2           = "4.5.1"

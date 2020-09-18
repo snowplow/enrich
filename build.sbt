@@ -184,6 +184,7 @@ lazy val fs2 = project
   .settings(BuildSettings.basicSettings)
   .settings(BuildSettings.formatting)
   .settings(BuildSettings.scoverageSettings)
+  .settings(BuildSettings.addExampleConfToTestCp)
   .settings(
     name := "fs2-enrich",
     description := "High-performance streaming Snowplow Enrich job built on top of functional streams",
@@ -206,16 +207,17 @@ lazy val fs2 = project
       Dependencies.Libraries.http4sClient,
       Dependencies.Libraries.fs2BlobS3,
       Dependencies.Libraries.fs2BlobGcs,
-      Dependencies.Libraries.pureconfig,
-      Dependencies.Libraries.pureconfigCats,
-      Dependencies.Libraries.pureconfigCirce,
+      Dependencies.Libraries.pureconfig.withRevision(Dependencies.V.pureconfig013),
+      Dependencies.Libraries.pureconfigCats.withRevision(Dependencies.V.pureconfig013),
+      Dependencies.Libraries.pureconfigCirce.withRevision(Dependencies.V.pureconfig013),
       Dependencies.Libraries.specs2,
       Dependencies.Libraries.http4sDsl,
       Dependencies.Libraries.http4sServer
     ),
     addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
   )
-  .enablePlugins(BuildInfoPlugin)
+  .settings(BuildSettings.dockerSettings)
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
 
 lazy val integrationTests = project
   .in(file("modules/integration-tests"))

@@ -92,7 +92,7 @@ object Environment {
         badSink <- Sinks.badSink[F](parsedConfigs.configFile.auth, parsedConfigs.configFile.bad)
         stop <- Resource.liftF(SignallingRef(true))
         enrichments = Enrichments(registry, parsedConfigs.enrichmentConfigs)
-        sentry <- parsedConfigs.configFile.sentryDsn match {
+        sentry <- parsedConfigs.configFile.sentry.map(_.dsn) match {
                     case Some(dsn) => Resource.liftF[F, Option[SentryClient]](Sync[F].delay(Sentry.init(dsn.toString).some))
                     case None => Resource.pure[F, Option[SentryClient]](none[SentryClient])
                   }

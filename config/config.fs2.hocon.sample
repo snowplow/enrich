@@ -1,32 +1,22 @@
-raw = {
-  type = "pubsub"
-  project = "project"
-  subscription = "subscription"
+auth = {
+  type = "Gcp"
+  projectId = "test-project"
 }
-
-//  raw = {
-//    type = "fs"
-//    path = "/Users/chuwy/enriched"
-//  }
-
+input = {
+  type = "PubSub"
+  subscriptionId = "inputSub"
+}
 good = {
-  type = "pubsub"
-  project = "project"
-  subscription = "subscription"
+  type = "PubSub"
+  topic = "good-topic"
 }
-
 bad = {
-  type = "pubsub"
-  project = "project"
-  subscription = "subscription"
+  type = "PubSub"
+  topic = "bad-topic"
 }
 
-pii = {
-  type = "pubsub"
-  project = "project"
-  subscription = "subscription"
-}
+assetsUpdatePeriod = "7 days"
 
 sentry = {
-  dsn = "http://smth"
+  dsn = "http://sentry.acme.com"
 }

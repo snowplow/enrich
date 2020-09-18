@@ -1,13 +1,21 @@
+/*
+ * Copyright (c) 2020 Snowplow Analytics Ltd. All rights reserved.
+ *
+ * This program is licensed to you under the Apache License Version 2.0,
+ * and you may not use this file except in compliance with the Apache License Version 2.0.
+ * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the Apache License Version 2.0 is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ */
 package com.snowplowanalytics.snowplow.enrich.fs2.config
 
 import scala.concurrent.duration.FiniteDuration
 
-import java.net.URI
-
 import cats.data.EitherT
-import cats.syntax.either._
-import cats.syntax.functor._
-import cats.syntax.show._
+import cats.implicits._
 import cats.effect.{Blocker, ContextShift, Sync}
 
 import _root_.io.circe.{Decoder, Encoder, Json}
@@ -35,7 +43,7 @@ final case class ConfigFile(
   good: Output,
   bad: Output,
   assetsUpdatePeriod: Option[FiniteDuration],
-  sentryDsn: Option[URI]
+  sentry: Option[Sentry]
 )
 
 object ConfigFile {
@@ -43,14 +51,6 @@ object ConfigFile {
   // Missing in circe-config
   implicit val finiteDurationEncoder: Encoder[FiniteDuration] =
     implicitly[Encoder[String]].contramap(_.toString)
-
-  implicit val javaNetUriDecoder: Decoder[URI] =
-    Decoder[String].emap { str =>
-      Either.catchOnly[IllegalArgumentException](URI.create(str)).leftMap(_.getMessage)
-    }
-
-  implicit val javaNetUriEncoder: Encoder[URI] =
-    Encoder[String].contramap(_.toString)
 
   implicit val configFileDecoder: Decoder[ConfigFile] =
     deriveConfiguredDecoder[ConfigFile]
@@ -66,7 +66,7 @@ object ConfigFile {
             .loadF[F, Json](blocker)
             .map(_.as[ConfigFile].leftMap(f => show"Couldn't parse the config $f"))
         }
-        EitherT(result)
+        result.attemptT.leftMap(_.getMessage).subflatMap(identity)
       case Left(encoded) =>
         EitherT.fromEither[F](encoded.value.as[ConfigFile].leftMap(failure => show"Couldn't parse a base64-encoded config file:\n$failure"))
     }

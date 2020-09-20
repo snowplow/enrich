@@ -60,11 +60,11 @@ object Enrich {
    */
   def run[F[_]: Concurrent: ContextShift: Clock](env: Environment[F]): Stream[F, Unit] = {
     val enrich: Enrich[F] = enrichWith[F](env.enrichments.registry, env.resolver, env.sentry, env.metrics.enrichLatency)
-    val badSink = env.bad.andThen(_.evalMap(_ => env.metrics.badCount))
-    val goodSink = env.good.andThen(_.evalMap(_ => env.metrics.goodCount))
+    val badSink: BadSink[F] =  _.evalTap(_ => env.metrics.badCount).through(env.bad)
+    val goodSink: GoodSink[F] = _.evalTap(_ => env.metrics.goodCount).through(env.good)
     env.source
-      .evalTap(_ => env.metrics.rawCount)
       .pauseWhen(env.stop)
+      .evalTap(_ => env.metrics.rawCount)
       .parEvalMapUnordered(16)(payload => env.blocker.blockOn(enrich(payload)))
       .flatMap(_.decompose[BadRow, EnrichedEvent])
       .observeEither(badSink, goodSink)

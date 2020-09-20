@@ -26,12 +26,11 @@ import _root_.io.circe.syntax._
 import _root_.io.sentry.{Sentry, SentryClient}
 import _root_.io.chrisdavenport.log4cats.Logger
 import _root_.io.chrisdavenport.log4cats.slf4j.Slf4jLogger
+
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
 import com.snowplowanalytics.iglu.client.Client
-
-import com.snowplowanalytics.snowplow.badrows.BadRow
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
@@ -91,8 +90,8 @@ object Environment {
         blocker <- Blocker[F]
         metrics <- Metrics.resource[F]
         rawSource = Source.read[F](blocker, file.auth, file.input)
-        goodSink <- Sinks.goodSink[F](file.auth, file.good)
-        badSink <- Sinks.badSink[F](file.auth, file.bad).map(Sinks.after[F, BadRow](metrics.badCount))
+        goodSink <- Sinks.goodSink[F](blocker, file.auth, file.good)
+        badSink <- Sinks.badSink[F](blocker, file.auth, file.bad)
         stop <- Resource.liftF(SignallingRef(true))
         enrichments = Enrichments(registry, parsedConfigs.enrichmentConfigs)
         sentry <- file.sentry.map(_.dsn) match {

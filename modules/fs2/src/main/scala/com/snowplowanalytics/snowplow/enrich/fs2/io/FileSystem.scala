@@ -28,16 +28,18 @@ import _root_.io.circe.parser.parse
 
 object FileSystem {
 
+  def list[F[_]: Sync](dir: Path) =
+    for {
+      paths <- Stream.eval(Sync[F].delay(Files.list(dir)))
+      path <- Stream.fromIterator(paths.iterator().asScala)
+    } yield path
+
   def readJson[F[_]: Sync](path: Path): EitherT[F, String, Json] =
     EitherT(Sync[F].delay(Files.readString(path)).map(parse))
       .leftMap(e => show"Cannot read resolver config. ${e.getMessage()}")
 
   def readJsonDir[F[_]: Sync](dir: Path): EitherT[F, String, List[Json]] = {
-    val files = for {
-      paths <- Stream.eval(Sync[F].delay(Files.list(dir)))
-      path <- Stream.fromIterator(paths.iterator().asScala)
-    } yield path
-    val action = files.compile.toList
+    val action = list(dir).compile.toList
       .flatMap(paths => paths.traverse(x => readJson(x).value))
       .map(_.sequence)
     EitherT(action)

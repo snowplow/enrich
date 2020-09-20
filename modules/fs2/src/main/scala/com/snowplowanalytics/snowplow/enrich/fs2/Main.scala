@@ -35,10 +35,10 @@ object Main extends IOApp {
           exit <- environment match {
                     case Right(e) =>
                       e.use { env =>
+                        val log = logger.info("Running enrichment stream")
                         val enrich = Enrich.run[IO](env)
                         val updates = AssetsRefresh.run[IO](env)
                         val reporting = Metrics.run[IO](env)
-                        val log = logger.info("Running enrichment stream")
                         val flow = enrich.merge(updates).merge(reporting)
                         log *> flow.compile.drain.attempt.flatMap {
                           case Left(exception) =>

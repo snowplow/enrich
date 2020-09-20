@@ -12,23 +12,29 @@
  */
 package com.snowplowanalytics.snowplow.enrich.fs2.io
 
-import cats.effect.{Sync, Resource, Timer}
-import cats.implicits._
+import cats.effect.{Timer, Sync, Resource}
 
 import fs2.Stream
 
-import com.snowplowanalytics.snowplow.enrich.fs2.Environment
-
 import com.codahale.metrics.{Slf4jReporter, Gauge, MetricRegistry}
+
 import org.slf4j.LoggerFactory
 
-trait Metrics[F[_]] {
-  def report: F[Unit]
-  /** Update latency */
-  def enrichLatency(collectorTstamp: Option[Long]): F[Unit]
+import com.snowplowanalytics.snowplow.enrich.fs2.Environment
 
+trait Metrics[F[_]] {
+  /** Send latest metrics to reporter */
+  def report: F[Unit]
+  /**
+   * Track latency between collector hit and enrichment
+   * This function gets current timestamp by itself
+   */
+  def enrichLatency(collectorTstamp: Option[Long]): F[Unit]
+  /** Increment raw payload count */
   def rawCount: F[Unit]
+  /** Increment good enriched events */
   def goodCount: F[Unit]
+  /** Increment bad events */
   def badCount: F[Unit]
 }
 
@@ -40,61 +46,63 @@ object Metrics {
   val GoodCounterName = "enrich.metrics.good.count"
   val BadCounterName = "enrich.metrics.bad.count"
 
-  def run[F[_]: Sync: Timer](env: Environment[F]) =
+  def run[F[_] : Sync : Timer](env: Environment[F]) =
     env.config.metricsReportPeriod match {
       case Some(period) =>
-        for {
-          metrics <- Stream.resource(resource[F])
-          _ <- Stream.awakeEvery[F](period).evalMap(_ => metrics.report)
-        } yield ()
+        Stream.awakeEvery[F](period).evalMap(_ => env.metrics.report)
       case None =>
         Stream.empty.covary[F]
     }
-
-  def initialise[F[_]: Sync] =
-    for {
-      registry <- Sync[F].delay(new MetricRegistry())
-      logger <- Sync[F].delay(LoggerFactory.getLogger(LoggerName))
-      reporter <- Sync[F].delay(Slf4jReporter.forRegistry(registry).outputTo(logger).build())
-    } yield (reporter, registry)
 
   /**
    * Technically `Resource` doesn't give us much as we don't allocate a thread pool,
    * but it will make sure the last report is issued
    */
-  def resource[F[_]: Sync]: Resource[F, Metrics[F]] =
+  def resource[F[_] : Sync]: Resource[F, Metrics[F]] =
     Resource
-      .make(initialise) { case (reporter, _) => Sync[F].delay(reporter.close()) }
-      .map { case (reporter, registry) =>
-        new Metrics[F] {
-          private val rawCounter = registry.counter(RawCounterName)
-          private val goodCounter = registry.counter(GoodCounterName)
-          private val badCounter = registry.counter(BadCounterName)
+      .make(initialise) { case (res, _) => Sync[F].delay(res.close()) }
+      .map { case (res, reg) => mkMetrics[F](res, reg) }
 
-          def report: F[Unit] =
-            Sync[F].delay(reporter.report())
+  def initialise[F[_] : Sync] =
+    Sync[F].delay {
+      val registry = new MetricRegistry()
+      val logger = LoggerFactory.getLogger(LoggerName)
+      val reporter = Slf4jReporter.forRegistry(registry).outputTo(logger).build()
+      (reporter, registry)
+    }
 
-          def enrichLatency(collectorTstamp: Option[Long]): F[Unit] = {
-            collectorTstamp match {
-              case Some(delay) =>
-                Sync[F].delay {
-                  val current = System.currentTimeMillis() - delay
-                  registry.remove(LatencyGaugeName)
-                  val _ = registry.register(LatencyGaugeName, new Gauge[Long] {
-                    def getValue: Long = current
-                  })
-                }
-              case None =>
-                Sync[F].unit
+  def mkMetrics[F[_] : Sync](reporter: Slf4jReporter, registry: MetricRegistry): Metrics[F] =
+    new Metrics[F] {
+      val rawCounter = registry.counter(RawCounterName)
+      val goodCounter = registry.counter(GoodCounterName)
+      val badCounter = registry.counter(BadCounterName)
+
+      def report: F[Unit] =
+        Sync[F].delay(reporter.report())
+
+      def enrichLatency(collectorTstamp: Option[Long]): F[Unit] = {
+        collectorTstamp match {
+          case Some(delay) =>
+            Sync[F].delay {
+              registry.remove(LatencyGaugeName)
+              val _ = registry.register(LatencyGaugeName, new Gauge[Long] {
+                def getValue: Long = System.currentTimeMillis() - delay
+              })
             }
-          }
-
-          def rawCount: F[Unit] =
-            Sync[F].delay(rawCounter.inc())
-          def goodCount: F[Unit] =
-            Sync[F].delay(goodCounter.inc())
-          def badCount: F[Unit] =
-            Sync[F].delay(badCounter.inc())
+          case None =>
+            Sync[F].unit
         }
       }
+
+      def rawCount: F[Unit] =
+        Sync[F].delay(rawCounter.inc())
+
+      def goodCount: F[Unit] =
+        Sync[F].delay(goodCounter.inc())
+
+      def badCount: F[Unit] =
+        Sync[F].delay(badCounter.inc())
+    }
 }
+
+

@@ -12,44 +12,50 @@
  */
 package com.snowplowanalytics.snowplow.enrich.fs2.io
 
-import java.nio.file.Path
+import java.nio.file.{Path, StandardOpenOption}
 
 import scala.concurrent.duration._
 
 import cats.syntax.apply._
+import cats.syntax.functor._
 
-import cats.effect.{Async, Blocker, ContextShift, Resource, Sync}
+import cats.effect.{ContextShift, Async, Blocker, Resource, Sync}
 
-import fs2.{Stream, Pipe, text}
+import fs2.{Pipe, Stream, text}
 import fs2.io.file.writeAll
 
 import com.snowplowanalytics.snowplow.badrows.BadRow
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.fs2.{BadSink, Enrich, GoodSink, Payload}
+import com.snowplowanalytics.snowplow.enrich.fs2.{Enrich, BadSink, Payload, GoodSink}
 import com.snowplowanalytics.snowplow.enrich.fs2.config.io.{Authentication, Output}
 
 import com.permutive.pubsub.producer.Model.{ProjectId, Topic}
 import com.permutive.pubsub.producer.encoder.MessageEncoder
-import com.permutive.pubsub.producer.grpc.{GooglePubsubProducer, PubsubProducerConfig}
+import com.permutive.pubsub.producer.grpc.{PubsubProducerConfig, GooglePubsubProducer}
 
 object Sinks {
 
-  def goodSink[F[_]: Async](auth: Authentication, output: Output): Resource[F, GoodSink[F]] =
+  def goodSink[F[_]: Async: ContextShift](blocker: Blocker, auth: Authentication, output: Output): Resource[F, GoodSink[F]] =
     (auth, output) match {
       case (a: Authentication.Gcp, o: Output.PubSub) =>
         pubsubSink[F, EnrichedEvent](a, o)
+      case (_, o: Output.FileSystem) =>
+        Resource.pure(goodFileSink(o.dir, blocker))
       case _ =>
         ???
     }
 
 
-  def badSink[F[_]: Async](
+  def badSink[F[_]: Async: ContextShift](
+    blocker: Blocker,
     auth: Authentication,
     output: Output
   ): Resource[F, BadSink[F]] =
     (auth, output) match {
       case (a: Authentication.Gcp, o: Output.PubSub) =>
         pubsubSink[F, BadRow](a, o)
+      case (_, o: Output.FileSystem) =>
+        Resource.pure(badFileSink(o.dir, blocker))
       case _ =>
         ???
     }
@@ -72,16 +78,16 @@ object Sinks {
   def goodFileSink[F[_]: Sync: ContextShift](goodOut: Path, blocker: Blocker): GoodSink[F] =
     goodStream =>
       goodStream
-        .map(p => Enrich.encodeEvent(p.data))
+        .evalMap(p => p.finalise.as(Enrich.encodeEvent(p.data)))
         .intersperse("\n")
         .through(text.utf8Encode)
-        .through(writeAll[F](goodOut, blocker))
+        .through(writeAll[F](goodOut, blocker, List(StandardOpenOption.CREATE_NEW)))
 
   def badFileSink[F[_]: Sync: ContextShift](badOut: Path, blocker: Blocker): BadSink[F] =
     badStream =>
       badStream
-        .map(p => p.data.compact)
+        .evalMap(p => p.finalise.as(p.data.compact))
         .intersperse("\n")
         .through(text.utf8Encode)
-        .through(writeAll[F](badOut, blocker))
+        .through(writeAll[F](badOut, blocker, List(StandardOpenOption.CREATE_NEW)))
 }

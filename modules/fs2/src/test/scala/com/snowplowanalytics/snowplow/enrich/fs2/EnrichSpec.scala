@@ -23,16 +23,16 @@ import cats.effect.IO
 import _root_.io.circe.syntax._
 
 import org.apache.http.message.BasicNameValuePair
-
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.fs2.SpecHelpers.staticIoClock
 
 import org.apache.http.NameValuePair
 
+import org.specs2.ScalaCheck
 import org.specs2.mutable.Specification
 
-class EnrichSpec extends Specification {
+class EnrichSpec extends Specification with ScalaCheck {
 
   "enrichWith" should {
     "enrich a minimal page_view CollectorPayload event without any enrichments enabled" in {
@@ -68,6 +68,30 @@ class EnrichSpec extends Specification {
             case Validated.Invalid(error) => ko(s"Analytics SDK cannot parse the output. $error")
           }
         case _ => ko("Expected one valid event")
+      }
+    }
+
+    "enrich a randomly generated page view event" in {
+      implicit val cpGen = PayloadGen.getPageViewArbitrary
+      prop { (collectorPayload: CollectorPayload) =>
+        val result = for {
+          igluClient <- SpecHelpers.igluClient
+          registry = SpecHelpers.enrichmentReg
+          payload = Payload(collectorPayload.toRaw, IO.unit)
+          result <- Enrich.enrichWith(registry, igluClient, None, _ => IO.unit)(payload)
+        } yield result.data.map(event => event.map(Enrich.encodeEvent))
+
+
+        result.unsafeRunSync() must be like {
+          case List(Validated.Valid(tsv)) =>
+            Event.parse(tsv) match {
+              case Validated.Valid(_) => ok
+              case Validated.Invalid(error) => ko(s"Analytics SDK cannot parse the output. $error")
+            }
+          case other =>
+            val prettified = other.map(_.leftMap(_.compact))
+            ko(s"Expected one valid event, got $prettified")
+        }
       }
     }
   }

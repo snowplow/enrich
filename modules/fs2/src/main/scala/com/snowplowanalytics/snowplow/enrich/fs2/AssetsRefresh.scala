@@ -94,6 +94,7 @@ object AssetsRefresh {
                      clients <- Stream.resource(Clients.initialize[F](environment.blocker, uris))
                      state = State(files, environment.stop, clients)
                      assets = environment.enrichments.configs.flatMap(_.filesToCache)
+                     _ <- Stream.eval(environment.stop.set(false))
                      _ <- updateStream[F](environment.blocker, state, curDir, duration, assets)
                    } yield ()
         } yield stream

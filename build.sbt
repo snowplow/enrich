@@ -212,6 +212,8 @@ lazy val fs2 = project
       Dependencies.Libraries.pureconfigCats.withRevision(Dependencies.V.pureconfig013),
       Dependencies.Libraries.pureconfigCirce.withRevision(Dependencies.V.pureconfig013),
       Dependencies.Libraries.specs2,
+      Dependencies.Libraries.scalacheck,
+      Dependencies.Libraries.specs2Scalacheck,
       Dependencies.Libraries.http4sDsl,
       Dependencies.Libraries.http4sServer
     ),

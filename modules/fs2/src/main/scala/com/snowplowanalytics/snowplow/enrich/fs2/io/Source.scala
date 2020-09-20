@@ -13,8 +13,10 @@
 package com.snowplowanalytics.snowplow.enrich.fs2.io
 
 import cats.effect.{Blocker, Concurrent, ContextShift, Sync}
+import cats.implicits._
 
 import fs2.Stream
+import fs2.io.file.{ readAll, directoryStream }
 
 import com.snowplowanalytics.snowplow.enrich.fs2.{Payload, RawSource}
 
@@ -33,8 +35,15 @@ object Source {
     input: Input
   ): RawSource[F] =
     (auth, input) match {
-      case (g: Authentication.Gcp, p: Input.PubSub) => pubSub(blocker, g, p)
-      case _ => ???
+      case (g: Authentication.Gcp, p: Input.PubSub) =>
+        pubSub(blocker, g, p)
+      case (_, p: Input.FileSystem) =>
+        directoryStream(blocker, p.dir).evalMap { file =>
+          readAll[F](file, blocker, 1024)
+            .compile
+            .to(Array)
+            .map { bytes => Payload(bytes, Sync[F].unit) }
+        }
     }
 
   def pubSub[F[_]: Concurrent: ContextShift](
@@ -43,7 +52,7 @@ object Source {
     input: PubSub
   ): Stream[F, Payload[F, Array[Byte]]] = {
     val onFailedTerminate: Throwable => F[Unit] =
-      e => Sync[F].delay(System.err.println(s"Boom ${e.getMessage}"))
+      e => Sync[F].delay(System.err.println(s"Cannot terminate ${e.getMessage}"))
     val pubSubConfig = PubsubGoogleConsumerConfig(onFailedTerminate = onFailedTerminate)
     val projectId = Model.ProjectId(auth.projectId)
     val subscriptionId = Model.Subscription(input.subscriptionId)

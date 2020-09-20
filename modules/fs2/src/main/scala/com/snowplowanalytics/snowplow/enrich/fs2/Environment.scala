@@ -16,7 +16,7 @@ import cats.Show
 import cats.data.EitherT
 import cats.implicits._
 
-import cats.effect.{Async, Blocker, Clock, Concurrent, ContextShift, Resource, Sync}
+import cats.effect.{ContextShift, Async, Blocker, Clock, Resource, Concurrent, Sync}
 
 import fs2.concurrent.SignallingRef
 
@@ -24,20 +24,21 @@ import _root_.io.circe.Json
 import _root_.io.circe.syntax._
 
 import _root_.io.sentry.{Sentry, SentryClient}
-
 import _root_.io.chrisdavenport.log4cats.Logger
 import _root_.io.chrisdavenport.log4cats.slf4j.Slf4jLogger
-
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
 import com.snowplowanalytics.iglu.client.Client
 
+import com.snowplowanalytics.snowplow.badrows.BadRow
+
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
 import com.snowplowanalytics.snowplow.enrich.fs2.config.{CliConfig, ConfigFile}
-import com.snowplowanalytics.snowplow.enrich.fs2.io.{FileSystem, Sinks, Source}
+import com.snowplowanalytics.snowplow.enrich.fs2.io.{FileSystem, Metrics, Sinks, Source}
 
 /**
  * All allocated resources, configs and mutable variables necessary for running Enrich process
@@ -61,7 +62,8 @@ case class Environment[F[_]](
   source: RawSource[F],
   good: GoodSink[F],
   bad: BadSink[F],
-  sentry: Option[SentryClient]
+  sentry: Option[SentryClient],
+  enrichLatency: Option[Long] => F[Unit]
 )
 
 object Environment {
@@ -83,20 +85,23 @@ object Environment {
   /** Initialize and allocate all necessary resources */
   def init[F[_]: Concurrent: ContextShift: Clock](config: CliConfig): Allocated[F] =
     parse[F](config).map { parsedConfigs =>
+      val file = parsedConfigs.configFile
       for {
         client <- Client.parseDefault[F](parsedConfigs.igluJson).resource
         registry <- EnrichmentRegistry.build[F](parsedConfigs.enrichmentConfigs).resource
         blocker <- Blocker[F]
-        rawSource = Source.read[F](blocker, parsedConfigs.configFile.auth, parsedConfigs.configFile.input)
-        goodSink <- Sinks.goodSink[F](parsedConfigs.configFile.auth, parsedConfigs.configFile.good)
-        badSink <- Sinks.badSink[F](parsedConfigs.configFile.auth, parsedConfigs.configFile.bad)
+        metrics <- Metrics.resource[F]
+        rawSource = Source.read[F](blocker, file.auth, file.input).evalTap(_ => metrics.rawCount)
+        goodSink <- Sinks.goodSink[F](file.auth, file.good).map(Sinks.after[F, EnrichedEvent](metrics.goodCount))
+        badSink <- Sinks.badSink[F](file.auth, file.bad).map(Sinks.after[F, BadRow](metrics.badCount))
         stop <- Resource.liftF(SignallingRef(true))
         enrichments = Enrichments(registry, parsedConfigs.enrichmentConfigs)
-        sentry <- parsedConfigs.configFile.sentry.map(_.dsn) match {
+        sentry <- file.sentry.map(_.dsn) match {
                     case Some(dsn) => Resource.liftF[F, Option[SentryClient]](Sync[F].delay(Sentry.init(dsn.toString).some))
                     case None => Resource.pure[F, Option[SentryClient]](none[SentryClient])
                   }
-      } yield Environment[F](parsedConfigs.configFile, client, enrichments, stop, blocker, rawSource, goodSink, badSink, sentry)
+        enrichLatency = metrics.enrichLatency _
+      } yield Environment[F](file, client, enrichments, stop, blocker, rawSource, goodSink, badSink, sentry, enrichLatency)
     }
 
   /** Decode base64-encoded configs, passed via CLI. Read files, validate and parse */

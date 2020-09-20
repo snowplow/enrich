@@ -39,7 +39,7 @@ class EnrichSpec extends Specification {
       val result = for {
         igluClient <- SpecHelpers.igluClient
         registry = SpecHelpers.enrichmentReg
-        result <- Enrich.enrichWith(registry, igluClient, None)(EnrichSpec.payload[IO])
+        result <- Enrich.enrichWith(registry, igluClient, None, _ => IO.unit)(EnrichSpec.payload[IO])
       } yield result.data.map(event => event.map(Enrich.encodeEvent))
 
       val Expected = Event

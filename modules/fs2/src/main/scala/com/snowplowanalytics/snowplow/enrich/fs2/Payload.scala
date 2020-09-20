@@ -26,11 +26,11 @@ import com.snowplowanalytics.snowplow.enrich.fs2.Payload.Parsed
  * Anything that has been read from [[RawSource]] and needs to be acknowledged
  * or a derivative (parsed `A`) that can be used to acknowledge the original message
  * @param data original data or anything it has been transformed to
- * @param ack a side-effect to acknowledge the message or no-op in case the original
- *            message has been flattened into multiple rows and only last row contains
- *            the actual side-effect
+ * @param finalise a side-effect to acknowledge (commit, log on-finish) the message or
+ *                 no-op in case the original message has been flattened into
+ *                 multiple rows and only last row contains the actual side-effect
  */
-case class Payload[F[_], A](data: A, ack: F[Unit]) {
+case class Payload[F[_], A](data: A, finalise: F[Unit]) {
 
   /**
    * Flatten all payloads from a list and replace an `ack` action to no-op everywhere
@@ -43,7 +43,7 @@ case class Payload[F[_], A](data: A, ack: F[Unit]) {
     def use(op: F[Unit])(v: Validated[L, R]): Parsed[F, L, R] =
       v.fold(a => Payload(a, op).asLeft, b => Payload(b, op).asRight)
 
-    Payload.mapWithLast(use(noop), use(ack))(data)
+    Payload.mapWithLast(use(noop), use(finalise))(data)
   }
 }
 

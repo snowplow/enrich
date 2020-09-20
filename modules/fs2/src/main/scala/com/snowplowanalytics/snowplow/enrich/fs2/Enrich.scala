@@ -59,7 +59,7 @@ object Enrich {
    * Can be stopped via _stop signal_ from [[Environment]]
    */
   def run[F[_]: Concurrent: ContextShift: Clock](env: Environment[F]): Stream[F, Unit] = {
-    val enrich: Enrich[F] = enrichWith[F](env.enrichments.registry, env.resolver, env.sentry)
+    val enrich: Enrich[F] = enrichWith[F](env.enrichments.registry, env.resolver, env.sentry, env.enrichLatency)
     env.source
       .pauseWhen(env.stop)
       .parEvalMapUnordered(16)(payload => env.blocker.blockOn(enrich(payload)))
@@ -68,23 +68,29 @@ object Enrich {
       .void
   }
 
-  /** Enrich a single [[CollectorPayload]] to get list of bad rows and/or enriched events */
+  /**
+   * Enrich a single [[CollectorPayload]] to get list of bad rows and/or enriched events
+   *
+   * Along with actual `ack` the `enrichLatency` gauge will be updated
+   */
   def enrichWith[F[_]: Clock: Sync](
     enrichRegistry: EnrichmentRegistry[F],
     igluClient: Client[F, Json],
-    sentry: Option[SentryClient]
+    sentry: Option[SentryClient],
+    enrichLatency: Option[Long] => F[Unit]
   )(
     row: Payload[F, Array[Byte]]
   ): F[Result[F]] = {
     val payload = ThriftLoader.toCollectorPayload(row.data, processor)
-    val result = Logger[F].debug(payloadToString(payload)) *>
-      Clock[F]
-        .realTime(TimeUnit.MILLISECONDS)
-        .map(millis => new DateTime(millis))
-        .flatMap { now =>
-          EtlPipeline.processEvents[F](adapterRegistry, enrichRegistry, igluClient, processor, now, payload)
-        }
-        .map(enriched => Payload(enriched, row.ack))
+    val collectorTstamp = payload.toOption.flatMap(_.flatMap(_.context.timestamp).map(_.getMillis))
+
+    val result =
+      for {
+        _         <- Logger[F].debug(payloadToString(payload))
+        etlTstamp <- Clock[F].realTime(TimeUnit.MILLISECONDS).map(millis => new DateTime(millis))
+        enriched  <- EtlPipeline.processEvents[F](adapterRegistry, enrichRegistry, igluClient, processor, etlTstamp, payload)
+        trackLatency = enrichLatency(collectorTstamp)
+      } yield Payload(enriched, trackLatency *> row.finalise)
 
     result.handleErrorWith(sendToSentry[F](row, sentry))
   }
@@ -108,7 +114,7 @@ object Enrich {
     for {
       _ <- Logger[F].error("Runtime exception during payload enrichment. CollectorPayload converted to generic_error and ack'ed")
       now <- Clock[F].realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
-      _ <- original.ack
+      _ <- original.finalise
       badRow = genericBadRow(original.data, now, error)
       _ <- sentry match {
              case Some(client) =>

@@ -20,7 +20,7 @@ import cats.syntax.apply._
 
 import cats.effect.{Async, Blocker, ContextShift, Resource, Sync}
 
-import fs2.{Stream, text}
+import fs2.{Stream, Pipe, text}
 import fs2.io.file.writeAll
 
 import com.snowplowanalytics.snowplow.badrows.BadRow
@@ -42,6 +42,7 @@ object Sinks {
         ???
     }
 
+
   def badSink[F[_]: Async](
     auth: Authentication,
     output: Output
@@ -53,7 +54,10 @@ object Sinks {
         ???
     }
 
-  def pubsubSink[F[_]: Async, A: MessageEncoder](auth: Authentication.Gcp, output: Output.PubSub) = {
+  def after[F[_], A](count: F[Unit])(pipe: Pipe[F, Payload[F, A], Unit]): Pipe[F, Payload[F, A], Unit] =
+    pipe.andThen(sink => sink.evalMap(_ => count))
+
+  def pubsubSink[F[_]: Async, A: MessageEncoder](auth: Authentication.Gcp, output: Output.PubSub): Resource[F, Pipe[F, Payload[F, A], Unit]] = {
     val config = PubsubProducerConfig[F](
       batchSize = 10,
       delayThreshold = 5.seconds,
@@ -62,7 +66,7 @@ object Sinks {
 
     GooglePubsubProducer
       .of[F, A](ProjectId(auth.projectId), Topic(output.topic), config)
-      .map(producer => (s: Stream[F, Payload[F, A]]) => s.evalMap(row => producer.produce(row.data) *> row.ack))
+      .map(producer => (s: Stream[F, Payload[F, A]]) => s.evalMap(row => producer.produce(row.data) *> row.finalise))
   }
 
   def goodFileSink[F[_]: Sync: ContextShift](goodOut: Path, blocker: Blocker): GoodSink[F] =
@@ -76,7 +80,7 @@ object Sinks {
   def badFileSink[F[_]: Sync: ContextShift](badOut: Path, blocker: Blocker): BadSink[F] =
     badStream =>
       badStream
-        .map(_.data.compact)
+        .map(p => p.data.compact)
         .intersperse("\n")
         .through(text.utf8Encode)
         .through(writeAll[F](badOut, blocker))

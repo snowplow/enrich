@@ -74,6 +74,7 @@ object Dependencies {
     val http4s           = "0.21.7"
     val log4cats         = "1.1.1"
     val catsRetry        = "1.1.1"
+    val metrics          = "4.1.12.1"
 
     val scopt            = "3.7.1"
     val pureconfig       = "0.11.0"
@@ -169,6 +170,7 @@ object Dependencies {
     val fs2BlobGcs       = "com.github.fs2-blobstore"         %% "gcs"                               % V.fs2BlobStorage
     val pureconfigCats   = "com.github.pureconfig"            %% "pureconfig-cats-effect"            % V.pureconfig
     val pureconfigCirce  = "com.github.pureconfig"            %% "pureconfig-circe"                  % V.pureconfig
+    val metrics          = "io.dropwizard.metrics"            %  "metrics-core"                      % V.metrics
     val http4sDsl        = "org.http4s"                       %% "http4s-dsl"                        % V.http4s          % Test
     val http4sServer     = "org.http4s"                       %% "http4s-blaze-server"               % V.http4s          % Test
   }

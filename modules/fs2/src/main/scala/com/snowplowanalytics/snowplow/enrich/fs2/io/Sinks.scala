@@ -12,7 +12,7 @@
  */
 package com.snowplowanalytics.snowplow.enrich.fs2.io
 
-import java.nio.file.{Path, StandardOpenOption}
+import java.nio.file.{StandardOpenOption, Path}
 
 import scala.concurrent.duration._
 
@@ -32,8 +32,13 @@ import com.snowplowanalytics.snowplow.enrich.fs2.config.io.{Authentication, Outp
 import com.permutive.pubsub.producer.Model.{ProjectId, Topic}
 import com.permutive.pubsub.producer.encoder.MessageEncoder
 import com.permutive.pubsub.producer.grpc.{PubsubProducerConfig, GooglePubsubProducer}
+import io.chrisdavenport.log4cats.Logger
+import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 
 object Sinks {
+
+  private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
+    Slf4jLogger.getLogger[F]
 
   def goodSink[F[_]: Async: ContextShift](blocker: Blocker, auth: Authentication, output: Output): Resource[F, GoodSink[F]] =
     (auth, output) match {
@@ -41,8 +46,6 @@ object Sinks {
         pubsubSink[F, EnrichedEvent](a, o)
       case (_, o: Output.FileSystem) =>
         Resource.pure(goodFileSink(o.dir, blocker))
-      case _ =>
-        ???
     }
 
 
@@ -56,18 +59,13 @@ object Sinks {
         pubsubSink[F, BadRow](a, o)
       case (_, o: Output.FileSystem) =>
         Resource.pure(badFileSink(o.dir, blocker))
-      case _ =>
-        ???
     }
-
-  def after[F[_], A](count: F[Unit])(pipe: Pipe[F, Payload[F, A], Unit]): Pipe[F, Payload[F, A], Unit] =
-    pipe.andThen(sink => sink.evalMap(_ => count))
 
   def pubsubSink[F[_]: Async, A: MessageEncoder](auth: Authentication.Gcp, output: Output.PubSub): Resource[F, Pipe[F, Payload[F, A], Unit]] = {
     val config = PubsubProducerConfig[F](
       batchSize = 10,
       delayThreshold = 5.seconds,
-      onFailedTerminate = err => Sync[F].delay(System.err.println(err))
+      onFailedTerminate = err => Logger[F].error(err)("PubSub sink termination error")
     )
 
     GooglePubsubProducer

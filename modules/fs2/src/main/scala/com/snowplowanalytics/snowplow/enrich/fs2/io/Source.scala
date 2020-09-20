@@ -18,12 +18,11 @@ import cats.implicits._
 import fs2.Stream
 import fs2.io.file.{ readAll, directoryStream }
 
-import com.snowplowanalytics.snowplow.enrich.fs2.{Payload, RawSource}
-
 import com.permutive.pubsub.consumer.Model
 import com.permutive.pubsub.consumer.grpc.{PubsubGoogleConsumer, PubsubGoogleConsumerConfig}
+
+import com.snowplowanalytics.snowplow.enrich.fs2.{Payload, RawSource}
 import com.snowplowanalytics.snowplow.enrich.fs2.config.io.{Authentication, Input}
-import com.snowplowanalytics.snowplow.enrich.fs2.config.io.Input.PubSub
 
 import com.google.pubsub.v1.PubsubMessage
 
@@ -49,7 +48,7 @@ object Source {
   def pubSub[F[_]: Concurrent: ContextShift](
     blocker: Blocker,
     auth: Authentication.Gcp,
-    input: PubSub
+    input: Input.PubSub
   ): Stream[F, Payload[F, Array[Byte]]] = {
     val onFailedTerminate: Throwable => F[Unit] =
       e => Sync[F].delay(System.err.println(s"Cannot terminate ${e.getMessage}"))

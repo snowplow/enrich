@@ -65,11 +65,8 @@ case class Clients[F[_]](
             val request = Request[F](uri = Uri.unsafeFromString(uri.toString))
             for {
               response <- c.stream(request)
-              body <- if (response.status.isSuccess) { println(s"Returing body with ${response.status}"); response.body }
-                      else {
-                        println(s"Raising an error with ${response.status}")
-                        Stream.raiseError[F](Clients.DownloadingFailure(uri))
-                      }
+              body <- if (response.status.isSuccess) response.body
+                      else Stream.raiseError[F](Clients.DownloadingFailure(uri))
             } yield body
           case None =>
             Stream.raiseError(new IllegalStateException(s"HTTP client is not initialized to download $uri"))

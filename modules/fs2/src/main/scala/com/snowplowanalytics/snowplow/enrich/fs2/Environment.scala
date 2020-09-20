@@ -35,7 +35,6 @@ import com.snowplowanalytics.snowplow.badrows.BadRow
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
-import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
 import com.snowplowanalytics.snowplow.enrich.fs2.config.{CliConfig, ConfigFile}
 import com.snowplowanalytics.snowplow.enrich.fs2.io.{FileSystem, Metrics, Sinks, Source}
@@ -63,7 +62,7 @@ case class Environment[F[_]](
   good: GoodSink[F],
   bad: BadSink[F],
   sentry: Option[SentryClient],
-  enrichLatency: Option[Long] => F[Unit]
+  metrics: Metrics[F]
 )
 
 object Environment {
@@ -91,8 +90,8 @@ object Environment {
         registry <- EnrichmentRegistry.build[F](parsedConfigs.enrichmentConfigs).resource
         blocker <- Blocker[F]
         metrics <- Metrics.resource[F]
-        rawSource = Source.read[F](blocker, file.auth, file.input).evalTap(_ => metrics.rawCount)
-        goodSink <- Sinks.goodSink[F](file.auth, file.good).map(Sinks.after[F, EnrichedEvent](metrics.goodCount))
+        rawSource = Source.read[F](blocker, file.auth, file.input)
+        goodSink <- Sinks.goodSink[F](file.auth, file.good)
         badSink <- Sinks.badSink[F](file.auth, file.bad).map(Sinks.after[F, BadRow](metrics.badCount))
         stop <- Resource.liftF(SignallingRef(true))
         enrichments = Enrichments(registry, parsedConfigs.enrichmentConfigs)
@@ -100,8 +99,7 @@ object Environment {
                     case Some(dsn) => Resource.liftF[F, Option[SentryClient]](Sync[F].delay(Sentry.init(dsn.toString).some))
                     case None => Resource.pure[F, Option[SentryClient]](none[SentryClient])
                   }
-        enrichLatency = metrics.enrichLatency _
-      } yield Environment[F](file, client, enrichments, stop, blocker, rawSource, goodSink, badSink, sentry, enrichLatency)
+      } yield Environment[F](file, client, enrichments, stop, blocker, rawSource, goodSink, badSink, sentry, metrics)
     }
 
   /** Decode base64-encoded configs, passed via CLI. Read files, validate and parse */

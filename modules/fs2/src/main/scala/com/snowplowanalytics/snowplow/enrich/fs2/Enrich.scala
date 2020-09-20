@@ -59,12 +59,15 @@ object Enrich {
    * Can be stopped via _stop signal_ from [[Environment]]
    */
   def run[F[_]: Concurrent: ContextShift: Clock](env: Environment[F]): Stream[F, Unit] = {
-    val enrich: Enrich[F] = enrichWith[F](env.enrichments.registry, env.resolver, env.sentry, env.enrichLatency)
+    val enrich: Enrich[F] = enrichWith[F](env.enrichments.registry, env.resolver, env.sentry, env.metrics.enrichLatency)
+    val badSink = env.bad.andThen(_.evalMap(_ => env.metrics.badCount))
+    val goodSink = env.good.andThen(_.evalMap(_ => env.metrics.goodCount))
     env.source
+      .evalTap(_ => env.metrics.rawCount)
       .pauseWhen(env.stop)
       .parEvalMapUnordered(16)(payload => env.blocker.blockOn(enrich(payload)))
       .flatMap(_.decompose[BadRow, EnrichedEvent])
-      .observeEither(env.bad, env.good)
+      .observeEither(badSink, goodSink)
       .void
   }
 

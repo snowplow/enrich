@@ -20,3 +20,5 @@ assetsUpdatePeriod = "7 days"
 sentry = {
   dsn = "http://sentry.acme.com"
 }
+
+metricsReportPeriod = "1 second"

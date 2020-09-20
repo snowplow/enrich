@@ -43,7 +43,8 @@ final case class ConfigFile(
   good: Output,
   bad: Output,
   assetsUpdatePeriod: Option[FiniteDuration],
-  sentry: Option[Sentry]
+  sentry: Option[Sentry],
+  metricsReportPeriod: Option[FiniteDuration]
 )
 
 object ConfigFile {

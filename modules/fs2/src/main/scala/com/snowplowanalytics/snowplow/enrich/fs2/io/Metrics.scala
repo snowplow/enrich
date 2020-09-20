@@ -12,10 +12,14 @@
  */
 package com.snowplowanalytics.snowplow.enrich.fs2.io
 
-import cats.effect.{Sync, Resource}
+import cats.effect.{Sync, Resource, Timer}
 import cats.implicits._
 
-import com.codahale.metrics.{Slf4jReporter, MetricRegistry, Gauge}
+import fs2.Stream
+
+import com.snowplowanalytics.snowplow.enrich.fs2.Environment
+
+import com.codahale.metrics.{Slf4jReporter, Gauge, MetricRegistry}
 import org.slf4j.LoggerFactory
 
 trait Metrics[F[_]] {
@@ -35,6 +39,17 @@ object Metrics {
   val RawCounterName = "enrich.metrics.raw.count"
   val GoodCounterName = "enrich.metrics.good.count"
   val BadCounterName = "enrich.metrics.bad.count"
+
+  def run[F[_]: Sync: Timer](env: Environment[F]) =
+    env.config.metricsReportPeriod match {
+      case Some(period) =>
+        for {
+          metrics <- Stream.resource(resource[F])
+          _ <- Stream.awakeEvery[F](period).evalMap(_ => metrics.report)
+        } yield ()
+      case None =>
+        Stream.empty.covary[F]
+    }
 
   def initialise[F[_]: Sync] =
     for {

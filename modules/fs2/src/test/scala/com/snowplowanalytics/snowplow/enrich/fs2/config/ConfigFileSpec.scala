@@ -36,7 +36,8 @@ class ConfigFileSpec extends Specification {
         io.Output.PubSub("good-topic"),
         io.Output.PubSub("bad-topic"),
         Some(7.days),
-        Some(Sentry(URI.create("http://sentry.acme.com")))
+        Some(Sentry(URI.create("http://sentry.acme.com"))),
+        Some(1.second)
       )
       result must beRight(expected)
     }

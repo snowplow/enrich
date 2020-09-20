@@ -62,6 +62,7 @@ class CliConfigSpec extends Specification {
         io.Output.PubSub("good-topic"),
         io.Output.PubSub("bad-topic"),
         None,
+        None,
         None
       )
 

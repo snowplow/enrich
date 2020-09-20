@@ -19,6 +19,8 @@ import _root_.io.sentry.SentryClient
 import _root_.io.chrisdavenport.log4cats.Logger
 import _root_.io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 
+import com.snowplowanalytics.snowplow.enrich.fs2.io.Metrics
+
 object Main extends IOApp {
 
   private implicit val logger: Logger[IO] =
@@ -35,8 +37,10 @@ object Main extends IOApp {
                       e.use { env =>
                         val enrich = Enrich.run[IO](env)
                         val updates = AssetsRefresh.run[IO](env)
+                        val reporting = Metrics.run[IO](env)
                         val log = logger.info("Running enrichment stream")
-                        log *> enrich.merge(updates).compile.drain.attempt.flatMap {
+                        val flow = enrich.merge(updates).merge(reporting)
+                        log *> flow.compile.drain.attempt.flatMap {
                           case Left(exception) =>
                             unsafeSendSentry(exception, env.sentry)
                             IO.raiseError[ExitCode](exception).as(ExitCode.Error)

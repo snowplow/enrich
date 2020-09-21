@@ -19,7 +19,7 @@
 lazy val root = project.in(file("."))
   .settings(name := "enrich")
   .settings(BuildSettings.basicSettings)
-  .aggregate(common, beam, stream, kinesis, kafka, nsq, stdin, integrationTests)
+  .aggregate(common, beam, stream, kinesis, kafka, nsq, stdin)
 
 lazy val common = project
   .in(file("modules/common"))
@@ -178,13 +178,4 @@ lazy val beam =
     )
     .enablePlugins(JavaAppPackaging, DockerPlugin, BuildInfoPlugin)
 
-lazy val integrationTests = project
-  .in(file("modules/integration-tests"))
-  .settings(moduleName := "integration-tests")
-  .settings(allStreamSettings)
-  .settings(BuildSettings.addExampleConfToTestCp)
-  .settings(libraryDependencies ++= Seq(
-    Dependencies.Libraries.kafka,
-    Dependencies.Libraries.jinJava
-  ))
-  .dependsOn(stream % "test->test", kafka % "test->compile")
+Global / onChangedBuildSource := ReloadOnSourceChanges

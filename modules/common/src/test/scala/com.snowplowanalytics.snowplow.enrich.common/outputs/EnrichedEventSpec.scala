@@ -171,7 +171,6 @@ class EnrichedEventSpec extends Specification {
       testField(_.event_version = "event_version", _.event_version)
       testField(_.event_fingerprint = "event_fingerprint", _.event_fingerprint)
       testField(_.true_tstamp = "true_tstamp", _.true_tstamp)
-
     }
   }
 

@@ -37,7 +37,7 @@ object BuildSettings {
     organization          :=  "com.snowplowanalytics",
     scalaVersion          :=  "2.12.11",
     version               :=  "1.3.2",
-    javacOptions          :=  Seq("-source", "1.8", "-target", "1.8"),
+    javacOptions          :=  Seq("-source", "11", "-target", "11"),
     resolvers             ++= Dependencies.resolutionRepos
   )
 

@@ -120,7 +120,7 @@ object BuildSettings {
   /** Docker settings, used by SE */
   lazy val dockerSettings = Seq(
     maintainer in Docker := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
-    dockerBaseImage := "snowplow-docker-registry.bintray.io/snowplow/base-debian:0.1.0",
+    dockerBaseImage := "snowplow-docker-registry.bintray.io/snowplow/base-debian:0.2.1",
     daemonUser in Docker := "snowplow",
     dockerUpdateLatest := true,
     dockerVersion := Some(DockerVersion(18, 9, 0, Some("ce"))),

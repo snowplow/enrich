@@ -36,7 +36,7 @@ object BuildSettings {
   lazy val basicSettings = Seq(
     organization          :=  "com.snowplowanalytics",
     scalaVersion          :=  "2.12.11",
-    version               :=  "1.4.0",
+    version               :=  "1.4.0-rc21",
     javacOptions          :=  Seq("-source", "11", "-target", "11"),
     resolvers             ++= Dependencies.resolutionRepos,
     licenses              += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html")),

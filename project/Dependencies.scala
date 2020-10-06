@@ -41,6 +41,7 @@ object Dependencies {
     val yauaa            = "5.19"
     val guava            = "28.1-jre"
     val slf4j            = "1.7.26"
+    val log4j            = "2.13.3"
 
     val refererParser    = "1.1.0"
     val maxmindIplookups = "0.7.1"
@@ -92,6 +93,8 @@ object Dependencies {
     val jaywayJsonpath   = "com.jayway.jsonpath"        %  "json-path"                     % V.jaywayJsonpath
     val yauaa            = "nl.basjes.parse.useragent"  %  "yauaa"                         % V.yauaa
     val guava            = "com.google.guava"           %  "guava"                         % V.guava
+    val log4j            = "org.apache.logging.log4j"   % "log4j-core"                     % V.log4j
+    val log4jApi         = "org.apache.logging.log4j"   % "log4j-api"                      % V.log4j
 
     val circeCore        = "io.circe"                   %% "circe-core"                    % V.circe
     val circeGeneric     = "io.circe"                   %% "circe-generic"                 % V.circe

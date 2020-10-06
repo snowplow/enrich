@@ -130,7 +130,11 @@ lazy val nsq = project
   .settings(
     packageName in Docker := "snowplow/stream-enrich-nsq",
   )
-  .settings(libraryDependencies ++= Seq(Dependencies.Libraries.nsqClient))
+  .settings(libraryDependencies ++= Seq(
+    Dependencies.Libraries.log4j,
+    Dependencies.Libraries.log4jApi,
+    Dependencies.Libraries.nsqClient
+  ))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
   .dependsOn(stream)
 

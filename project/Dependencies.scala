@@ -169,8 +169,8 @@ object Dependencies {
     val fs2PubSub        = "com.permutive"                    %% "fs2-google-pubsub-grpc"            % V.fs2PubSub
     val fs2              = "co.fs2"                           %% "fs2-core"                          % V.fs2
     val fs2Io            = "co.fs2"                           %% "fs2-io"                            % V.fs2
-    val monocle          = "com.github.julien-truffaut"       %% "monocle-core"                      % V.monocle
-    val monocleMacro     = "com.github.julien-truffaut"       %% "monocle-macro"                     % V.monocle
+    val monocle          = "com.github.julien-truffaut"       %% "monocle-core"                      % V.monocle         % Test
+    val monocleMacro     = "com.github.julien-truffaut"       %% "monocle-macro"                     % V.monocle         % Test
     val http4sClient     = "org.http4s"                       %% "http4s-blaze-client"               % V.http4s
     val log4cats         = "io.chrisdavenport"                %% "log4cats-slf4j"                    % V.log4cats
     val catsRetry        = "com.github.cb372"                 %% "cats-retry"                        % V.catsRetry

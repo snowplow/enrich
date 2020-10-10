@@ -99,7 +99,7 @@ object SqlQueryEnrichment extends ParseableEnrichment {
  * @param db source DB configuration
  * @param query string representation of prepared SQL statement
  * @param output configuration of output context
- * @param ttl cache TTL
+ * @param ttl cache TTL in milliseconds
  * @param cache actual mutable LRU cache
  * @param connection initialized DB connection (a mutable single-value cache)
  */

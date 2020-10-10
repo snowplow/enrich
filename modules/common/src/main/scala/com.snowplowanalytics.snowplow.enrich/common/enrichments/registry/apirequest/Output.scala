@@ -35,8 +35,8 @@ final case class Output(schema: String, json: Option[JsonOutput]) {
   def parseResponse(apiResponse: String): Either[Throwable, Json] =
     json match {
       case Some(jsonOutput) => jsonOutput.parseResponse(apiResponse)
-      case output =>
-        new InvalidStateException(s"Error: Unknown output [$output]").asLeft // Cannot happen now
+      case None =>
+        new InvalidStateException(s"Error: output key is missing").asLeft // Cannot happen now
     }
 
   /**

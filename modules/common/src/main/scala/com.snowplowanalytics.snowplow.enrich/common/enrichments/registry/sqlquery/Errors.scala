@@ -15,7 +15,7 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlque
 sealed trait SqlQueryEnrichmentError extends Throwable {
   val message: String
   override def toString = message
-  override def getMessage = message
+  override def getMessage = "SQL Query enrichment: " ++ message
 }
 final case class ValueNotFoundException(message: String) extends SqlQueryEnrichmentError
 final case class JsonPathException(message: String) extends SqlQueryEnrichmentError

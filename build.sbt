@@ -234,3 +234,8 @@ lazy val fs2 = project
   .enablePlugins(BuildInfoPlugin)
   .settings(BuildSettings.dockerSettings)
   .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
+
+lazy val bench = project
+  .in(file("modules/bench"))
+  .dependsOn(fs2 % "test->test")
+  .enablePlugins(JmhPlugin)

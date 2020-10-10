@@ -134,7 +134,7 @@ final case class ApiRequestEnrichment[F[_]: Monad: HttpClient](
         contexts = jsons.parTraverse { json =>
                      SelfDescribingData
                        .parse(json)
-                       .leftMap(e => NonEmptyList.one(s"${json.noSpaces} is not self-describing, ${e.code}"))
+                       .leftMap(e => NonEmptyList.one(s"${json.noSpaces} is not self-describing JSON, ${e.code}"))
                    }
         outputs <- EitherT.fromEither[F](contexts)
       } yield outputs

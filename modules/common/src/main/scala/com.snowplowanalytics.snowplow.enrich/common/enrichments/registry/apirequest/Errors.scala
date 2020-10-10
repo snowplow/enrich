@@ -13,13 +13,16 @@
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest
 
 final case class ValueNotFoundException(message: String) extends Throwable {
+  override def getMessage: String = "API Request enrichment:" ++ toString
   override def toString = s"Value not found $message"
 }
 
 final case class JsonPathException(message: String) extends Throwable {
+  override def getMessage: String = "API Request enrichment:" ++ toString
   override def toString = s"JSONPath error $message"
 }
 
 final case class InvalidStateException(message: String) extends Throwable {
+  override def getMessage: String = "API Request enrichment:" ++ toString
   override def toString = message
 }

@@ -73,14 +73,19 @@ jobs:
         DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
     - name: Build and publish Beam Docker images
+      if: ${{ always() }}
       run: sbt "project beam" docker:publish
     - name: Build and publish Stream Kinesis Docker image
+      if: ${{ always() }}
       run: sbt "project kinesis" docker:publish
     - name: Build and publish Stream Kafka Docker image
+      if: ${{ always() }}
       run: sbt "project kafka" docker:publish
     - name: Build and publish Stream NSQ Docker image
+      if: ${{ always() }}
       run: sbt "project nsq" docker:publish
     - name: Build and publish Stream NH Docker image
+      if: ${{ always() }}
       run: sbt "project fs2" docker:publish
 
   deploy_sce:

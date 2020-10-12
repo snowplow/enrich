@@ -77,7 +77,7 @@ object JsonPath {
    * @param any raw JVM type representing JSON
    * @return Json
    */
-  private def anyToJson(any: Any): Json =
+  private[utils] def anyToJson(any: Any): Json =
     if (any == null) Json.Null
-    else io.circe.jackson.mapper.convertValue(any, classOf[Json])
+    else CirceUtils.mapper.convertValue(any, classOf[Json])
 }

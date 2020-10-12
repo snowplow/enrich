@@ -15,8 +15,9 @@ package utils
 
 import cats.data.Validated
 import cats.syntax.either._
-
+import com.fasterxml.jackson.databind.ObjectMapper
 import io.circe._
+import io.circe.jackson.enrich.CirceJsonModule
 
 object CirceUtils {
 
@@ -43,4 +44,19 @@ object CirceUtils {
         s"Could not extract $pathStr as $clas from supplied JSON due to ${e.getMessage}"
       }
   }
+
+  /**
+   * A custom ObjectMapper specific to Circe JSON AST
+   *
+   * The only difference from the original mapper `io.circe.jackson.mapper` is
+   * how `Long` is deserialized. The original mapper maps a `Long` to `JsonBigDecimal`
+   * whereas this custom mapper deserializes a `Long` to `JsonLong`.
+   *
+   * This customization saves Snowplow events from failing when derived contexts are
+   * validated post-enrichment. If output schema of API Request Enrichment has an integer
+   * field, `JsonBigDecimal` representation of a Long results in a bad row
+   * with message `number found, integer expected` in Iglu Scala Client, since jackson
+   * treats `DecimalNode` as number in all cases.
+   */
+  final val mapper: ObjectMapper = (new ObjectMapper).registerModule(CirceJsonModule)
 }

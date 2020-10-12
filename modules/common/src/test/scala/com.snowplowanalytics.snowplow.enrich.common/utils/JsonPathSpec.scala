@@ -13,6 +13,7 @@
 package com.snowplowanalytics.snowplow.enrich.common.utils
 
 import io.circe._
+import io.circe.literal.JsonStringContext
 import io.circe.syntax._
 import org.specs2.Specification
 
@@ -21,9 +22,14 @@ class JsonPathSpec extends Specification {
   test JSONPath query                     $e1
   test query of non-exist value           $e2
   test query of empty array               $e3
-  test primtive JSON type (JString)       $e6
+  test primitive JSON type (JString)      $e6
   invalid JSONPath (JQ syntax) must fail  $e4
   invalid JSONPath must fail              $e5
+  test query of long                      $e7
+  test query of integer                   $e8
+  test query of string                    $e9
+  test query of double                    $e10
+  test query of big decimal               $e11
   """
 
   val someJson = Json.obj(
@@ -88,4 +94,34 @@ class JsonPathSpec extends Specification {
 
   def e6 =
     JsonPath.query("$.store.book[2]", Json.fromString("somestring")) must beRight(List())
+
+  def e7 = {
+    val q1 = JsonPath.query("$.empId", json"""{ "empId": 2147483649 }""") must beRight(List(Json.fromLong(2147483649L)))
+    val q2 = JsonPath.query("$.empId", json"""{ "empId": ${Json.fromLong(2147483649L)} }""") must beRight(List(Json.fromLong(2147483649L)))
+    q1 and q2
+  }
+
+  def e8 = {
+    val q1 = JsonPath.query("$.empId", json"""{ "empId": 1086 }""") must beRight(List(Json.fromInt(1086)))
+    val q2 = JsonPath.query("$.empId", json"""{ "empId": ${Json.fromInt(-1086)} }""") must beRight(List(Json.fromInt(-1086)))
+    q1 and q2
+  }
+
+  def e9 = {
+    val q1 = JsonPath.query("$.empName", json"""{ "empName": "ABC" }""") must beRight(List(Json.fromString("ABC")))
+    val q2 = JsonPath.query("$.empName", json"""{ "empName": ${Json.fromString("XYZ")} }""") must beRight(List(Json.fromString("XYZ")))
+    q1 and q2
+  }
+
+  def e10 = {
+    val q1 = JsonPath.query("$.id", json"""{ "id": ${Json.fromDouble(44.54)} }""") must beRight(List(Json.fromDoubleOrNull(44.54)))
+    val q2 = JsonPath.query("$.id", json"""{ "id": ${Json.fromDouble(20.20)} }""") must beRight(List(Json.fromDoubleOrString(20.20)))
+    q1 and q2
+  }
+
+  def e11 = {
+    val q1 = JsonPath.query("$.id", json"""{ "id": ${Json.fromBigDecimal(44.54)} }""") must beRight(List(Json.fromBigDecimal(44.54)))
+    val q2 = JsonPath.query("$.id", json"""{ "id": ${Json.fromBigDecimal(20.20)} }""") must beRight(List(Json.fromBigDecimal(20.20)))
+    q1 and q2
+  }
 }

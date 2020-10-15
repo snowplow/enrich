@@ -124,9 +124,9 @@ object Environment {
         goodSink <- Sinks.goodSink[F](blocker, file.auth, file.good)
         badSink <- Sinks.badSink[F](blocker, file.auth, file.bad)
         assets = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
-        enrichments <- Enrichments.make[F](parsedConfigs.enrichmentConfigs)
-        pauseEnrich <- makePause[F]
         assets <- Assets.State.make[F](blocker, pauseEnrich, assets)
+        pauseEnrich <- makePause[F]
+        enrichments <- Enrichments.make[F](parsedConfigs.enrichmentConfigs)
         sentry <- file.sentry.map(_.dsn) match {
                     case Some(dsn) => Resource.liftF[F, Option[SentryClient]](Sync[F].delay(Sentry.init(dsn.toString).some))
                     case None => Resource.pure[F, Option[SentryClient]](none[SentryClient])

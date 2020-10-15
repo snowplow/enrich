@@ -47,7 +47,7 @@ object io {
     case class PubSub(subscriptionId: String) extends Input {
       def getName: String =
         subscriptionId.split("/").toList match {
-          case List("project", _, "subscription", name) =>
+          case List("projects", _, "subscription", name) =>
             name
           case _ =>
             subscriptionId

@@ -47,7 +47,7 @@ object io {
     case class PubSub(subscriptionId: String) extends Input {
       def getName: String =
         subscriptionId.split("/").toList match {
-          case List("project", _, "subscription", name) =>
+          case List("projects", _, "subscriptions", name) =>
             name
           case _ =>
             subscriptionId
@@ -59,11 +59,11 @@ object io {
       deriveConfiguredDecoder[Input].emap {
         case s @ PubSub(sub) =>
           sub.split("/").toList match {
-            case List("project", _, "subscription", _) =>
+            case List("projects", _, "subscriptions", _) =>
               s.asRight
             case List(id) if id == sub =>
               s.asRight
-            case _ => s"Subscription must conform project/project-name/subscrpiption/subscription-name part, $s given".asLeft
+            case _ => s"Subscription must conform projects/project-name/subscriptions/subscription-name part, $s given".asLeft
           }
         case other =>
           other.asRight

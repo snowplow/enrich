@@ -23,6 +23,7 @@ package sinks
 
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets.UTF_8
+import java.util.UUID
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{Await, Future}
@@ -280,7 +281,11 @@ class KinesisSink(
         val putRecordsRequestEntryList = batch.map {
           case (b, s) =>
             val prre = new PutRecordsRequestEntry()
-            prre.setPartitionKey(s)
+            val testPartitionKey = Option(s)
+            testPartitionKey match {
+              case Some(s) => prre.setPartitionKey(s)
+              case None => prre.setPartitionKey(UUID.randomUUID().toString)
+            }
             prre.setData(b)
             prre
         }

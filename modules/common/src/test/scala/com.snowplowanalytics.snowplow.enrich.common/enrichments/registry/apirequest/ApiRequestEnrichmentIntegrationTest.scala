@@ -49,30 +49,17 @@ class ApiRequestEnrichmentIntegrationTest extends Specification {
       "name": "api_request_enrichment_config",
       "enabled": true,
       "parameters": {
-        "inputs": [
-          {
-            "key": "user",
-            "pojo": {
-              "field": "user_id"
-            }
-          },
-          {
-            "key": "client",
-            "pojo": {
-              "field": "app_id"
-            }
-          }
-        ],
+        "inputs": [],
         "api": {
           "http": {
             "method": "GET",
-            "uri": "http://localhost:8001/guest/api/{{client}}/{{user}}?format=json",
-           "timeout": 5000,
+            "uri": "http://localhost:8002/guest",
+            "timeout": 5000,
             "authentication": {}
           }
         },
         "outputs": [{
-          "schema": "iglu:com.acme/unauth/jsonschema/1-0-0",
+          "schema": "iglu:com.acme/geo/jsonschema/1-0-0",
           "json": {
             "jsonPath": "$$"
           }
@@ -86,8 +73,7 @@ class ApiRequestEnrichmentIntegrationTest extends Specification {
 
     val correctResultContext =
       SelfDescribingData(
-        SchemaKey("com.acme", "unauth", "jsonschema", SchemaVer.Full(1, 0, 0)),
-        json"""{"path": "/guest/api/lookup-test/snowplower?format=json", "message": "unauthorized", "method": "GET"}"""
+        SchemaKey("com.acme", "geo", "jsonschema", SchemaVer.Full(1, 0, 0)), json"""{"latitude": 33.2296 }"""
       )
 
     val configuration2 = json"""{

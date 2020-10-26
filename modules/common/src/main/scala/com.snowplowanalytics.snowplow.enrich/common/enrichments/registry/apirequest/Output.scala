@@ -15,7 +15,6 @@ package enrichments.registry.apirequest
 
 import cats.syntax.either._
 import io.circe._
-import io.circe.parser._
 import io.circe.syntax._
 
 import utils.JsonPath.{query, wrapArray}
@@ -117,6 +116,5 @@ final case class JsonOutput(jsonPath: String) extends ApiOutput[Json] {
       case other => other.leftMap(JsonPathException.apply)
     }
 
-  def parseResponse(response: String): Either[Throwable, Json] =
-    parse(response)
+  def parseResponse(response: String): Either[Throwable, Json] = io.circe.jackson.enrich.parse(response)
 }

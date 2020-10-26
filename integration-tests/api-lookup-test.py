@@ -72,7 +72,7 @@ class AuthHandler(SimpleHTTPRequestHandler):
                 }
             }
         else:
-            response = { "serviceName": "sp-api-request-enrichment" }
+            response = { "latitude": 33.2296 }
         return json.dumps(response)
 
 

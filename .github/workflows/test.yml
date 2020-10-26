@@ -25,6 +25,8 @@ jobs:
       with:
         java-version: 11
     - name: Prepare Mock server for SCE ApiRequestEnrichmentIntegrationTest (launch in background)
+      run: python integration-tests/api-lookup-test.py 8002 &
+    - name: Prepare Mock server for SCE ApiRequestEnrichmentIntegrationTest (launch in background)
       run: python integration-tests/sce-api-lookup-test.py 8001 &
     - name: Prepare Mock server for BE ApiRequestEnrichmentIntegrationTest (launch in background)
       run: python integration-tests/beam-api-lookup-test.py &

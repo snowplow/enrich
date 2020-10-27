@@ -1,3 +1,8 @@
+Version 1.4.1 (2020-10-28)
+--------------------------
+Beam: bump Scio to 0.9.5 (#381)
+Common: fix number deserialization in API Request Enrichment (#383)
+
 Version 1.4.0 (2020-10-21)
 --------------------------
 Stream FS2: add (#346)

@@ -15,9 +15,9 @@ package enrichments.registry.apirequest
 
 import cats.syntax.either._
 import io.circe._
-import io.circe.parser._
 import io.circe.syntax._
 
+import io.circe.jackson.enrich.parse
 import utils.JsonPath.{query, wrapArray}
 
 /**

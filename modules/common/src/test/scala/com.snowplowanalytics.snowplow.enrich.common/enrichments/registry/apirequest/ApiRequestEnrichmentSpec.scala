@@ -37,6 +37,7 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
   skip incorrect input (none of json or pojo) in configuration           $e2
   skip incorrect input (both json and pojo) in configuration             $e3
   extract correct configuration for POST request and perform the request $e4
+  parse API output with number field successfully                        $e5
   """
 
   val SCHEMA_KEY =
@@ -400,5 +401,33 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
     val validResult = enrichedContextResult must beValid(List(user))
 
     validConfig and validResult
+  }
+
+  def e5 = {
+    val inputs = List()
+    val api =
+      HttpApi(
+        "GET",
+        "http://api.acme.com/geo?format=json",
+        1000,
+        Authentication(None)
+      )
+    implicit val idHttpClient: HttpClient[Id] = new HttpClient[Id] {
+      override def getResponse(request: HttpRequest): Id[Either[Throwable, String]] =
+        """{"latitude":32.234,"longitude":33.564}""".asRight
+    }
+    val output = Output("iglu:com.acme/geo/jsonschema/1-0-0", Some(JsonOutput("$")))
+    val cache = Cache(3000, 60)
+    val config = ApiRequestConf(SCHEMA_KEY, inputs, api, List(output), cache)
+
+    val expectedDerivation =
+      SelfDescribingData(
+        SchemaKey("com.acme", "geo", "jsonschema", SchemaVer.Full(1, 0, 0)),
+        json"""{"latitude": 32.234, "longitude": 33.564}"""
+      )
+
+    val enrichedContextResult = config.enrichment[Id].lookup(new EnrichedEvent, Nil, Nil, None)
+
+    enrichedContextResult must beValid(List(expectedDerivation))
   }
 }

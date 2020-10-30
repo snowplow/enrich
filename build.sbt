@@ -161,6 +161,7 @@ lazy val beam =
       buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.beam.generated",
       libraryDependencies ++= Seq(
         Dependencies.Libraries.scio,
+        Dependencies.Libraries.tcnative,
         Dependencies.Libraries.beam,
         Dependencies.Libraries.sentry,
         Dependencies.Libraries.slf4j,

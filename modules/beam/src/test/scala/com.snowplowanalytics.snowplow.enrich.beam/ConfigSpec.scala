@@ -122,6 +122,7 @@ class ConfigSpec extends AnyFreeSpec with EitherValues {
         )
       }
       "which succeeds if --sentry-dsn is present" in {
+        val dsn = "https://foo.bar?stacktrace.app.packages=com.snowplowanalytics.snowplow.enrich.beam&tags=cloud:GCP,pipeline_name:dev,client_name:tests,region:ES&release=1.0.0&async=false"
         val args = Args(
           Array(
             "--job-name=j",
@@ -130,11 +131,11 @@ class ConfigSpec extends AnyFreeSpec with EitherValues {
             "--bad=b",
             "--pii=p",
             "--resolver=r",
-            "--sentry-dsn=DSN"
+            s"--sentry-dsn=$dsn"
           )
         )
         EnrichConfig(args) shouldEqual Right(
-          EnrichConfig("j", "i", "o", "b", Some("p"), "r", None, None, Some("DSN"), true)
+          EnrichConfig("j", "i", "o", "b", Some("p"), "r", None, None, Some(dsn), true)
         )
       }
       "which respects --metrics=false" in {

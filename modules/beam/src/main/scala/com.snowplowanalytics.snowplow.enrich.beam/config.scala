@@ -78,7 +78,7 @@ object config {
         resolver,
         args.optional("enrichments"),
         args.optional("labels"),
-        args.optional("sentry-dsn"),
+        args.asMap.get("sentry-dsn").map(_.mkString(",")), // see #391
         args.boolean("metrics", true)
       )
 

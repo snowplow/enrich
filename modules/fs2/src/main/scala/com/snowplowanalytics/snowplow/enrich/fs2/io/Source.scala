@@ -40,22 +40,23 @@ object Source {
     (auth, input) match {
       case (Authentication.Gcp, p: Input.PubSub) =>
         pubSub(blocker, p)
-      case (_, p: Input.FileSystem) => p.format match {
-        case FileInputFormat.Thrift =>
-          directoryStream(blocker, p.dir).evalMap { file =>
-            readAll[F](file, blocker, 4096).compile
-              .to(Array)
-              .map(bytes =>  Payload(bytes, Sync[F].unit))
-          }
-        case FileInputFormat.Json =>
-          directoryStream(blocker, p.dir).evalMap { file =>
-            readAll[F](file, blocker, 4096).compile
-              .to(Array)
-              .map(bytes => new String(bytes))
-              .map(str => decodeCollectorPayload(str))
-              .map(cp => Payload(cp.toRaw, Sync[F].unit))
-          }
-      }
+      case (_, p: Input.FileSystem) =>
+        p.format match {
+          case FileInputFormat.Thrift =>
+            directoryStream(blocker, p.dir).evalMap { file =>
+              readAll[F](file, blocker, 4096).compile
+                .to(Array)
+                .map(bytes => Payload(bytes, Sync[F].unit))
+            }
+          case FileInputFormat.Json =>
+            directoryStream(blocker, p.dir).evalMap { file =>
+              readAll[F](file, blocker, 4096).compile
+                .to(Array)
+                .map(bytes => new String(bytes))
+                .map(str => decodeCollectorPayload(str))
+                .map(cp => Payload(cp.toRaw, Sync[F].unit))
+            }
+        }
     }
 
   def pubSub[F[_]: Concurrent: ContextShift](
@@ -76,7 +77,7 @@ object Source {
   }
 
   /** Parse a JSON string and decode it as a CollectorPayload. */
-  def decodeCollectorPayload(str: String): CollectorPayload = {
+  def decodeCollectorPayload(str: String): CollectorPayload =
     parse(str) match {
       case Right(json) =>
         json.as[CollectorPayload] match {
@@ -87,5 +88,4 @@ object Source {
       case Left(e) =>
         throw new IllegalArgumentException(s"Can't parse event [$str], error: [$e]")
     }
-  }
 }

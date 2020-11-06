@@ -47,17 +47,18 @@ package object io {
             n => DecodingFailure(s"NameValuePair can not be number, [$n] provided", cur.history).asLeft,
             s => DecodingFailure(s"NameValuePair can not be string, [$s] provided", cur.history).asLeft,
             a => DecodingFailure(s"NameValuePair can not be array, [$a] provided", cur.history).asLeft,
-            o => o.toList match {
-              case List((k, v)) => new BasicNameValuePair(k, v.asString.get).asRight
-              case _ => DecodingFailure(s"NameValuePair [$o] is map with more than one element", cur.history).asLeft,
-            }
+            o =>
+              o.toList match {
+                case List((k, v)) => new BasicNameValuePair(k, v.asString.get).asRight
+                case _ => DecodingFailure(s"NameValuePair [$o] is map with more than one element", cur.history).asLeft,
+              }
           )
         case None => DecodingFailure("NameValuePair missing", cur.history).asLeft
       }
   }
 
   implicit val dateTimeDecoder: Decoder[DateTime] =
-    Decoder[String].emap { s => Either.catchNonFatal(DateTime.parse(s)).leftMap(_.getMessage) }
+    Decoder[String].emap(s => Either.catchNonFatal(DateTime.parse(s)).leftMap(_.getMessage))
   implicit val apiDecoder: Decoder[CollectorPayload.Api] = deriveDecoder[CollectorPayload.Api]
   implicit val sourceDecoder: Decoder[CollectorPayload.Source] = deriveDecoder[CollectorPayload.Source]
   implicit val contextDecoder: Decoder[CollectorPayload.Context] = deriveDecoder[CollectorPayload.Context]

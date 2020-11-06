@@ -48,6 +48,7 @@ object io {
     implicit val fileInputFormatCodec: Codec[FileInputFormat] =
       deriveEnumerationCodec[FileInputFormat]
   }
+
   /** Source of raw collector data (only PubSub supported atm) */
   sealed trait Input
 

@@ -19,7 +19,7 @@ import org.scalacheck.Prop.forAll
 import org.joda.time.DateTime
 import org.apache.http.NameValuePair
 
-import _root_.io.circe.{Encoder, Json} 
+import _root_.io.circe.{Encoder, Json}
 import _root_.io.circe.syntax._
 import _root_.io.circe.generic.semiauto._
 
@@ -28,9 +28,10 @@ import com.snowplowanalytics.snowplow.enrich.fs2.io.Source
 
 class SourceSpec extends Specification with ScalaCheck {
   implicit val nvpEncoder: Encoder[NameValuePair] = new Encoder[NameValuePair] {
-    final def apply(nvp: NameValuePair): Json = Json.obj(
-      (nvp.getName, Json.fromString(nvp.getValue))
-    )
+    final def apply(nvp: NameValuePair): Json =
+      Json.obj(
+        (nvp.getName, Json.fromString(nvp.getValue))
+      )
   }
   implicit val dateTimeEncoder: Encoder[DateTime] =
     Encoder[String].contramap(_.toString)

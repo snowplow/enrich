@@ -18,11 +18,15 @@ import cats.implicits._
 import fs2.Stream
 import fs2.io.file.{directoryStream, readAll}
 
+import _root_.io.circe.parser._
+
 import com.permutive.pubsub.consumer.Model
 import com.permutive.pubsub.consumer.grpc.{PubsubGoogleConsumer, PubsubGoogleConsumerConfig}
 
+import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.fs2.{Payload, RawSource}
 import com.snowplowanalytics.snowplow.enrich.fs2.config.io.{Authentication, Input}
+import com.snowplowanalytics.snowplow.enrich.fs2.config.io.FileInputFormat
 
 import com.google.pubsub.v1.PubsubMessage
 
@@ -36,12 +40,22 @@ object Source {
     (auth, input) match {
       case (Authentication.Gcp, p: Input.PubSub) =>
         pubSub(blocker, p)
-      case (_, p: Input.FileSystem) =>
-        directoryStream(blocker, p.dir).evalMap { file =>
-          readAll[F](file, blocker, 4096).compile
-            .to(Array)
-            .map(bytes => Payload(bytes, Sync[F].unit))
-        }
+      case (_, p: Input.FileSystem) => p.format match {
+        case FileInputFormat.Thrift =>
+          directoryStream(blocker, p.dir).evalMap { file =>
+            readAll[F](file, blocker, 4096).compile
+              .to(Array)
+              .map(bytes =>  Payload(bytes, Sync[F].unit))
+          }
+        case FileInputFormat.Json =>
+          directoryStream(blocker, p.dir).evalMap { file =>
+            readAll[F](file, blocker, 4096).compile
+              .to(Array)
+              .map(bytes => new String(bytes))
+              .map(str => decodeCollectorPayload(str))
+              .map(cp => Payload(cp.toRaw, Sync[F].unit))
+          }
+      }
     }
 
   def pubSub[F[_]: Concurrent: ContextShift](
@@ -59,5 +73,19 @@ object Source {
     PubsubGoogleConsumer
       .subscribe[F, Array[Byte]](blocker, projectId, subscriptionId, errorHandler, pubSubConfig)
       .map(record => Payload(record.value, record.ack))
+  }
+
+  /** Parse a JSON string and decode it as a CollectorPayload. */
+  def decodeCollectorPayload(str: String): CollectorPayload = {
+    parse(str) match {
+      case Right(json) =>
+        json.as[CollectorPayload] match {
+          case Right(cp) => cp
+          case Left(f) =>
+            throw new IllegalArgumentException(s"Can't decode json [$json] as CollectorPayload, error: [$f]")
+        }
+      case Left(e) =>
+        throw new IllegalArgumentException(s"Can't parse event [$str], error: [$e]")
+    }
   }
 }

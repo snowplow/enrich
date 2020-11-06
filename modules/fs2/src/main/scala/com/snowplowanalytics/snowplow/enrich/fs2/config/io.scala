@@ -16,7 +16,7 @@ import java.nio.file.{InvalidPathException, Path, Paths}
 
 import cats.syntax.either._
 
-import _root_.io.circe.{Decoder, Encoder}
+import _root_.io.circe.{Codec, Decoder, Encoder}
 import _root_.io.circe.generic.extras.semiauto._
 
 object io {
@@ -39,6 +39,15 @@ object io {
       deriveConfiguredEncoder[Authentication]
   }
 
+  sealed trait FileInputFormat extends Product with Serializable
+
+  object FileInputFormat {
+    case object Thrift extends FileInputFormat
+    case object Json extends FileInputFormat
+
+    implicit val fileInputFormatCodec: Codec[FileInputFormat] =
+      deriveEnumerationCodec[FileInputFormat]
+  }
   /** Source of raw collector data (only PubSub supported atm) */
   sealed trait Input
 
@@ -53,7 +62,7 @@ object io {
             throw new IllegalArgumentException(s"Cannot construct Input.PubSub from $subscription")
         }
     }
-    case class FileSystem(dir: Path) extends Input
+    case class FileSystem(dir: Path, format: FileInputFormat) extends Input
 
     implicit val inputDecoder: Decoder[Input] =
       deriveConfiguredDecoder[Input].emap {

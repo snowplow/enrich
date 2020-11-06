@@ -11,6 +11,7 @@ input = {
   // Local FS supported for testing purposes
   // type = "FileSystem"
   // dir = "/var/collector"
+  // format = "Json" // "Thrift" and "Json" supported
 }
 
 // Enriched events output

@@ -15,9 +15,13 @@
 package com.snowplowanalytics.snowplow.enrich.beam
 
 import java.nio.file.Files
+import java.nio.file.Paths
+import java.net.URI
 
 import com.snowplowanalytics.iglu.core.SelfDescribingData
 import com.snowplowanalytics.iglu.core.circe.CirceIgluCodecs._
+import com.snowplowanalytics.iglu.core.SchemaKey
+import com.snowplowanalytics.iglu.core.SchemaVer
 import com.spotify.scio.Args
 import io.circe.Json
 import io.circe.syntax._
@@ -27,6 +31,8 @@ import matchers.should.Matchers._
 import config._
 import SpecHelpers._
 import org.scalatest.freespec.AnyFreeSpec
+
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.YauaaConf
 
 class ConfigSpec extends AnyFreeSpec with EitherValues {
   "the config object should" - {
@@ -65,36 +71,9 @@ class ConfigSpec extends AnyFreeSpec with EitherValues {
         EnrichConfig(Args(Array("--job-name=j", "--raw=i", "--enriched=o", "--bad=b"))) shouldEqual
           Left("Missing `resolver` argument")
       }
-      "which succeeds otherwise" in {
-        EnrichConfig(
-          Args(Array("--job-name=j", "--raw=i", "--enriched=o", "--bad=b", "--resolver=r"))
-        ) shouldEqual
-          Right(EnrichConfig("j", "i", "o", "b", None, "r", None, None, None, true))
-      }
-      "which succeeds if --enrichments is present" in {
-        val args = Args(
-          Array(
-            "--job-name=j",
-            "--raw=i",
-            "--enriched=o",
-            "--bad=b",
-            "--resolver=r",
-            "--enrichments=e"
-          )
-        )
-        EnrichConfig(args) shouldEqual Right(
-          EnrichConfig("j", "i", "o", "b", None, "r", Some("e"), None, None, true)
-        )
-      }
-      "which succeeds if --pii is present" in {
-        val args = Args(
-          Array("--job-name=j", "--raw=i", "--enriched=o", "--bad=b", "--pii=p", "--resolver=r")
-        )
-        EnrichConfig(args) shouldEqual Right(
-          EnrichConfig("j", "i", "o", "b", Some("p"), "r", None, None, None, true)
-        )
-      }
-      "which succeeds if --labels is present" in {
+      "which fails if --resolver can't be parsed" in {
+        val resolverPath = Paths.get(getClass.getResource("/referer-tests.json").toURI()).toString()
+        val enrichmentsPath = Paths.get(getClass.getResource("/yauaa").toURI()).toString()
         val args = Args(
           Array(
             "--job-name=j",
@@ -102,27 +81,18 @@ class ConfigSpec extends AnyFreeSpec with EitherValues {
             "--enriched=o",
             "--bad=b",
             "--pii=p",
-            "--resolver=r",
-            "--labels={\"env\":\"abc\"}"
+            "--resolver=" + resolverPath,
+            "--enrichments=" + enrichmentsPath,
+            "--labels={\"env\":\"abc\"}",
+            "--sentry-dsn=https://foo.bar?stacktrace.app.packages=com.snowplowanalytics.snowplow.enrich.beam",
+            "--metrics=false"
           )
         )
-        EnrichConfig(args) shouldEqual Right(
-          EnrichConfig(
-            "j",
-            "i",
-            "o",
-            "b",
-            Some("p"),
-            "r",
-            None,
-            Some("{\"env\":\"abc\"}"),
-            None,
-            true
-          )
-        )
+        EnrichConfig(args) shouldEqual Left("schema key is not available")
       }
-      "which succeeds if --sentry-dsn is present" in {
-        val dsn = "https://foo.bar?stacktrace.app.packages=com.snowplowanalytics.snowplow.enrich.beam&tags=cloud:GCP,pipeline_name:dev,client_name:tests,region:ES&release=1.0.0&async=false"
+      "which fails if --enrichments config files can't be parsed" in {
+        val resolverPath = Paths.get(getClass.getResource("/iglu_resolver.json").toURI()).toString()
+        val enrichmentsPath = Paths.get(getClass.getResource("/enrichments_wrong").toURI()).toString()
         val args = Args(
           Array(
             "--job-name=j",
@@ -130,15 +100,18 @@ class ConfigSpec extends AnyFreeSpec with EitherValues {
             "--enriched=o",
             "--bad=b",
             "--pii=p",
-            "--resolver=r",
-            s"--sentry-dsn=$dsn"
+            "--resolver=" + resolverPath,
+            "--enrichments=" + enrichmentsPath,
+            "--labels={\"env\":\"abc\"}",
+            "--sentry-dsn=https://foo.bar?stacktrace.app.packages=com.snowplowanalytics.snowplow.enrich.beam",
+            "--metrics=false"
           )
         )
-        EnrichConfig(args) shouldEqual Right(
-          EnrichConfig("j", "i", "o", "b", Some("p"), "r", None, None, Some(dsn), true)
-        )
+        EnrichConfig(args) shouldEqual Left("invalid json: expected json value got 'bar' (line 1, column 1)")
       }
-      "which respects --metrics=false" in {
+      "which fails if --labels is not a map" in {
+        val resolverPath = Paths.get(getClass.getResource("/iglu_resolver.json").toURI()).toString()
+        val enrichmentsPath = Paths.get(getClass.getResource("/yauaa").toURI()).toString()
         val args = Args(
           Array(
             "--job-name=j",
@@ -146,12 +119,82 @@ class ConfigSpec extends AnyFreeSpec with EitherValues {
             "--enriched=o",
             "--bad=b",
             "--pii=p",
-            "--resolver=r",
+            "--resolver=" + resolverPath,
+            "--enrichments=" + enrichmentsPath,
+            "--labels=foo",
+            "--sentry-dsn=https://foo.bar?stacktrace.app.packages=com.snowplowanalytics.snowplow.enrich.beam",
+            "--metrics=false"
+          )
+        )
+        EnrichConfig(args) shouldEqual Left("Invalid `labels` format, expected json object, received: foo")
+      }
+      "which fails if --sentry-dsn is not a valid URI" in {
+        val resolverPath = Paths.get(getClass.getResource("/iglu_resolver.json").toURI()).toString()
+        val enrichmentsPath = Paths.get(getClass.getResource("/yauaa").toURI()).toString()
+        val args = Args(
+          Array(
+            "--job-name=j",
+            "--raw=i",
+            "--enriched=o",
+            "--bad=b",
+            "--pii=p",
+            "--resolver=" + resolverPath,
+            "--enrichments=" + enrichmentsPath,
+            "--labels={\"env\":\"abc\"}",
+            "--sentry-dsn='https://foo.bar",
+            "--metrics=false"
+          )
+        )
+        EnrichConfig(args) shouldEqual Left(
+          "Could not parse Sentry DSN as URI. Error: [Illegal character in scheme name at index 0: 'https://foo.bar]"
+        )
+      }
+      "which succeeds if all the configuration is valid" in {
+        val resolverPath = Paths.get(getClass.getResource("/iglu_resolver.json").toURI()).toString()
+        val enrichmentsPath = Paths.get(getClass.getResource("/yauaa").toURI()).toString()
+        val jobName = "j"
+        val raw = "i"
+        val enriched = "o"
+        val bad = "b"
+        val pii = "p"
+        val resolver = parseResolver(resolverPath).getOrElse(throw new IllegalArgumentException(s"can't parse $resolverPath"))
+        val enrichments = List(
+          YauaaConf(
+            SchemaKey("com.snowplowanalytics.snowplow.enrichments", "yauaa_enrichment_config", "jsonschema", SchemaVer.Full(1, 0, 0)),
+            None
+          )
+        )
+        val labels = Map("env" -> "abc")
+        val sentryDsn = URI.create(
+          "https://foo.bar?stacktrace.app.packages=com.snowplowanalytics.snowplow.enrich.beam&tags=cloud:GCP,pipeline_name:dev,client_name:tests,region:ES&release=1.0.0&async=false"
+        )
+        val args = Args(
+          Array(
+            s"--job-name=$jobName",
+            s"--raw=$raw",
+            s"--enriched=$enriched",
+            s"--bad=$bad",
+            s"--pii=$pii",
+            "--resolver=" + resolverPath,
+            "--enrichments=" + enrichmentsPath,
+            "--labels={\"env\":\"abc\"}",
+            s"--sentry-dsn=${sentryDsn.toString}",
             "--metrics=false"
           )
         )
         EnrichConfig(args) shouldEqual Right(
-          EnrichConfig("j", "i", "o", "b", Some("p"), "r", None, None, None, false)
+          EnrichConfig(
+            jobName,
+            raw,
+            enriched,
+            bad,
+            Some(pii),
+            resolver,
+            enrichments,
+            labels,
+            Some(sentryDsn),
+            false
+          )
         )
       }
     }

@@ -42,6 +42,7 @@ import org.apache.beam.sdk.io.gcp.pubsub.PubsubOptions
 import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions
 import org.joda.time.DateTime
 import org.slf4j.LoggerFactory
+import java.net.URI
 
 import com.snowplowanalytics.snowplow.enrich.beam.config._
 import com.snowplowanalytics.snowplow.enrich.beam.singleton._
@@ -68,45 +69,26 @@ object Enrich {
 
   def main(cmdlineArgs: Array[String]): Unit = {
     val (sc, args) = ContextAndArgs(cmdlineArgs)
-    val parsedConfig = for {
-      config <- EnrichConfig(args)
-      _ = sc.setJobName(config.jobName)
-      _ <- checkTopicExists(sc, config.enriched)
-      _ <- checkTopicExists(sc, config.bad)
-      _ <- config.pii.map(checkTopicExists(sc, _)).getOrElse(().asRight)
-      resolverJson <- parseResolver(config.resolver)
-      client <- Client.parseDefault[Id](resolverJson).leftMap(_.toString).value
-      registryJson <- parseEnrichmentRegistry(config.enrichments, client)
-      confs <- EnrichmentRegistry.parse(registryJson, client, false).leftMap(_.toString).toEither
-      labels <- config.labels.map(parseLabels).getOrElse(Right(Map.empty[String, String]))
-      _ <- if (emitPii(confs) && config.pii.isEmpty)
-             "A pii topic needs to be used in order to use the pii enrichment".asLeft
-           else
-             ().asRight
-    } yield ParsedEnrichConfig(
-      config.raw,
-      config.enriched,
-      config.bad,
-      config.pii,
-      resolverJson,
-      confs,
-      labels,
-      config.sentryDSN,
-      config.metrics
-    )
+    val config = for {
+      conf <- EnrichConfig(args)
+      _ = sc.setJobName(conf.jobName)
+      _ <- checkTopicExists(sc, conf.enriched)
+      _ <- checkTopicExists(sc, conf.bad)
+      _ <- conf.pii.map(checkTopicExists(sc, _)).getOrElse(().asRight)
+    } yield conf
 
-    parsedConfig match {
+    config match {
       case Left(e) =>
         System.err.println(e)
         System.exit(1)
-      case Right(config) =>
-        run(sc, config)
+      case Right(c) =>
+        run(sc, c)
         sc.run()
         ()
     }
   }
 
-  def run(sc: ScioContext, config: ParsedEnrichConfig): Unit = {
+  def run(sc: ScioContext, config: EnrichConfig): Unit = {
     if (config.labels.nonEmpty)
       sc.optionsAs[DataflowPipelineOptions].setLabels(config.labels.asJava)
 
@@ -196,7 +178,7 @@ object Enrich {
     resolver: Json,
     enrichmentConfs: List[EnrichmentConf],
     cachedFiles: DistCache[List[Either[String, String]]],
-    sentryDSN: Option[String],
+    sentryDSN: Option[URI],
     metrics: Boolean
   ): SCollection[Validated[BadRow, EnrichedEvent]] =
     raw
@@ -278,7 +260,7 @@ object Enrich {
     data: Array[Byte],
     enrichmentRegistry: EnrichmentRegistry[Id],
     client: Client[Id, Json],
-    sentryDSN: Option[String]
+    sentryDSN: Option[URI]
   ): List[Validated[BadRow, EnrichedEvent]] = {
     val collectorPayload = ThriftLoader.toCollectorPayload(data, processor)
     Either.catchNonFatal(
@@ -297,7 +279,7 @@ object Enrich {
           throwable
         )
         sentryDSN.foreach { dsn =>
-          System.setProperty("sentry.dsn", dsn)
+          System.setProperty("sentry.dsn", dsn.toString())
           Sentry.capture(throwable)
         }
         Nil

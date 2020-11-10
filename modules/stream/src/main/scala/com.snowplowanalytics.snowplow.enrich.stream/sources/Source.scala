@@ -122,7 +122,7 @@ abstract class Source(
   sentryConfig: Option[SentryConfig]
 ) {
 
-  val sentryClient: Option[SentryClient] = sentryConfig.map(_.dsn).map(Sentry.init)
+  val sentryClient: Option[SentryClient] = sentryConfig.map(_.dsn.toString).map(Sentry.init)
 
   val MaxRecordSize: Option[Int]
 

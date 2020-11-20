@@ -1,3 +1,9 @@
+Version 1.4.2 (2020-11-20)
+--------------------------
+Stream: crash at startup if Sentry DSN is not correct (#399)
+Beam: crash at startup if Sentry DSN is not correct (#398)
+Beam: handle commas in Sentry DSN parameter (#391)
+
 Version 1.4.1 (2020-11-02)
 --------------------------
 Beam: Add missing tcnative dependency of Scio 0.9.5 (#389)

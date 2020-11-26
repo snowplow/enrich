@@ -12,8 +12,14 @@
  */
 package com.snowplowanalytics.snowplow.enrich.fs2
 
+import java.net.URI
 import java.nio.file.Path
 
+import scala.concurrent.duration.FiniteDuration
+
+import _root_.cats.syntax.either._
+
+import _root_.io.circe.{Encoder, Decoder}
 import _root_.io.circe.generic.extras.Configuration
 
 package object config {
@@ -23,5 +29,17 @@ package object config {
 
   private[config] implicit def customCodecConfig: Configuration =
     Configuration.default.withDiscriminator("type")
+
+  // Missing in circe-config
+  implicit val finiteDurationEncoder: Encoder[FiniteDuration] =
+    implicitly[Encoder[String]].contramap(_.toString)
+
+  implicit val javaNetUriDecoder: Decoder[URI] =
+    Decoder[String].emap { str =>
+      Either.catchOnly[IllegalArgumentException](URI.create(str)).leftMap(_.getMessage)
+    }
+
+  implicit val javaNetUriEncoder: Encoder[URI] =
+    Encoder[String].contramap(_.toString)
 
 }

@@ -18,7 +18,7 @@ import cats.Show
 import cats.data.EitherT
 import cats.implicits._
 
-import cats.effect.{Async, Blocker, Clock, Concurrent, ConcurrentEffect, ContextShift, Resource, Sync, Timer}
+import cats.effect.{ContextShift, Async, Blocker, Clock, Resource, Timer, ConcurrentEffect, Concurrent, Sync}
 import cats.effect.concurrent.Ref
 
 import fs2.concurrent.SignallingRef
@@ -37,7 +37,9 @@ import com.snowplowanalytics.iglu.client.Client
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.fs2.config.{CliConfig, ConfigFile}
-import com.snowplowanalytics.snowplow.enrich.fs2.io.{FileSystem, Metrics, Sinks, Source}
+import com.snowplowanalytics.snowplow.enrich.fs2.io.{FileSystem, Metrics, Sinks, Source, Tracing}
+
+import natchez.EntryPoint
 
 /**
  * All allocated resources, configs and mutable variables necessary for running Enrich process
@@ -72,7 +74,8 @@ final case class Environment[F[_]](
   sentry: Option[SentryClient],
   metrics: Metrics[F],
   assetsUpdatePeriod: Option[FiniteDuration],
-  metricsReportPeriod: Option[FiniteDuration]
+  metricsReportPeriod: Option[FiniteDuration],
+  tracing: Option[EntryPoint[F]]
 )
 
 object Environment {
@@ -131,6 +134,7 @@ object Environment {
                     case Some(dsn) => Resource.liftF[F, Option[SentryClient]](Sync[F].delay(Sentry.init(dsn.toString).some))
                     case None => Resource.pure[F, Option[SentryClient]](none[SentryClient])
                   }
+        tracing <- file.tracing.map(Tracing.build[F]).sequence
         _ <- Resource.liftF(pauseEnrich.set(false) *> Logger[F].info("Enrich environment initialized"))
       } yield Environment[F](client,
                              enrichments,
@@ -143,7 +147,8 @@ object Environment {
                              sentry,
                              metrics,
                              file.assetsUpdatePeriod,
-                             file.metricsReportPeriod
+                             file.metricsReportPeriod,
+                             tracing
       )
     }
 

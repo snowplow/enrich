@@ -45,20 +45,17 @@ final case class ConfigFile(
   bad: Output,
   assetsUpdatePeriod: Option[FiniteDuration],
   sentry: Option[Sentry],
-  metricsReportPeriod: Option[FiniteDuration]
+  metricsReportPeriod: Option[FiniteDuration],
+  tracing: Option[Tracing]
 )
 
 object ConfigFile {
 
-  // Missing in circe-config
-  implicit val finiteDurationEncoder: Encoder[FiniteDuration] =
-    implicitly[Encoder[String]].contramap(_.toString)
-
   implicit val configFileDecoder: Decoder[ConfigFile] =
     deriveConfiguredDecoder[ConfigFile].emap {
-      case ConfigFile(_, _, _, _, Some(aup), _, _) if aup._1 <= 0L =>
+      case ConfigFile(_, _, _, _, Some(aup), _, _, _) if aup._1 <= 0L =>
         "assetsUpdatePeriod in config file cannot be less than 0".asLeft // TODO: use newtype
-      case ConfigFile(_, _, _, _, _, _, Some(mrp)) if mrp._1 <= 0L =>
+      case ConfigFile(_, _, _, _, _, _, Some(mrp), _) if mrp._1 <= 0L =>
         "metricsReportPeriod in config file cannot be less than 0".asLeft
       case other => other.asRight
     }

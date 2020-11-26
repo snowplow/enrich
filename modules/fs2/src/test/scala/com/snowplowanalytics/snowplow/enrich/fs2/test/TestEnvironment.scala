@@ -33,9 +33,13 @@ import com.snowplowanalytics.snowplow.badrows.BadRow
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+
 import com.snowplowanalytics.snowplow.enrich.fs2.{Assets, Enrich, EnrichSpec, Environment, Payload, RawSource}
 import com.snowplowanalytics.snowplow.enrich.fs2.Environment.Enrichments
 import com.snowplowanalytics.snowplow.enrich.fs2.SpecHelpers.{filesResource, ioClock}
+import com.snowplowanalytics.snowplow.enrich.fs2.config
+import com.snowplowanalytics.snowplow.enrich.fs2.io.Tracing
+
 import cats.effect.testing.specs2.CatsIO
 
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
@@ -126,6 +130,7 @@ object TestEnvironment extends CatsIO {
       assets <- Assets.State.make(blocker, pauseEnrich, enrichments.flatMap(_.filesToCache))
       _ <- Resource.liftF(logger.info("AssetsState initialized"))
       enrichmentsRef <- Enrichments.make[IO](enrichments)
+      tracing <- Tracing.build[IO](config.Tracing("http://localhost:9411/api/v2/spans", None))
       environment = Environment[IO](igluClient,
                                     enrichmentsRef,
                                     pauseEnrich,
@@ -137,7 +142,8 @@ object TestEnvironment extends CatsIO {
                                     None,
                                     metrics,
                                     None,
-                                    None
+                                    None,
+                                    Some(tracing)
                     )
       _ <- Resource.liftF(pauseEnrich.set(false) *> logger.info("TestEnvironment initialized"))
     } yield TestEnvironment(environment, counter, goodQueue, badQueue)

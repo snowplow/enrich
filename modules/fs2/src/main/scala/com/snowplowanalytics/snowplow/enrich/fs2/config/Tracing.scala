@@ -12,17 +12,19 @@
  */
 package com.snowplowanalytics.snowplow.enrich.fs2.config
 
-import java.net.URI
+import scala.concurrent.duration.FiniteDuration
 
-import _root_.io.circe.{Decoder, Encoder}
+import _root_.io.circe.{Encoder, Decoder}
 import _root_.io.circe.generic.extras.semiauto._
 
-case class Sentry(dsn: URI)
+import _root_.io.circe.config.syntax._
 
-object Sentry {
+case class Tracing(endpoint: String, retryInterval: Option[FiniteDuration])
 
-  implicit val authenticationDecoder: Decoder[Sentry] =
-    deriveConfiguredDecoder[Sentry]
-  implicit val authenticationEncoder: Encoder[Sentry] =
-    deriveConfiguredEncoder[Sentry]
+object Tracing {
+
+  implicit val authenticationDecoder: Decoder[Tracing] =
+    deriveConfiguredDecoder[Tracing]
+  implicit val authenticationEncoder: Encoder[Tracing] =
+    deriveConfiguredEncoder[Tracing]
 }

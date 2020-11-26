@@ -17,10 +17,10 @@ import java.util.Base64
 import java.util.concurrent.TimeUnit
 
 import org.joda.time.DateTime
-import cats.data.{NonEmptyList, ValidatedNel}
+import cats.data.{ValidatedNel, NonEmptyList}
 import cats.implicits._
 
-import cats.effect.{Blocker, Clock, Concurrent, ContextShift, Sync}
+import cats.effect.{ContextShift, Blocker, Clock, Concurrent, Sync}
 
 import fs2.Stream
 
@@ -30,9 +30,13 @@ import _root_.io.circe.syntax._
 
 import _root_.io.chrisdavenport.log4cats.Logger
 import _root_.io.chrisdavenport.log4cats.slf4j.Slf4jLogger
+
+import natchez.{Span, EntryPoint, Kernel}
+
 import com.snowplowanalytics.iglu.client.Client
 
 import com.snowplowanalytics.snowplow.badrows.{Processor, BadRow, Failure, Payload => BadRowPayload}
+
 import com.snowplowanalytics.snowplow.enrich.common.EtlPipeline
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
@@ -42,8 +46,6 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegist
 object Enrich {
 
   /**
-   * Parallelism of an enrich stream.
-   * Unlike for thread pools it doesn't make much sense to use `CPUs x 2` formulae
    * as we're not sizing threads, but fibers and memory is the only cost of them
    */
   val ConcurrencyLevel = 64
@@ -68,7 +70,7 @@ object Enrich {
    */
   def run[F[_]: Concurrent: ContextShift: Clock](env: Environment[F]): Stream[F, Unit] = {
     val registry: F[EnrichmentRegistry[F]] = env.enrichments.get.map(_.registry)
-    val enrich: Enrich[F] = enrichWith[F](registry, env.blocker, env.igluClient, env.sentry, env.metrics.enrichLatency)
+    val enrich: Enrich[F] = enrichWith[F](registry, env.blocker, env.igluClient, env.sentry, env.metrics.enrichLatency, env.tracing)
     val badSink: BadSink[F] = _.evalTap(_ => env.metrics.badCount).through(env.bad)
     val goodSink: GoodSink[F] = _.evalTap(_ => env.metrics.goodCount).through(env.good)
 
@@ -91,24 +93,45 @@ object Enrich {
     blocker: Blocker,
     igluClient: Client[F, Json],
     sentry: Option[SentryClient],
-    enrichLatency: Option[Long] => F[Unit]
+    enrichLatency: Option[Long] => F[Unit],
+    tracing: Option[EntryPoint[F]]
   )(
     row: Payload[F, Array[Byte]]
   ): F[Result[F]] = {
-    val payload = ThriftLoader.toCollectorPayload(row.data, processor)
-    val collectorTstamp = payload.toOption.flatMap(_.flatMap(_.context.timestamp).map(_.getMillis))
+    tracing.map(_.root("root")).sequence.use { span =>
+      val result =
+        for {
+          payload         <- within(span, "to-collector-payload")(ThriftLoader.toCollectorPayload(row.data, processor).pure[F])
+          kernel           = getTraceHeaders(payload)
+          _ = span
+          collectorTstamp  = payload.toOption.flatMap(_.flatMap(_.context.timestamp).map(_.getMillis))
+          _               <- Logger[F].debug(payloadToString(payload))
+          etlTstamp       <- Clock[F].realTime(TimeUnit.MILLISECONDS).map(millis => new DateTime(millis))
+          registry        <- enrichRegistry
+          enrich           = EtlPipeline.processEvents[F](adapterRegistry, registry, igluClient, processor, etlTstamp, payload)
+          enriched        <- within(span, "enrich")(blocker.blockOn(enrich))
+          finalise         = within(span, "ack")(enrichLatency(collectorTstamp) *> row.finalise)
+        } yield Payload(enriched, finalise)
 
-    val result =
-      for {
-        _ <- Logger[F].debug(payloadToString(payload))
-        etlTstamp <- Clock[F].realTime(TimeUnit.MILLISECONDS).map(millis => new DateTime(millis))
-        registry <- enrichRegistry
-        enrich = EtlPipeline.processEvents[F](adapterRegistry, registry, igluClient, processor, etlTstamp, payload)
-        enriched <- blocker.blockOn(enrich)
-        trackLatency = enrichLatency(collectorTstamp)
-      } yield Payload(enriched, trackLatency *> row.finalise)
+      result.handleErrorWith(sendToSentry[F](row, sentry))
+    }
+  }
 
-    result.handleErrorWith(sendToSentry[F](row, sentry))
+  def within[F[_]: Sync, A](span: Option[Span[F]], name: String)(action: F[A]): F[A] =
+    span match {
+      case Some(s) =>
+        s.span(name).use { _ => action }
+      case None => action
+    }
+
+  def getTraceHeaders(payload: ValidatedNel[BadRow.CPFormatViolation, Option[CollectorPayload]]): Kernel = {
+    val headers = payload.toOption.flatten.flatMap(_.context.headers).flatMap { str =>
+      str.split(":", 2) match {
+        case Array(key, value) => Some((key, value))
+        case _ => None
+      }
+    }
+    Kernel(headers.toMap)
   }
 
   /** Stringify `ThriftLoader` result for debugging purposes */

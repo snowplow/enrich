@@ -74,7 +74,8 @@ object PayloadGen extends CatsIO {
     ip <- Gen.option(ipGen)
     userAgent <- userAgentGen.map(x => Some(x))
     userId <- Gen.option(Gen.uuid)
-  } yield CollectorPayload.Context(timestamp, ip, userAgent, None, List(), userId)
+    headers <- Gen.listOf(Gen.oneOf("Cache-Control: max-age=0", "Connection: keep-alive", "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"))
+  } yield CollectorPayload.Context(timestamp, ip, userAgent, None, headers, userId)
 
   val getPageView = for {
     eventId <- Gen.uuid

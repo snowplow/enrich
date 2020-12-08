@@ -99,12 +99,15 @@ object TestEnvironment extends CatsIO {
       Registry.Config("fs2-enrich embedded test registry", 1, List("com.acme")),
       List(
         SchemaRegistry.unstructEvent,
+        SchemaRegistry.payloadData,
         SchemaRegistry.contexts,
         SchemaRegistry.geolocationContext,
         SchemaRegistry.iabAbdRobots,
         SchemaRegistry.yauaaContext,
         SchemaRegistry.acmeTest,
-        SchemaRegistry.acmeOutput
+        SchemaRegistry.acmeOutput,
+        SchemaRegistry.changeForm,
+
       )
     )
   val igluClient: Client[IO, Json] =

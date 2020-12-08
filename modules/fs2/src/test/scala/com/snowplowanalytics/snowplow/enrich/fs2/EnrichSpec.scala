@@ -13,7 +13,7 @@
 package com.snowplowanalytics.snowplow.enrich.fs2
 
 import java.time.Instant
-import java.util.UUID
+import java.util.{Base64, UUID}
 
 import scala.concurrent.duration._
 
@@ -29,23 +29,21 @@ import _root_.io.circe.literal._
 
 import org.apache.http.NameValuePair
 import org.apache.http.message.BasicNameValuePair
-
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 import com.snowplowanalytics.snowplow.badrows.{Processor, BadRow, Payload => BadRowPayload}
-
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.IpLookupsEnrichment
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-
-import com.snowplowanalytics.snowplow.enrich.fs2.EnrichSpec.{Expected, minimalEvent, normalizeResult}
+import com.snowplowanalytics.snowplow.enrich.fs2.EnrichSpec.{normalizeResult, Expected, minimalEvent, contexts}
 import com.snowplowanalytics.snowplow.enrich.fs2.test._
 
 import org.specs2.ScalaCheck
 import org.specs2.mutable.Specification
-
 import cats.effect.testing.specs2.CatsIO
+
+import com.snowplowanalytics.snowplow.analytics.scalasdk.SnowplowEvent.Contexts
 
 import org.specs2.scalacheck.Parameters
 
@@ -79,6 +77,41 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
           }
       }
     }
+
+    "enrich a minimal POST page_view CollectorPayload event with newline and without any enrichments enabled" in {
+      val expected = minimalEvent
+        .copy(
+          etl_tstamp = Some(Instant.ofEpochMilli(SpecHelpers.StaticTime)),
+          user_ipaddress = Some("175.16.199.0"),
+          event = Some("page_view"),
+          event_vendor = Some("com.snowplowanalytics.snowplow"),
+          event_name = Some("page_view"),
+          event_format = Some("jsonschema"),
+          event_version = Some("1-0-0"),
+          platform = Some("app"),
+          v_tracker = Some("test-0.0.1"),
+          contexts = Contexts(List(
+            SelfDescribingData(
+              SchemaKey("com.snowplowanalytics.snowplow", "change_form","jsonschema", SchemaVer.Full(1,0,0)),
+              json"""{"formId":"a","elementId":"b","nodeName":"TEXTAREA","value":"line 1\nline2\tcolumn2"}"""
+            )
+          )),
+          derived_tstamp = Some(Instant.ofEpochMilli(0L))
+        )
+
+      TestEnvironment.ioBlocker.use { blocker =>
+        Enrich
+          .enrichWith(TestEnvironment.enrichmentReg.pure[IO], blocker, TestEnvironment.igluClient, None, _ => IO.unit)(
+            EnrichSpec.payloadPost[IO]
+          )
+          .map(normalizeResult)
+          .map {
+            case List(Validated.Valid(event)) => event must beEqualTo(expected)
+            case other => ko(s"Expected one valid event, got $other")
+          }
+      }
+    }
+
 
     "enrich a randomly generated page view event" in {
       implicit val cpGen = PayloadGen.getPageViewArbitrary
@@ -188,6 +221,12 @@ object EnrichSpec {
   val colllectorPayload: CollectorPayload = CollectorPayload(api, querystring, None, None, source, context)
   def payload[F[_]: Applicative]: Payload[F, Array[Byte]] =
     Payload(colllectorPayload.toRaw, Applicative[F].unit)
+
+  val changeForm = "{\"schema\":\"iglu:com.snowplowanalytics.snowplow/change_form/jsonschema/1-0-0\",\"data\":{\"formId\":\"a\",\"elementId\":\"b\",\"nodeName\":\"TEXTAREA\",\"value\":\"line 1\\nline2\\tcolumn2\"}}"
+  val contexts = new String(Base64.getUrlEncoder.encode(s"""{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[$changeForm]}""".getBytes))
+  val bodyPost = s"""{"schema":"iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-4","data":[{"eid":"$eventId","e":"pv","cx":"$contexts","p":"app","tv":"test-0.0.1"}]}"""
+  def payloadPost[F[_]: Applicative]: Payload[F, Array[Byte]] =
+    Payload(colllectorPayload.copy(querystring = Nil, body = Some(bodyPost), contentType = Some("application/json")).toRaw, Applicative[F].unit)
 
   def normalize(payload: Payload[IO, EnrichedEvent]) =
     Event

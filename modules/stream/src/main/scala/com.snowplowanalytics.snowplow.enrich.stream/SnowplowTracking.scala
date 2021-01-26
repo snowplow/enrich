@@ -185,7 +185,7 @@ object SnowplowTracking {
           "jsonschema",
           SchemaVer.Full(1, 0, 0)
         ),
-        Json.obj(("internal", Json.fromLong(heartbeatInterval)))
+        Json.obj(("interval", Json.fromLong(heartbeatInterval)))
       )
     )
 }

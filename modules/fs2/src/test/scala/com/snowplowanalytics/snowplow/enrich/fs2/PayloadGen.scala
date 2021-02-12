@@ -13,22 +13,16 @@
 package com.snowplowanalytics.snowplow.enrich.fs2
 
 import java.nio.file.{Path, Paths}
-import java.util.Base64
-
+import java.util.{Base64, Calendar}
 import cats.effect.{Blocker, IO}
 import cats.effect.concurrent.Ref
-
 import _root_.io.circe.literal._
 import fs2.{Chunk, Stream}
 import fs2.io.file.{createDirectory, writeAll}
-
 import org.apache.http.message.BasicNameValuePair
-
 import org.joda.time.{DateTimeZone, LocalDate}
-
 import org.scalacheck.{Arbitrary, Gen}
 import cats.effect.testing.specs2.CatsIO
-
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 
 object PayloadGen extends CatsIO {
@@ -62,7 +56,7 @@ object PayloadGen extends CatsIO {
     schemaKey = "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1"
   } yield json"""{"schema":$schemaKey, "data": $geo}"""
 
-  val localDateGen: Gen[LocalDate] = Gen.calendar.map(LocalDate.fromCalendarFields).suchThat(_.year().get() < 3000)
+  val localDateGen: Gen[LocalDate] = Gen.calendar.suchThat(_.get(Calendar.DAY_OF_MONTH) != 29).map(LocalDate.fromCalendarFields)
   val ipGen: Gen[String] = for {
     part1 <- Gen.choose(2, 255)
     part2 <- Gen.choose(0, 255)

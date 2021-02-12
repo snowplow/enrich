@@ -12,7 +12,7 @@
  */
 package com.snowplowanalytics.snowplow.enrich.fs2
 
-import java.nio.file.{Path, Paths}
+import java.nio.file.{Files, Path, Paths}
 import java.util.{Base64, Calendar}
 import cats.effect.{Blocker, IO}
 import cats.effect.concurrent.Ref
@@ -93,12 +93,13 @@ object PayloadGen extends CatsIO {
     for {
       counter <- Ref.of[IO, Int](0)
       dir <- Blocker[IO].use(b => createDirectory[IO](b, dir))
-      filename = counter.updateAndGet(_ + 1).map(i => Paths.get(s"${dir.toAbsolutePath}/payload.$i.thrift"))
+      filename = counter.updateAndGet(_ + 1).map(i => Paths.get(s"${dir.toAbsolutePath}/${i / 10000}/payload.$i.thrift"))
       _ <- Blocker[IO].use { b =>
              val result =
                for {
                  payload <- payloadStream.take(cardinality)
                  fileName <- Stream.eval(filename)
+                 _ = if (!Files.exists(fileName.getParent)) Files.createDirectories(fileName.getParent)
                  _ <- Stream.chunk(Chunk.bytes(payload.toRaw)).through(writeAll[IO](fileName, b))
                } yield ()
              result.compile.drain

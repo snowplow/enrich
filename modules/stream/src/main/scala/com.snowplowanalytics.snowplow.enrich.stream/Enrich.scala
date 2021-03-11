@@ -266,7 +266,7 @@ trait Enrich {
         }
       case "s3" =>
         for {
-          provider <- getAWSCredentialsProvider(awsCreds)
+          provider <- getAwsCredentialsProvider(awsCreds)
           downloadResult <- downloadFromS3(provider, uri, targetFile, awsRegion)
         } yield downloadResult
       case "gs" =>
@@ -322,7 +322,7 @@ trait Enrich {
     remoteAdaptersConfig match {
       case Some(configList) =>
         configList.map { config =>
-          val adapter = new RemoteAdapter(
+          val adapter = RemoteAdapter(
             config.url,
             config.connectionTimeout,
             config.readTimeout

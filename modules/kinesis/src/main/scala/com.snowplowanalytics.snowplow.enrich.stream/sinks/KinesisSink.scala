@@ -23,37 +23,23 @@ package sinks
 
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets.UTF_8
-
-import scala.collection.JavaConverters._
-import scala.concurrent.{Await, Future}
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration._
-import scala.util.control.NonFatal
+import java.util.concurrent.TimeUnit
 
 import cats.Id
 import cats.syntax.either._
-import com.amazonaws.services.kinesis.model._
-import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
-import com.amazonaws.services.kinesis.{AmazonKinesis, AmazonKinesisClientBuilder}
+import com.snowplowanalytics.snowplow.enrich.stream.model._
+import com.snowplowanalytics.snowplow.scalatracker.Tracker
+import software.amazon.awssdk.core.SdkBytes
+import software.amazon.awssdk.services.kinesis.KinesisAsyncClient
+import software.amazon.awssdk.services.kinesis.model._
 
-import model._
-import scalatracker.Tracker
-import utils.getAWSCredentialsProvider
+import scala.collection.JavaConverters._
+import scala.util.control.NonFatal
 
 /** KinesisSink companion object with factory method */
 object KinesisSink {
-  def validate(kinesisConfig: Kinesis, streamName: String): Either[String, Unit] =
+  def validate(client: KinesisAsyncClient, streamName: String): Either[String, Unit] =
     for {
-      provider <- getAWSCredentialsProvider(kinesisConfig.aws)
-      endpointConfiguration = new EndpointConfiguration(
-                                kinesisConfig.streamEndpoint,
-                                kinesisConfig.region
-                              )
-      client = AmazonKinesisClientBuilder
-                 .standard()
-                 .withCredentials(provider)
-                 .withEndpointConfiguration(endpointConfiguration)
-                 .build()
       _ <- streamExists(client, streamName)
              .leftMap(_.getMessage)
              .ensure(s"Kinesis stream $streamName doesn't exist")(_ == true)
@@ -64,22 +50,24 @@ object KinesisSink {
    * @param name Name of the stream
    * @return Whether the stream exists
    */
-  private def streamExists(client: AmazonKinesis, name: String): Either[Throwable, Boolean] =
+  private def streamExists(client: KinesisAsyncClient, name: String): Either[Throwable, Boolean] =
     Either.catchNonFatal {
-      val describeStreamResult = client.describeStream(name)
-      val status = describeStreamResult.getStreamDescription.getStreamStatus
-      status == "ACTIVE" || status == "UPDATING"
+      val describeStreamResult = client.describeStream(DescribeStreamRequest.builder().streamName(name).build()).get()
+      val status = describeStreamResult.streamDescription.streamStatus
+      status == StreamStatus.ACTIVE || status == StreamStatus.UPDATING
     }
 }
 
 /** Kinesis Sink for Scala enrichment */
 class KinesisSink(
-  client: AmazonKinesis,
+  client: KinesisAsyncClient,
   backoffPolicy: KinesisBackoffPolicyConfig,
   buffer: BufferConfig,
   streamName: String,
   tracker: Option[Tracker[Id]]
 ) extends Sink {
+
+  require(KinesisSink.validate(client, streamName).isRight)
 
   /** Kinesis records must not exceed 1MB */
   private val MaxBytes = 1000000L
@@ -99,7 +87,7 @@ class KinesisSink(
   object EventStorage {
     // Each complete batch is the contents of a single PutRecords API call
     var completeBatches = List[List[(ByteBuffer, String)]]()
-    // The batch currently under constructon
+    // The batch currently under construction
     var currentBatch = List[(ByteBuffer, String)]()
     // Length of the current batch
     var eventCount = 0
@@ -173,11 +161,11 @@ class KinesisSink(
   override def storeEnrichedEvents(events: List[(String, String)]): Boolean = {
     val wrappedEvents = events.map(e => ByteBuffer.wrap(e._1.getBytes(UTF_8)) -> e._2)
     wrappedEvents.foreach(EventStorage.addEvent(_))
-    if (!EventStorage.currentBatch.isEmpty && System.currentTimeMillis() > nextRequestTime) {
+    if (EventStorage.currentBatch.nonEmpty && System.currentTimeMillis() > nextRequestTime) {
       nextRequestTime = System.currentTimeMillis() + TimeThreshold
       true
     } else
-      !EventStorage.completeBatches.isEmpty
+      EventStorage.completeBatches.nonEmpty
   }
 
   /**
@@ -208,13 +196,10 @@ class KinesisSink(
       while (!sentBatchSuccessfully) {
         attemptNumber += 1
 
-        val putData = for {
-          p <- multiPut(streamName, unsentRecords)
-        } yield p
-
         try {
-          val results = Await.result(putData, 10.seconds).getRecords.asScala.toList
-          val failurePairs = unsentRecords zip results filter { _._2.getErrorMessage != null }
+          //TODO: Make the 10 second blocking connection async.
+          val results = multiPut(streamName, unsentRecords).records().asScala.toList
+          val failurePairs = unsentRecords zip results filter { _._2.errorMessage != null }
           log.info(
             s"Successfully wrote ${unsentRecords.size - failurePairs.size} out of ${unsentRecords.size} records"
           )
@@ -272,30 +257,24 @@ class KinesisSink(
       }
     }
 
-  private def multiPut(name: String, batch: List[(ByteBuffer, String)]): Future[PutRecordsResult] =
-    Future {
-      val putRecordsRequest = {
-        val prr = new PutRecordsRequest()
-        prr.setStreamName(name)
-        val putRecordsRequestEntryList = batch.map {
-          case (b, s) =>
-            val prre = new PutRecordsRequestEntry()
-            prre.setPartitionKey(s)
-            prre.setData(b)
-            prre
-        }
-        prr.setRecords(putRecordsRequestEntryList.asJava)
-        prr
+  private def multiPut(name: String, batch: List[(ByteBuffer, String)]): PutRecordsResponse = {
+    val putRecordsRequest = {
+      val putRequestBuilder = PutRecordsRequest.builder().streamName(name)
+      val putRecordsRequestEntryList = batch.map {
+        case (b, s) => PutRecordsRequestEntry.builder().partitionKey(s).data(SdkBytes.fromByteArray(b.array())).build()
       }
-      client.putRecords(putRecordsRequest)
+      putRequestBuilder.records(putRecordsRequestEntryList.asJava)
+      putRequestBuilder.build()
     }
+    client.putRecords(putRecordsRequest)
+  }.get(10, TimeUnit.SECONDS)
 
   private[sinks] def getErrorsSummary(badResponses: List[PutRecordsResultEntry]): Map[String, (Long, String)] =
     badResponses.foldLeft(Map[String, (Long, String)]())((counts, r) =>
-      if (counts.contains(r.getErrorCode))
-        counts + (r.getErrorCode -> (counts(r.getErrorCode)._1 + 1 -> r.getErrorMessage))
+      if (counts.contains(r.errorCode))
+        counts + (r.errorCode -> (counts(r.errorCode)._1 + 1 -> r.errorMessage))
       else
-        counts + (r.getErrorCode -> ((1, r.getErrorMessage)))
+        counts + (r.errorCode -> ((1, r.errorMessage)))
     )
 
   private[sinks] def logErrorsSummary(errorsSummary: Map[String, (Long, String)]): Unit =

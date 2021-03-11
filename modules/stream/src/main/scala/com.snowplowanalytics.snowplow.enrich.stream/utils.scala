@@ -27,16 +27,6 @@ import java.util.concurrent.TimeUnit
 import cats.Id
 import cats.effect.Clock
 import cats.syntax.either._
-import com.amazonaws.auth.{
-  AWSCredentialsProvider,
-  AWSStaticCredentialsProvider,
-  BasicAWSCredentials,
-  DefaultAWSCredentialsProviderChain,
-  EnvironmentVariableCredentialsProvider,
-  InstanceProfileCredentialsProvider
-}
-import com.amazonaws.services.s3.AmazonS3ClientBuilder
-import com.amazonaws.services.s3.model.GetObjectRequest
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.storage.{BlobId, StorageOptions}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
@@ -49,6 +39,17 @@ import com.snowplowanalytics.snowplow.enrich.stream.model.{
   NoCredentials
 }
 import com.snowplowanalytics.snowplow.scalatracker.UUIDProvider
+import software.amazon.awssdk.auth.credentials.{
+  AwsBasicCredentials,
+  AwsCredentialsProvider,
+  DefaultCredentialsProvider,
+  EnvironmentVariableCredentialsProvider,
+  InstanceProfileCredentialsProvider,
+  StaticCredentialsProvider
+}
+import software.amazon.awssdk.services.s3.S3Client
+import software.amazon.awssdk.services.s3.model.GetObjectRequest
+import software.amazon.awssdk.regions.Region
 
 object utils {
   def emitPii(enrichmentRegistry: EnrichmentRegistry[Id]): Boolean =
@@ -71,7 +72,7 @@ object utils {
     override def generateUUID: Id[UUID] = UUID.randomUUID()
   }
 
-  def getAWSCredentialsProvider(creds: Credentials): Either[String, AWSCredentialsProvider] = {
+  def getAwsCredentialsProvider(creds: Credentials): Either[String, AwsCredentialsProvider] = {
     def isDefault(key: String): Boolean = key == "default"
     def isIam(key: String): Boolean = key == "iam"
     def isEnv(key: String): Boolean = key == "env"
@@ -81,19 +82,23 @@ object utils {
                     case NoCredentials => "No AWS credentials provided".asLeft
                     case _: GCPCredentials => "GCP credentials provided".asLeft
                     case AWSCredentials(a, s) if isDefault(a) && isDefault(s) =>
-                      new DefaultAWSCredentialsProviderChain().asRight
+                      DefaultCredentialsProvider.create().asRight
                     case AWSCredentials(a, s) if isDefault(a) || isDefault(s) =>
                       "accessKey and secretKey must both be set to 'default' or neither".asLeft
                     case AWSCredentials(a, s) if isIam(a) && isIam(s) =>
-                      InstanceProfileCredentialsProvider.getInstance().asRight
+                      InstanceProfileCredentialsProvider.create().asRight
                     case AWSCredentials(a, s) if isIam(a) && isIam(s) =>
                       "accessKey and secretKey must both be set to 'iam' or neither".asLeft
                     case AWSCredentials(a, s) if isEnv(a) && isEnv(s) =>
-                      new EnvironmentVariableCredentialsProvider().asRight
+                      EnvironmentVariableCredentialsProvider.create().asRight
                     case AWSCredentials(a, s) if isEnv(a) || isEnv(s) =>
                       "accessKey and secretKey must both be set to 'env' or neither".asLeft
                     case AWSCredentials(a, s) =>
-                      new AWSStaticCredentialsProvider(new BasicAWSCredentials(a, s)).asRight
+                      StaticCredentialsProvider
+                        .create(
+                          AwsBasicCredentials.create(a, s)
+                        )
+                        .asRight
                   }
     } yield provider
   }
@@ -136,7 +141,7 @@ object utils {
    * @return the download result
    */
   def downloadFromS3(
-    provider: AWSCredentialsProvider,
+    provider: AwsCredentialsProvider,
     uri: URI,
     targetFile: File,
     region: Option[String]
@@ -145,15 +150,15 @@ object utils {
       s3Client <- Either
                     .catchNonFatal(
                       region
-                        .fold(AmazonS3ClientBuilder.standard().withCredentials(provider).build())(r =>
-                          AmazonS3ClientBuilder.standard().withCredentials(provider).withRegion(r).build()
+                        .fold(S3Client.builder().credentialsProvider(provider).build())(r =>
+                          S3Client.builder().credentialsProvider(provider).region(Region.of(r)).build()
                         )
                     )
                     .leftMap(_.getMessage)
       bucketName = uri.getHost
       key = extractObjectKey(uri)
       _ <- Either
-             .catchNonFatal(s3Client.getObject(new GetObjectRequest(bucketName, key), targetFile))
+             .catchNonFatal(s3Client.getObject(GetObjectRequest.builder().bucket(bucketName).key(key).build(), targetFile.toPath))
              .leftMap(_.getMessage)
     } yield ()
 

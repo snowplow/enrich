@@ -252,6 +252,7 @@ object KinesisEnrich extends Enrich {
       .builder()
       .credentialsProvider(provider)
       .region(Region.of(region))
+      .build()
 
     // Each scan can only return up to 1MB
     // See http://techtraits.com/cloud/nosql/2012/06/27/Amazon-DynamoDB--Understanding-Query-and-Scan-operations/

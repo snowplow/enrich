@@ -108,5 +108,6 @@ final case class YauaaEnrichment(cacheSize: Option[Int]) extends Enrichment {
         parsedUA.getAvailableFieldNamesSorted.asScala
           .map(field => decapitalize(field) -> parsedUA.getValue(field))
           .toMap
+          .filter(_._1 != "__SyntaxError__")
     }
 }

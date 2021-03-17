@@ -182,7 +182,7 @@ class YauaaEnrichmentSpec extends Specification with ValidatedMatchers {
       )
     }
 
-    "create a JSON with the schema 1-0-0 and the data" >> {
+    "create a JSON with the schema 1-0-1 and the data" >> {
       val expected =
         SelfDescribingData(
           YauaaEnrichment.outputSchema,
@@ -220,6 +220,12 @@ class YauaaEnrichmentSpec extends Specification with ValidatedMatchers {
           json"""{"deviceClass":"Unknown"}"""
         )
       yauaaEnrichment.getYauaaContext("") shouldEqual defaultJson
+    }
+
+    "never add __SyntaxError__ to the context" >> {
+      val ua =
+        "useragent=Mozilla/5.0 (Linux armv7l) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/38.0.2125.122 Safari/537.36 OPR/25.0.1620.0 OMI/4.3.18.7.Dominik.0 VSTVB MB100 HbbTV/1.2.1 (; PANASONIC; MB100; 0.1.34.28; ;) SmartTvA/3.0.0 UID (00:09:DF:A7:74:6B/MB100/PANASONIC/0.1.34.28)"
+      yauaaEnrichment.parseUserAgent(ua).contains("__SyntaxError__") shouldEqual false
     }
   }
 

@@ -108,6 +108,13 @@ object io {
 
   object MetricsReporter {
     final case class Stdout(period: FiniteDuration, prefix: Option[String]) extends MetricsReporter
+    final case class StatsD(
+      hostname: String,
+      port: Int,
+      tags: Map[String, String],
+      period: FiniteDuration,
+      prefix: Option[String]
+    ) extends MetricsReporter
 
     import ConfigFile.finiteDurationEncoder
 

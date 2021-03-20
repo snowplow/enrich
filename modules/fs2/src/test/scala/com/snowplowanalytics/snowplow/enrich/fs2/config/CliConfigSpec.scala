@@ -62,6 +62,7 @@ class CliConfigSpec extends Specification with CatsIO {
         io.Output.PubSub("projects/test-project/topics/bad-topic"),
         None,
         None,
+        None,
         None
       )
 

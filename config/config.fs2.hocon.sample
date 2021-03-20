@@ -42,6 +42,28 @@ sentry = {
 // no assets will be updated if the key is absent
 assetsUpdatePeriod = "7 days"
 
-// Optional, period after Dropwizard will print out its metrics
+// Optional, report metrics on event counts and latency
 // no metrics will be printed if the key is absent
-metricsReportPeriod = "1 second"
+metricsReportPeriod = "10 seconds"
+
+// Optional, configure how metrics are reported
+metricsReporter = {
+
+  // Send metrics to a StatsD server on localhost
+  type = "StatsD"
+  hostname = "localhost"
+  port = 8125
+
+  // Any key-value pairs to be tagged on every metric
+  tags = {
+    app = enrich
+
+    // Environment variables are resolved to tags
+    // host = ${HOSTNAME}
+  }
+
+
+  // The default reporter if metricsReporter is not configured
+  // Suitable for development
+  // type = "Stdout"
+}

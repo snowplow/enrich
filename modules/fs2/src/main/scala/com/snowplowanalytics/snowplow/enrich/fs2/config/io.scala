@@ -98,4 +98,20 @@ object io {
     implicit val outputEncoder: Encoder[Output] =
       deriveConfiguredEncoder[Output]
   }
+
+  sealed trait MetricsReporter
+
+  object MetricsReporter {
+    case object Stdout extends MetricsReporter
+    final case class StatsD(
+      hostname: String,
+      port: Int,
+      tags: Map[String, String]
+    ) extends MetricsReporter
+
+    implicit val metricsReporterDecoder: Decoder[MetricsReporter] =
+      deriveConfiguredDecoder[MetricsReporter]
+    implicit val metricsReporterEncoder: Encoder[MetricsReporter] =
+      deriveConfiguredEncoder[MetricsReporter]
+  }
 }

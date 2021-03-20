@@ -219,6 +219,7 @@ lazy val fs2 = project
       Dependencies.Libraries.fs2BlobS3,
       Dependencies.Libraries.fs2BlobGcs,
       Dependencies.Libraries.metrics,
+      Dependencies.Libraries.dogStatsD,
       Dependencies.Libraries.pureconfig.withRevision(Dependencies.V.pureconfig013),
       Dependencies.Libraries.pureconfigCats.withRevision(Dependencies.V.pureconfig013),
       Dependencies.Libraries.pureconfigCirce.withRevision(Dependencies.V.pureconfig013),

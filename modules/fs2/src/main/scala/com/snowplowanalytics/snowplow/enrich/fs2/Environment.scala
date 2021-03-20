@@ -37,6 +37,7 @@ import com.snowplowanalytics.iglu.client.Client
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.fs2.config.{CliConfig, ConfigFile}
+import com.snowplowanalytics.snowplow.enrich.fs2.config.io.MetricsReporter
 import com.snowplowanalytics.snowplow.enrich.fs2.io.{FileSystem, Metrics, Sinks, Source}
 
 /**
@@ -119,7 +120,7 @@ object Environment {
       for {
         client <- Client.parseDefault[F](parsedConfigs.igluJson).resource
         blocker <- Blocker[F]
-        metrics <- Metrics.resource[F]
+        metrics <- makeMetricsReporter[F](file)
         rawSource = Source.read[F](blocker, file.auth, file.input)
         goodSink <- Sinks.goodSink[F](blocker, file.auth, file.good)
         badSink <- Sinks.badSink[F](blocker, file.auth, file.bad)
@@ -132,6 +133,7 @@ object Environment {
                     case None => Resource.pure[F, Option[SentryClient]](none[SentryClient])
                   }
         _ <- Resource.liftF(pauseEnrich.set(false) *> Logger[F].info("Enrich environment initialized"))
+<<<<<<< HEAD
       } yield Environment[F](client,
                              enrichments,
                              pauseEnrich,
@@ -154,6 +156,18 @@ object Environment {
    */
   def makePause[F[_]: Concurrent]: Resource[F, SignallingRef[F, Boolean]] =
     Resource.make(SignallingRef(true))(_.set(true))
+
+  private def makeMetricsReporter[F[_]: Sync](config: ConfigFile): Resource[F, Metrics[F]] =
+    (config.metricsReporter, config.metricsReportPeriod) match {
+      case (Some(r), _) =>
+        Metrics.resource[F](r)
+      case (None, Some(_)) =>
+        // For backwards compatibility, use the Stdout metrics reporter when
+        // metricsReportPeriod is specified with no reporter
+        Metrics.resource[F](MetricsReporter.Stdout)
+      case (None, None) =>
+        Resource.pure[F, Metrics[F]](Metrics.noop[F])
+    }
 
   /** Decode base64-encoded configs, passed via CLI. Read files, validate and parse */
   def parse[F[_]: Async: Clock: ContextShift](config: CliConfig): Parsed[F, ParsedConfigs] =

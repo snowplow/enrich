@@ -23,7 +23,7 @@ import _root_.io.circe.{Decoder, Encoder, Json}
 import _root_.io.circe.config.syntax._
 import _root_.io.circe.generic.extras.semiauto.{deriveConfiguredDecoder, deriveConfiguredEncoder}
 
-import com.snowplowanalytics.snowplow.enrich.fs2.config.io.{Authentication, Input, Output}
+import com.snowplowanalytics.snowplow.enrich.fs2.config.io.{Authentication, Input, MetricsReporter, Output}
 
 import pureconfig.ConfigSource
 import pureconfig.module.catseffect.syntax._
@@ -45,6 +45,7 @@ final case class ConfigFile(
   bad: Output,
   assetsUpdatePeriod: Option[FiniteDuration],
   sentry: Option[Sentry],
+  metricsReporter: Option[MetricsReporter],
   metricsReportPeriod: Option[FiniteDuration]
 )
 
@@ -56,9 +57,9 @@ object ConfigFile {
 
   implicit val configFileDecoder: Decoder[ConfigFile] =
     deriveConfiguredDecoder[ConfigFile].emap {
-      case ConfigFile(_, _, _, _, Some(aup), _, _) if aup._1 <= 0L =>
+      case ConfigFile(_, _, _, _, Some(aup), _, _, _) if aup._1 <= 0L =>
         "assetsUpdatePeriod in config file cannot be less than 0".asLeft // TODO: use newtype
-      case ConfigFile(_, _, _, _, _, _, Some(mrp)) if mrp._1 <= 0L =>
+      case ConfigFile(_, _, _, _, _, _, _, Some(mrp)) if mrp._1 <= 0L =>
         "metricsReportPeriod in config file cannot be less than 0".asLeft
       case other => other.asRight
     }

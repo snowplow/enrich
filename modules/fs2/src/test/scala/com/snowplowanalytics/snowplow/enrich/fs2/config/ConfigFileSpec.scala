@@ -37,7 +37,7 @@ class ConfigFileSpec extends Specification with CatsIO {
         io.Output.PubSub("projects/test-project/topics/bad-topic"),
         Some(7.days),
         Some(Sentry(URI.create("http://sentry.acme.com"))),
-        Some(1.second)
+        Some(io.MetricsReporter.StatsD(1.second, "localhost", 8125, Map()))
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
     }

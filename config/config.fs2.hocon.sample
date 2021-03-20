@@ -42,6 +42,19 @@ sentry = {
 // no assets will be updated if the key is absent
 assetsUpdatePeriod = "7 days"
 
-// Optional, period after Dropwizard will print out its metrics
-// no metrics will be printed if the key is absent
-metricsReportPeriod = "1 second"
+metricsReporter = {
+  type = "StatsD"
+  period = "10 second"
+  hostname = "localhost"
+  port = 8125
+
+  // Any key-value pairs to be tagged on every metric
+  tags = {
+    app = enrich
+    host = ${HOSTNAME}
+  }
+
+  // Metrics can be reported to Stdout for testing purposes
+  // type = "Stdout"
+  // period = "10 second"
+}

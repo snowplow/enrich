@@ -77,6 +77,7 @@ object Dependencies {
     val log4cats         = "1.1.1"
     val catsRetry        = "1.1.1"
     val metrics          = "4.1.12.1"
+    val dogStatsD        = "2.11.0"
 
     val scopt            = "3.7.1"
     val pureconfig       = "0.11.0"
@@ -180,6 +181,7 @@ object Dependencies {
     val pureconfigCats   = "com.github.pureconfig"            %% "pureconfig-cats-effect"            % V.pureconfig
     val pureconfigCirce  = "com.github.pureconfig"            %% "pureconfig-circe"                  % V.pureconfig
     val metrics          = "io.dropwizard.metrics"            %  "metrics-core"                      % V.metrics
+    val dogStatsD        = "com.datadoghq"                    %  "java-dogstatsd-client"             % V.dogStatsD
     val http4sDsl        = "org.http4s"                       %% "http4s-dsl"                        % V.http4s          % Test
     val http4sServer     = "org.http4s"                       %% "http4s-blaze-server"               % V.http4s          % Test
   }

@@ -18,6 +18,8 @@ import cats.syntax.either._
 
 import _root_.io.circe.{Decoder, Encoder}
 import _root_.io.circe.generic.extras.semiauto._
+import _root_.io.circe.config.syntax._
+import scala.concurrent.duration.FiniteDuration
 
 object io {
 
@@ -97,5 +99,27 @@ object io {
       }
     implicit val outputEncoder: Encoder[Output] =
       deriveConfiguredEncoder[Output]
+  }
+
+  sealed trait MetricsReporter {
+    def period: FiniteDuration
+  }
+
+  object MetricsReporter {
+    case class Stdout(period: FiniteDuration) extends MetricsReporter
+    case class StatsD(
+      period: FiniteDuration,
+      hostname: String,
+      port: Int,
+      tags: Map[String, String]
+    ) extends MetricsReporter
+
+    implicit val finiteDurationEncoder: Encoder[FiniteDuration] =
+      implicitly[Encoder[String]].contramap(_.toString)
+
+    implicit val metricsReporterDecoder: Decoder[MetricsReporter] =
+      deriveConfiguredDecoder[MetricsReporter]
+    implicit val metricsReporterEncoder: Encoder[MetricsReporter] =
+      deriveConfiguredEncoder[MetricsReporter]
   }
 }

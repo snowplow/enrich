@@ -13,15 +13,17 @@
 package com.snowplowanalytics.snowplow.enrich.fs2.io
 
 import cats.syntax.applicativeError._
+import cats.Applicative
 import cats.effect.{Resource, Sync, Timer}
 
 import fs2.Stream
 
-import com.codahale.metrics.{Gauge, MetricRegistry, Slf4jReporter}
+import com.codahale.metrics.{Gauge, MetricRegistry, ScheduledReporter, Slf4jReporter}
 
 import org.slf4j.LoggerFactory
 
 import com.snowplowanalytics.snowplow.enrich.fs2.Environment
+import com.snowplowanalytics.snowplow.enrich.fs2.config.io.MetricsReporter
 
 trait Metrics[F[_]] {
 
@@ -47,10 +49,10 @@ trait Metrics[F[_]] {
 object Metrics {
 
   val LoggerName = "enrich.metrics"
-  val LatencyGaugeName = "enrich.metrics.latency"
-  val RawCounterName = "enrich.metrics.raw.count"
-  val GoodCounterName = "enrich.metrics.good.count"
-  val BadCounterName = "enrich.metrics.bad.count"
+  val LatencyGaugeName = "snowplow.enrich.latency"
+  val RawCounterName = "snowplow.enrich.raw"
+  val GoodCounterName = "snowplow.enrich.good"
+  val BadCounterName = "snowplow.enrich.bad"
 
   def run[F[_]: Sync: Timer](env: Environment[F]): Stream[F, Unit] =
     env.metricsReportPeriod match {
@@ -64,21 +66,24 @@ object Metrics {
    * Technically `Resource` doesn't give us much as we don't allocate a thread pool,
    * but it will make sure the last report is issued
    */
-  def resource[F[_]: Sync]: Resource[F, Metrics[F]] =
-    Resource
-      .make(init) { case (res, _) => Sync[F].delay(res.close()) }
-      .map { case (res, reg) => make[F](res, reg) }
+  def resource[F[_]: Sync](config: MetricsReporter): Resource[F, Metrics[F]] =
+    for {
+      registry <- Resource.liftF(Sync[F].delay((new MetricRegistry())))
+      rep <- reporter(config, registry)
+    } yield make(rep, registry)
 
-  /** Initialise backend resources */
-  def init[F[_]: Sync]: F[(Slf4jReporter, MetricRegistry)] =
-    Sync[F].delay {
-      val registry = new MetricRegistry()
-      val logger = LoggerFactory.getLogger(LoggerName)
-      val reporter = Slf4jReporter.forRegistry(registry).outputTo(logger).build()
-      (reporter, registry)
+  def reporter[F[_]: Sync](config: MetricsReporter, registry: MetricRegistry): Resource[F, ScheduledReporter] =
+    config match {
+      case MetricsReporter.Stdout(_) =>
+        for {
+          logger <- Resource.liftF(Sync[F].delay(LoggerFactory.getLogger(LoggerName)))
+          reporter <- Resource.fromAutoCloseable(Sync[F].delay(Slf4jReporter.forRegistry(registry).outputTo(logger).build))
+        } yield reporter
+      case statsd: MetricsReporter.StatsD =>
+        StatsDReporter.resource(statsd, registry)
     }
 
-  def make[F[_]: Sync](reporter: Slf4jReporter, registry: MetricRegistry): Metrics[F] =
+  def make[F[_]: Sync](reporter: ScheduledReporter, registry: MetricRegistry): Metrics[F] =
     new Metrics[F] {
       val rawCounter = registry.counter(RawCounterName)
       val goodCounter = registry.counter(GoodCounterName)
@@ -117,5 +122,14 @@ object Metrics {
         new Gauge[Long] {
           def getValue: Long = now - collectorTstamp
         }
+    }
+
+  def noop[F[_]: Applicative]: Metrics[F] =
+    new Metrics[F] {
+      def report: F[Unit] = Applicative[F].unit
+      def enrichLatency(collectorTstamp: Option[Long]): F[Unit] = Applicative[F].unit
+      def rawCount: F[Unit] = Applicative[F].unit
+      def goodCount: F[Unit] = Applicative[F].unit
+      def badCount: F[Unit] = Applicative[F].unit
     }
 }

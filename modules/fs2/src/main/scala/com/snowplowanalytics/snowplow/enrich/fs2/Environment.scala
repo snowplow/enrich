@@ -119,7 +119,7 @@ object Environment {
       for {
         client <- Client.parseDefault[F](parsedConfigs.igluJson).resource
         blocker <- Blocker[F]
-        metrics <- Metrics.resource[F]
+        metrics <- file.metricsReporter.map(Metrics.resource[F](_)).getOrElse(Resource.pure[F, Metrics[F]](Metrics.noop[F]))
         rawSource = Source.read[F](blocker, file.auth, file.input)
         goodSink <- Sinks.goodSink[F](blocker, file.auth, file.good)
         badSink <- Sinks.badSink[F](blocker, file.auth, file.bad)
@@ -143,7 +143,7 @@ object Environment {
                              sentry,
                              metrics,
                              file.assetsUpdatePeriod,
-                             file.metricsReportPeriod
+                             file.metricsReporter.map(_.period)
       )
     }
 

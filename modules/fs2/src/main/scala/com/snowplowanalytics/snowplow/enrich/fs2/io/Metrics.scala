@@ -15,7 +15,7 @@ package com.snowplowanalytics.snowplow.enrich.fs2.io
 import cats.implicits._
 import cats.{Applicative, Monad}
 import cats.effect.concurrent.Ref
-import cats.effect.{Clock, ConcurrentEffect, ContextShift, Sync, Timer}
+import cats.effect.{Blocker, Clock, ConcurrentEffect, ContextShift, Resource, Sync, Timer}
 
 import fs2.Stream
 
@@ -66,11 +66,12 @@ object Metrics {
   }
 
   def build[F[_]: ContextShift: ConcurrentEffect: Timer](
+    blocker: Blocker,
     config: MetricsReporter
   ): F[Metrics[F]] =
     for {
       refs <- MetricRefs.init[F]
-      rep = reporterStream(config, refs)
+      rep = reporterStream(blocker, config, refs)
     } yield new Metrics[F] {
       def report: Stream[F, Unit] = rep
 
@@ -126,23 +127,25 @@ object Metrics {
    * events.
    */
   def reporterStream[F[_]: Sync: Timer: ContextShift](
+    blocker: Blocker,
     config: MetricsReporter,
     metrics: MetricRefs[F]
   ): Stream[F, Unit] =
     for {
-      rep <- Stream.eval(reporter(config))
+      rep <- Stream.resource(makeReporter(blocker, config))
       _ <- Stream.fixedDelay[F](config.period)
       snapshot <- Stream.eval(MetricRefs.snapshot(metrics))
       _ <- Stream.eval(rep.report(snapshot))
     } yield ()
 
-  def reporter[F[_]: Sync: ContextShift: Timer](
+  def makeReporter[F[_]: Sync: ContextShift: Timer](
+    blocker: Blocker,
     config: MetricsReporter
-  ): F[Reporter[F]] =
+  ): Resource[F, Reporter[F]] =
     config match {
       case stdout: MetricsReporter.Stdout =>
         for {
-          logger <- Slf4jLogger.fromName[F](LoggerName)
+          logger <- Resource.liftF(Slf4jLogger.fromName[F](LoggerName))
           prefix = stdout.prefix.getOrElse(MetricsReporter.DefaultPrefix)
         } yield new Reporter[F] {
           def report(snapshot: MetricSnapshot): F[Unit] =
@@ -153,6 +156,8 @@ object Metrics {
               _ <- snapshot.enrichLatency.map(latency => logger.info(s"$prefix$LatencyGaugeName = $latency")).getOrElse(Sync[F].unit)
             } yield ()
         }
+      case statsd: MetricsReporter.StatsD =>
+        StatsDReporter.make[F](blocker, statsd)
     }
 
   def noop[F[_]: Applicative]: Metrics[F] =

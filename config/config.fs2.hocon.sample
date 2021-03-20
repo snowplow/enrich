@@ -55,13 +55,27 @@ assetsUpdatePeriod = "7 days"
 // Optional, configure how metrics are reported
 metrics = {
 
-  // Log to stdout using Slf4j
-  type = "Stdout"
+  // Send metrics to a StatsD server on localhost
+  type = "StatsD"
+  hostname = "localhost"
+  port = 8125
+
+  // Alternatively, log to stdout using Slf4j
+  // type = "Stdout"
 
   // Required, how frequently to report metrics
   period = "10 seconds"
 
+  // Any key-value pairs to be tagged on every metric
+  tags = {
+    app = enrich
+
+    // Environment variables can be resolved to tags
+    // host = ${HOSTNAME}
+  }
+
   // Optional, override the default metric prefix
   // prefix = "snowplow.enrich."
+
 
 }

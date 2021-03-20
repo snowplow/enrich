@@ -59,7 +59,6 @@ import com.snowplowanalytics.snowplow.enrich.fs2.io.{FileSystem, Metrics, Sinks,
  * @param sentry              optional sentry client
  * @param metrics             common counters
  * @param assetsUpdatePeriod  time after which enrich assets should be refresh
- * @param metricsReportPeriod period after which metrics are updated
  */
 final case class Environment[F[_]](
   igluClient: Client[F, Json],
@@ -73,8 +72,7 @@ final case class Environment[F[_]](
   bad: ByteSink[F],
   sentry: Option[SentryClient],
   metrics: Metrics[F],
-  assetsUpdatePeriod: Option[FiniteDuration],
-  metricsReportPeriod: Option[FiniteDuration]
+  assetsUpdatePeriod: Option[FiniteDuration]
 )
 
 object Environment {
@@ -121,7 +119,7 @@ object Environment {
       for {
         client <- Client.parseDefault[F](parsedConfigs.igluJson).resource
         blocker <- Blocker[F]
-        metrics <- Metrics.resource[F]
+        metrics <- Resource.liftF(metricsReporter[F](blocker, file))
         rawSource = Source.read[F](blocker, file.auth, file.input)
         goodSink <- Sinks.sink[F](blocker, file.auth, file.good)
         piiSink <- file.pii.map(f => Sinks.sink[F](blocker, file.auth, f)).sequence
@@ -146,8 +144,7 @@ object Environment {
                              badSink,
                              sentry,
                              metrics,
-                             file.assetsUpdatePeriod,
-                             file.metricsReportPeriod
+                             file.assetsUpdatePeriod
       )
     }
 
@@ -158,6 +155,9 @@ object Environment {
    */
   def makePause[F[_]: Concurrent]: Resource[F, SignallingRef[F, Boolean]] =
     Resource.make(SignallingRef(true))(_.set(true))
+
+  private def metricsReporter[F[_]: Sync: ContextShift: Timer](blocker: Blocker, config: ConfigFile): F[Metrics[F]] =
+    config.metrics.map(Metrics.build[F](blocker, _)).getOrElse(Metrics.noop[F].pure[F])
 
   /** Decode base64-encoded configs, passed via CLI. Read files, validate and parse */
   def parse[F[_]: Async: Clock: ContextShift](config: CliConfig): Parsed[F, ParsedConfigs] =

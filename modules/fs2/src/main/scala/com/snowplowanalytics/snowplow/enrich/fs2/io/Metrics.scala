@@ -12,8 +12,9 @@
  */
 package com.snowplowanalytics.snowplow.enrich.fs2.io
 
-import cats.syntax.applicativeError._
-import cats.effect.{Resource, Sync, Timer}
+import cats.implicits._
+import cats.Applicative
+import cats.effect.{Blocker, ContextShift, Resource, Sync, Timer}
 
 import fs2.Stream
 
@@ -21,12 +22,12 @@ import com.codahale.metrics.{Gauge, MetricRegistry, Slf4jReporter}
 
 import org.slf4j.LoggerFactory
 
-import com.snowplowanalytics.snowplow.enrich.fs2.Environment
+import com.snowplowanalytics.snowplow.enrich.fs2.config.io.MetricsReporter
 
 trait Metrics[F[_]] {
 
   /** Send latest metrics to reporter */
-  def report: F[Unit]
+  def report: Stream[F, Unit]
 
   /**
    * Track latency between collector hit and enrichment
@@ -47,45 +48,51 @@ trait Metrics[F[_]] {
 object Metrics {
 
   val LoggerName = "enrich.metrics"
-  val LatencyGaugeName = "enrich.metrics.latency"
-  val RawCounterName = "enrich.metrics.raw.count"
-  val GoodCounterName = "enrich.metrics.good.count"
-  val BadCounterName = "enrich.metrics.bad.count"
+  val LatencyGaugeName = "latency"
+  val RawCounterName = "raw"
+  val GoodCounterName = "good"
+  val BadCounterName = "bad"
 
-  def run[F[_]: Sync: Timer](env: Environment[F]): Stream[F, Unit] =
-    env.metricsReportPeriod match {
-      case Some(period) =>
-        Stream.fixedRate[F](period).evalMap(_ => env.metrics.report)
-      case None =>
-        Stream.empty.covary[F]
+  def build[F[_]: ContextShift: Sync: Timer](
+    blocker: Blocker,
+    config: MetricsReporter
+  ): F[Metrics[F]] =
+    for {
+      registry <- Sync[F].delay((new MetricRegistry()))
+      rep = reporter(blocker, config, registry)
+    } yield ofRegistry(rep, registry)
+
+  def reporter[F[_]: Sync: ContextShift: Timer](
+    blocker: Blocker,
+    config: MetricsReporter,
+    registry: MetricRegistry
+  ): Stream[F, Unit] =
+    config match {
+      case MetricsReporter.Stdout(period, prefix) =>
+        for {
+          logger <- Stream.eval(Sync[F].delay(LoggerFactory.getLogger(LoggerName)))
+          reporter <-
+            Stream.resource(
+              Resource.fromAutoCloseable(
+                Sync[F].delay(
+                  Slf4jReporter.forRegistry(registry).outputTo(logger).prefixedWith(prefix.getOrElse(MetricsReporter.DefaultPrefix)).build
+                )
+              )
+            )
+          _ <- Stream.fixedDelay[F](period)
+          _ <- Stream.eval(Sync[F].delay(reporter.report()))
+        } yield ()
+      case statsd: MetricsReporter.StatsD =>
+        StatsDReporter.stream(blocker, statsd, registry)
     }
 
-  /**
-   * Technically `Resource` doesn't give us much as we don't allocate a thread pool,
-   * but it will make sure the last report is issued
-   */
-  def resource[F[_]: Sync]: Resource[F, Metrics[F]] =
-    Resource
-      .make(init) { case (res, _) => Sync[F].delay(res.close()) }
-      .map { case (res, reg) => make[F](res, reg) }
-
-  /** Initialise backend resources */
-  def init[F[_]: Sync]: F[(Slf4jReporter, MetricRegistry)] =
-    Sync[F].delay {
-      val registry = new MetricRegistry()
-      val logger = LoggerFactory.getLogger(LoggerName)
-      val reporter = Slf4jReporter.forRegistry(registry).outputTo(logger).build()
-      (reporter, registry)
-    }
-
-  def make[F[_]: Sync](reporter: Slf4jReporter, registry: MetricRegistry): Metrics[F] =
+  private def ofRegistry[F[_]: Sync](reporter: Stream[F, Unit], registry: MetricRegistry): Metrics[F] =
     new Metrics[F] {
       val rawCounter = registry.counter(RawCounterName)
       val goodCounter = registry.counter(GoodCounterName)
       val badCounter = registry.counter(BadCounterName)
 
-      def report: F[Unit] =
-        Sync[F].delay(reporter.report())
+      def report: Stream[F, Unit] = reporter
 
       def enrichLatency(collectorTstamp: Option[Long]): F[Unit] =
         collectorTstamp match {
@@ -117,5 +124,14 @@ object Metrics {
         new Gauge[Long] {
           def getValue: Long = now - collectorTstamp
         }
+    }
+
+  def noop[F[_]: Applicative]: Metrics[F] =
+    new Metrics[F] {
+      def report: Stream[F, Unit] = Stream.empty.covary[F]
+      def enrichLatency(collectorTstamp: Option[Long]): F[Unit] = Applicative[F].unit
+      def rawCount: F[Unit] = Applicative[F].unit
+      def goodCount: F[Unit] = Applicative[F].unit
+      def badCount: F[Unit] = Applicative[F].unit
     }
 }

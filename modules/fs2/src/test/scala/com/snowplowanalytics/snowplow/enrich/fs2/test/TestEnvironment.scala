@@ -150,7 +150,6 @@ object TestEnvironment extends CatsIO {
                       _.map(Some(_)).through(badQueue.enqueue),
                       None,
                       metrics,
-                      None,
                       None
                     )
       _ <- Resource.liftF(pauseEnrich.set(false) *> logger.info("TestEnvironment initialized"))

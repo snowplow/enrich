@@ -17,12 +17,13 @@ import java.util.Base64
 import java.util.concurrent.TimeUnit
 
 import org.joda.time.DateTime
-import cats.data.{NonEmptyList, ValidatedNel}
+import cats.data.{NonEmptyList, Validated, ValidatedNel}
+import cats.Applicative
 import cats.implicits._
 
 import cats.effect.{Blocker, Clock, Concurrent, ContextShift, Sync}
 
-import fs2.Stream
+import fs2.{Pipe, Stream}
 
 import _root_.io.sentry.SentryClient
 import _root_.io.circe.Json
@@ -38,6 +39,7 @@ import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.loaders.{CollectorPayload, ThriftLoader}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
+import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
 
 object Enrich {
 
@@ -69,17 +71,42 @@ object Enrich {
   def run[F[_]: Concurrent: ContextShift: Clock](env: Environment[F]): Stream[F, Unit] = {
     val registry: F[EnrichmentRegistry[F]] = env.enrichments.get.map(_.registry)
     val enrich: Enrich[F] = enrichWith[F](registry, env.blocker, env.igluClient, env.sentry, env.metrics.enrichLatency)
-    val badSink: BadSink[F] = _.evalTap(_ => env.metrics.badCount).through(env.bad)
-    val goodSink: GoodSink[F] = _.evalTap(_ => env.metrics.goodCount).through(env.good)
 
     env.source
       .pauseWhen(env.pauseEnrich)
       .evalTap(_ => env.metrics.rawCount)
       .parEvalMapUnordered(ConcurrencyLevel)(enrich)
-      .flatMap(_.decompose[BadRow, EnrichedEvent])
-      .observeEither(badSink, goodSink)
-      .void
+      .through(Payload.sink(resultSink(env)))
   }
+
+  def resultSink[F[_]: Concurrent](env: Environment[F]): Pipe[F, List[Validated[BadRow, EnrichedEvent]], Nothing] =
+    _.flatMap(Stream.emits(_))
+      .flatMap(toOutputs(env: Environment[F]))
+      .observe(Output.sink(badSink(env), goodSink(env), piiSink(env)))
+      .drain
+
+  def badSink[F[_]: Applicative](env: Environment[F]): BadSink[F] =
+    _.evalTap(_ => env.metrics.badCount)
+      .through(env.bad)
+
+  def goodSink[F[_]: Applicative](env: Environment[F]): GoodSink[F] =
+    _.evalTap(_ => env.metrics.goodCount)
+      .through(env.good)
+
+  def piiSink[F[_]: Applicative](env: Environment[F]): GoodSink[F] =
+    _.through(env.pii.getOrElse(_.drain))
+
+  def toOutputs[F[_]](env: Environment[F])(result: Validated[BadRow, EnrichedEvent]): Stream[F, Output] =
+    result match {
+      case Validated.Valid(ee) =>
+        val pii =
+          if (env.pii.isDefined)
+            ConversionUtils.getPiiEvent(processor, ee).map(Output.Pii)
+          else None
+        Stream.emit(Output.Good(ee)) ++ Stream.emits(pii.toSeq)
+      case Validated.Invalid(bad) =>
+        Stream.emit(Output.Bad(bad))
+    }
 
   /**
    * Enrich a single `CollectorPayload` to get list of bad rows and/or enriched events

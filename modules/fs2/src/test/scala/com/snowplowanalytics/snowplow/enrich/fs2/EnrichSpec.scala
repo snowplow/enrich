@@ -112,7 +112,10 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
           _ <- IO.sleep(100.millis)
           counter <- test.counter.get
         } yield {
-          counter mustEqual Counter(2L, 1L, 1L, None)
+          counter.raw must_== 2L
+          counter.good must_== 1L
+          counter.bad must_== 1L
+          counter.latency must beSome(beGreaterThan(0L))
           payloads must be like {
             case List(Left(_), Right(_)) => ok
             case List(Right(_), Left(_)) => ok
@@ -166,7 +169,7 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
         test
           .run(_.copy(assetsUpdatePeriod = Some(1800.millis)))
           .map { events =>
-            events must containTheSameElementsAs(List(Right(one), Right(two)))
+            events must containTheSameElementsAs(List(Output.Good(one), Output.Good(two)))
           }
       }
     }
@@ -189,21 +192,21 @@ object EnrichSpec {
   def payload[F[_]: Applicative]: Payload[F, Array[Byte]] =
     Payload(colllectorPayload.toRaw, Applicative[F].unit)
 
-  def normalize(payload: Payload[IO, EnrichedEvent]) =
+  def normalize(payload: EnrichedEvent) =
     Event
-      .parse(Enrich.encodeEvent(payload.data))
+      .parse(Enrich.encodeEvent(payload))
       .map(_.copy(etl_tstamp = Some(Instant.ofEpochMilli(SpecHelpers.StaticTime)))) match {
       case Validated.Valid(event) =>
         Validated.Valid(event)
       case Validated.Invalid(error) =>
-        val rawPayload = BadRowPayload.RawPayload(Enrich.encodeEvent(payload.data))
+        val rawPayload = BadRowPayload.RawPayload(Enrich.encodeEvent(payload))
         val badRow = BadRow.LoaderParsingError(Processor("fs2-enrich-test-suite", "x"), error, rawPayload)
         Validated.Invalid(badRow)
     }
 
   def normalizeResult(payload: Result[IO]) =
     payload.data.map {
-      case Validated.Valid(a) => normalize(Payload(a, IO.unit))
+      case Validated.Valid(a) => normalize(a)
       case Validated.Invalid(e) => e.invalid
     }
 

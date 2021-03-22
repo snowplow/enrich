@@ -32,6 +32,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegist
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.loaders.ThriftLoader
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
 
 import com.spotify.scio._
 import com.spotify.scio.coders.Coder
@@ -239,7 +240,8 @@ object Enrich {
       val (tooBigPiis, properlySizedPiis) = enriched
         .withName("generate-pii-events")
         .map { enrichedEvent =>
-          getPiiEvent(enrichedEvent)
+          ConversionUtils
+            .getPiiEvent(processor, enrichedEvent)
             .map(tabSeparatedEnrichedEvent)
             .map(formatted => (formatted, getSize(formatted)))
         }

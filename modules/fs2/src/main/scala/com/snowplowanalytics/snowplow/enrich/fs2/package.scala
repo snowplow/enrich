@@ -25,8 +25,8 @@ package object fs2 {
   /** Raw Thrift payloads coming from a collector */
   type RawSource[F[_]] = Stream[F, Payload[F, Array[Byte]]]
 
-  type BadSink[F[_]] = Pipe[F, Payload[F, BadRow], Unit]
-  type GoodSink[F[_]] = Pipe[F, Payload[F, EnrichedEvent], Unit]
+  type BadSink[F[_]] = Pipe[F, BadRow, Unit]
+  type GoodSink[F[_]] = Pipe[F, EnrichedEvent, Unit]
 
   /** Enrichment result, containing list of (valid and invalid) results */
   type Result[F[_]] = Payload[F, List[Validated[BadRow, EnrichedEvent]]]

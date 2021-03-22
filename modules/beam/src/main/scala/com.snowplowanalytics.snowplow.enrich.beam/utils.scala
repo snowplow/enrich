@@ -18,19 +18,12 @@ import java.io.File
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path, Paths}
 import java.time.Instant
-import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import scala.util.Try
 
 import cats.Id
 import cats.effect.Clock
-
-import io.circe.Json
-import io.circe.syntax._
-
-import org.joda.time.{DateTime, DateTimeZone}
-import org.joda.time.format.DateTimeFormat
 
 import com.snowplowanalytics.snowplow.badrows._
 
@@ -49,45 +42,6 @@ object utils {
         Option(field.get(enrichedEvent)).getOrElse("")
       }
       .mkString("\t")
-
-  private val formatter = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss.SSS")
-
-  /** Creates a PII event from the pii field of an existing event. */
-  def getPiiEvent(event: EnrichedEvent): Option[EnrichedEvent] =
-    Option(event.pii)
-      .filter(_.nonEmpty)
-      .map { _ =>
-        val ee = new EnrichedEvent
-        ee.unstruct_event = event.pii
-        ee.app_id = event.app_id
-        ee.platform = "srv"
-        ee.etl_tstamp = event.etl_tstamp
-        ee.collector_tstamp = event.collector_tstamp
-        ee.event = "pii_transformation"
-        ee.event_id = UUID.randomUUID().toString
-        ee.derived_tstamp = formatter.print(DateTime.now(DateTimeZone.UTC))
-        ee.true_tstamp = ee.derived_tstamp
-        ee.event_vendor = "com.snowplowanalytics.snowplow"
-        ee.event_format = "jsonschema"
-        ee.event_name = "pii_transformation"
-        ee.event_version = "1-0-0"
-        ee.v_etl = s"beam-enrich-${generated.BuildInfo.version}-common-${generated.BuildInfo.sceVersion}"
-        ee.contexts = getContextParentEvent(ee.event_id).noSpaces
-        ee
-      }
-
-  private def getContextParentEvent(eventId: String): Json =
-    Json.obj(
-      "schema" := Json.fromString("iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0"),
-      "data" := Json.arr(
-        Json.obj(
-          "schema" -> Json.fromString(
-            "iglu:com.snowplowanalytics.snowplow/parent_event/jsonschema/1-0-0"
-          ),
-          "data" -> Json.obj("parentEventId" -> Json.fromString(eventId))
-        )
-      )
-    )
 
   /** Determine if we have to emit pii transformation events. */
   def emitPii(confs: List[EnrichmentConf]): Boolean =

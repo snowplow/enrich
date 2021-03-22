@@ -34,6 +34,7 @@ class ConfigFileSpec extends Specification with CatsIO {
         io.Authentication.Gcp,
         io.Input.PubSub("projects/test-project/subscriptions/inputSub"),
         io.Output.PubSub("projects/test-project/topics/good-topic"),
+        Some(io.Output.PubSub("projects/test-project/topics/pii-topic")),
         io.Output.PubSub("projects/test-project/topics/bad-topic"),
         Some(7.days),
         Some(Sentry(URI.create("http://sentry.acme.com"))),
@@ -56,6 +57,10 @@ class ConfigFileSpec extends Specification with CatsIO {
           "good": {
             "type": "PubSub",
             "topic": "projects/test-project/topics/good-topic"
+          },
+          "pii": {
+            "type": "PubSub",
+            "topic": "projects/test-project/topics/pii-topic"
           },
           "bad": {
             "type": "PubSub",

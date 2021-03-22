@@ -23,6 +23,16 @@ good = {
   // dir = "/var/enriched"
 }
 
+// Pii events output
+pii = {
+  type = "PubSub"
+  topic = "projects/test-project/topics/pii-topic"
+
+  // Local FS supported for testing purposes
+  // type = "FileSystem"
+  // dir = "/var/pii"
+}
+
 // Bad rows output
 bad = {
   type = "PubSub"
@@ -53,6 +63,9 @@ metricsReporter = {
   type = "StatsD"
   hostname = "localhost"
   port = 8125
+
+  // How often is StatsD updated with the latest metrics
+  period = "10 second"
 
   // Any key-value pairs to be tagged on every metric
   tags = {

@@ -27,10 +27,15 @@ import scala.util.control.NonFatal
 import cats.syntax.either._
 import cats.syntax.option._
 
-import com.snowplowanalytics.snowplow.badrows.FailureDetails
+import com.snowplowanalytics.iglu.core.circe.implicits._
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
+import com.snowplowanalytics.snowplow.badrows.{FailureDetails, Processor}
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.MiscEnrichments
 
 import inet.ipaddr.HostName
 
+import io.circe.Json
 import io.lemonlabs.uri.{Uri, Url}
 import io.lemonlabs.uri.config.UriConfig
 import io.lemonlabs.uri.decoding.PercentDecoder
@@ -38,6 +43,8 @@ import io.lemonlabs.uri.encoding.percentEncode
 
 import org.apache.commons.codec.binary.Base64
 import org.apache.http.client.utils.URLEncodedUtils
+import org.joda.time.{DateTime, DateTimeZone}
+import org.joda.time.format.DateTimeFormat
 
 /** General-purpose utils to help the ETL process along. */
 object ConversionUtils {
@@ -477,4 +484,41 @@ object ConversionUtils {
   /** Extract valid IP (v4 or v6) address from a string */
   def extractInetAddress(arg: String): Option[InetAddress] =
     Option(new HostName(arg).asInetAddress)
+
+  private val eeTstampFormatter = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss.SSS")
+
+  /** Creates a PII event from the pii field of an existing event. */
+  def getPiiEvent(processor: Processor, event: EnrichedEvent): Option[EnrichedEvent] =
+    Option(event.pii)
+      .filter(_.nonEmpty)
+      .map { pii =>
+        val ee = new EnrichedEvent
+        ee.unstruct_event = pii
+        ee.app_id = event.app_id
+        ee.platform = "srv"
+        ee.etl_tstamp = event.etl_tstamp
+        ee.collector_tstamp = event.collector_tstamp
+        ee.event = "pii_transformation"
+        ee.event_id = UUID.randomUUID().toString
+        ee.derived_tstamp = eeTstampFormatter.print(DateTime.now(DateTimeZone.UTC))
+        ee.true_tstamp = ee.derived_tstamp
+        ee.event_vendor = "com.snowplowanalytics.snowplow"
+        ee.event_format = "jsonschema"
+        ee.event_name = "pii_transformation"
+        ee.event_version = "1-0-0"
+        ee.v_etl = MiscEnrichments.etlVersion(processor)
+        ee.contexts = getContextParentEvent(ee.event_id).noSpaces
+        ee
+      }
+
+  private def getContextParentEvent(eventId: String): Json =
+    SelfDescribingData(
+      SchemaKey("com.snowplowanalytics.snowplow", "contexts", "jsonschema", SchemaVer.Full(1, 0, 0)),
+      Json.arr(
+        SelfDescribingData(
+          SchemaKey("com.snowplowanalytics.snowplow", "parent_event", "jsonschema", SchemaVer.Full(1, 0, 0)),
+          Json.obj("parentEventId" -> Json.fromString(eventId))
+        ).normalize
+      )
+    ).normalize
 }

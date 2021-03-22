@@ -35,6 +35,7 @@ import pureconfig.module.circe._
  * @param auth authentication details, such as credentials
  * @param input input (PubSub, Kinesis etc)
  * @param good good enriched output (PubSub, Kinesis, FS etc)
+ * @param pii pii enriched output (PubSub, Kinesis, FS etc)
  * @param bad bad rows output (PubSub, Kinesis, FS etc)
  * @param assetsUpdatePeriod time after which assets should be updated, in minutes
  */
@@ -42,6 +43,7 @@ final case class ConfigFile(
   auth: Authentication,
   input: Input,
   good: Output,
+  pii: Option[Output],
   bad: Output,
   assetsUpdatePeriod: Option[FiniteDuration],
   sentry: Option[Sentry],
@@ -57,9 +59,9 @@ object ConfigFile {
 
   implicit val configFileDecoder: Decoder[ConfigFile] =
     deriveConfiguredDecoder[ConfigFile].emap {
-      case ConfigFile(_, _, _, _, Some(aup), _, _, _) if aup._1 <= 0L =>
+      case ConfigFile(_, _, _, _, _, Some(aup), _, _, _) if aup._1 <= 0L =>
         "assetsUpdatePeriod in config file cannot be less than 0".asLeft // TODO: use newtype
-      case ConfigFile(_, _, _, _, _, _, _, Some(mrp)) if mrp._1 <= 0L =>
+      case ConfigFile(_, _, _, _, _, _, _, _, Some(mrp)) if mrp._1 <= 0L =>
         "metricsReportPeriod in config file cannot be less than 0".asLeft
       case other => other.asRight
     }

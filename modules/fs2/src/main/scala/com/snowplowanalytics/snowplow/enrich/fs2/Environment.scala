@@ -54,6 +54,7 @@ import com.snowplowanalytics.snowplow.enrich.fs2.io.{FileSystem, Metrics, Sinks,
  * @param blocker             thread pool for blocking operations and enrichments themselves
  * @param source              a stream of raw collector payloads
  * @param good                a sink for successfully enriched events
+ * @param pii                 a sink for pii enriched events
  * @param bad                 a sink for events that failed validation or enrichment
  * @param sentry              optional sentry client
  * @param metrics             common counters
@@ -68,6 +69,7 @@ final case class Environment[F[_]](
   blocker: Blocker,
   source: RawSource[F],
   good: GoodSink[F],
+  pii: GoodSink[F],
   bad: BadSink[F],
   sentry: Option[SentryClient],
   metrics: Metrics[F],
@@ -122,6 +124,7 @@ object Environment {
         metrics <- Metrics.resource[F]
         rawSource = Source.read[F](blocker, file.auth, file.input)
         goodSink <- Sinks.goodSink[F](blocker, file.auth, file.good)
+        piiSink <- file.pii.map(f => Sinks.goodSink[F](blocker, file.auth, f)).sequence
         badSink <- Sinks.badSink[F](blocker, file.auth, file.bad)
         assets = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
         pauseEnrich <- makePause[F]
@@ -132,18 +135,20 @@ object Environment {
                     case None => Resource.pure[F, Option[SentryClient]](none[SentryClient])
                   }
         _ <- Resource.liftF(pauseEnrich.set(false) *> Logger[F].info("Enrich environment initialized"))
-      } yield Environment[F](client,
-                             enrichments,
-                             pauseEnrich,
-                             assets,
-                             blocker,
-                             rawSource,
-                             goodSink,
-                             badSink,
-                             sentry,
-                             metrics,
-                             file.assetsUpdatePeriod,
-                             file.metricsReportPeriod
+      } yield Environment[F](
+        client,
+        enrichments,
+        pauseEnrich,
+        assets,
+        blocker,
+        rawSource,
+        goodSink,
+        piiSink.getOrElse(_.drain),
+        badSink,
+        sentry,
+        metrics,
+        file.assetsUpdatePeriod,
+        file.metricsReportPeriod
       )
     }
 

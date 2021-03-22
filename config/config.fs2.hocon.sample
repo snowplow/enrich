@@ -23,6 +23,16 @@ good = {
   // dir = "/var/enriched"
 }
 
+// Pii events output
+pii = {
+  type = "PubSub"
+  topic = "projects/test-project/topics/pii-topic"
+
+  // Local FS supported for testing purposes
+  // type = "FileSystem"
+  // dir = "/var/pii"
+}
+
 // Bad rows output
 bad = {
   type = "PubSub"

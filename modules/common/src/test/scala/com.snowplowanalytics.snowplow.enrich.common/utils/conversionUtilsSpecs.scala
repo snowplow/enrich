@@ -24,6 +24,7 @@ import org.scalacheck.Gen
 import org.scalacheck.Arbitrary._
 
 import com.snowplowanalytics.snowplow.badrows._
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
 import org.specs2.{ScalaCheck, Specification}
 import org.specs2.mutable.{Specification => MSpecification}
@@ -516,4 +517,40 @@ class ExtractInetAddressSpec extends Specification with ScalaCheck {
       g <- Gen.chooseNum(Short.MinValue, Short.MaxValue)
       h <- Gen.chooseNum(Short.MinValue, Short.MaxValue)
     } yield Ipv6Address(a, b, c, d, e, f, g, h)
+}
+
+class GetPiiEventSpec extends MSpecification {
+
+  "Extracting a Pii event should" >> {
+    "return None if the pii field is null" >> {
+      val event = {
+        val e = new EnrichedEvent
+        e.platform = "web"
+        e
+      }
+      val processor = Processor("sce-test-suite", "1.0.0")
+      ConversionUtils.getPiiEvent(processor, event) shouldEqual None
+    }
+    "return a new event if the pii field is present" in {
+      val event = {
+        val e = new EnrichedEvent
+        e.pii = "pii"
+        e.event_id = "id"
+        e
+      }
+      val processor = Processor("sce-test-suite", "1.0.0")
+      val Some(e) = ConversionUtils.getPiiEvent(processor, event)
+      e.unstruct_event shouldEqual "pii"
+      e.platform shouldEqual "srv"
+      e.event shouldEqual "pii_transformation"
+      e.event_vendor shouldEqual "com.snowplowanalytics.snowplow"
+      e.event_format shouldEqual "jsonschema"
+      e.event_name shouldEqual "pii_transformation"
+      e.event_version shouldEqual "1-0-0"
+      e.v_etl must startWith("sce-test-suite-1.0.0-common-")
+      e.contexts must contain(
+        """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/parent_event/jsonschema/1-0-0","data":{"parentEventId":"""
+      )
+    }
+  }
 }

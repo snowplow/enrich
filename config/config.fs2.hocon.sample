@@ -23,6 +23,16 @@ good = {
   // dir = "/var/enriched"
 }
 
+// Pii events output
+pii = {
+  type = "PubSub"
+  topic = "projects/test-project/topics/pii-topic"
+
+  // Local FS supported for testing purposes
+  // type = "FileSystem"
+  // dir = "/var/pii"
+}
+
 // Bad rows output
 bad = {
   type = "PubSub"
@@ -44,4 +54,4 @@ assetsUpdatePeriod = "7 days"
 
 // Optional, period after Dropwizard will print out its metrics
 // no metrics will be printed if the key is absent
-metricsReportPeriod = "1 second"
+metricsReportPeriod = "10 seconds"

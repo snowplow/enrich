@@ -41,7 +41,7 @@ object SpecHelpers {
    * The Stream Enrich being used
    */
   val EnrichVersion =
-    s"stream-enrich-${generated.BuildInfo.version}-common-${generated.BuildInfo.commonEnrichVersion}"
+    s"sce-test-1.0.0-common-${generated.BuildInfo.commonEnrichVersion}"
 
   val TimestampRegex =
     "[0-9]{1,4}-[0-9]{1,2}-[0-9]{1,2} [0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}(\\.\\d{3})?".r

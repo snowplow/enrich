@@ -150,34 +150,6 @@ class UtilsSpec extends AnyFreeSpec with Matchers {
         tabSeparatedEnrichedEvent(event) should not include "pii"
       }
     }
-    "make a getPii function available" - {
-      "which return None if the pii field is null" in {
-        val event = {
-          val e = new EnrichedEvent
-          e.platform = "web"
-          e
-        }
-        getPiiEvent(event) shouldEqual None
-      }
-      "which return a new event if the pii field is present" in {
-        val event = {
-          val e = new EnrichedEvent
-          e.pii = "pii"
-          e.event_id = "id"
-          e
-        }
-        val Some(e) = getPiiEvent(event)
-        e.unstruct_event shouldEqual "pii"
-        e.platform shouldEqual "srv"
-        e.event shouldEqual "pii_transformation"
-        e.event_vendor shouldEqual "com.snowplowanalytics.snowplow"
-        e.event_format shouldEqual "jsonschema"
-        e.event_name shouldEqual "pii_transformation"
-        e.event_version shouldEqual "1-0-0"
-        e.contexts should include
-        """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/parent_event/jsonschema/1-0-0","data":{"parentEventId":"""
-      }
-    }
   }
 
   def parseBadRow(jsonStr: String): Either[String, BadRow] =

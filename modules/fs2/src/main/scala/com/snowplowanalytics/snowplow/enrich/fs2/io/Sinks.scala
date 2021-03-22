@@ -16,8 +16,7 @@ import java.nio.file.{Path, StandardOpenOption}
 
 import scala.concurrent.duration._
 
-import cats.syntax.flatMap._
-import cats.syntax.functor._
+import cats.implicits._
 
 import cats.effect.{Blocker, Concurrent, ContextShift, Resource, Sync}
 
@@ -35,7 +34,7 @@ import com.snowplowanalytics.snowplow.badrows.BadRow
 
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
-import com.snowplowanalytics.snowplow.enrich.fs2.{BadSink, Enrich, GoodSink, Payload}
+import com.snowplowanalytics.snowplow.enrich.fs2.{BadSink, Enrich, GoodSink}
 import com.snowplowanalytics.snowplow.enrich.fs2.config.io.{Authentication, Output}
 
 object Sinks {
@@ -60,7 +59,7 @@ object Sinks {
       case (Authentication.Gcp, o: Output.PubSub) =>
         pubsubSink[F, EnrichedEvent](o)
       case (_, o: Output.FileSystem) =>
-        Resource.pure(goodFileSink(o.dir, blocker))
+        Resource.pure[F, GoodSink[F]](goodFileSink(o.dir, blocker))
     }
 
   def badSink[F[_]: Concurrent: ContextShift](
@@ -72,12 +71,12 @@ object Sinks {
       case (Authentication.Gcp, o: Output.PubSub) =>
         pubsubSink[F, BadRow](o)
       case (_, o: Output.FileSystem) =>
-        Resource.pure(badFileSink(o.dir, blocker))
+        Resource.pure[F, BadSink[F]](badFileSink(o.dir, blocker))
     }
 
   def pubsubSink[F[_]: Concurrent, A: MessageEncoder](
     output: Output.PubSub
-  ): Resource[F, Pipe[F, Payload[F, A], Unit]] = {
+  ): Resource[F, Pipe[F, A, Unit]] = {
     val config = PubsubProducerConfig[F](
       batchSize = 5,
       delayThreshold = DelayThreshold,
@@ -86,24 +85,18 @@ object Sinks {
 
     GooglePubsubProducer
       .of[F, A](ProjectId(output.project), Topic(output.name), config)
-      .map(producer =>
-        (s: Stream[F, Payload[F, A]]) => s.parEvalMapUnordered(Enrich.ConcurrencyLevel)(row => producer.produce(row.data) >> row.finalise)
-      )
+      .map(producer => (s: Stream[F, A]) => s.parEvalMapUnordered(Enrich.ConcurrencyLevel)(row => producer.produce(row).void))
   }
 
-  def goodFileSink[F[_]: Sync: ContextShift](goodOut: Path, blocker: Blocker): GoodSink[F] =
-    goodStream =>
-      goodStream
-        .evalMap(p => p.finalise.as(Enrich.encodeEvent(p.data)))
-        .intersperse("\n")
-        .through(text.utf8Encode)
-        .through(writeAll[F](goodOut, blocker, List(StandardOpenOption.CREATE_NEW)))
+  def goodFileSink[F[_]: Concurrent: ContextShift](goodOut: Path, blocker: Blocker): GoodSink[F] =
+    fileSink(goodOut, blocker).compose(in => in.map(Enrich.encodeEvent(_)))
 
-  def badFileSink[F[_]: Sync: ContextShift](badOut: Path, blocker: Blocker): BadSink[F] =
-    badStream =>
-      badStream
-        .evalMap(p => p.finalise.as(p.data.compact))
-        .intersperse("\n")
-        .through(text.utf8Encode)
-        .through(writeAll[F](badOut, blocker, List(StandardOpenOption.CREATE_NEW)))
+  def badFileSink[F[_]: Concurrent: ContextShift](badOut: Path, blocker: Blocker): BadSink[F] =
+    fileSink(badOut, blocker).compose(in => in.map(_.compact))
+
+  private def fileSink[F[_]: Sync: ContextShift](path: Path, blocker: Blocker): Pipe[F, String, Unit] =
+    _.intersperse("\n")
+      .through(text.utf8Encode)
+      .through(writeAll[F](path, blocker, List(StandardOpenOption.CREATE_NEW)))
+
 }

@@ -37,29 +37,20 @@ import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.loaders.{CollectorPayload, ThriftLoader}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
 import com.snowplowanalytics.snowplow.enrich.stream.model.SentryConfig
 import io.circe.Json
-import io.circe.syntax._
 import org.joda.time.DateTime
 import org.slf4j.LoggerFactory
 import io.sentry.Sentry
 import io.sentry.SentryClient
-import org.joda.time.{DateTime, DateTimeZone}
-import org.joda.time.format.DateTimeFormat
+import org.joda.time.DateTime
 
 import sinks._
 import utils._
 
 object Source {
   val processor = Processor(generated.BuildInfo.name, generated.BuildInfo.version)
-
-  val PiiEventName = "pii_transformation"
-  val PiiEventVendor = "com.snowplowanalytics.snowplow"
-  val PiiEventFormat = "jsonschema"
-  val PiiEventVersion = "1-0-0"
-  val PiiEventPlatform = "srv"
-  val ContextsSchema = "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0"
-  val ParentEventSchema = "iglu:com.snowplowanalytics.snowplow/parent_event/jsonschema/1-0-0"
 
   /**
    * If a bad row JSON is too big, reduce it's size
@@ -131,42 +122,6 @@ abstract class Source(
   /** Never-ending processing loop over source stream. */
   def run(): Unit
 
-  private val formatter = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss.SSS")
-
-  def getPiiEvent(event: EnrichedEvent): Option[EnrichedEvent] =
-    Option(event.pii)
-      .filter(_.nonEmpty)
-      .map { _ =>
-        val ee = new EnrichedEvent
-        ee.unstruct_event = event.pii
-        ee.app_id = event.app_id
-        ee.platform = Source.PiiEventPlatform
-        ee.etl_tstamp = event.etl_tstamp
-        ee.collector_tstamp = event.collector_tstamp
-        ee.event = Source.PiiEventName
-        ee.event_id = UUID.randomUUID().toString
-        ee.derived_tstamp = formatter.print(DateTime.now(DateTimeZone.UTC))
-        ee.true_tstamp = ee.derived_tstamp
-        ee.event_vendor = Source.PiiEventVendor
-        ee.event_format = Source.PiiEventFormat
-        ee.event_name = Source.PiiEventName
-        ee.event_version = Source.PiiEventVersion
-        ee.contexts = getContextParentEvent(event.event_id).noSpaces
-        ee.v_etl = s"stream-enrich-${generated.BuildInfo.version}-common-${generated.BuildInfo.commonEnrichVersion}"
-        ee
-      }
-
-  def getContextParentEvent(eventId: String): Json =
-    Json.obj(
-      "schema" := Json.fromString(Source.ContextsSchema),
-      "data" := Json.arr(
-        Json.obj(
-          "schema" -> Json.fromString(Source.ParentEventSchema),
-          "data" -> Json.obj("parentEventId" -> Json.fromString(eventId))
-        )
-      )
-    )
-
   val threadLocalGoodSink: ThreadLocal[Sink]
   val threadLocalPiiSink: Option[ThreadLocal[Sink]]
   val threadLocalBadSink: ThreadLocal[Sink]
@@ -208,7 +163,7 @@ abstract class Source(
         adapterRegistry,
         enrichmentRegistry,
         client,
-        Processor("stream-enrich", generated.BuildInfo.version),
+        processor,
         new DateTime(System.currentTimeMillis),
         canonicalInput
       )
@@ -230,7 +185,7 @@ abstract class Source(
               (
                 tabSeparateEnrichedEvent(enriched),
                 getProprertyValue(enriched, partitionKey),
-                getPiiEvent(enriched).map(tabSeparateEnrichedEvent)
+                ConversionUtils.getPiiEvent(processor, enriched).map(tabSeparateEnrichedEvent)
               )
           )
         )

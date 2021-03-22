@@ -33,7 +33,7 @@ import com.snowplowanalytics.snowplow.badrows.BadRow
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.fs2.{Assets, Enrich, EnrichSpec, Environment, Payload, RawSource}
+import com.snowplowanalytics.snowplow.enrich.fs2.{Assets, Enrich, EnrichSpec, Environment, RawSource}
 import com.snowplowanalytics.snowplow.enrich.fs2.Environment.Enrichments
 import com.snowplowanalytics.snowplow.enrich.fs2.SpecHelpers.{filesResource, ioClock}
 import cats.effect.testing.specs2.CatsIO
@@ -46,8 +46,9 @@ import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 case class TestEnvironment(
   env: Environment[IO],
   counter: Ref[IO, Counter],
-  good: Queue[IO, Payload[IO, EnrichedEvent]],
-  bad: Queue[IO, Payload[IO, BadRow]]
+  good: Queue[IO, EnrichedEvent],
+  pii: Queue[IO, EnrichedEvent],
+  bad: Queue[IO, BadRow]
 ) {
 
   /**
@@ -77,7 +78,7 @@ case class TestEnvironment(
       .compile
       .toList
       .map { rows =>
-        rows.map(_.fold(_.data.asLeft, event => EnrichSpec.normalize(event).toEither))
+        rows.map(_.fold(_.asLeft, event => EnrichSpec.normalize(event).toEither))
       }
   }
 }
@@ -119,26 +120,29 @@ object TestEnvironment extends CatsIO {
       blocker <- ioBlocker
       _ <- filesResource(blocker, enrichments.flatMap(_.filesToCache).map(p => Paths.get(p._2)))
       counter <- Resource.liftF(Counter.make[IO])
-      goodQueue <- Resource.liftF(Queue.unbounded[IO, Payload[IO, EnrichedEvent]])
-      badQueue <- Resource.liftF(Queue.unbounded[IO, Payload[IO, BadRow]])
+      goodQueue <- Resource.liftF(Queue.unbounded[IO, EnrichedEvent])
+      piiQueue <- Resource.liftF(Queue.unbounded[IO, EnrichedEvent])
+      badQueue <- Resource.liftF(Queue.unbounded[IO, BadRow])
       metrics = Counter.mkCounterMetrics[IO](counter)(Monad[IO], ioClock)
       pauseEnrich <- Environment.makePause[IO]
       assets <- Assets.State.make(blocker, pauseEnrich, enrichments.flatMap(_.filesToCache))
       _ <- Resource.liftF(logger.info("AssetsState initialized"))
       enrichmentsRef <- Enrichments.make[IO](enrichments)
-      environment = Environment[IO](igluClient,
-                                    enrichmentsRef,
-                                    pauseEnrich,
-                                    assets,
-                                    blocker,
-                                    source,
-                                    goodQueue.enqueue,
-                                    badQueue.enqueue,
-                                    None,
-                                    metrics,
-                                    None,
-                                    None
+      environment = Environment[IO](
+                      igluClient,
+                      enrichmentsRef,
+                      pauseEnrich,
+                      assets,
+                      blocker,
+                      source,
+                      goodQueue.enqueue,
+                      Some(piiQueue.enqueue),
+                      badQueue.enqueue,
+                      None,
+                      metrics,
+                      None,
+                      None
                     )
       _ <- Resource.liftF(pauseEnrich.set(false) *> logger.info("TestEnvironment initialized"))
-    } yield TestEnvironment(environment, counter, goodQueue, badQueue)
+    } yield TestEnvironment(environment, counter, goodQueue, piiQueue, badQueue)
 }

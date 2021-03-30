@@ -131,25 +131,6 @@ class UtilsSpec extends AnyFreeSpec with Matchers {
         badRowSizeViolation.processor shouldEqual processor
       }
     }
-    "make a tabSeparatedEnrichedEvent function available" - {
-      "which tsv format an enriched event" in {
-        val event = {
-          val e = new EnrichedEvent
-          e.platform = "web"
-          e
-        }
-        tabSeparatedEnrichedEvent(event) should include("web")
-      }
-      "which filter the pii field" in {
-        val event = {
-          val e = new EnrichedEvent
-          e.platform = "web"
-          e.pii = "pii"
-          e
-        }
-        tabSeparatedEnrichedEvent(event) should not include "pii"
-      }
-    }
   }
 
   def parseBadRow(jsonStr: String): Either[String, BadRow] =

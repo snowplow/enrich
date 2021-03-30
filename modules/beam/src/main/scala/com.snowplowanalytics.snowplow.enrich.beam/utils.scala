@@ -33,16 +33,6 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.Enrichm
 
 object utils {
 
-  /** Format an [[EnrichedEvent]] as a TSV. */
-  def tabSeparatedEnrichedEvent(enrichedEvent: EnrichedEvent): String =
-    enrichedEvent.getClass.getDeclaredFields
-      .filterNot(_.getName.equals("pii"))
-      .map { field =>
-        field.setAccessible(true)
-        Option(field.get(enrichedEvent)).getOrElse("")
-      }
-      .mkString("\t")
-
   /** Determine if we have to emit pii transformation events. */
   def emitPii(confs: List[EnrichmentConf]): Boolean =
     confs

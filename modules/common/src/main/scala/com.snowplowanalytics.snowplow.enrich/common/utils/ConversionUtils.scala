@@ -27,6 +27,8 @@ import scala.util.control.NonFatal
 import cats.syntax.either._
 import cats.syntax.option._
 
+import com.snowplowanalytics.iglu.core.circe.implicits._
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.snowplow.badrows.{FailureDetails, Processor}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.MiscEnrichments
@@ -34,7 +36,6 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.MiscEnrichments
 import inet.ipaddr.HostName
 
 import io.circe.Json
-import io.circe.syntax._
 import io.lemonlabs.uri.{Uri, Url}
 import io.lemonlabs.uri.config.UriConfig
 import io.lemonlabs.uri.decoding.PercentDecoder
@@ -511,15 +512,26 @@ object ConversionUtils {
       }
 
   private def getContextParentEvent(eventId: String): Json =
-    Json.obj(
-      "schema" := Json.fromString("iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0"),
-      "data" := Json.arr(
-        Json.obj(
-          "schema" -> Json.fromString(
-            "iglu:com.snowplowanalytics.snowplow/parent_event/jsonschema/1-0-0"
-          ),
-          "data" -> Json.obj("parentEventId" -> Json.fromString(eventId))
-        )
-      )
-    )
+    SelfDescribingData(
+      SchemaKey("com.snowplowanalytics.snowplow", "contexts", "jsonschema", SchemaVer.Full(1, 0, 0)),
+      SelfDescribingData(
+        SchemaKey("iglu:com.snowplowanalytics.snowplow", "parent_event", "jsonschema", SchemaVer.Full(1, 0, 0)),
+        Json.obj("parentEventId" -> Json.fromString(eventId))
+      ).normalize
+    ).normalize
+
+  private val EnrichedFields =
+    classOf[EnrichedEvent].getDeclaredFields
+      .filterNot(_.getName.equals("pii"))
+      .map { field => field.setAccessible(true); field }
+      .toList
+
+  /** Format an EnrichedEvent as a TSV. */
+  def tabSeparatedEnrichedEvent(enrichedEvent: EnrichedEvent): String =
+    EnrichedFields
+      .map { field =>
+        Option(field.get(enrichedEvent)).getOrElse("")
+      }
+      .mkString("\t")
+
 }

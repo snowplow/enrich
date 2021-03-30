@@ -216,7 +216,7 @@ object Enrich {
         if (metrics)
           getEnrichedEventMetrics(enrichedEvent).foreach(metric => ScioMetrics.counter(MetricsNamespace, metric).inc())
         else ()
-        val formattedEnrichedEvent = tabSeparatedEnrichedEvent(enrichedEvent)
+        val formattedEnrichedEvent = ConversionUtils.tabSeparatedEnrichedEvent(enrichedEvent)
         val size = getSize(formattedEnrichedEvent)
         if (metrics) enrichedEventSizeDistribution.update(size.toLong) else ()
         (formattedEnrichedEvent, size)
@@ -242,7 +242,7 @@ object Enrich {
         .map { enrichedEvent =>
           ConversionUtils
             .getPiiEvent(processor, enrichedEvent)
-            .map(tabSeparatedEnrichedEvent)
+            .map(ConversionUtils.tabSeparatedEnrichedEvent)
             .map(formatted => (formatted, getSize(formatted)))
         }
         .withName("flatten-pii-events")

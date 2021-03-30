@@ -12,12 +12,12 @@
  */
 package com.snowplowanalytics.snowplow.enrich.fs2.test
 
+import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Paths
 
 import scala.concurrent.duration._
 
 import cats.Monad
-import cats.syntax.either._
 
 import cats.effect.{Blocker, Concurrent, ContextShift, IO, Resource, Timer}
 import cats.effect.concurrent.Ref
@@ -29,16 +29,14 @@ import fs2.concurrent.Queue
 import com.snowplowanalytics.iglu.client.{CirceValidator, Client, Resolver}
 import com.snowplowanalytics.iglu.client.resolver.registries.Registry
 
+import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 import com.snowplowanalytics.snowplow.badrows.BadRow
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
-import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.fs2.{Assets, Enrich, EnrichSpec, Environment, RawSource}
+import com.snowplowanalytics.snowplow.enrich.fs2.{Assets, Enrich, EnrichSpec, Environment, Output, RawSource}
 import com.snowplowanalytics.snowplow.enrich.fs2.Environment.Enrichments
 import com.snowplowanalytics.snowplow.enrich.fs2.SpecHelpers.{filesResource, ioClock}
 import cats.effect.testing.specs2.CatsIO
-
-import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 
 import io.chrisdavenport.log4cats.Logger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
@@ -46,9 +44,9 @@ import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 case class TestEnvironment(
   env: Environment[IO],
   counter: Ref[IO, Counter],
-  good: Queue[IO, EnrichedEvent],
-  pii: Queue[IO, EnrichedEvent],
-  bad: Queue[IO, BadRow]
+  good: Queue[IO, Array[Byte]],
+  pii: Queue[IO, Array[Byte]],
+  bad: Queue[IO, Array[Byte]]
 ) {
 
   /**
@@ -66,19 +64,27 @@ case class TestEnvironment(
     implicit C: Concurrent[IO],
     CS: ContextShift[IO],
     T: Timer[IO]
-  ): IO[List[Either[BadRow, Event]]] = {
+  ): IO[List[Output[BadRow, Event, Event]]] = {
     val updatedEnv = updateEnv(env)
 
     val pauses = updatedEnv.pauseEnrich.discrete.evalMap(p => TestEnvironment.logger.info(s"Pause signal is $p"))
     val stream = Enrich.run[IO](updatedEnv).merge(Assets.run[IO](updatedEnv)).merge(pauses)
     bad.dequeue
-      .either(good.dequeue)
+      .map(Output.Bad(_))
+      .merge(good.dequeue.map(Output.Good(_)))
+      .merge(pii.dequeue.map(Output.Pii(_)))
       .concurrently(stream)
       .haltAfter(5.seconds)
       .compile
       .toList
       .map { rows =>
-        rows.map(_.fold(_.asLeft, event => EnrichSpec.normalize(event).toEither))
+        rows.map {
+          case Output.Bad(bytes) => Output.Bad(TestEnvironment.parseBad(bytes))
+          case Output.Good(bytes) =>
+            EnrichSpec.normalize(new String(bytes, UTF_8)).fold(Output.Bad(_), Output.Good(_))
+          case Output.Pii(bytes) =>
+            EnrichSpec.normalize(new String(bytes, UTF_8)).fold(Output.Bad(_), Output.Pii(_))
+        }
       }
   }
 }
@@ -120,9 +126,9 @@ object TestEnvironment extends CatsIO {
       blocker <- ioBlocker
       _ <- filesResource(blocker, enrichments.flatMap(_.filesToCache).map(p => Paths.get(p._2)))
       counter <- Resource.liftF(Counter.make[IO])
-      goodQueue <- Resource.liftF(Queue.unbounded[IO, EnrichedEvent])
-      piiQueue <- Resource.liftF(Queue.unbounded[IO, EnrichedEvent])
-      badQueue <- Resource.liftF(Queue.unbounded[IO, BadRow])
+      goodQueue <- Resource.liftF(Queue.unbounded[IO, Array[Byte]])
+      piiQueue <- Resource.liftF(Queue.unbounded[IO, Array[Byte]])
+      badQueue <- Resource.liftF(Queue.unbounded[IO, Array[Byte]])
       metrics = Counter.mkCounterMetrics[IO](counter)(Monad[IO], ioClock)
       pauseEnrich <- Environment.makePause[IO]
       assets <- Assets.State.make(blocker, pauseEnrich, enrichments.flatMap(_.filesToCache))
@@ -145,4 +151,6 @@ object TestEnvironment extends CatsIO {
                     )
       _ <- Resource.liftF(pauseEnrich.set(false) *> logger.info("TestEnvironment initialized"))
     } yield TestEnvironment(environment, counter, goodQueue, piiQueue, badQueue)
+
+  def parseBad(bytes: Array[Byte]): BadRow = ???
 }

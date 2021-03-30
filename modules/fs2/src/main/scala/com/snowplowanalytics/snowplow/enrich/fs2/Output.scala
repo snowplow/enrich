@@ -12,30 +12,95 @@
  */
 package com.snowplowanalytics.snowplow.enrich.fs2
 
+import java.time.Instant
+import java.nio.charset.StandardCharsets.UTF_8
+
 import cats.effect.Concurrent
 import fs2.Pipe
 
-import com.snowplowanalytics.snowplow.badrows.BadRow
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.badrows.{BadRow, Failure, Payload => BadRowPayload}
+import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
 
-/** Represents the three different outputs of enrichment that should be delivered to three different sinks */
-sealed trait Output
+/** An item that can be sunk into any one of the enrichment sinks: Bad, Good, or Pii */
+sealed trait Output[+Bad, +Good, +Pii]
 
 object Output {
 
-  case class Bad(badRow: BadRow) extends Output
-  case class Good(event: EnrichedEvent) extends Output
-  case class Pii(event: EnrichedEvent) extends Output
+  /** An item destined for the Bad Sink */
+  final case class Bad[B](badRow: B) extends Output[B, Nothing, Nothing]
 
-  /** A variant of fs2's observeEither, sinking three output types into three Pipe's */
-  def sink[F[_]: Concurrent](
-    bad: Pipe[F, BadRow, Unit],
-    good: Pipe[F, EnrichedEvent, Unit],
-    pii: Pipe[F, EnrichedEvent, Unit]
-  ): Pipe[F, Output, Unit] =
+  /** An item destined for the Good Sink */
+  final case class Good[G](event: G) extends Output[Nothing, G, Nothing]
+
+  /** An item destined for the Pii Sink */
+  final case class Pii[P](event: P) extends Output[Nothing, Nothing, P]
+
+  type Parsed = Output[BadRow, EnrichedEvent, EnrichedEvent]
+  type Serialized = Output[Array[Byte], Array[Byte], Array[Byte]]
+
+  /** Sends a bad/good/pii item into the appropriate sink */
+  def sink[F[_]: Concurrent, B, G, P](
+    bad: Pipe[F, B, Unit],
+    good: Pipe[F, G, Unit],
+    pii: Pipe[F, P, Unit]
+  ): Pipe[F, Output[B, G, P], Unit] =
     _.observe(_.collect { case Bad(br) => br }.through(bad))
       .observe(_.collect { case Good(event) => event }.through(good))
       .observe(_.collect { case Pii(event) => event }.through(pii))
       .drain
+
+  /**
+   * Serializes events and bad rows into byte arrays. Good/Pii events exceeding
+   *  a maximum size after serialization are converted to bad events.
+   */
+  val serialize: Parsed => Serialized =
+    serializeGood.andThen(serializePii).andThen(serializeBad)
+
+  private def serializeGood[P]: Output[BadRow, EnrichedEvent, P] => Output[BadRow, Array[Byte], P] = {
+    case Good(g) =>
+      serializeEnriched(g).fold(Bad(_), Good(_))
+    case b @ Bad(_) => b
+    case p @ Pii(_) => p
+  }
+
+  private def serializePii[G]: Output[BadRow, G, EnrichedEvent] => Output[BadRow, G, Array[Byte]] = {
+    case Pii(p) =>
+      serializeEnriched(p).fold(Bad(_), Pii(_))
+    case b @ Bad(_) => b
+    case g @ Good(_) => g
+  }
+
+  private def serializeBad[G, P]: Output[BadRow, G, P] => Output[Array[Byte], G, P] = {
+    case Bad(br) => Bad(br.compact.getBytes(UTF_8))
+    case g @ Good(_) => g
+    case p @ Pii(_) => p
+  }
+
+  private def serializeEnriched(enriched: EnrichedEvent): Either[BadRow, Array[Byte]] = {
+    val asStr = ConversionUtils.tabSeparatedEnrichedEvent(enriched)
+    val asBytes = asStr.getBytes(UTF_8)
+    val size = asBytes.length
+    if (size > MaxRecordSize) {
+      val msg = s"event passed enrichment but then exceeded the maximum allowed size $MaxRecordSize"
+      val br = BadRow
+        .SizeViolation(
+          Enrich.processor,
+          Failure.SizeViolation(Instant.now(), MaxRecordSize, size, msg),
+          BadRowPayload.RawPayload(asStr.take(MaxErrorMessageSize))
+        )
+      Left(br)
+    } else Right(asBytes)
+  }
+
+  /** The maximum size of a serialized payload that can be written to pubsub.
+   *
+   *  Equal to 6.9 MB. The message will be base64 encoded by the underlying library, which brings the
+   *  encoded message size to near 10 MB, which is the maximum allowed for PubSub.
+   */
+  private val MaxRecordSize = 6900000
+
+  /** The maximum substring of the message that we write into a SizeViolation bad row */
+  private val MaxErrorMessageSize = MaxRecordSize / 10
 
 }

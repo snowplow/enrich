@@ -39,11 +39,11 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequ
   HttpApi,
   Input,
   JsonOutput,
-  Output
+  Output => RegistryOutput
 }
 
 import com.snowplowanalytics.snowplow.enrich.fs2.enrichments.ApiRequestEnrichmentSpec.unstructEvent
-import com.snowplowanalytics.snowplow.enrich.fs2.{EnrichSpec, Payload}
+import com.snowplowanalytics.snowplow.enrich.fs2.{EnrichSpec, Output, Payload}
 import com.snowplowanalytics.snowplow.enrich.fs2.test._
 
 import org.specs2.mutable.Specification
@@ -69,7 +69,7 @@ class ApiRequestEnrichmentSpec extends Specification with CatsIO {
         SchemaKey("com.acme", "enrichment", "jsonschema", SchemaVer.Full(1, 0, 0)),
         List(Input.Json("key1", "unstruct_event", SchemaCriterion("com.acme", "test", "jsonschema", 1), "$.path.id")),
         HttpApi("GET", "http://localhost:8080/enrichment/api/{{key1}}", 2000, Authentication(None)),
-        List(Output("iglu:com.acme/output/jsonschema/1-0-0", Some(JsonOutput("$")))),
+        List(RegistryOutput("iglu:com.acme/output/jsonschema/1-0-0", Some(JsonOutput("$")))),
         Cache(1, 1000)
       )
 
@@ -86,7 +86,7 @@ class ApiRequestEnrichmentSpec extends Specification with CatsIO {
       testWithHttp.use { test =>
         test.run().map { events =>
           events must beLike {
-            case List(Right(event)) =>
+            case List(Output.Good(event)) =>
               event.derived_contexts must beEqualTo(expected)
             case other => ko(s"Expected one enriched event, got $other")
           }

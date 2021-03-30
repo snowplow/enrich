@@ -5,22 +5,12 @@ import cats.syntax.either._
 import com.permutive.pubsub.consumer.decoder.MessageDecoder
 import com.permutive.pubsub.producer.encoder.MessageEncoder
 
-import com.snowplowanalytics.snowplow.badrows.BadRow
-
-import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-
 package object io {
 
-  implicit val badRowEncoder: MessageEncoder[BadRow] =
-    new MessageEncoder[BadRow] {
-      def encode(a: BadRow): Either[Throwable, Array[Byte]] =
-        a.compact.getBytes.asRight
-    }
-
-  implicit val enrichedEventEncoder: MessageEncoder[EnrichedEvent] =
-    new MessageEncoder[EnrichedEvent] {
-      def encode(enrichedEvent: EnrichedEvent): Either[Throwable, Array[Byte]] =
-        Enrich.encodeEvent(enrichedEvent).getBytes.asRight
+  implicit val byteArrayEncoder: MessageEncoder[Array[Byte]] =
+    new MessageEncoder[Array[Byte]] {
+      def encode(a: Array[Byte]): Either[Throwable, Array[Byte]] =
+        a.asRight
     }
 
   implicit val byteArrayMessageDecoder: MessageDecoder[Array[Byte]] =

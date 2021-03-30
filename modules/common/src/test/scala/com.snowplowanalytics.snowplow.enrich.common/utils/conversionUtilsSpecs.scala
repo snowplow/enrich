@@ -554,3 +554,26 @@ class GetPiiEventSpec extends MSpecification {
     }
   }
 }
+
+class TabSeparatedEnrichedEventSpec extends MSpecification {
+
+  "make a tabSeparatedEnrichedEvent function available" >> {
+    "which tsv format an enriched event" >> {
+      val event = {
+        val e = new EnrichedEvent
+        e.platform = "web"
+        e
+      }
+      ConversionUtils.tabSeparatedEnrichedEvent(event) must contain("web")
+    }
+    "which filter the pii field" in {
+      val event = {
+        val e = new EnrichedEvent
+        e.platform = "web"
+        e.pii = "pii"
+        e
+      }
+      ConversionUtils.tabSeparatedEnrichedEvent(event) must not(contain("pii"))
+    }
+  }
+}

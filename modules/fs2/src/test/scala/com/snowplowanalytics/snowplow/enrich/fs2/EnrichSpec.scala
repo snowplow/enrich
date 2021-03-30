@@ -37,7 +37,7 @@ import com.snowplowanalytics.snowplow.badrows.{Processor, BadRow, Payload => Bad
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.IpLookupsEnrichment
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
-import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
 
 import com.snowplowanalytics.snowplow.enrich.fs2.EnrichSpec.{Expected, minimalEvent, normalizeResult}
 import com.snowplowanalytics.snowplow.enrich.fs2.test._
@@ -192,21 +192,21 @@ object EnrichSpec {
   def payload[F[_]: Applicative]: Payload[F, Array[Byte]] =
     Payload(colllectorPayload.toRaw, Applicative[F].unit)
 
-  def normalize(payload: EnrichedEvent) =
+  def normalize(payload: String): Validated[BadRow, Event] =
     Event
-      .parse(Enrich.encodeEvent(payload))
+      .parse(payload)
       .map(_.copy(etl_tstamp = Some(Instant.ofEpochMilli(SpecHelpers.StaticTime)))) match {
       case Validated.Valid(event) =>
         Validated.Valid(event)
       case Validated.Invalid(error) =>
-        val rawPayload = BadRowPayload.RawPayload(Enrich.encodeEvent(payload))
+        val rawPayload = BadRowPayload.RawPayload(payload)
         val badRow = BadRow.LoaderParsingError(Processor("fs2-enrich-test-suite", "x"), error, rawPayload)
         Validated.Invalid(badRow)
     }
 
-  def normalizeResult(payload: Result[IO]) =
+  def normalizeResult(payload: Result[IO]): List[Validated[BadRow, Event]] =
     payload.data.map {
-      case Validated.Valid(a) => normalize(a)
+      case Validated.Valid(a) => normalize(ConversionUtils.tabSeparatedEnrichedEvent(a))
       case Validated.Invalid(e) => e.invalid
     }
 

@@ -521,4 +521,19 @@ object ConversionUtils {
         ).normalize
       )
     ).normalize
+
+  private val EnrichedFields =
+    classOf[EnrichedEvent].getDeclaredFields
+      .filterNot(_.getName.equals("pii"))
+      .map { field => field.setAccessible(true); field }
+      .toList
+
+  /** Format an EnrichedEvent as a TSV. */
+  def tabSeparatedEnrichedEvent(enrichedEvent: EnrichedEvent): String =
+    EnrichedFields
+      .map { field =>
+        Option(field.get(enrichedEvent)).getOrElse("")
+      }
+      .mkString("\t")
+
 }

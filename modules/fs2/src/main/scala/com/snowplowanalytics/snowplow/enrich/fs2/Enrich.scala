@@ -60,7 +60,7 @@ object Enrich {
 
   /**
    * Run a primary enrichment stream, reading from [[Environment]] source, enriching
-   * via [[enrichWith]] and sinking into [[GoodSink]] and [[BadSink]] respectively.
+   * via [[enrichWith]] and sinking into the Good, Bad, and Pii sinks.
    * Can be stopped via _stop signal_ from [[Environment]]
    *
    * The stream won't download any enrichment DBs, it is responsibility of [[Assets]]
@@ -81,27 +81,28 @@ object Enrich {
 
   def resultSink[F[_]: Concurrent](env: Environment[F]): Pipe[F, List[Validated[BadRow, EnrichedEvent]], Nothing] =
     _.flatMap(Stream.emits(_))
-      .flatMap(toOutputs(env: Environment[F]))
+      .flatMap(toOutputs(env))
+      .map(Output.serialize)
       .observe(Output.sink(badSink(env), goodSink(env), piiSink(env)))
       .drain
 
-  def badSink[F[_]: Applicative](env: Environment[F]): BadSink[F] =
+  def badSink[F[_]: Applicative](env: Environment[F]): ByteSink[F] =
     _.evalTap(_ => env.metrics.badCount)
       .through(env.bad)
 
-  def goodSink[F[_]: Applicative](env: Environment[F]): GoodSink[F] =
+  def goodSink[F[_]: Applicative](env: Environment[F]): ByteSink[F] =
     _.evalTap(_ => env.metrics.goodCount)
       .through(env.good)
 
-  def piiSink[F[_]: Applicative](env: Environment[F]): GoodSink[F] =
+  def piiSink[F[_]: Applicative](env: Environment[F]): ByteSink[F] =
     _.through(env.pii.getOrElse(_.drain))
 
-  def toOutputs[F[_]](env: Environment[F])(result: Validated[BadRow, EnrichedEvent]): Stream[F, Output] =
+  def toOutputs[F[_]](env: Environment[F])(result: Validated[BadRow, EnrichedEvent]): Stream[F, Output.Parsed] =
     result match {
       case Validated.Valid(ee) =>
         val pii =
           if (env.pii.isDefined)
-            ConversionUtils.getPiiEvent(processor, ee).map(Output.Pii)
+            ConversionUtils.getPiiEvent(processor, ee).map(Output.Pii(_))
           else None
         Stream.emit(Output.Good(ee)) ++ Stream.emits(pii.toSeq)
       case Validated.Invalid(bad) =>
@@ -141,21 +142,6 @@ object Enrich {
   /** Stringify `ThriftLoader` result for debugging purposes */
   def payloadToString(payload: ValidatedNel[BadRow.CPFormatViolation, Option[CollectorPayload]]): String =
     payload.fold(_.asJson.noSpaces, _.map(_.toBadRowPayload.asJson.noSpaces).getOrElse("None"))
-
-  private val EnrichedFields =
-    classOf[EnrichedEvent].getDeclaredFields
-      .filterNot(_.getName.equals("pii"))
-      .map { field => field.setAccessible(true); field }
-      .toList
-
-  /** Transform enriched event into canonical TSV */
-  def encodeEvent(enrichedEvent: EnrichedEvent): String =
-    EnrichedFields
-      .map { field =>
-        val prop = field.get(enrichedEvent)
-        if (prop == null) "" else prop.toString
-      }
-      .mkString("\t")
 
   /** Log an error, turn the problematic `CollectorPayload` into `BadRow` and notify Sentry if configured */
   def sendToSentry[F[_]: Sync: Clock](original: Payload[F, Array[Byte]], sentry: Option[SentryClient])(error: Throwable): F[Result[F]] =

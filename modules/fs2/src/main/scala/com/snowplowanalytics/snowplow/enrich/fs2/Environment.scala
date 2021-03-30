@@ -69,9 +69,9 @@ final case class Environment[F[_]](
   assetsState: Assets.State[F],
   blocker: Blocker,
   source: RawSource[F],
-  good: GoodSink[F],
-  pii: Option[GoodSink[F]],
-  bad: BadSink[F],
+  good: ByteSink[F],
+  pii: Option[ByteSink[F]],
+  bad: ByteSink[F],
   sentry: Option[SentryClient],
   metrics: Metrics[F],
   assetsUpdatePeriod: Option[FiniteDuration],
@@ -124,9 +124,9 @@ object Environment {
         blocker <- Blocker[F]
         metrics <- makeMetricsReporter[F](file)
         rawSource = Source.read[F](blocker, file.auth, file.input)
-        goodSink <- Sinks.goodSink[F](blocker, file.auth, file.good)
-        piiSink <- file.pii.map(f => Sinks.goodSink[F](blocker, file.auth, f)).sequence
-        badSink <- Sinks.badSink[F](blocker, file.auth, file.bad)
+        goodSink <- Sinks.sink[F](blocker, file.auth, file.good)
+        piiSink <- file.pii.map(f => Sinks.sink[F](blocker, file.auth, f)).sequence
+        badSink <- Sinks.sink[F](blocker, file.auth, file.bad)
         assets = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
         pauseEnrich <- makePause[F]
         assets <- Assets.State.make[F](blocker, pauseEnrich, assets)

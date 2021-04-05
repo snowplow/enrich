@@ -17,6 +17,7 @@ import java.util.Base64
 import cats.effect.{Blocker, IO}
 import cats.effect.concurrent.Ref
 import _root_.io.circe.literal._
+import _root_.io.circe.Json
 import fs2.{Chunk, Stream}
 import fs2.io.file.{createDirectory, writeAll}
 import org.apache.http.message.BasicNameValuePair
@@ -45,19 +46,67 @@ object PayloadGen extends CatsIO {
     version <- Gen.oneOf("Version/11.1.2 Safari/605.1.15", "Chrome/60.0.3112.113 Safari/537.36", "Gecko/20100101 Firefox/40.1")
   } yield s"Mozilla/5.0 ($os) $engine $version"
 
-  val geolocationGen = for {
+  val optimizelyGen: Gen[Json] = for {
+    id <- Gen.uuid.map(_.toString)
+    name <- Gen.oneOf("pavlov", "marshmallow", "schiehallion")
+    payload = json"""{"id":$id, "name":$name}"""
+    schemaKey = "iglu:com.optimizely/experiment/jsonschema/1-0-0"
+  } yield json"""{"schema":$schemaKey, "data": $payload}"""
+
+  val consentGen: Gen[Json] = for {
+    id <- Gen.uuid.map(_.toString)
+    version <- Gen.oneOf((1 to 5).map(i => s"$i"))
+    payload = json"""{"id":$id, "version":$version}"""
+    schemaKey = "iglu:com.snowplowanalytics.snowplow/consent_document/jsonschema/1-0-0"
+  } yield json"""{"schema":$schemaKey, "data": $payload}"""
+
+  val mobileGen: Gen[Json] = for {
+    osType <- Gen.oneOf("ios", "tvos", "watchos", "osx")
+    osVersion <- Gen.oneOf((4 to 10).map(i => s"$i"))
+    deviceManufacturer <- Gen.const("Apple Inc.")
+    deviceModel <- Gen.oneOf("iPhone", "iPad")
+    payload = json"""{"osType":$osType, "osVersion":$osVersion, "deviceManufacturer":$deviceManufacturer, "deviceModel": $deviceModel }"""
+    schemaKey = "iglu:com.snowplowanalytics.snowplow/mobile_context/jsonschema/1-0-1"
+  } yield json"""{"schema":$schemaKey, "data": $payload}"""
+
+  val mobileScreenGen: Gen[Json] = for {
+    name <- Gen.oneOf("home", "checkout", "search", "profile")
+    id <- Gen.uuid.map(_.toString)
+    payload = json"""{"name":$name, "id":$id}"""
+    schemaKey = "iglu:com.snowplowanalytics.mobile/screen/jsonschema/1-0-0"
+  } yield json"""{"schema":$schemaKey, "data": $payload}"""
+
+  val mobileAppGen: Gen[Json] = for {
+    major <- Gen.choose(1, 20)
+    minor <- Gen.choose(0, 20)
+    patch <- Gen.choose(0, 50)
+    preRelease <- Gen.oneOf("", "-alpha", "-beta", "-beta.1", "-alpha.2")
+    version = s"$major.$minor.$patch$preRelease"
+    buildMetadata <- Gen.oneOf("", "+002", "+2013013144700", "+exp.sha.51f85", "+21LF2616")
+    payload = json"""{"version":$version, "build":$buildMetadata}"""
+    schemaKey = "iglu:com.snowplowanalytics.mobile/application/jsonschema/1-0-0"
+  } yield json"""{"schema":$schemaKey, "data": $payload}"""
+
+  val geolocationGen: Gen[Json] = for {
     latitude <- Gen.choose(-90.0, 90.0)
     longitude <- Gen.choose(-180.0, 180.0)
     payload = json"""{"latitude":$latitude,"longitude":$longitude}"""
     schemaKey = "iglu:com.snowplowanalytics.snowplow/geolocation_context/jsonschema/1-1-0"
   } yield json"""{"schema":$schemaKey, "data": $payload}"""
-  val contextsGen = for {
+
+  val contextsGen: Gen[Json] = for {
     geo <- Gen.option(geolocationGen).map(_.toList)
+    mobileApp <- Gen.option(mobileAppGen).map(_.toList)
+    mobileScreen <- Gen.option(mobileScreenGen).map(_.toList)
+    mobile <- Gen.option(mobileGen).map(_.toList)
+    consent <- Gen.option(consentGen).map(_.toList)
+    optimizely <- Gen.option(optimizelyGen).map(_.toList)
+    cx = geo ::: mobileApp ::: mobileScreen ::: mobile ::: consent ::: optimizely
     schemaKey = "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1"
-  } yield json"""{"schema":$schemaKey, "data": $geo}"""
+  } yield json"""{"schema":$schemaKey, "data": $cx}"""
 
   val localDateGen: Gen[LocalDate] = for {
-    timeInMillis <- Gen.choose[Long](-2147558400L, 2147558399L)
+    timeInMillis <- Gen.choose[Long](1586093286000L, 1646486886000L)
   } yield new LocalDate(timeInMillis)
   val ipGen: Gen[String] = for {
     part1 <- Gen.choose(2, 255)
@@ -72,7 +121,7 @@ object PayloadGen extends CatsIO {
     userId <- Gen.option(Gen.uuid)
   } yield CollectorPayload.Context(timestamp, ip, userAgent, None, List(), userId)
 
-  val getPageView = for {
+  val getPageView: Gen[CollectorPayload] = for {
     eventId <- Gen.uuid
     aid <- Gen.oneOf("test-app", "scalacheck")
     cx <- contextsGen.map(json => Base64.getEncoder.encodeToString(json.noSpaces.getBytes))
@@ -87,7 +136,7 @@ object PayloadGen extends CatsIO {
 
   val getPageViewArbitrary: Arbitrary[CollectorPayload] = Arbitrary.apply(getPageView)
 
-  val payloadStream = Stream.repeatEval(IO(getPageView.sample)).collect {
+  val payloadStream: Stream[IO, CollectorPayload] = Stream.repeatEval(IO(getPageView.sample)).collect {
     case Some(x) => x
   }
 

@@ -99,17 +99,18 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
 
   "enrich" should {
     "update metrics with raw, good and bad counters" in {
-      val input = Stream(Payload(Array.empty[Byte], IO.unit), EnrichSpec.payload[IO])
+      val input = Stream.emits(List(Payload(Array.empty[Byte], IO.unit), EnrichSpec.payload[IO]))
       TestEnvironment.make(input).use { test =>
-        val enrichStream = Enrich.run[IO](test.env)
+        // The sleep for 100 millis should not be necessary; but it seems to prevent
+        // unexplained test failures in CI.
+        val finalise = IO.sleep(100.millis) *> test.finalise()
+
+        val enrichStream = Enrich.run[IO](test.env).onFinalize(finalise)
         val rows = test.bad.dequeue
           .either(test.good.dequeue)
           .concurrently(enrichStream)
-          .haltAfter(1.second)
         for {
-          _ <- test.env.pauseEnrich.set(false)
           payloads <- rows.compile.toList
-          _ <- IO.sleep(100.millis)
           counter <- test.counter.get
         } yield {
           counter.raw must_== 2L

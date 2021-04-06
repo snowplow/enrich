@@ -24,7 +24,7 @@ import cats.effect.concurrent.Ref
 
 import io.circe.{Json, parser}
 
-import fs2.concurrent.Queue
+import fs2.concurrent.{NoneTerminatedQueue, Queue}
 
 import com.snowplowanalytics.iglu.client.{CirceValidator, Client, Resolver}
 import com.snowplowanalytics.iglu.client.resolver.registries.Registry
@@ -44,9 +44,9 @@ import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 case class TestEnvironment(
   env: Environment[IO],
   counter: Ref[IO, Counter],
-  good: Queue[IO, Array[Byte]],
-  pii: Queue[IO, Array[Byte]],
-  bad: Queue[IO, Array[Byte]]
+  good: NoneTerminatedQueue[IO, Array[Byte]],
+  pii: NoneTerminatedQueue[IO, Array[Byte]],
+  bad: NoneTerminatedQueue[IO, Array[Byte]]
 ) {
 
   /**
@@ -87,6 +87,10 @@ case class TestEnvironment(
         }
       }
   }
+
+  /** Let the Enrich output streams terminate after all inputs are processed */
+  def finalise(): IO[Unit] =
+    good.enqueue1(None) *> bad.enqueue1(None) *> pii.enqueue1(None)
 }
 
 object TestEnvironment extends CatsIO {
@@ -126,9 +130,9 @@ object TestEnvironment extends CatsIO {
       blocker <- ioBlocker
       _ <- filesResource(blocker, enrichments.flatMap(_.filesToCache).map(p => Paths.get(p._2)))
       counter <- Resource.liftF(Counter.make[IO])
-      goodQueue <- Resource.liftF(Queue.unbounded[IO, Array[Byte]])
-      piiQueue <- Resource.liftF(Queue.unbounded[IO, Array[Byte]])
-      badQueue <- Resource.liftF(Queue.unbounded[IO, Array[Byte]])
+      goodQueue <- Resource.liftF(Queue.noneTerminated[IO, Array[Byte]])
+      piiQueue <- Resource.liftF(Queue.noneTerminated[IO, Array[Byte]])
+      badQueue <- Resource.liftF(Queue.noneTerminated[IO, Array[Byte]])
       metrics = Counter.mkCounterMetrics[IO](counter)(Monad[IO], ioClock)
       pauseEnrich <- Environment.makePause[IO]
       assets <- Assets.State.make(blocker, pauseEnrich, enrichments.flatMap(_.filesToCache))
@@ -141,9 +145,9 @@ object TestEnvironment extends CatsIO {
                       assets,
                       blocker,
                       source,
-                      goodQueue.enqueue,
-                      Some(piiQueue.enqueue),
-                      badQueue.enqueue,
+                      _.map(Some(_)).through(goodQueue.enqueue),
+                      Some(_.map(Some(_)).through(piiQueue.enqueue)),
+                      _.map(Some(_)).through(badQueue.enqueue),
                       None,
                       metrics,
                       None,

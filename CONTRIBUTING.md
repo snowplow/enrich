@@ -27,25 +27,24 @@ what we will be working on next so that you can:
 - help us design new features
 - share your opinions on the technical direction of the Snowplow pipeline
 
-You can peek into what the pipeline team is working on by looking at
-[the open GitHub projects](https://github.com/snowplow/snowplow/projects).
-
 For insights into what we will be working on next, you can look at
 [the RFC category in our Discourse](https://discourse.snowplowanalytics.com/c/roadmap/rfcs).
 
-## Repository structure
+## Snowplow code repositories
 
-The `snowplow/snowplow` project is split into different Scala projects:
+Snowplow's code base is rooted in the [snowplow/snowplow](https://github.com/snowplow/snowplow). From there you can follow links
+to git submodules, to find the code for snowplow's many components including Enrich.
 
-- [`2-collectors/scala-stream-collector`](https://github.com/snowplow/snowplow/tree/master/2-collectors/scala-stream-collector)
-which contains the code to collect events as HTTP requests and output raw events to a streaming platform (Kafka, Kinesis,
-NSQ or PubSub)
-- [`3-enrich/scala-common-enrich`](https://github.com/snowplow/snowplow/tree/master/3-enrich/scala-common-enrich), a
-library common to all the enrichers listed below which turns the raw events outputted by a collector into validated and
-enriched events
-- [`3-enrich/stream-enrich`](https://github.com/snowplow/snowplow/tree/master/3-enrich/stream-enrich), the pipeline which
-turns a stream of raw events into a stream of validated and enriched events and pushes them to a streaming platform (Kafka,
-Kinesis, NSQ or PubSub)
+## Enrich Repository structure
+
+The Enrich code base is divided into modules:
+
+- [Common](https://github.com/snowplow/enrich/tree/master/modules/common), a library common to all the enrichers listed, which turns the raw events outputted by a collector into validated and enriched events
+- [stream](https://github.com/snowplow/enrich/tree/master/modules/stream), a skeleton application used by the streaming apps listed below.
+- [Kinesis](https://github.com/snowplow/enrich/tree/master/modules/kinesis), [kafka](https://github.com/snowplow/enrich/tree/master/modules/kafka),
+[nsq](https://github.com/snowplow/enrich/tree/master/modules) and [stdin](https://github.com/snowplow/enrich/tree/master/modules); a set of applications that stream from various sources
+- [Beam](https://github.com/snowplow/enrich/tree/master/modules/beam), which contains code for the Google Dataflow job
+- [FS2](https://github.com/snowplow/enrich/tree/master/modules/fs2) an application for a GCP pipeline that does not require a distributed computing framework.
 
 All of these projects can be built and tested with [SBT](https://www.scala-sbt.org/).
 
@@ -63,8 +62,8 @@ It's also a good idea to log an issue before starting to work on a pull request 
 If you see an issue you would like to work on, please let us know in the issue! That will help us in terms of scheduling and
 not doubling the amount of work.
 
-If you don't know where to start contributing, you can look at
-[the issues labeled `good first issue`](https://github.com/snowplow/snowplow/labels/good%20first%20issue).
+If you don't know where to start contributing, you can look at issues labelled as `good first issue` in any Snowplow repository.
+For example, in [Enrich](https://github.com/snowplow/enrich/labels/good%20first%20issue).
 
 ## Pull requests
 
@@ -100,5 +99,5 @@ might not be actively worked on by a maintainer at the moment.
 ### Contributor license agreement
 
 We require outside contributors to sign a Contributor license agreement (or CLA) before we can merge their pull requests.
-You can find more information on the topic in [the dedicated wiki page](https://github.com/snowplow/snowplow/wiki/CLA).
+You can find more information on the topic on [our docs site](https://docs.snowplowanalytics.com/docs/contributing/contributor-license-agreement/).
 The @snowplowcla bot will guide you through the process.

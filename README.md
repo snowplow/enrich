@@ -23,7 +23,7 @@ Snowplow Enrich provides record-level enrichment only: feeding in 1 raw Snowplow
 
 ## Copyright and license
 
-Scala Common Enrich is copyright 2012-2020 Snowplow Analytics Ltd.
+Scala Common Enrich is copyright 2012-2021 Snowplow Analytics Ltd.
 
 Licensed under the [Apache License, Version 2.0][license] (the "License");
 you may not use this software except in compliance with the License.

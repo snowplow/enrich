@@ -28,7 +28,7 @@ class EtlVersionSpec extends MutSpecification {
   "The ETL version" should {
     "be successfully returned using an x.y.z format" in {
       MiscEnrichments.etlVersion(Processor("spark", "x.x.x")) must beMatching(
-        s"spark-x.x.x-common-\\d+\\.\\d+\\.\\d+(-\\w+)?".r
+        s"spark-x.x.x-common-\\d+\\.\\d+\\.\\d+([-+]\\w+)*".r
       )
     }
   }

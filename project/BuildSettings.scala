@@ -18,8 +18,7 @@
 import sbt._
 import Keys._
 
-import bintray.BintrayPlugin._
-import bintray.BintrayKeys._
+import sbtdynver.DynVerPlugin.autoImport._
 
 import com.typesafe.sbt.SbtNativePackager.autoImport._
 import com.typesafe.sbt.packager.linux.LinuxPlugin.autoImport._
@@ -36,7 +35,6 @@ object BuildSettings {
   lazy val basicSettings = Seq(
     organization          :=  "com.snowplowanalytics",
     scalaVersion          :=  "2.12.11",
-    version               :=  "1.4.2",
     javacOptions          :=  Seq("-source", "11", "-target", "11"),
     resolvers             ++= Dependencies.resolutionRepos,
     licenses              += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html")),
@@ -59,25 +57,20 @@ object BuildSettings {
   )
 
   /** Snowplow Common Enrich Maven publishing settings */
-  lazy val publishSettings = bintraySettings ++ Seq(
-    publishMavenStyle := true,
+  lazy val publishSettings = Seq(
     publishArtifact := true,
     publishArtifact in Test := false,
-    bintrayOrganization := Some("snowplow"),
-    bintrayRepository := "snowplow-maven",
     pomIncludeRepository := { _ => false },
     homepage := Some(url("http://snowplowanalytics.com")),
-    scmInfo := Some(ScmInfo(url("https://github.com/snowplow/snowplow"),
-      "scm:git@github.com:snowplow/snowplow.git")),
-    pomExtra := (
-      <developers>
-        <developer>
-          <name>Snowplow Analytics Ltd</name>
-          <email>support@snowplowanalytics.com</email>
-          <organization>Snowplow Analytics Ltd</organization>
-          <organizationUrl>http://snowplowanalytics.com</organizationUrl>
-        </developer>
-      </developers>)
+    ThisBuild / dynverVTagPrefix := false, // Otherwise git tags required to have v-prefix
+    developers := List(
+      Developer(
+        "Snowplow Analytics Ltd",
+        "Snowplow Analytics Ltd",
+        "support@snowplowanalytics.com",
+        url("https://snowplowanalytics.com")
+      )
+    )
   )
 
   lazy val formatting = Seq(
@@ -123,7 +116,7 @@ object BuildSettings {
   /** Docker settings, used by SE */
   lazy val dockerSettings = Seq(
     maintainer in Docker := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
-    dockerBaseImage := "snowplow-docker-registry.bintray.io/snowplow/base-debian:0.2.1",
+    dockerBaseImage := "snowplow/base-debian:0.2.1",
     daemonUser in Docker := "snowplow",
     dockerUpdateLatest := true,
     dockerVersion := Some(DockerVersion(18, 9, 0, Some("ce"))),
@@ -134,7 +127,7 @@ object BuildSettings {
   /** Docker settings, used by BE */
   lazy val dataflowDockerSettings = Seq(
     maintainer in Docker := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
-    dockerBaseImage := "snowplow-docker-registry.bintray.io/snowplow/k8s-dataflow:0.2.0",
+    dockerBaseImage := "snowplow/k8s-dataflow:0.2.0",
     daemonUser in Docker := "snowplow",
     dockerUpdateLatest := true,
     dockerVersion := Some(DockerVersion(18, 9, 0, Some("ce"))),

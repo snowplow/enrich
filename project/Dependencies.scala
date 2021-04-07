@@ -22,8 +22,6 @@ object Dependencies {
     "Concurrent Maven Repo"          at "https://conjars.org/repo",
      // For Twitter's util functions
     "Twitter Maven Repo"             at "https://maven.twttr.com/",
-    // For modern Snowplow libs
-    "Snowplow Bintray"               at "https://snowplow.bintray.com/snowplow-maven/",
     // For legacy Snowplow libs
     ("Snowplow Analytics Maven repo" at "http://maven.snplow.com/releases/").withAllowInsecureProtocol(true)
   )

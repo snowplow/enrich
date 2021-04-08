@@ -81,7 +81,7 @@ object Enrich {
 
   def resultSink[F[_]: Concurrent](env: Environment[F]): Pipe[F, List[Validated[BadRow, EnrichedEvent]], Nothing] =
     _.flatMap(Stream.emits(_))
-      .flatMap(toOutputs(env))
+      .through(toOutputs(env))
       .map(Output.serialize)
       .observe(Output.sink(badSink(env), goodSink(env), piiSink(env)))
       .drain
@@ -90,24 +90,41 @@ object Enrich {
     _.evalTap(_ => env.metrics.badCount)
       .through(env.bad)
 
-  def goodSink[F[_]: Applicative](env: Environment[F]): ByteSink[F] =
+  def goodSink[F[_]: Applicative](env: Environment[F]): AttributedByteSink[F] =
     _.evalTap(_ => env.metrics.goodCount)
       .through(env.good)
 
-  def piiSink[F[_]: Applicative](env: Environment[F]): ByteSink[F] =
+  def piiSink[F[_]: Applicative](env: Environment[F]): AttributedByteSink[F] =
     _.through(env.pii.getOrElse(_.drain))
 
-  def toOutputs[F[_]](env: Environment[F])(result: Validated[BadRow, EnrichedEvent]): Stream[F, Output.Parsed] =
-    result match {
+  def toOutputs[F[_]](env: Environment[F]): Pipe[F, Validated[BadRow, EnrichedEvent], Output.Parsed] = {
+    val goodAttributer = addAttributes(env.goodAttributes)
+    val piiAttributer = addAttributes(env.piiAttributes)
+    _.flatMap {
       case Validated.Valid(ee) =>
-        val pii =
-          if (env.pii.isDefined)
-            ConversionUtils.getPiiEvent(processor, ee).map(Output.Pii(_))
-          else None
-        Stream.emit(Output.Good(ee)) ++ Stream.emits(pii.toSeq)
+        val pii = ConversionUtils
+          .getPiiEvent(processor, ee)
+          .map(pii => Output.Pii(piiAttributer(pii)))
+        Stream.emit(Output.Good(goodAttributer(ee))) ++ Stream.emits(pii.toSeq)
       case Validated.Invalid(bad) =>
         Stream.emit(Output.Bad(bad))
     }
+  }
+
+  def addAttributes(fieldNames: Set[String]): EnrichedEvent => AttributedData[EnrichedEvent] = {
+    val fields = ConversionUtils.EnrichedFields.filter(f => fieldNames.contains(f.getName)).map(f => f.getName -> f).toMap
+
+    ee => {
+      val attrs = fields
+        .map {
+          case (k, f) => k -> Option(f.get(ee))
+        }
+        .collect {
+          case (k, Some(v)) => k -> v.toString
+        }
+      AttributedData(ee, attrs)
+    }
+  }
 
   /**
    * Enrich a single `CollectorPayload` to get list of bad rows and/or enriched events

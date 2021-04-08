@@ -51,6 +51,7 @@ class CliConfigSpec extends Specification with CatsIO {
            pii = {
              type = "PubSub"
              topic = "projects/test-project/topics/pii-topic"
+             attributes = [ "app_id", "platform" ]
            }
            bad = {
              type = "PubSub"
@@ -62,9 +63,9 @@ class CliConfigSpec extends Specification with CatsIO {
       val expected = ConfigFile(
         io.Authentication.Gcp,
         io.Input.PubSub("projects/test-project/subscriptions/inputSub"),
-        io.Output.PubSub("projects/test-project/topics/good-topic"),
-        Some(io.Output.PubSub("projects/test-project/topics/pii-topic")),
-        io.Output.PubSub("projects/test-project/topics/bad-topic"),
+        io.Output.PubSub("projects/test-project/topics/good-topic", None),
+        Some(io.Output.PubSub("projects/test-project/topics/pii-topic", Some(Set("app_id", "platform")))),
+        io.Output.PubSub("projects/test-project/topics/bad-topic", None),
         None,
         None,
         None,

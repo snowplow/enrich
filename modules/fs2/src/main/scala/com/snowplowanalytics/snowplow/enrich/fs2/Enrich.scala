@@ -81,7 +81,7 @@ object Enrich {
 
   def resultSink[F[_]: Concurrent](env: Environment[F]): Pipe[F, List[Validated[BadRow, EnrichedEvent]], Nothing] =
     _.flatMap(Stream.emits(_))
-      .flatMap(toOutputs(env))
+      .through(toOutputs(env))
       .map(Output.serialize)
       .observe(Output.sink(badSink(env), goodSink(env), piiSink(env)))
       .drain
@@ -90,21 +90,20 @@ object Enrich {
     _.evalTap(_ => env.metrics.badCount)
       .through(env.bad)
 
-  def goodSink[F[_]: Applicative](env: Environment[F]): ByteSink[F] =
+  def goodSink[F[_]: Applicative](env: Environment[F]): AttributedByteSink[F] =
     _.evalTap(_ => env.metrics.goodCount)
       .through(env.good)
 
-  def piiSink[F[_]: Applicative](env: Environment[F]): ByteSink[F] =
+  def piiSink[F[_]: Applicative](env: Environment[F]): AttributedByteSink[F] =
     _.through(env.pii.getOrElse(_.drain))
 
-  def toOutputs[F[_]](env: Environment[F])(result: Validated[BadRow, EnrichedEvent]): Stream[F, Output.Parsed] =
-    result match {
+  def toOutputs[F[_]](env: Environment[F]): Pipe[F, Validated[BadRow, EnrichedEvent], Output.Parsed] =
+    _.flatMap {
       case Validated.Valid(ee) =>
-        val pii =
-          if (env.pii.isDefined)
-            ConversionUtils.getPiiEvent(processor, ee).map(Output.Pii(_))
-          else None
-        Stream.emit(Output.Good(ee)) ++ Stream.emits(pii.toSeq)
+        val pii = ConversionUtils
+          .getPiiEvent(processor, ee)
+          .map(pii => Output.Pii(AttributedData(pii, env.piiAttributes(pii))))
+        Stream.emit(Output.Good(AttributedData(ee, env.goodAttributes(ee)))) ++ Stream.emits(pii.toSeq)
       case Validated.Invalid(bad) =>
         Stream.emit(Output.Bad(bad))
     }

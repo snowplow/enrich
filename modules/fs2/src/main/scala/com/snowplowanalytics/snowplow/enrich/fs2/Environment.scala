@@ -14,8 +14,9 @@ package com.snowplowanalytics.snowplow.enrich.fs2
 
 import scala.concurrent.duration.FiniteDuration
 
-import cats.Show
-import cats.data.EitherT
+import java.lang.reflect.Field
+import cats.{Applicative, Show}
+import cats.data.{EitherT, NonEmptyList, ValidatedNel}
 import cats.implicits._
 
 import cats.effect.{Async, Blocker, Clock, Concurrent, ConcurrentEffect, ContextShift, Resource, Sync, Timer}
@@ -36,7 +37,10 @@ import com.snowplowanalytics.iglu.client.Client
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
 import com.snowplowanalytics.snowplow.enrich.fs2.config.{CliConfig, ConfigFile}
+import com.snowplowanalytics.snowplow.enrich.fs2.config.io.{Output => OutputConfig}
 import com.snowplowanalytics.snowplow.enrich.fs2.io.{FileSystem, Metrics, Sinks, Source}
 
 /**
@@ -59,7 +63,8 @@ import com.snowplowanalytics.snowplow.enrich.fs2.io.{FileSystem, Metrics, Sinks,
  * @param sentry              optional sentry client
  * @param metrics             common counters
  * @param assetsUpdatePeriod  time after which enrich assets should be refresh
- * @param metricsReportPeriod period after which metrics are updated
+ * @param goodAttributes      fields from an enriched event to use as output message attributes
+ * @param piiAttributes       fields from a PII event to use as output message attributes
  */
 final case class Environment[F[_]](
   igluClient: Client[F, Json],
@@ -68,12 +73,14 @@ final case class Environment[F[_]](
   assetsState: Assets.State[F],
   blocker: Blocker,
   source: RawSource[F],
-  good: ByteSink[F],
-  pii: Option[ByteSink[F]],
+  good: AttributedByteSink[F],
+  pii: Option[AttributedByteSink[F]],
   bad: ByteSink[F],
   sentry: Option[SentryClient],
   metrics: Metrics[F],
-  assetsUpdatePeriod: Option[FiniteDuration]
+  assetsUpdatePeriod: Option[FiniteDuration],
+  goodAttributes: EnrichedEvent => Map[String, String],
+  piiAttributes: EnrichedEvent => Map[String, String]
 )
 
 object Environment {
@@ -122,8 +129,8 @@ object Environment {
         blocker <- Blocker[F]
         metrics <- Resource.liftF(metricsReporter[F](blocker, file))
         rawSource = Source.read[F](blocker, file.auth, file.input)
-        goodSink <- Sinks.sink[F](blocker, file.auth, file.good)
-        piiSink <- file.pii.map(f => Sinks.sink[F](blocker, file.auth, f)).sequence
+        goodSink <- Sinks.attributedSink[F](blocker, file.auth, file.good)
+        piiSink <- file.pii.map(f => Sinks.attributedSink[F](blocker, file.auth, f)).sequence
         badSink <- Sinks.sink[F](blocker, file.auth, file.bad)
         assets = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
         pauseEnrich <- makePause[F]
@@ -134,18 +141,21 @@ object Environment {
                     case None => Resource.pure[F, Option[SentryClient]](none[SentryClient])
                   }
         _ <- Resource.liftF(pauseEnrich.set(false) *> Logger[F].info("Enrich environment initialized"))
-      } yield Environment[F](client,
-                             enrichments,
-                             pauseEnrich,
-                             assets,
-                             blocker,
-                             rawSource,
-                             goodSink,
-                             piiSink,
-                             badSink,
-                             sentry,
-                             metrics,
-                             file.assetsUpdatePeriod
+      } yield Environment[F](
+        client,
+        enrichments,
+        pauseEnrich,
+        assets,
+        blocker,
+        rawSource,
+        goodSink,
+        piiSink,
+        badSink,
+        sentry,
+        metrics,
+        file.assetsUpdatePeriod,
+        outputAttributes(file.good),
+        file.pii.map(outputAttributes).getOrElse(_ => Map.empty)
       )
     }
 
@@ -174,6 +184,7 @@ object Environment {
                                .map(json => SelfDescribingData(EnrichmentsKey, json).asJson)
                          }
       configFile <- ConfigFile.parse[F](config.config)
+      configFile <- validateConfig[F](configFile)
       client <- Client.parseDefault[F](igluJson).leftMap(x => show"Cannot decode Iglu Client. $x")
       _ <- EitherT.liftF(
              Logger[F].info(show"Parsed Iglu Client with following registries: ${client.resolver.repos.map(_.config.name).mkString(", ")}")
@@ -199,4 +210,49 @@ object Environment {
       Resource.liftF[F, A](action)
     }
   }
+
+  val enrichedFieldsMap: Map[String, Field] = ConversionUtils.EnrichedFields.map(f => f.getName -> f).toMap
+
+  type ValidationResult[A] = ValidatedNel[String, A]
+
+  private def validateAttributes(output: OutputConfig): ValidationResult[OutputConfig] =
+    output match {
+      case OutputConfig.PubSub(_, optAttributes) =>
+        optAttributes
+          .fold[ValidationResult[OutputConfig]](output.valid) { attributes =>
+            val invalidAttributes = attributes.filterNot(enrichedFieldsMap.contains)
+            if (invalidAttributes.nonEmpty) NonEmptyList(invalidAttributes.head, invalidAttributes.tail.toList).invalid
+            else output.valid
+          }
+      case OutputConfig.FileSystem(_) => output.valid
+    }
+
+  def validateConfig[F[_]: Applicative](configFile: ConfigFile): EitherT[F, String, ConfigFile] = {
+    val goodCheck: ValidationResult[OutputConfig] = validateAttributes(configFile.good)
+    val optPiiCheck: ValidationResult[Option[OutputConfig]] = configFile.pii.map(validateAttributes).sequence
+
+    (goodCheck, optPiiCheck)
+      .mapN { case (_, _) => configFile }
+      .leftMap(nel => s"Invalid attributes: ${nel.toList.mkString("[", ",", "]")}")
+      .toEither
+      .toEitherT
+  }
+
+  private[fs2] def outputAttributes(output: OutputConfig): EnrichedEvent => Map[String, String] =
+    output match {
+      case OutputConfig.PubSub(_, Some(attributes)) =>
+        val fields = enrichedFieldsMap.filter {
+          case (s, _) =>
+            attributes.contains(s)
+        }
+        attributesFromFields(fields)
+      case OutputConfig.PubSub(_, None) => _ => Map.empty
+      case OutputConfig.FileSystem(_) =>
+        _ => Map.empty
+    }
+
+  private def attributesFromFields(fields: Map[String, Field])(ee: EnrichedEvent): Map[String, String] =
+    fields.flatMap {
+      case (k, f) => Option(f.get(ee)).map(v => k -> v.toString)
+    }
 }

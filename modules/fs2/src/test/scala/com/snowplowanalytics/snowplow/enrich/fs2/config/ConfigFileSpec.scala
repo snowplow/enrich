@@ -25,6 +25,7 @@ import _root_.io.circe.literal._
 
 import org.specs2.mutable.Specification
 import cats.effect.testing.specs2.CatsIO
+import com.snowplowanalytics.snowplow.enrich.fs2.Environment
 
 class ConfigFileSpec extends Specification with CatsIO {
   "parse" should {
@@ -33,9 +34,9 @@ class ConfigFileSpec extends Specification with CatsIO {
       val expected = ConfigFile(
         io.Authentication.Gcp,
         io.Input.PubSub("projects/test-project/subscriptions/inputSub"),
-        io.Output.PubSub("projects/test-project/topics/good-topic"),
-        Some(io.Output.PubSub("projects/test-project/topics/pii-topic")),
-        io.Output.PubSub("projects/test-project/topics/bad-topic"),
+        io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id"))),
+        Some(io.Output.PubSub("projects/test-project/topics/pii-topic", None)),
+        io.Output.PubSub("projects/test-project/topics/bad-topic", None),
         Some(7.days),
         Some(Sentry(URI.create("http://sentry.acme.com"))),
         Some(io.MetricsReporter.StatsD("localhost", 8125, Map("app" -> "enrich"), 10.seconds, None))
@@ -79,6 +80,27 @@ class ConfigFileSpec extends Specification with CatsIO {
     "not throw an exception if file not found" in {
       val configPath = Paths.get("does-not-exist")
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beLeft)
+    }
+  }
+
+  "validateConfig" should {
+    "return accumulated invalid attributes in config file" in {
+
+      val invalidAttr1 = "invalidAttr1"
+      val invalidAttr2 = "invalidAttr2"
+
+      val configFile = ConfigFile(
+        io.Authentication.Gcp,
+        io.Input.PubSub("projects/test-project/subscriptions/inputSub"),
+        io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id", invalidAttr1))),
+        Some(io.Output.PubSub("projects/test-project/topics/pii-topic", Some(Set("app_id", invalidAttr2)))),
+        io.Output.PubSub("projects/test-project/topics/bad-topic", None),
+        Some(7.days),
+        Some(Sentry(URI.create("http://sentry.acme.com"))),
+        Some(io.MetricsReporter.StatsD("localhost", 8125, Map("app" -> "enrich"), 10.seconds, None))
+      )
+
+      Environment.validateConfig[IO](configFile).value.map(result => result must beLeft)
     }
   }
 }

@@ -36,8 +36,10 @@ object Output {
   /** An item destined for the Pii Sink */
   final case class Pii[P](event: P) extends Output[Nothing, Nothing, P]
 
-  type Parsed = Output[BadRow, EnrichedEvent, EnrichedEvent]
-  type Serialized = Output[Array[Byte], Array[Byte], Array[Byte]]
+  type Attributed[B, G, P] = Output[B, AttributedData[G], AttributedData[P]]
+
+  type Parsed = Attributed[BadRow, EnrichedEvent, EnrichedEvent]
+  type Serialized = Attributed[Array[Byte], Array[Byte], Array[Byte]]
 
   /** Sends a bad/good/pii item into the appropriate sink */
   def sink[F[_]: Concurrent, B, G, P](
@@ -57,16 +59,16 @@ object Output {
   val serialize: Parsed => Serialized =
     serializeGood.andThen(serializePii).andThen(serializeBad)
 
-  private def serializeGood[P]: Output[BadRow, EnrichedEvent, P] => Output[BadRow, Array[Byte], P] = {
-    case Good(g) =>
-      serializeEnriched(g).fold(Bad(_), Good(_))
+  private def serializeGood[P]: Attributed[BadRow, EnrichedEvent, P] => Attributed[BadRow, Array[Byte], P] = {
+    case Good(AttributedData(g, attr)) =>
+      serializeEnriched(g).fold(Bad(_), s => Good(AttributedData(s, attr)))
     case b @ Bad(_) => b
     case p @ Pii(_) => p
   }
 
-  private def serializePii[G]: Output[BadRow, G, EnrichedEvent] => Output[BadRow, G, Array[Byte]] = {
-    case Pii(p) =>
-      serializeEnriched(p).fold(Bad(_), Pii(_))
+  private def serializePii[G]: Attributed[BadRow, G, EnrichedEvent] => Attributed[BadRow, G, Array[Byte]] = {
+    case Pii(AttributedData(p, attr)) =>
+      serializeEnriched(p).fold(Bad(_), s => Pii(AttributedData(s, attr)))
     case b @ Bad(_) => b
     case g @ Good(_) => g
   }

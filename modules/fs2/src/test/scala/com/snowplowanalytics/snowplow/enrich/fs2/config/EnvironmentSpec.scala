@@ -10,27 +10,28 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich
 
-import cats.data.Validated
+package com.snowplowanalytics.snowplow.enrich.fs2
+package config
 
-import _root_.fs2.{Pipe, Stream}
-
-import com.snowplowanalytics.snowplow.badrows.BadRow
-
+import cats.effect.testing.specs2.CatsIO
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.fs2.Environment
+import org.specs2.mutable.Specification
 
-package object fs2 {
+class EnvironmentSpec extends Specification with CatsIO {
 
-  /** Raw Thrift payloads coming from a collector */
-  type RawSource[F[_]] = Stream[F, Payload[F, Array[Byte]]]
+  "outputAttributes" should {
+    "fetch attribute values" in {
+      val output = io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id")))
+      val ee = new EnrichedEvent()
+      ee.app_id = "test_app"
 
-  type ByteSink[F[_]] = Pipe[F, Array[Byte], Unit]
-  type AttributedByteSink[F[_]] = Pipe[F, AttributedData[Array[Byte]], Unit]
+      val result = Environment.outputAttributes(output)(ee)
 
-  /** Enrichment result, containing list of (valid and invalid) results */
-  type Result[F[_]] = Payload[F, List[Validated[BadRow, EnrichedEvent]]]
-
-  /** Function to transform an origin raw payload into good and/or bad rows */
-  type Enrich[F[_]] = Payload[F, Array[Byte]] => F[Result[F]]
+      result must haveSize(1)
+      result must haveKey("app_id")
+      result must haveValue("test_app")
+    }
+  }
 }

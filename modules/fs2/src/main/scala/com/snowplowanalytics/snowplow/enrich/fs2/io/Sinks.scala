@@ -30,7 +30,7 @@ import com.permutive.pubsub.producer.Model.{ProjectId, Topic}
 import com.permutive.pubsub.producer.encoder.MessageEncoder
 import com.permutive.pubsub.producer.grpc.{GooglePubsubProducer, PubsubProducerConfig}
 
-import com.snowplowanalytics.snowplow.enrich.fs2.{ByteSink, Enrich}
+import com.snowplowanalytics.snowplow.enrich.fs2.{AttributedByteSink, AttributedData, ByteSink, Enrich}
 import com.snowplowanalytics.snowplow.enrich.fs2.config.io.{Authentication, Output}
 
 object Sinks {
@@ -53,14 +53,28 @@ object Sinks {
   ): Resource[F, ByteSink[F]] =
     (auth, output) match {
       case (Authentication.Gcp, o: Output.PubSub) =>
-        pubsubSink[F, Array[Byte]](o)
+        pubsubSink[F, Array[Byte]](o).map(p => (s: Stream[F, Array[Byte]]) => s.map(b => AttributedData(b, Map.empty)).through(p))
       case (_, o: Output.FileSystem) =>
         Resource.pure[F, ByteSink[F]](fileSink(o.dir, blocker))
     }
 
+  def attributedSink[F[_]: Concurrent: ContextShift](
+    blocker: Blocker,
+    auth: Authentication,
+    output: Output
+  ): Resource[F, AttributedByteSink[F]] =
+    (auth, output) match {
+      case (Authentication.Gcp, o: Output.PubSub) =>
+        pubsubSink[F, Array[Byte]](o)
+      case (_, o: Output.FileSystem) =>
+        Resource.pure[F, ByteSink[F]](fileSink(o.dir, blocker)).map { p => (s: Stream[F, AttributedData[Array[Byte]]]) =>
+          s.map(_.data).through(p)
+        }
+    }
+
   def pubsubSink[F[_]: Concurrent, A: MessageEncoder](
     output: Output.PubSub
-  ): Resource[F, Pipe[F, A, Unit]] = {
+  ): Resource[F, Pipe[F, AttributedData[A], Unit]] = {
     val config = PubsubProducerConfig[F](
       batchSize = 5,
       delayThreshold = DelayThreshold,
@@ -69,7 +83,10 @@ object Sinks {
 
     GooglePubsubProducer
       .of[F, A](ProjectId(output.project), Topic(output.name), config)
-      .map(producer => (s: Stream[F, A]) => s.parEvalMapUnordered(Enrich.ConcurrencyLevel)(row => producer.produce(row).void))
+      .map(producer =>
+        (s: Stream[F, AttributedData[A]]) =>
+          s.parEvalMapUnordered(Enrich.ConcurrencyLevel)(row => producer.produce(row.data, row.attributes).void)
+      )
   }
 
   private def fileSink[F[_]: Sync: ContextShift](path: Path, blocker: Blocker): ByteSink[F] =

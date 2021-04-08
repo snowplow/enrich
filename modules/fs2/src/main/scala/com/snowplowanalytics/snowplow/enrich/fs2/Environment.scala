@@ -37,7 +37,7 @@ import com.snowplowanalytics.iglu.client.Client
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.fs2.config.{CliConfig, ConfigFile}
-import com.snowplowanalytics.snowplow.enrich.fs2.config.io.MetricsReporter
+import com.snowplowanalytics.snowplow.enrich.fs2.config.io.{MetricsReporter, Output => OutputConfig}
 import com.snowplowanalytics.snowplow.enrich.fs2.io.{FileSystem, Metrics, Sinks, Source}
 
 /**
@@ -69,13 +69,15 @@ final case class Environment[F[_]](
   assetsState: Assets.State[F],
   blocker: Blocker,
   source: RawSource[F],
-  good: ByteSink[F],
-  pii: ByteSink[F],
+  good: AttributedByteSink[F],
+  pii: AttributedByteSink[F],
   bad: ByteSink[F],
   sentry: Option[SentryClient],
   metrics: Metrics[F],
   assetsUpdatePeriod: Option[FiniteDuration],
-  metricsReportPeriod: Option[FiniteDuration]
+  metricsReportPeriod: Option[FiniteDuration],
+  goodAttributes: Set[String],
+  piiAttributes: Set[String]
 )
 
 object Environment {
@@ -124,8 +126,8 @@ object Environment {
         blocker <- Blocker[F]
         metrics <- makeMetricsReporter[F](file)
         rawSource = Source.read[F](blocker, file.auth, file.input)
-        goodSink <- Sinks.sink[F](blocker, file.auth, file.good)
-        piiSink <- file.pii.map(f => Sinks.sink[F](blocker, file.auth, f)).sequence
+        goodSink <- Sinks.attributedSink[F](blocker, file.auth, file.good)
+        piiSink <- file.pii.map(f => Sinks.attributedSink[F](blocker, file.auth, f)).sequence
         badSink <- Sinks.sink[F](blocker, file.auth, file.bad)
         assets = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
         pauseEnrich <- makePause[F]
@@ -149,7 +151,9 @@ object Environment {
         sentry,
         metrics,
         file.assetsUpdatePeriod,
-        file.metricsReportPeriod
+        file.metricsReportPeriod,
+        outputAttributes(file.good),
+        file.pii.map(outputAttributes).getOrElse(Set.empty)
       )
     }
 
@@ -212,4 +216,10 @@ object Environment {
       Resource.liftF[F, A](action)
     }
   }
+
+  private def outputAttributes(output: OutputConfig): Set[String] =
+    output match {
+      case OutputConfig.PubSub(_, attributes) => attributes.getOrElse(Set.empty)
+      case OutputConfig.FileSystem(_) => Set.empty
+    }
 }

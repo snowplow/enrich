@@ -41,8 +41,8 @@ class IabEnrichmentSpec extends Specification with CatsIO {
 
   "IabEnrichment" should {
     "recognize a robot by IP address" in {
-      val payload = EnrichSpec.colllectorPayload.copy(
-        context = EnrichSpec.colllectorPayload.context.copy(
+      val payload = EnrichSpec.collectorPayload.copy(
+        context = EnrichSpec.collectorPayload.context.copy(
           useragent = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:12.0) Gecko/20100101 Firefox/12.0".some
         )
       )
@@ -67,8 +67,8 @@ class IabEnrichmentSpec extends Specification with CatsIO {
     }
 
     "refresh assets" in {
-      val payload = EnrichSpec.colllectorPayload.copy(
-        context = EnrichSpec.colllectorPayload.context.copy(
+      val payload = EnrichSpec.collectorPayload.copy(
+        context = EnrichSpec.collectorPayload.context.copy(
           useragent = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:12.0) Gecko/20100101 Firefox/12.0".some
         )
       )

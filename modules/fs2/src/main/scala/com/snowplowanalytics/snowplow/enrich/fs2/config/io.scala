@@ -75,7 +75,7 @@ object io {
   sealed trait Output
 
   object Output {
-    case class PubSub private (topic: String) extends Output {
+    case class PubSub private (topic: String, attributes: Option[Set[String]]) extends Output {
       val (project, name) =
         topic.split("/").toList match {
           case List("projects", project, "topics", name) =>
@@ -88,7 +88,7 @@ object io {
 
     implicit val outputDecoder: Decoder[Output] =
       deriveConfiguredDecoder[Output].emap {
-        case s @ PubSub(top) =>
+        case s @ PubSub(top, _) =>
           top.split("/").toList match {
             case List("projects", _, "topics", _) =>
               s.asRight

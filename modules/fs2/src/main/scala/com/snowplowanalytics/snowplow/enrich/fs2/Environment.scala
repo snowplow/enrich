@@ -37,6 +37,7 @@ import com.snowplowanalytics.iglu.client.Client
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.fs2.config.{CliConfig, ConfigFile}
+import com.snowplowanalytics.snowplow.enrich.fs2.config.io.{Output => OutputConfig}
 import com.snowplowanalytics.snowplow.enrich.fs2.io.{FileSystem, Metrics, Sinks, Source}
 
 /**
@@ -59,7 +60,8 @@ import com.snowplowanalytics.snowplow.enrich.fs2.io.{FileSystem, Metrics, Sinks,
  * @param sentry              optional sentry client
  * @param metrics             common counters
  * @param assetsUpdatePeriod  time after which enrich assets should be refresh
- * @param metricsReportPeriod period after which metrics are updated
+ * @param goodAttributes      fields from an enriched event to use as output message attributes
+ * @param piiAttributes       fields from a PII event to use as output message attributes
  */
 final case class Environment[F[_]](
   igluClient: Client[F, Json],
@@ -68,12 +70,14 @@ final case class Environment[F[_]](
   assetsState: Assets.State[F],
   blocker: Blocker,
   source: RawSource[F],
-  good: ByteSink[F],
-  pii: Option[ByteSink[F]],
+  good: AttributedByteSink[F],
+  pii: Option[AttributedByteSink[F]],
   bad: ByteSink[F],
   sentry: Option[SentryClient],
   metrics: Metrics[F],
-  assetsUpdatePeriod: Option[FiniteDuration]
+  assetsUpdatePeriod: Option[FiniteDuration],
+  goodAttributes: Set[String],
+  piiAttributes: Set[String]
 )
 
 object Environment {
@@ -122,8 +126,8 @@ object Environment {
         blocker <- Blocker[F]
         metrics <- Resource.liftF(metricsReporter[F](blocker, file))
         rawSource = Source.read[F](blocker, file.auth, file.input)
-        goodSink <- Sinks.sink[F](blocker, file.auth, file.good)
-        piiSink <- file.pii.map(f => Sinks.sink[F](blocker, file.auth, f)).sequence
+        goodSink <- Sinks.attributedSink[F](blocker, file.auth, file.good)
+        piiSink <- file.pii.map(f => Sinks.attributedSink[F](blocker, file.auth, f)).sequence
         badSink <- Sinks.sink[F](blocker, file.auth, file.bad)
         assets = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
         pauseEnrich <- makePause[F]
@@ -134,18 +138,21 @@ object Environment {
                     case None => Resource.pure[F, Option[SentryClient]](none[SentryClient])
                   }
         _ <- Resource.liftF(pauseEnrich.set(false) *> Logger[F].info("Enrich environment initialized"))
-      } yield Environment[F](client,
-                             enrichments,
-                             pauseEnrich,
-                             assets,
-                             blocker,
-                             rawSource,
-                             goodSink,
-                             piiSink,
-                             badSink,
-                             sentry,
-                             metrics,
-                             file.assetsUpdatePeriod
+      } yield Environment[F](
+        client,
+        enrichments,
+        pauseEnrich,
+        assets,
+        blocker,
+        rawSource,
+        goodSink,
+        piiSink,
+        badSink,
+        sentry,
+        metrics,
+        file.assetsUpdatePeriod,
+        outputAttributes(file.good),
+        file.pii.map(outputAttributes).getOrElse(Set.empty)
       )
     }
 
@@ -199,4 +206,10 @@ object Environment {
       Resource.liftF[F, A](action)
     }
   }
+
+  private def outputAttributes(output: OutputConfig): Set[String] =
+    output match {
+      case OutputConfig.PubSub(_, attributes) => attributes.getOrElse(Set.empty)
+      case OutputConfig.FileSystem(_) => Set.empty
+    }
 }

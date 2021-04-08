@@ -33,9 +33,9 @@ class ConfigFileSpec extends Specification with CatsIO {
       val expected = ConfigFile(
         io.Authentication.Gcp,
         io.Input.PubSub("projects/test-project/subscriptions/inputSub"),
-        io.Output.PubSub("projects/test-project/topics/good-topic"),
-        Some(io.Output.PubSub("projects/test-project/topics/pii-topic")),
-        io.Output.PubSub("projects/test-project/topics/bad-topic"),
+        io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id"))),
+        Some(io.Output.PubSub("projects/test-project/topics/pii-topic", None)),
+        io.Output.PubSub("projects/test-project/topics/bad-topic", None),
         Some(7.days),
         Some(Sentry(URI.create("http://sentry.acme.com"))),
         Some(io.MetricsReporter.StatsD("localhost", 8125, Map("app" -> "enrich"), 10.seconds, None))

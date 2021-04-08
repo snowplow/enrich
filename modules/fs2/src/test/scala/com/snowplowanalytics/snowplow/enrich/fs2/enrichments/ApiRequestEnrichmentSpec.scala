@@ -59,8 +59,8 @@ class ApiRequestEnrichmentSpec extends Specification with CatsIO {
           "schema": "iglu:com.acme/test/jsonschema/1-0-1",
           "data": {"path": {"id": 3}}
         }"""
-      val payload = EnrichSpec.colllectorPayload.copy(
-        querystring = new BasicNameValuePair("ue_px", unstructEvent(event)) :: EnrichSpec.colllectorPayload.querystring
+      val payload = EnrichSpec.collectorPayload.copy(
+        querystring = new BasicNameValuePair("ue_px", unstructEvent(event)) :: EnrichSpec.collectorPayload.querystring
       )
       val input = Stream(Payload(payload.toRaw, IO.unit))
 

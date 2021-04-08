@@ -42,33 +42,39 @@ class OutputSpec extends Specification with ScalaCheck {
 
     "serialize a good event to the good output" in {
       val ee = new EnrichedEvent()
+      val attributes = Map("a" -> "x", "b" -> "y")
+      val attributed = AttributedData(ee, attributes)
 
-      Output.serialize(Output.Good(ee)) must beLike {
+      Output.serialize(Output.Good(attributed)) must beLike {
         case Output.Good(result) =>
-          result must not be empty
+          result.data must not be empty
+          result.attributes must_== attributes
       }
 
     }
 
     "serialize a pii event to the pii output" in {
       val ee = new EnrichedEvent()
+      val attributes = Map("a" -> "x", "b" -> "y")
+      val attributed = AttributedData(ee, attributes)
 
-      Output.serialize(Output.Pii(ee)) must beLike {
+      Output.serialize(Output.Pii(attributed)) must beLike {
         case Output.Pii(result) =>
-          result must not be empty
+          result.data must not be empty
+          result.attributes must_== attributes
       }
 
     }
 
-
     "serialize an over-sized good event to the bad output" in {
       val ee = new EnrichedEvent()
       ee.app_id = "x" * 10000000
+      val attributed = AttributedData(ee, Map.empty)
 
-      Output.serialize(Output.Good(ee)) must beLike {
+      Output.serialize(Output.Good(attributed)) must beLike {
         case Output.Bad(bytes) =>
           bytes must not be empty
-          bytes must have size(be_<=(6900000))
+          bytes must have size (be_<=(6900000))
       }
 
     }
@@ -76,11 +82,12 @@ class OutputSpec extends Specification with ScalaCheck {
     "serialize an over-sized pii event to the bad output" in {
       val ee = new EnrichedEvent()
       ee.app_id = "x" * 10000000
+      val attributed = AttributedData(ee, Map.empty)
 
-      Output.serialize(Output.Pii(ee)) must beLike {
+      Output.serialize(Output.Pii(attributed)) must beLike {
         case Output.Bad(bytes) =>
           bytes must not be empty
-          bytes must have size(be_<=(6900000))
+          bytes must have size (be_<=(6900000))
       }
 
     }

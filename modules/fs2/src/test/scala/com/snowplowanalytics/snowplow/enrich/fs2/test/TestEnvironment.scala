@@ -33,7 +33,7 @@ import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 import com.snowplowanalytics.snowplow.badrows.BadRow
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
-import com.snowplowanalytics.snowplow.enrich.fs2.{Assets, Enrich, EnrichSpec, Environment, Output, RawSource}
+import com.snowplowanalytics.snowplow.enrich.fs2.{Assets, AttributedData, Enrich, EnrichSpec, Environment, Output, RawSource}
 import com.snowplowanalytics.snowplow.enrich.fs2.Environment.Enrichments
 import com.snowplowanalytics.snowplow.enrich.fs2.SpecHelpers.{filesResource, ioClock}
 import cats.effect.testing.specs2.CatsIO
@@ -44,8 +44,8 @@ import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 case class TestEnvironment(
   env: Environment[IO],
   counter: Ref[IO, Counter],
-  good: NoneTerminatedQueue[IO, Array[Byte]],
-  pii: NoneTerminatedQueue[IO, Array[Byte]],
+  good: NoneTerminatedQueue[IO, AttributedData[Array[Byte]]],
+  pii: NoneTerminatedQueue[IO, AttributedData[Array[Byte]]],
   bad: NoneTerminatedQueue[IO, Array[Byte]]
 ) {
 
@@ -80,9 +80,9 @@ case class TestEnvironment(
       .map { rows =>
         rows.map {
           case Output.Bad(bytes) => Output.Bad(TestEnvironment.parseBad(bytes))
-          case Output.Good(bytes) =>
+          case Output.Good(AttributedData(bytes, _)) =>
             EnrichSpec.normalize(new String(bytes, UTF_8)).fold(Output.Bad(_), Output.Good(_))
-          case Output.Pii(bytes) =>
+          case Output.Pii(AttributedData(bytes, _)) =>
             EnrichSpec.normalize(new String(bytes, UTF_8)).fold(Output.Bad(_), Output.Pii(_))
         }
       }
@@ -130,8 +130,8 @@ object TestEnvironment extends CatsIO {
       blocker <- ioBlocker
       _ <- filesResource(blocker, enrichments.flatMap(_.filesToCache).map(p => Paths.get(p._2)))
       counter <- Resource.liftF(Counter.make[IO])
-      goodQueue <- Resource.liftF(Queue.noneTerminated[IO, Array[Byte]])
-      piiQueue <- Resource.liftF(Queue.noneTerminated[IO, Array[Byte]])
+      goodQueue <- Resource.liftF(Queue.noneTerminated[IO, AttributedData[Array[Byte]]])
+      piiQueue <- Resource.liftF(Queue.noneTerminated[IO, AttributedData[Array[Byte]]])
       badQueue <- Resource.liftF(Queue.noneTerminated[IO, Array[Byte]])
       metrics = Counter.mkCounterMetrics[IO](counter)(Monad[IO], ioClock)
       pauseEnrich <- Environment.makePause[IO]
@@ -150,7 +150,9 @@ object TestEnvironment extends CatsIO {
                       _.map(Some(_)).through(badQueue.enqueue),
                       None,
                       metrics,
-                      None
+                      None,
+                      Set.empty,
+                      Set.empty
                     )
       _ <- Resource.liftF(pauseEnrich.set(false) *> logger.info("TestEnvironment initialized"))
     } yield TestEnvironment(environment, counter, goodQueue, piiQueue, badQueue)

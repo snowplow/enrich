@@ -18,6 +18,9 @@ good = {
   type = "PubSub"
   topic = "projects/test-project/topics/good-topic"
 
+  // Enriched event fields to add as PubSub message attributes.
+  attributes = [ "app_id" ]
+
   // Local FS supported for testing purposes
   // type = "FileSystem"
   // dir = "/var/enriched"
@@ -27,6 +30,9 @@ good = {
 pii = {
   type = "PubSub"
   topic = "projects/test-project/topics/pii-topic"
+
+  // Enriched event fields to add as PubSub message attributes.
+  // attributes = [ "app_id" ]
 
   // Local FS supported for testing purposes
   // type = "FileSystem"

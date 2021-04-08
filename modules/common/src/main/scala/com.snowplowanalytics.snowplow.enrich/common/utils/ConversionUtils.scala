@@ -14,6 +14,7 @@ package com.snowplowanalytics.snowplow.enrich.common
 package utils
 
 import java.lang.{Byte => JByte, Integer => JInteger}
+import java.lang.reflect.Field
 import java.math.{BigDecimal => JBigDecimal}
 import java.net.{InetAddress, URI, URLDecoder, URLEncoder}
 import java.nio.charset.Charset
@@ -522,7 +523,7 @@ object ConversionUtils {
       )
     ).normalize
 
-  private val EnrichedFields =
+  val EnrichedFields: List[Field] =
     classOf[EnrichedEvent].getDeclaredFields
       .filterNot(_.getName.equals("pii"))
       .map { field => field.setAccessible(true); field }

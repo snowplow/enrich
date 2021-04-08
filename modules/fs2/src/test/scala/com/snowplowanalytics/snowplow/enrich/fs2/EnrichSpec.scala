@@ -18,7 +18,7 @@ import java.util.UUID
 import scala.concurrent.duration._
 
 import cats.Applicative
-import cats.data.Validated
+import cats.data.{NonEmptyList, Validated}
 import cats.implicits._
 
 import cats.effect.IO
@@ -33,10 +33,11 @@ import org.apache.http.message.BasicNameValuePair
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
-import com.snowplowanalytics.snowplow.badrows.{Processor, BadRow, Payload => BadRowPayload}
+import com.snowplowanalytics.snowplow.badrows.{Failure, FailureDetails, Processor, BadRow, Payload => BadRowPayload}
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.IpLookupsEnrichment
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
 
 import com.snowplowanalytics.snowplow.enrich.fs2.EnrichSpec.{Expected, minimalEvent, normalizeResult}
@@ -174,6 +175,100 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
       }
     }
   }
+
+  "resultSink" should {
+    "emit an enriched event with attributes to the good sink" in {
+      TestEnvironment.make(Stream.empty).use { test =>
+        val environment = test.env.copy(goodAttributes = { ee => Map("app_id" -> ee.app_id) })
+        val ee = new EnrichedEvent()
+        ee.app_id = "test_app"
+        ee.platform = "web"
+
+        val input = Stream.emit(List(Validated.Valid(ee)))
+
+        for {
+          _ <- input.through(Enrich.resultSink(environment)).compile.drain
+          _ <- test.finalise()
+          good <- test.good.dequeue.compile.toList
+          pii <- test.pii.dequeue.compile.toList
+          bad <- test.bad.dequeue.compile.toList
+        } yield {
+
+          good should beLike {
+            case AttributedData(bytes, attrs) :: Nil =>
+              bytes must not be empty
+              attrs must contain(exactly("app_id" -> "test_app"))
+          }
+
+          (pii should be empty)
+          (bad should be empty)
+        }
+      }
+    }
+
+    "emit a pii event with attributes to the pii sink" in {
+      TestEnvironment.make(Stream.empty).use { test =>
+        val environment =
+          test.env.copy(goodAttributes = { ee => Map("app_id" -> ee.app_id) }, piiAttributes = { ee => Map("platform" -> ee.platform) })
+        val ee = new EnrichedEvent()
+        ee.app_id = "test_app"
+        ee.platform = "web"
+        ee.pii = "e30="
+
+        val input = Stream.emit(List(Validated.Valid(ee)))
+
+        for {
+          _ <- input.through(Enrich.resultSink(environment)).compile.drain
+          _ <- test.finalise()
+          good <- test.good.dequeue.compile.toList
+          pii <- test.pii.dequeue.compile.toList
+          bad <- test.bad.dequeue.compile.toList
+        } yield {
+
+          good should beLike {
+            case AttributedData(bytes, attrs) :: Nil =>
+              bytes must not be empty
+              attrs must contain(exactly("app_id" -> "test_app"))
+          }
+
+          pii should beLike {
+            case AttributedData(bytes, attrs) :: Nil =>
+              bytes must not be empty
+              attrs must contain(exactly("platform" -> "srv"))
+          }
+
+          (bad should be empty)
+        }
+
+      }
+    }
+
+    "emit a bad row to the bad sink" in {
+      TestEnvironment.make(Stream.empty).use { test =>
+        val failure = Failure
+          .AdapterFailures(Instant.now, "vendor", "1-0-0", NonEmptyList.one(FailureDetails.AdapterFailure.NotJson("field", None, "error")))
+        val badRow = BadRow.AdapterFailures(Enrich.processor, failure, EnrichSpec.collectorPayload.toBadRowPayload)
+
+        val input = Stream.emit(List(Validated.Invalid(badRow)))
+
+        for {
+          _ <- input.through(Enrich.resultSink(test.env)).compile.drain
+          _ <- test.finalise()
+          good <- test.good.dequeue.compile.toList
+          pii <- test.pii.dequeue.compile.toList
+          bad <- test.bad.dequeue.compile.toList
+        } yield {
+
+          (good should be empty)
+          (pii should be empty)
+
+          bad should have size 1
+        }
+
+      }
+    }
+
+  }
 }
 
 object EnrichSpec {
@@ -188,9 +283,9 @@ object EnrichSpec {
     new BasicNameValuePair("e", "pv"),
     new BasicNameValuePair("eid", eventId.toString)
   )
-  val colllectorPayload: CollectorPayload = CollectorPayload(api, querystring, None, None, source, context)
+  val collectorPayload: CollectorPayload = CollectorPayload(api, querystring, None, None, source, context)
   def payload[F[_]: Applicative]: Payload[F, Array[Byte]] =
-    Payload(colllectorPayload.toRaw, Applicative[F].unit)
+    Payload(collectorPayload.toRaw, Applicative[F].unit)
 
   def normalize(payload: String): Validated[BadRow, Event] =
     Event

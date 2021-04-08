@@ -37,8 +37,8 @@ class YauaaEnrichmentSpec extends Specification with CatsIO {
 
   "YauaaEnrichment" should {
     "add a derived context" in {
-      val payload = EnrichSpec.colllectorPayload.copy(
-        context = EnrichSpec.colllectorPayload.context.copy(
+      val payload = EnrichSpec.collectorPayload.copy(
+        context = EnrichSpec.collectorPayload.context.copy(
           useragent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.14; rv:81.0) Gecko/20100101 Firefox/81.0".some
         )
       )

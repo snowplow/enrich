@@ -30,18 +30,40 @@ import com.permutive.pubsub.producer.Model.{ProjectId, Topic}
 import com.permutive.pubsub.producer.encoder.MessageEncoder
 import com.permutive.pubsub.producer.grpc.{GooglePubsubProducer, PubsubProducerConfig}
 
-import com.snowplowanalytics.snowplow.enrich.fs2.{AttributedByteSink, AttributedData, ByteSink, Enrich}
+import com.snowplowanalytics.snowplow.enrich.fs2.{AttributedByteSink, AttributedData, ByteSink}
 import com.snowplowanalytics.snowplow.enrich.fs2.config.io.{Authentication, Output}
 
 object Sinks {
 
   /**
    * Set the delay threshold to use for batching. After this amount of time has elapsed (counting
-   * from the first element added), the elements will be wrapped up in a batch and sent. This
-   * value should not be set too high, usually on the order of milliseconds. Otherwise, calls
-   * might appear to never complete.
+   * from the first element added), the elements will be wrapped up in a batch and sent.
+   *
+   * If the source MaxQueueSize is small, then the queue could block between batches if
+   * DelayThreshold is too large.  If the source MaxQueueSize is sufficiently large, then the
+   * DelayThreshold should not ever cause blocking.
    */
   val DelayThreshold: FiniteDuration = 200.milliseconds
+
+  /**
+   * A batch of messages will be emitted to PubSub when the batch reaches 1000 messages.
+   * We use 1000 because it is the maximum batch size allowed by PubSub.
+   * This overrides the permutive library default of `5`
+   */
+  val PubsubMaxBatchSize = 1000L
+
+  /**
+   * A batch of messages will be emitted to PubSub when the batch reaches 10 MB.
+   * We use 10MB because it is the maximum batch size allowed by PubSub.
+   */
+  val PubsubMaxBatchBytes = 10000000L
+
+  /**
+   * The number of threads used internally by permutive library to process the callback after message delivery.
+   * The callback does very little "work" so we use the minimum number of threads.
+   * This overrides the permutive library default of 3 * num processors
+   */
+  val NumCallbackExecutors = 1
 
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
     Slf4jLogger.getLogger[F]
@@ -76,16 +98,17 @@ object Sinks {
     output: Output.PubSub
   ): Resource[F, Pipe[F, AttributedData[A], Unit]] = {
     val config = PubsubProducerConfig[F](
-      batchSize = 5,
+      batchSize = PubsubMaxBatchSize,
+      requestByteThreshold = Some(PubsubMaxBatchBytes),
       delayThreshold = DelayThreshold,
+      callbackExecutors = NumCallbackExecutors,
       onFailedTerminate = err => Logger[F].error(err)("PubSub sink termination error")
     )
 
     GooglePubsubProducer
       .of[F, A](ProjectId(output.project), Topic(output.name), config)
       .map(producer =>
-        (s: Stream[F, AttributedData[A]]) =>
-          s.parEvalMapUnordered(Enrich.ConcurrencyLevel)(row => producer.produce(row.data, row.attributes).void)
+        (s: Stream[F, AttributedData[A]]) => s.parEvalMapUnordered(Int.MaxValue)(row => producer.produce(row.data, row.attributes).void)
       )
   }
 

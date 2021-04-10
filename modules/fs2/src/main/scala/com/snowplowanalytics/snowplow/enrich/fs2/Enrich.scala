@@ -83,7 +83,7 @@ object Enrich {
     _.flatMap(Stream.emits(_))
       .through(toOutputs(env))
       .map(Output.serialize)
-      .observe(Output.sink(badSink(env), goodSink(env), piiSink(env)))
+      .through(Output.sink(badSink(env), goodSink(env), piiSink(env)))
       .drain
 
   def badSink[F[_]: Applicative](env: Environment[F]): ByteSink[F] =

@@ -35,6 +35,15 @@ object Payload {
   def sinkAll[F[_]: Concurrent: Parallel, A](f: A => F[Unit]): Pipe[F, Payload[F, List[A]], Unit] =
     sink(_.parTraverse_(f))
 
+  /**
+   * Controls the maximum number of payloads we can be waiting to get sunk
+   *
+   *  For the Pubsub sink this should at least exceed the number events we can sink within
+   *  [[io.Sinks.DelayThreshold]].
+   *
+   *  For the FileSystem source this is the primary way that we control the memory footprint of the
+   *  app.
+   */
   val SinkConcurrency = 10000
 
 }

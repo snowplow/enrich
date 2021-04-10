@@ -47,9 +47,9 @@ object Output {
     good: Pipe[F, G, Unit],
     pii: Pipe[F, P, Unit]
   ): Pipe[F, Output[B, G, P], Unit] =
-    _.observe(_.collect { case Bad(br) => br }.through(bad))
-      .observe(_.collect { case Good(event) => event }.through(good))
-      .observe(_.collect { case Pii(event) => event }.through(pii))
+    _.observeAsync(Int.MaxValue)(_.collect { case Good(event) => event }.through(good))
+      .observeAsync(Int.MaxValue)(_.collect { case Bad(br) => br }.through(bad))
+      .observeAsync(Int.MaxValue)(_.collect { case Pii(event) => event }.through(pii))
       .drain
 
   /**

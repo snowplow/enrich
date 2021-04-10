@@ -28,7 +28,7 @@ case class Payload[F[_], A](data: A, finalise: F[Unit])
 object Payload {
 
   def sink[F[_]: Concurrent, A](inner: Pipe[F, A, Unit]): Pipe[F, Payload[F, A], Unit] =
-    _.observeAsync(Enrich.ConcurrencyLevel)(_.map(_.data).through(inner))
-      .evalMap(_.finalise)
+    _.observeAsync(Int.MaxValue)(_.map(_.data).through(inner))
+      .parEvalMapUnordered(Int.MaxValue)(_.finalise)
 
 }

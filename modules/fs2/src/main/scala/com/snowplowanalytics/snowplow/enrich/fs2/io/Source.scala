@@ -28,6 +28,26 @@ import com.google.pubsub.v1.PubsubMessage
 
 object Source {
 
+  /**
+   * Number of threads used internally by permutive library to handle incoming messages.
+   * These threads do very little "work" apart from writing the message to a concurrent Queue.
+   * Overrides the permutive library default of `3`.
+   */
+  val ParallelPullCount = 1
+
+  /**
+   * Configures the "max outstanding element count" of pubSub.
+   *
+   * This is the principal way we control concurrency in the app; it puts an upper bound on the number
+   * of events in memory at once. An event counts towards this limit starting from when it received
+   * by the permutive library, until we ack it (after publishing to output). The value must be large
+   * enough that it does not cause the sink to block whilst it is waiting for a batch to be
+   * completed.
+   *
+   * (`1000` is the permutive library default; we re-define it here to be explicit)
+   */
+  val MaxQueueSize = 1000
+
   def read[F[_]: Concurrent: ContextShift](
     blocker: Blocker,
     auth: Authentication,
@@ -50,7 +70,8 @@ object Source {
   ): Stream[F, Payload[F, Array[Byte]]] = {
     val onFailedTerminate: Throwable => F[Unit] =
       e => Sync[F].delay(System.err.println(s"Cannot terminate ${e.getMessage}"))
-    val pubSubConfig = PubsubGoogleConsumerConfig(onFailedTerminate = onFailedTerminate)
+    val pubSubConfig =
+      PubsubGoogleConsumerConfig(onFailedTerminate = onFailedTerminate, parallelPullCount = ParallelPullCount, maxQueueSize = MaxQueueSize)
     val projectId = Model.ProjectId(input.project)
     val subscriptionId = Model.Subscription(input.name)
     val errorHandler: (PubsubMessage, Throwable, F[Unit], F[Unit]) => F[Unit] = // Should be useless

@@ -28,7 +28,7 @@ object Dependencies {
 
   object V {
     // Java
-    val commonsCodec     = "1.12"
+    val commonsCodec     = "1.15"
     val jodaTime         = "2.10.1"
     val useragent        = "1.21"
     val uaParser         = "1.4.3"

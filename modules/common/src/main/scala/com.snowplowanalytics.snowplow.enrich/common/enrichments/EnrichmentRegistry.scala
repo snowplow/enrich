@@ -34,7 +34,7 @@ import com.snowplowanalytics.weather.providers.openweather.CreateOWM
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf._
 
-import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, CirceUtils}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry._
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest.ApiRequestEnrichment
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii.PiiPseudonymizerEnrichment
@@ -104,19 +104,20 @@ object EnrichmentRegistry {
   def build[
     F[_]: Monad: CreateForex: CreateIabClient: CreateIpLookups: CreateOWM: CreateParser: CreateUaParser: sqlquery.CreateSqlQueryEnrichment: apirequest.CreateApiRequestEnrichment
   ](
-    confs: List[EnrichmentConf]
+    confs: List[EnrichmentConf],
+    blocker: BlockerF[F]
   ): EitherT[F, String, EnrichmentRegistry[F]] =
     confs.foldLeft(EitherT.pure[F, String](EnrichmentRegistry[F]())) { (er, e) =>
       e match {
         case c: ApiRequestConf =>
           for {
-            enrichment <- EitherT.right(c.enrichment[F])
+            enrichment <- EitherT.right(c.enrichment[F](blocker))
             registry <- er
           } yield registry.copy(apiRequest = enrichment.some)
         case c: PiiPseudonymizerConf => er.map(_.copy(piiPseudonymizer = c.enrichment.some))
         case c: SqlQueryConf =>
           for {
-            enrichment <- EitherT.right(c.enrichment[F])
+            enrichment <- EitherT.right(c.enrichment[F](blocker))
             registry <- er
           } yield registry.copy(sqlQuery = enrichment.some)
         case c: AnonIpConf => er.map(_.copy(anonIp = c.enrichment.some))
@@ -136,7 +137,7 @@ object EnrichmentRegistry {
           } yield registry.copy(iab = enrichment.some)
         case c: IpLookupsConf =>
           for {
-            enrichment <- EitherT.right(c.enrichment[F])
+            enrichment <- EitherT.right(c.enrichment[F](blocker))
             registry <- er
           } yield registry.copy(ipLookups = enrichment.some)
         case c: JavascriptScriptConf => er.map(_.copy(javascriptScript = c.enrichment.some))

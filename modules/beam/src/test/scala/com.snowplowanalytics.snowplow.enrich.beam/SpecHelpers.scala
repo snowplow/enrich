@@ -35,6 +35,7 @@ import org.scalatest.{Ignore, Tag}
 
 import utils._
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 
 object SpecHelpers {
 
@@ -102,7 +103,7 @@ object SpecHelpers {
     )
 
   val enrichmentRegistry = EnrichmentRegistry
-    .build(enrichmentConfs)
+    .build(enrichmentConfs, BlockerF.noop)
     .fold(
       e => throw new RuntimeException(e.toList.mkString("\n")),
       r => r

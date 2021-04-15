@@ -25,7 +25,7 @@ import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, S
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.ApiRequestConf
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.HttpClient
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, HttpClient}
 
 import org.specs2.Specification
 import org.specs2.matcher.ValidatedMatchers
@@ -158,7 +158,7 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
       )
 
     val enrichedContextResult = config
-      .enrichment[Id]
+      .enrichment[Id](BlockerF.noop)
       .lookup(
         event = fakeEnrichedEvent,
         derivedContexts = List.empty,
@@ -390,7 +390,7 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
       )
 
     val enrichedContextResult = config
-      .enrichment[Id]
+      .enrichment[Id](BlockerF.noop)
       .lookup(
         event = fakeEnrichedEvent,
         derivedContexts = List.empty,
@@ -426,7 +426,7 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
         json"""{"latitude": 32.234, "longitude": 33.564}"""
       )
 
-    val enrichedContextResult = config.enrichment[Id].lookup(new EnrichedEvent, Nil, Nil, None)
+    val enrichedContextResult = config.enrichment[Id](BlockerF.noop).lookup(new EnrichedEvent, Nil, Nil, None)
 
     enrichedContextResult must beValid(List(expectedDerivation))
   }

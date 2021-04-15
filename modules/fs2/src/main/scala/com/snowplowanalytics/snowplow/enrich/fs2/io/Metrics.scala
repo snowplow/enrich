@@ -80,7 +80,7 @@ object Metrics {
           case Some(tstamp) =>
             for {
               now <- Clock[F].realTime(MILLISECONDS)
-              _ <- refs.enrichLatency.set(Some((now - tstamp)))
+              _ <- refs.enrichTimestamps.set(Some(now -> tstamp))
             } yield ()
           case None =>
             Sync[F].unit
@@ -97,7 +97,7 @@ object Metrics {
     }
 
   private final case class MetricRefs[F[_]](
-    enrichLatency: Ref[F, Option[Long]],
+    enrichTimestamps: Ref[F, Option[(Long, Long)]], // A ref of when event was last processed, and its collector timestamp
     rawCount: Ref[F, Int],
     goodCount: Ref[F, Int],
     badCount: Ref[F, Int]
@@ -106,26 +106,28 @@ object Metrics {
   private object MetricRefs {
     def init[F[_]: Sync]: F[MetricRefs[F]] =
       for {
-        enrichLatency <- Ref.of[F, Option[Long]](None)
+        enrichTimestamps <- Ref.of[F, Option[(Long, Long)]](None)
         rawCounter <- Ref.of[F, Int](0)
         goodCounter <- Ref.of[F, Int](0)
         badCounter <- Ref.of[F, Int](0)
-      } yield MetricRefs(enrichLatency, rawCounter, goodCounter, badCounter)
+      } yield MetricRefs(enrichTimestamps, rawCounter, goodCounter, badCounter)
 
-    def snapshot[F[_]: Monad](refs: MetricRefs[F]): F[MetricSnapshot] =
+    def snapshot[F[_]: Monad](refs: MetricRefs[F], minTime: Long): F[MetricSnapshot] =
       for {
-        latency <- refs.enrichLatency.get
+        timestampsOpt <- refs.enrichTimestamps.get
         rawCount <- refs.rawCount.get
         goodCount <- refs.goodCount.get
         badCount <- refs.badCount.get
-      } yield MetricSnapshot(latency, rawCount, goodCount, badCount)
+      } yield {
+        // Only report the latency if it was recorded more recently than minTime
+        val latency = timestampsOpt match {
+          case Some((enrichTstamp, collectorTstamp)) if enrichTstamp > minTime => Some(enrichTstamp - collectorTstamp)
+          case _ => None
+        }
+        MetricSnapshot(latency, rawCount, goodCount, badCount)
+      }
   }
 
-  /**
-   * A stream which reports metrics and immediately resets the latency gauge after each report.
-   * This is because latency must not get "stuck" on a value when enrich is no longer receiving new
-   * events.
-   */
   def reporterStream[F[_]: Sync: Timer: ContextShift](
     blocker: Blocker,
     config: MetricsReporter,
@@ -133,8 +135,10 @@ object Metrics {
   ): Stream[F, Unit] =
     for {
       rep <- Stream.resource(makeReporter(blocker, config))
+      lastReportRef <- Stream.eval(Clock[F].realTime(MILLISECONDS)).evalMap(Ref.of(_))
       _ <- Stream.fixedDelay[F](config.period)
-      snapshot <- Stream.eval(MetricRefs.snapshot(metrics))
+      lastReport <- Stream.eval(Clock[F].realTime(MILLISECONDS)).evalMap(lastReportRef.getAndSet(_))
+      snapshot <- Stream.eval(MetricRefs.snapshot(metrics, lastReport))
       _ <- Stream.eval(rep.report(snapshot))
     } yield ()
 

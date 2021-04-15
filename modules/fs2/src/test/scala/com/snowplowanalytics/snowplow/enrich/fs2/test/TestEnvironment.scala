@@ -16,6 +16,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Paths
 
 import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext
 
 import cats.Monad
 
@@ -25,15 +26,17 @@ import cats.effect.concurrent.Ref
 import io.circe.{Json, parser}
 
 import com.snowplowanalytics.iglu.client.{CirceValidator, Client, Resolver}
-import com.snowplowanalytics.iglu.client.resolver.registries.Registry
+import com.snowplowanalytics.iglu.client.resolver.registries.{Http4sRegistryLookup, Registry}
 
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 import com.snowplowanalytics.snowplow.badrows.BadRow
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
+import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 import com.snowplowanalytics.snowplow.enrich.fs2.{Assets, AttributedData, Enrich, EnrichSpec, Environment, RawSource}
 import com.snowplowanalytics.snowplow.enrich.fs2.Environment.Enrichments
 import com.snowplowanalytics.snowplow.enrich.fs2.SpecHelpers.{filesResource, ioClock}
+import com.snowplowanalytics.snowplow.enrich.fs2.io.Clients
 import cats.effect.testing.specs2.CatsIO
 
 import io.chrisdavenport.log4cats.Logger
@@ -114,19 +117,21 @@ object TestEnvironment extends CatsIO {
    */
   def make(source: RawSource[IO], enrichments: List[EnrichmentConf] = Nil): Resource[IO, TestEnvironment] =
     for {
+      http <- Clients.mkHTTP[IO](ExecutionContext.global)
       blocker <- ioBlocker
       _ <- filesResource(blocker, enrichments.flatMap(_.filesToCache).map(p => Paths.get(p._2)))
       counter <- Resource.liftF(Counter.make[IO])
       metrics = Counter.mkCounterMetrics[IO](counter)(Monad[IO], ioClock)
       pauseEnrich <- Environment.makePause[IO]
-      assets <- Assets.State.make(blocker, pauseEnrich, enrichments.flatMap(_.filesToCache))
+      assets <- Assets.State.make(blocker, pauseEnrich, enrichments.flatMap(_.filesToCache), http)
       _ <- Resource.liftF(logger.info("AssetsState initialized"))
-      enrichmentsRef <- Enrichments.make[IO](enrichments)
+      enrichmentsRef <- Enrichments.make[IO](enrichments, BlockerF.ofBlocker(blocker))
       goodRef <- Resource.liftF(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
       piiRef <- Resource.liftF(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
       badRef <- Resource.liftF(Ref.of[IO, Vector[Array[Byte]]](Vector.empty))
       environment = Environment[IO](
                       igluClient,
+                      Http4sRegistryLookup(http),
                       enrichmentsRef,
                       pauseEnrich,
                       assets,

@@ -19,6 +19,7 @@ import cats.syntax.either._
 import com.snowplowanalytics.iglu.client.Client
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
+import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 import io.circe.Json
 
 /** Singletons needed for unserializable classes. */
@@ -57,7 +58,7 @@ object singleton {
         synchronized {
           if (instance == null)
             instance = EnrichmentRegistry
-              .build[Id](enrichmentConfs)
+              .build[Id](enrichmentConfs, BlockerF.noop)
               .value
               .valueOr(e => throw new RuntimeException(e.toString))
         }

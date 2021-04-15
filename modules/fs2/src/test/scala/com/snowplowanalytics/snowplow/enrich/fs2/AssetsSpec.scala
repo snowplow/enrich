@@ -22,6 +22,7 @@ import fs2.io.file.{exists, readAll}
 
 import cats.effect.{Blocker, Concurrent, ContextShift, IO, Resource, Timer}
 
+import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 import com.snowplowanalytics.snowplow.enrich.fs2.test._
 import com.snowplowanalytics.snowplow.enrich.fs2.Assets.Asset
 
@@ -138,7 +139,7 @@ object AssetsSpec {
     val resources = for {
       blocker <- Blocker[IO]
       state <- SpecHelpers.refreshState(List(URI.create("http://localhost:8080") -> "index"))
-      enrichments <- Environment.Enrichments.make[IO](List())
+      enrichments <- Environment.Enrichments.make[IO](List(), BlockerF.noop)
       path <- Resource.liftF(Assets.getCurDir[IO])
       _ <- SpecHelpers.filesResource(blocker, TestFiles)
     } yield (blocker, state, enrichments, path)

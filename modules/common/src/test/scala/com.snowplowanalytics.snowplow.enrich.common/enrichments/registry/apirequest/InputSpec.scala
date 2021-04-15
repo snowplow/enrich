@@ -22,6 +22,7 @@ import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, S
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.ApiRequestConf
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 
 import org.specs2.Specification
 import org.specs2.matcher.ValidatedMatchers
@@ -252,7 +253,7 @@ class InputSpec extends Specification with ValidatedMatchers {
       HttpApi("GET", uriTemplate, 1000, Authentication(None)),
       List(Output("iglu:someschema", JsonOutput("$").some)),
       Cache(10, 5)
-    ).enrichment[Id]
+    ).enrichment[Id](BlockerF.noop)
     val event = new EnrichedEvent
     event.setUser_id("chuwy")
     // time in true_tstamp won't be found

@@ -30,9 +30,12 @@ import fs2.Stream
 import fs2.hash.md5
 import fs2.io.file.{copy, deleteIfExists, exists, readAll, tempFileResource, writeAll}
 
+import org.http4s.client.{Client => HttpClient}
+
 import _root_.io.chrisdavenport.log4cats.Logger
 import _root_.io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 
+import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 import com.snowplowanalytics.snowplow.enrich.fs2.io.Clients
 
 /**
@@ -77,18 +80,20 @@ object Assets {
     /**
      * Initialize an assets state. Try to find them on local FS
      * or download if they're missing. Also initializes all necessary
-     * clients (S3, GCP, HTTP etc)
+     * clients (S3, GCP etc)
      * @param blocker thread pool for downloading and reading files
      * @param stop global stop signal from [[Environment]]
      * @param assets all assets that have to be tracked
+     * @param http the HTTP client that we share with other parts of the application
      */
     def make[F[_]: ConcurrentEffect: Timer: ContextShift](
       blocker: Blocker,
       stop: Ref[F, Boolean],
-      assets: List[Asset]
+      assets: List[Asset],
+      http: HttpClient[F]
     ): Resource[F, State[F]] =
       for {
-        clients <- Clients.make[F](blocker, assets.map(_._1))
+        clients <- Clients.make[F](blocker, assets.map(_._1), http)
         map <- Resource.liftF(build[F](blocker, clients, assets.filterNot(asset => asset == TestPair)))
         files <- Resource.liftF(Ref.of[F, Map[URI, Hash]](map))
       } yield State(files, stop, clients)
@@ -180,7 +185,7 @@ object Assets {
           _ <- Logger[F].info("Resuming enrich stream")
           old <- enrichments.get
           _ <- Logger[F].info(show"Reinitializing enrichments: ${old.configs.map(_.schemaKey.name).mkString(", ")}")
-          fresh <- old.reinitialize
+          fresh <- old.reinitialize(BlockerF.ofBlocker(blocker))
           _ <- enrichments.set(fresh)
           _ <- state.pauseEnrich.set(false)
         } yield ()

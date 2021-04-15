@@ -31,7 +31,7 @@ import com.snowplowanalytics.snowplow.badrows.FailureDetails
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{Enrichment, ParseableEnrichment}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.ApiRequestConf
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.{CirceUtils, HttpClient}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, CirceUtils, HttpClient}
 
 object ApiRequestEnrichment extends ParseableEnrichment {
   override val supportedSchema =
@@ -88,8 +88,8 @@ object ApiRequestEnrichment extends ParseableEnrichment {
     UUID.nameUUIDFromBytes(contentKey.getBytes).toString
   }
 
-  def apply[F[_]: CreateApiRequestEnrichment](conf: ApiRequestConf): F[ApiRequestEnrichment[F]] =
-    CreateApiRequestEnrichment[F].create(conf)
+  def apply[F[_]: CreateApiRequestEnrichment](conf: ApiRequestConf, blocker: BlockerF[F]): F[ApiRequestEnrichment[F]] =
+    CreateApiRequestEnrichment[F].create(conf, blocker)
 }
 
 final case class ApiRequestEnrichment[F[_]: Monad: HttpClient](
@@ -98,7 +98,8 @@ final case class ApiRequestEnrichment[F[_]: Monad: HttpClient](
   api: HttpApi,
   outputs: List[Output],
   ttl: Int,
-  cache: LruMap[F, String, (Either[Throwable, Json], Long)]
+  cache: LruMap[F, String, (Either[Throwable, Json], Long)],
+  blocker: BlockerF[F]
 ) extends Enrichment {
   import ApiRequestEnrichment._
 
@@ -194,7 +195,7 @@ final case class ApiRequestEnrichment[F[_]: Monad: HttpClient](
     output: Output
   ): F[Either[Throwable, Json]] =
     for {
-      response <- api.perform[F](url, body)
+      response <- api.perform[F](blocker, url, body)
       json = response.flatMap(output.parseResponse)
       _ <- cache.put(key, (json, System.currentTimeMillis() / 1000))
     } yield json
@@ -207,7 +208,7 @@ final case class ApiRequestEnrichment[F[_]: Monad: HttpClient](
 }
 
 sealed trait CreateApiRequestEnrichment[F[_]] {
-  def create(conf: ApiRequestConf): F[ApiRequestEnrichment[F]]
+  def create(conf: ApiRequestConf, blocker: BlockerF[F]): F[ApiRequestEnrichment[F]]
 }
 
 object CreateApiRequestEnrichment {
@@ -218,7 +219,7 @@ object CreateApiRequestEnrichment {
     HTTP: HttpClient[Id]
   ): CreateApiRequestEnrichment[Id] =
     new CreateApiRequestEnrichment[Id] {
-      override def create(conf: ApiRequestConf): Id[ApiRequestEnrichment[Id]] =
+      override def create(conf: ApiRequestConf, blocker: BlockerF[Id]): Id[ApiRequestEnrichment[Id]] =
         CLM
           .create(conf.cache.size)
           .map(c =>
@@ -228,7 +229,8 @@ object CreateApiRequestEnrichment {
               conf.api,
               conf.outputs,
               conf.cache.ttl,
-              c
+              c,
+              blocker
             )
           )
     }
@@ -238,7 +240,7 @@ object CreateApiRequestEnrichment {
     HTTP: HttpClient[F]
   ): CreateApiRequestEnrichment[F] =
     new CreateApiRequestEnrichment[F] {
-      def create(conf: ApiRequestConf): F[ApiRequestEnrichment[F]] =
+      def create(conf: ApiRequestConf, blocker: BlockerF[F]): F[ApiRequestEnrichment[F]] =
         CLM
           .create(conf.cache.size)
           .map(c =>
@@ -248,7 +250,8 @@ object CreateApiRequestEnrichment {
               conf.api,
               conf.outputs,
               conf.cache.ttl,
-              c
+              c,
+              blocker
             )
           )
     }

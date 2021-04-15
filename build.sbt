@@ -216,6 +216,7 @@ lazy val fs2 = project
       Dependencies.Libraries.log4cats,
       Dependencies.Libraries.catsRetry,
       Dependencies.Libraries.http4sClient,
+      Dependencies.Libraries.http4sCirce,
       Dependencies.Libraries.fs2BlobS3,
       Dependencies.Libraries.fs2BlobGcs,
       Dependencies.Libraries.metrics,

@@ -15,6 +15,7 @@ package com.snowplowanalytics.snowplow.enrich.fs2
 import java.nio.file.{NoSuchFileException, Path}
 
 import scala.concurrent.duration.TimeUnit
+import scala.concurrent.ExecutionContext
 
 import cats.effect.{Blocker, Clock, IO, Resource}
 import cats.effect.concurrent.Ref
@@ -24,6 +25,7 @@ import cats.implicits._
 import fs2.io.file.deleteIfExists
 
 import com.snowplowanalytics.snowplow.enrich.fs2.test._
+import com.snowplowanalytics.snowplow.enrich.fs2.io.Clients
 
 import cats.effect.testing.specs2.CatsIO
 
@@ -43,7 +45,8 @@ object SpecHelpers extends CatsIO {
     for {
       b <- TestEnvironment.ioBlocker
       stop <- Resource.liftF(Ref.of[IO, Boolean](false))
-      state <- Assets.State.make[IO](b, stop, uris)
+      http <- Clients.mkHTTP[IO](ExecutionContext.global)
+      state <- Assets.State.make[IO](b, stop, uris, http)
     } yield state
 
   /** Clean-up predefined list of files */

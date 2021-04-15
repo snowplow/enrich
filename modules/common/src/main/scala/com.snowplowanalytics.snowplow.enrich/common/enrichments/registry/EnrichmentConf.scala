@@ -33,6 +33,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequ
   HttpApi
 }
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.{CreateSqlQueryEnrichment, Rdbms, SqlQueryEnrichment}
+import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 
 sealed trait EnrichmentConf {
 
@@ -55,8 +56,8 @@ object EnrichmentConf {
     outputs: List[apirequest.Output],
     cache: apirequest.Cache
   ) extends EnrichmentConf {
-    def enrichment[F[_]: CreateApiRequestEnrichment]: F[ApiRequestEnrichment[F]] =
-      ApiRequestEnrichment[F](this)
+    def enrichment[F[_]: CreateApiRequestEnrichment](blocker: BlockerF[F]): F[ApiRequestEnrichment[F]] =
+      ApiRequestEnrichment[F](this, blocker)
   }
 
   final case class PiiPseudonymizerConf(
@@ -77,8 +78,8 @@ object EnrichmentConf {
     output: sqlquery.Output,
     cache: SqlQueryEnrichment.Cache
   ) extends EnrichmentConf {
-    def enrichment[F[_]: Monad: CreateSqlQueryEnrichment]: F[SqlQueryEnrichment[F]] =
-      SqlQueryEnrichment[F](this)
+    def enrichment[F[_]: Monad: CreateSqlQueryEnrichment](blocker: BlockerF[F]): F[SqlQueryEnrichment[F]] =
+      SqlQueryEnrichment[F](this, blocker)
   }
 
   final case class AnonIpConf(
@@ -162,8 +163,8 @@ object EnrichmentConf {
   ) extends EnrichmentConf {
     override val filesToCache: List[(URI, String)] =
       List(geoFile, ispFile, domainFile, connectionTypeFile).flatten
-    def enrichment[F[_]: Functor: CreateIpLookups]: F[IpLookupsEnrichment[F]] =
-      IpLookupsEnrichment[F](this)
+    def enrichment[F[_]: Functor: CreateIpLookups](blocker: BlockerF[F]): F[IpLookupsEnrichment[F]] =
+      IpLookupsEnrichment[F](this, blocker)
   }
 
   final case class JavascriptScriptConf(schemaKey: SchemaKey, rawFunction: String) extends EnrichmentConf {

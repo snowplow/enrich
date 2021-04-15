@@ -18,7 +18,7 @@ import java.net.URLEncoder
 import cats.syntax.option._
 import io.circe.syntax._
 
-import utils.HttpClient
+import utils.{BlockerF, HttpClient}
 
 /**
  * API client able to make HTTP requests
@@ -52,7 +52,11 @@ final case class HttpApi(
    * @param body optional request body
    * @return self-describing JSON ready to be attached to event contexts
    */
-  def perform[F[_]: HttpClient](url: String, body: Option[String]): F[Either[Throwable, String]] = {
+  def perform[F[_]: HttpClient](
+    blocker: BlockerF[F],
+    url: String,
+    body: Option[String]
+  ): F[Either[Throwable, String]] = {
     val req =
       HttpClient.buildRequest(
         url,
@@ -63,7 +67,7 @@ final case class HttpApi(
         None,
         None
       )
-    HttpClient[F].getResponse(req)
+    blocker.blockOn(HttpClient[F].getResponse(req))
   }
 
   /**

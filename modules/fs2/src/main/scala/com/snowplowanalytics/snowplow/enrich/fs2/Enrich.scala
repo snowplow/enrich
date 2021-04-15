@@ -21,7 +21,7 @@ import cats.data.{NonEmptyList, Validated, ValidatedNel}
 import cats.Applicative
 import cats.implicits._
 
-import cats.effect.{Blocker, Clock, Concurrent, ContextShift, Sync}
+import cats.effect.{Clock, Concurrent, ContextShift, Sync}
 
 import fs2.{Pipe, Stream}
 
@@ -32,6 +32,7 @@ import _root_.io.circe.syntax._
 import _root_.io.chrisdavenport.log4cats.Logger
 import _root_.io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 
 import com.snowplowanalytics.snowplow.badrows.{Processor, BadRow, Failure, Payload => BadRowPayload}
 import com.snowplowanalytics.snowplow.enrich.common.EtlPipeline
@@ -70,7 +71,10 @@ object Enrich {
    */
   def run[F[_]: Concurrent: ContextShift: Clock](env: Environment[F]): Stream[F, Unit] = {
     val registry: F[EnrichmentRegistry[F]] = env.enrichments.get.map(_.registry)
-    val enrich: Enrich[F] = enrichWith[F](registry, env.blocker, env.igluClient, env.sentry, env.metrics.enrichLatency)
+    val enrich: Enrich[F] = {
+      implicit val rl: RegistryLookup[F] = env.registryLookup
+      enrichWith[F](registry, env.igluClient, env.sentry, env.metrics.enrichLatency)
+    }
 
     env.source
       .pauseWhen(env.pauseEnrich)
@@ -131,9 +135,8 @@ object Enrich {
    *
    * Along with actual `ack` the `enrichLatency` gauge will be updated
    */
-  def enrichWith[F[_]: Clock: Sync: ContextShift](
+  def enrichWith[F[_]: Clock: Sync: ContextShift: RegistryLookup](
     enrichRegistry: F[EnrichmentRegistry[F]],
-    blocker: Blocker,
     igluClient: Client[F, Json],
     sentry: Option[SentryClient],
     enrichLatency: Option[Long] => F[Unit]
@@ -148,8 +151,7 @@ object Enrich {
         _ <- Logger[F].debug(payloadToString(payload))
         etlTstamp <- Clock[F].realTime(TimeUnit.MILLISECONDS).map(millis => new DateTime(millis))
         registry <- enrichRegistry
-        enrich = EtlPipeline.processEvents[F](adapterRegistry, registry, igluClient, processor, etlTstamp, payload)
-        enriched <- blocker.blockOn(enrich)
+        enriched <- EtlPipeline.processEvents[F](adapterRegistry, registry, igluClient, processor, etlTstamp, payload)
         trackLatency = enrichLatency(collectorTstamp)
       } yield Payload(enriched, trackLatency *> row.finalise)
 

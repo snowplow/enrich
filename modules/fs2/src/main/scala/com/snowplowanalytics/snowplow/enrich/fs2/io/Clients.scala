@@ -34,10 +34,12 @@ import org.http4s.client.blaze.BlazeClientBuilder
 
 import software.amazon.awssdk.services.s3.S3AsyncClient
 
+import scala.concurrent.ExecutionContext
+
 case class Clients[F[_]](
   s3Store: Option[S3Store[F]],
   gcsStore: Option[GcsStore[F]],
-  http: Option[HttpClient[F]]
+  http: HttpClient[F]
 ) {
 
   /** Download an `uri` as a stream of bytes, using the appropriate client */
@@ -60,17 +62,12 @@ case class Clients[F[_]](
           data <- gcs.get(Path(uri.toString), 16 * 1024)
         } yield data
       case Some(Clients.Client.HTTP) =>
-        http match {
-          case Some(c) =>
-            val request = Request[F](uri = Uri.unsafeFromString(uri.toString))
-            for {
-              response <- c.stream(request)
-              body <- if (response.status.isSuccess) response.body
-                      else Stream.raiseError[F](Clients.DownloadingFailure(uri))
-            } yield body
-          case None =>
-            Stream.raiseError(new IllegalStateException(s"HTTP client is not initialized to download $uri"))
-        }
+        val request = Request[F](uri = Uri.unsafeFromString(uri.toString))
+        for {
+          response <- http.stream(request)
+          body <- if (response.status.isSuccess) response.body
+                  else Stream.raiseError[F](Clients.DownloadingFailure(uri))
+        } yield body
       case None =>
         Stream.raiseError(new IllegalStateException(s"No client  initialized to download $uri"))
     }
@@ -113,16 +110,19 @@ object Clients {
       GcsStore(storage, blocker, List.empty)
     }
 
-  def mkHTTP[F[_]: ConcurrentEffect]: Resource[F, HttpClient[F]] =
-    BlazeClientBuilder[F](concurrent.ExecutionContext.global).resource
+  def mkHTTP[F[_]: ConcurrentEffect](ec: ExecutionContext): Resource[F, HttpClient[F]] =
+    BlazeClientBuilder[F](ec).resource
 
   /** Initialise all necessary clients capable of fetching provides `uris` */
-  def make[F[_]: ConcurrentEffect: ContextShift](blocker: Blocker, uris: List[URI]): Resource[F, Clients[F]] = {
+  def make[F[_]: ConcurrentEffect: ContextShift](
+    blocker: Blocker,
+    uris: List[URI],
+    http: HttpClient[F]
+  ): Resource[F, Clients[F]] = {
     val toInit = Client.required(uris)
     for {
       s3 <- if (toInit.contains(Client.S3)) Resource.liftF(mkS3[F]).map(_.some) else Resource.pure[F, Option[S3Store[F]]](none)
       gcs <- if (toInit.contains(Client.GCS)) Resource.liftF(mkGCS[F](blocker).map(_.some)) else Resource.pure[F, Option[GcsStore[F]]](none)
-      http <- if (toInit.contains(Client.HTTP)) mkHTTP[F].map(_.some) else Resource.pure[F, Option[HttpClient[F]]](none)
     } yield Clients(s3, gcs, http)
   }
 

@@ -68,32 +68,28 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
           derived_tstamp = Some(Instant.ofEpochMilli(0L))
         )
 
-      TestEnvironment.ioBlocker.use { blocker =>
-        Enrich
-          .enrichWith(TestEnvironment.enrichmentReg.pure[IO], blocker, TestEnvironment.igluClient, None, _ => IO.unit)(
-            EnrichSpec.payload[IO]
-          )
-          .map(normalizeResult)
-          .map {
-            case List(Validated.Valid(event)) => event must beEqualTo(expected)
-            case other => ko(s"Expected one valid event, got $other")
-          }
-      }
+      Enrich
+        .enrichWith(TestEnvironment.enrichmentReg.pure[IO], TestEnvironment.igluClient, None, _ => IO.unit)(
+          EnrichSpec.payload[IO]
+        )
+        .map(normalizeResult)
+        .map {
+          case List(Validated.Valid(event)) => event must beEqualTo(expected)
+          case other => ko(s"Expected one valid event, got $other")
+        }
     }
 
     "enrich a randomly generated page view event" in {
       implicit val cpGen = PayloadGen.getPageViewArbitrary
       prop { (collectorPayload: CollectorPayload) =>
         val payload = Payload(collectorPayload.toRaw, IO.unit)
-        TestEnvironment.ioBlocker.use { blocker =>
-          Enrich
-            .enrichWith(TestEnvironment.enrichmentReg.pure[IO], blocker, TestEnvironment.igluClient, None, _ => IO.unit)(payload)
-            .map(normalizeResult)
-            .map {
-              case List(Validated.Valid(e)) => e.event must beSome("page_view")
-              case other => ko(s"Expected one valid event, got $other")
-            }
-        }
+        Enrich
+          .enrichWith(TestEnvironment.enrichmentReg.pure[IO], TestEnvironment.igluClient, None, _ => IO.unit)(payload)
+          .map(normalizeResult)
+          .map {
+            case List(Validated.Valid(e)) => e.event must beSome("page_view")
+            case other => ko(s"Expected one valid event, got $other")
+          }
       }.setParameters(Parameters(maxSize = 20, minTestsOk = 25))
     }
   }

@@ -170,6 +170,7 @@ object Dependencies {
     val fs2              = "co.fs2"                           %% "fs2-core"                          % V.fs2
     val fs2Io            = "co.fs2"                           %% "fs2-io"                            % V.fs2
     val http4sClient     = "org.http4s"                       %% "http4s-blaze-client"               % V.http4s
+    val http4sCirce      = "org.http4s"                       %% "http4s-circe"                      % V.http4s
     val log4cats         = "io.chrisdavenport"                %% "log4cats-slf4j"                    % V.log4cats
     val catsRetry        = "com.github.cb372"                 %% "cats-retry"                        % V.catsRetry
     val fs2BlobS3        = "com.github.fs2-blobstore"         %% "s3"                                % V.fs2BlobStorage

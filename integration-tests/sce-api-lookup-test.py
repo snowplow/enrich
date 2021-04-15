@@ -48,11 +48,6 @@ class AuthHandler(SimpleHTTPRequestHandler):
             response = self.generate_response("GET")
             self.end_headers()
             self.wfile.write(response)
-        elif self.path.startswith("/geo"):
-            self.send_response(200)
-            response = json.dumps({"latitude":32.234,"longitude":33.564})
-            self.end_headers()
-            self.wfile.write(response)
         else:
             self.wfile.write('not authenticated')
 

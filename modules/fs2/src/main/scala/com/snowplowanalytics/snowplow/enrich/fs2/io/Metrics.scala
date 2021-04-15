@@ -112,20 +112,20 @@ object Metrics {
         badCounter <- Ref.of[F, Int](0)
       } yield MetricRefs(enrichLatency, rawCounter, goodCounter, badCounter)
 
+    /**
+     * Gets a snapshot and resets the latency gauge.
+     * This is because latency must not get "stuck" on a value when enrich is no longer receiving new
+     * events.
+     */
     def snapshot[F[_]: Monad](refs: MetricRefs[F]): F[MetricSnapshot] =
       for {
-        latency <- refs.enrichLatency.get
+        latency <- refs.enrichLatency.getAndUpdate(_ => None)
         rawCount <- refs.rawCount.get
         goodCount <- refs.goodCount.get
         badCount <- refs.badCount.get
       } yield MetricSnapshot(latency, rawCount, goodCount, badCount)
   }
 
-  /**
-   * A stream which reports metrics and immediately resets the latency gauge after each report.
-   * This is because latency must not get "stuck" on a value when enrich is no longer receiving new
-   * events.
-   */
   def reporterStream[F[_]: Sync: Timer: ContextShift](
     blocker: Blocker,
     config: MetricsReporter,

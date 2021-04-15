@@ -25,6 +25,7 @@ import org.specs2.Specification
 import org.specs2.matcher.Matcher
 
 import outputs.EnrichedEvent
+import utils.BlockerF
 
 object ApiRequestEnrichmentIntegrationTest {
   def continuousIntegration: Boolean =
@@ -303,7 +304,7 @@ class ApiRequestEnrichmentIntegrationTest extends Specification {
   def e1 = {
     val enrichment = ApiRequestEnrichment
       .parse(IntegrationTests.configuration, SCHEMA_KEY)
-      .map(_.enrichment[Id])
+      .map(_.enrichment[Id](BlockerF.noop))
       .toEither
     val event = new EnrichedEvent
     event.setApp_id("lookup-test")
@@ -318,7 +319,7 @@ class ApiRequestEnrichmentIntegrationTest extends Specification {
   def e2 = {
     val enrichment = ApiRequestEnrichment
       .parse(IntegrationTests.configuration2, SCHEMA_KEY)
-      .map(_.enrichment[Id])
+      .map(_.enrichment[Id](BlockerF.noop))
       .toEither
     val event = new EnrichedEvent
     event.setApp_id("lookup test")
@@ -363,7 +364,7 @@ class ApiRequestEnrichmentIntegrationTest extends Specification {
   def e3 = {
     val enrichment = ApiRequestEnrichment
       .parse(IntegrationTests.configuration3, SCHEMA_KEY)
-      .map(_.enrichment[Id])
+      .map(_.enrichment[Id](BlockerF.noop))
       .toEither
     val event = new EnrichedEvent
     event.setUser_ipaddress("127.0.0.1")

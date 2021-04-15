@@ -17,6 +17,7 @@ import cats.implicits._
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 import com.snowplowanalytics.maxmind.iplookups.model.IpLocation
+import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 
 import io.circe.literal._
 
@@ -97,14 +98,14 @@ class IpLookupsEnrichmentSpec extends Specification with DataTables {
           accuracyRadius = 100
         ).asRight.some |> { (_, ipAddress, expected) =>
       (for {
-        e <- config.enrichment[Id]
+        e <- config.enrichment[Id](BlockerF.noop)
         res <- e.extractIpInformation(ipAddress)
       } yield res.ipLocation).map(_.leftMap(_.getClass.getSimpleName)) must_== expected
     }
 
   def e2 =
     config
-      .enrichment[Id]
+      .enrichment[Id](BlockerF.noop)
       .extractIpInformation("70.46.123.145")
       .isp must_== "FDN Communications".asRight.some
 }

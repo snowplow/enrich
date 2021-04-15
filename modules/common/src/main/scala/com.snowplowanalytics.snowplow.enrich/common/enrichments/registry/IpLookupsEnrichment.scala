@@ -28,7 +28,7 @@ import com.snowplowanalytics.maxmind.iplookups._
 import com.snowplowanalytics.maxmind.iplookups.model._
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.IpLookupsConf
-import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, CirceUtils}
 
 /** Companion object. Lets us create an IpLookupsEnrichment instance from a Json. */
 object IpLookupsEnrichment extends ParseableEnrichment {
@@ -97,7 +97,7 @@ object IpLookupsEnrichment extends ParseableEnrichment {
    * @param conf Configuration for the ip lookups enrichment
    * @return an ip lookups enrichment
    */
-  def apply[F[_]: Functor: CreateIpLookups](conf: IpLookupsConf): F[IpLookupsEnrichment[F]] =
+  def apply[F[_]: Functor: CreateIpLookups](conf: IpLookupsConf, blocker: BlockerF[F]): F[IpLookupsEnrichment[F]] =
     CreateIpLookups[F]
       .createFromFilenames(
         conf.geoFile.map(_._2),
@@ -107,15 +107,16 @@ object IpLookupsEnrichment extends ParseableEnrichment {
         memCache = true,
         lruCacheSize = 20000
       )
-      .map(i => IpLookupsEnrichment(i))
+      .map(i => IpLookupsEnrichment(i, blocker))
 
 }
 
 /**
  * Contains enrichments based on IP address.
  * @param ipLookups IP lookups client
+ * @param blocker Runs db lookups on a separate thread pool
  */
-final case class IpLookupsEnrichment[F[_]](ipLookups: IpLookups[F]) extends Enrichment {
+final case class IpLookupsEnrichment[F[_]](ipLookups: IpLookups[F], blocker: BlockerF[F]) extends Enrichment {
 
   /**
    * Extract the geo-location using the client IP address.
@@ -123,7 +124,9 @@ final case class IpLookupsEnrichment[F[_]](ipLookups: IpLookups[F]) extends Enri
    * @return an IpLookupResult
    */
   def extractIpInformation(ip: String): F[IpLookupResult] =
-    ipLookups.performLookups(Either.catchNonFatal(new HostName(ip).toAddress).fold(_ => ip, addr => addr.toString))
+    blocker.blockOn {
+      ipLookups.performLookups(Either.catchNonFatal(new HostName(ip).toAddress).fold(_ => ip, addr => addr.toString))
+    }
 }
 
 private[enrichments] final case class IpLookupsDatabase(

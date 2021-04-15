@@ -13,24 +13,45 @@
 package com.snowplowanalytics.snowplow.enrich.fs2
 
 import cats.syntax.flatMap._
-import cats.effect.{ExitCode, IO, IOApp}
+import cats.effect.{ExitCode, IO, IOApp, Resource, SyncIO}
 
 import _root_.io.sentry.SentryClient
 
 import _root_.io.chrisdavenport.log4cats.Logger
 import _root_.io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 
-object Main extends IOApp {
+import java.util.concurrent.{Executors, TimeUnit}
+
+import scala.concurrent.ExecutionContext
+
+object Main extends IOApp.WithContext {
 
   private implicit val logger: Logger[IO] =
     Slf4jLogger.getLogger[IO]
+
+  /**
+   * An execution context matching the cats effect IOApp default. We create it explicitly so we can
+   * also use it for our Blaze client.
+   */
+  override protected val executionContextResource: Resource[SyncIO, ExecutionContext] = {
+    val poolSize = math.max(2, Runtime.getRuntime().availableProcessors())
+    Resource
+      .make(SyncIO(Executors.newFixedThreadPool(poolSize)))(pool =>
+        SyncIO {
+          pool.shutdown()
+          pool.awaitTermination(10, TimeUnit.SECONDS)
+          ()
+        }
+      )
+      .map(ExecutionContext.fromExecutorService)
+  }
 
   def run(args: List[String]): IO[ExitCode] =
     config.CliConfig.command.parse(args) match {
       case Right(cfg) =>
         for {
           _ <- logger.info("Initialising resources for Enrich job")
-          environment <- Environment.make[IO](cfg).value
+          environment <- Environment.make[IO](cfg, executionContext).value
           exit <- environment match {
                     case Right(e) =>
                       e.use { env =>

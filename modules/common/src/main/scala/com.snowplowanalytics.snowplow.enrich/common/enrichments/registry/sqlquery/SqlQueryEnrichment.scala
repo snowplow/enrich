@@ -26,7 +26,7 @@ import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SelfDescribi
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, CirceUtils}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.SqlQueryConf
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{Enrichment, ParseableEnrichment}
 
@@ -77,8 +77,8 @@ object SqlQueryEnrichment extends ParseableEnrichment {
       ).mapN(SqlQueryConf(schemaKey, _, _, _, _, _)).toEither
     }.toValidated
 
-  def apply[F[_]: CreateSqlQueryEnrichment](conf: SqlQueryConf): F[SqlQueryEnrichment[F]] =
-    CreateSqlQueryEnrichment[F].create(conf)
+  def apply[F[_]: CreateSqlQueryEnrichment](conf: SqlQueryConf, blocker: BlockerF[F]): F[SqlQueryEnrichment[F]] =
+    CreateSqlQueryEnrichment[F].create(conf, blocker)
 
   /** Just a string with SQL, not escaped */
   final case class Query(sql: String) extends AnyVal
@@ -102,6 +102,7 @@ object SqlQueryEnrichment extends ParseableEnrichment {
  * @param ttl cache TTL in milliseconds
  * @param cache actual mutable LRU cache
  * @param connection initialized DB connection (a mutable single-value cache)
+ * @param blocker Allows running blocking enrichments on a dedicated thread pool
  */
 final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor](
   schemaKey: SchemaKey,
@@ -111,7 +112,8 @@ final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor](
   output: Output,
   ttl: Int,
   cache: SqlCache[F],
-  connection: ConnectionRef[F]
+  connection: ConnectionRef[F],
+  blocker: BlockerF[F]
 ) extends Enrichment {
   private val enrichmentInfo =
     FailureDetails.EnrichmentInformation(schemaKey, "sql-query").some
@@ -136,7 +138,7 @@ final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor](
       placeholders <- Input
                         .buildPlaceholderMap(inputs, event, derivedContexts, customContexts, unstructEvent)
                         .toEitherT[F]
-      verifiedPlaceholders <- EitherT(DbExecutor.allPlaceholdersFilled(db, connection, query.sql, placeholders))
+      verifiedPlaceholders <- EitherT(blocker.blockOn(DbExecutor.allPlaceholdersFilled(db, connection, query.sql, placeholders)))
                                 .leftMap(NonEmptyList.one)
       result <- verifiedPlaceholders match {
                   case Some(m) =>
@@ -160,14 +162,14 @@ final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor](
       res <- gotten match {
                case Some(response) =>
                  if (System.currentTimeMillis() / 1000 - response._2 < ttl) Monad[F].pure(response._1)
-                 else put(intMap)
-               case None => put(intMap)
+                 else put(blocker, intMap)
+               case None => put(blocker, intMap)
              }
     } yield res.leftMap(_.getMessage)
 
-  private def put(intMap: IntMap[Input.ExtractedValue]): F[Either[Throwable, List[SelfDescribingData[Json]]]] =
+  private def put(blocker: BlockerF[F], intMap: IntMap[Input.ExtractedValue]): F[Either[Throwable, List[SelfDescribingData[Json]]]] =
     for {
-      res <- query(intMap).value
+      res <- blocker.blockOn(query(intMap).value)
       _ <- cache.put(intMap, (res, System.currentTimeMillis() / 1000))
     } yield res
 

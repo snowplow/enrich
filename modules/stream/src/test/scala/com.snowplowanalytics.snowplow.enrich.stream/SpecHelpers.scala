@@ -23,7 +23,7 @@ import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.JsonUtils
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, JsonUtils}
 import com.snowplowanalytics.snowplow.enrich.stream.model.{AWSCredentials, CloudAgnosticPlatformConfig, GCPCredentials, Kafka, Nsq, Stdin}
 import org.specs2.matcher.{Expectable, Matcher}
 import sources.TestSource
@@ -287,7 +287,7 @@ object SpecHelpers {
   val enrichmentRegistry = (for {
     registryConfig <- JsonUtils.extractJson(enrichmentConfig)
     confs <- EnrichmentRegistry.parse(registryConfig, client, true).leftMap(_.toString).toEither
-    reg <- EnrichmentRegistry.build[Id](confs).value
+    reg <- EnrichmentRegistry.build[Id](confs, BlockerF.noop).value
   } yield reg) fold (
     e => throw new RuntimeException(e),
     s => s

@@ -41,6 +41,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.Campaig
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.loaders._
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 import com.snowplowanalytics.snowplow.enrich.common.utils.Clock._
 
 import org.specs2.Specification
@@ -197,7 +198,7 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
       "jsonschema",
       SchemaVer.Full(2, 0, 0)
     )
-    IpLookupsEnrichment.parse(js, schemaKey, true).toOption.get.enrichment[Id]
+    IpLookupsEnrichment.parse(js, schemaKey, true).toOption.get.enrichment[Id](BlockerF.noop)
   }
 
   private val campaignAttributionEnrichment = {

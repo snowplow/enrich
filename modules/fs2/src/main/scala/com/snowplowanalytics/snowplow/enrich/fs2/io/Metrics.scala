@@ -14,13 +14,16 @@ package com.snowplowanalytics.snowplow.enrich.fs2.io
 
 import cats.implicits._
 import cats.Applicative
-import cats.effect.{Blocker, ContextShift, Resource, Sync, Timer}
+import cats.effect.concurrent.Ref
+import cats.effect.{Blocker, Clock, ConcurrentEffect, ContextShift, Effect, Resource, Sync, Timer}
 
 import fs2.Stream
 
-import com.codahale.metrics.{Gauge, MetricRegistry, Slf4jReporter}
+import com.codahale.metrics.{Counter, Gauge, MetricRegistry, Slf4jReporter}
 
 import org.slf4j.LoggerFactory
+
+import scala.concurrent.duration.MILLISECONDS
 
 import com.snowplowanalytics.snowplow.enrich.fs2.config.io.MetricsReporter
 
@@ -53,60 +56,88 @@ object Metrics {
   val GoodCounterName = "good"
   val BadCounterName = "bad"
 
-  def build[F[_]: ContextShift: Sync: Timer](
+  def build[F[_]: ContextShift: ConcurrentEffect: Timer](
     blocker: Blocker,
     config: MetricsReporter
   ): F[Metrics[F]] =
     for {
       registry <- Sync[F].delay((new MetricRegistry()))
-      rep = reporter(blocker, config, registry)
-    } yield ofRegistry(rep, registry)
+      latencyRef <- Ref.of[F, Option[(Long, Long)]](None)
+      rawCounter <- Sync[F].delay(registry.counter(RawCounterName))
+      goodCounter <- Sync[F].delay(registry.counter(GoodCounterName))
+      badCounter <- Sync[F].delay(registry.counter(BadCounterName))
+      latencySupplier = latencyGauge(latencyRef)
+      rep = reporterStream(blocker, config, registry)
+    } yield ofMetrics(rawCounter,
+                      goodCounter,
+                      badCounter,
+                      latencyRef,
+                      rep,
+                      Sync[F].delay(registry.gauge(LatencyGaugeName, latencySupplier)).void
+    )
 
-  def reporter[F[_]: Sync: ContextShift: Timer](
+  trait Reporter[F[_]] {
+    def report: F[Unit]
+  }
+
+  /**
+   * A stream which reports metrics and immediately resets the latency gauge after each report.
+   * This is because latency must not get "stuck" on a value when enrich is no longer receiving new
+   * events.
+   */
+  def reporterStream[F[_]: Sync: Timer: ContextShift, A](
     blocker: Blocker,
     config: MetricsReporter,
     registry: MetricRegistry
   ): Stream[F, Unit] =
+    for {
+      rep <- Stream.resource(makeReporter(blocker, config, registry))
+      _ <- Stream.fixedDelay[F](config.period)
+      _ <- Stream.eval(rep.report)
+      _ <- Stream.eval(Sync[F].delay(registry.remove(LatencyGaugeName)))
+    } yield ()
+
+  def makeReporter[F[_]: Sync: ContextShift: Timer](
+    blocker: Blocker,
+    config: MetricsReporter,
+    registry: MetricRegistry
+  ): Resource[F, Reporter[F]] =
     config match {
-      case MetricsReporter.Stdout(period, prefix) =>
+      case MetricsReporter.Stdout(_, prefix) =>
         for {
-          logger <- Stream.eval(Sync[F].delay(LoggerFactory.getLogger(LoggerName)))
-          reporter <-
-            Stream.resource(
-              Resource.fromAutoCloseable(
-                Sync[F].delay(
-                  Slf4jReporter.forRegistry(registry).outputTo(logger).prefixedWith(prefix.getOrElse(MetricsReporter.DefaultPrefix)).build
-                )
+          logger <- Resource.liftF(Sync[F].delay(LoggerFactory.getLogger(LoggerName)))
+          slf4jReporter <-
+            Resource.fromAutoCloseable(
+              Sync[F].delay(
+                Slf4jReporter.forRegistry(registry).outputTo(logger).prefixedWith(prefix.getOrElse(MetricsReporter.DefaultPrefix)).build
               )
             )
-          _ <- Stream.fixedDelay[F](period)
-          _ <- Stream.eval(Sync[F].delay(reporter.report()))
-        } yield ()
+        } yield new Reporter[F] {
+          def report: F[Unit] = Sync[F].delay(slf4jReporter.report())
+        }
       case statsd: MetricsReporter.StatsD =>
-        StatsDReporter.stream(blocker, statsd, registry)
+        StatsDReporter.make(blocker, statsd, registry)
     }
 
-  private def ofRegistry[F[_]: Sync](reporter: Stream[F, Unit], registry: MetricRegistry): Metrics[F] =
+  private def ofMetrics[F[_]: Sync: Clock](
+    rawCounter: Counter,
+    goodCounter: Counter,
+    badCounter: Counter,
+    latencyRef: Ref[F, Option[(Long, Long)]],
+    reporter: Stream[F, Unit],
+    initLatencyGauge: F[Unit]
+  ): Metrics[F] =
     new Metrics[F] {
-      val rawCounter = registry.counter(RawCounterName)
-      val goodCounter = registry.counter(GoodCounterName)
-      val badCounter = registry.counter(BadCounterName)
-
       def report: Stream[F, Unit] = reporter
 
       def enrichLatency(collectorTstamp: Option[Long]): F[Unit] =
         collectorTstamp match {
           case Some(tstamp) =>
-            Sync[F]
-              .delay {
-                registry.remove(LatencyGaugeName)
-                val now = System.currentTimeMillis()
-                val _ = registry.register(LatencyGaugeName, getGauge(now, tstamp))
-              }
-              .handleError {
-                // Two threads can run into a race condition registering a gauge
-                case _: IllegalArgumentException => ()
-              }
+            for {
+              now <- Clock[F].realTime(MILLISECONDS)
+              _ <- latencyRef.set(Some((now, tstamp)))
+              _ <- initLatencyGauge // re-initialize the gauge, because it is deleted after each report.
+            } yield ()
           case None =>
             Sync[F].unit
         }
@@ -119,10 +150,19 @@ object Metrics {
 
       def badCount: F[Unit] =
         Sync[F].delay(badCounter.inc())
+    }
 
-      private def getGauge(now: Long, collectorTstamp: Long): Gauge[Long] =
-        new Gauge[Long] {
-          def getValue: Long = now - collectorTstamp
+  def latencyGauge[F[_]: Effect](ref: Ref[F, Option[(Long, Long)]]): MetricRegistry.MetricSupplier[Gauge[_]] =
+    effectGauge(ref.get) {
+      case Some((acked, collectorTstamp)) => acked - collectorTstamp
+      case None => 0L
+    }.asInstanceOf[MetricRegistry.MetricSupplier[Gauge[_]]]
+
+  def effectGauge[F[_]: Effect, E, O](effect: F[E])(transform: E => O): MetricRegistry.MetricSupplier[Gauge[O]] =
+    new MetricRegistry.MetricSupplier[Gauge[O]] {
+      def newMetric(): Gauge[O] =
+        new Gauge[O] {
+          def getValue: O = Effect[F].toIO(effect.map(transform)).unsafeRunSync()
         }
     }
 
@@ -134,4 +174,5 @@ object Metrics {
       def goodCount: F[Unit] = Applicative[F].unit
       def badCount: F[Unit] = Applicative[F].unit
     }
+
 }

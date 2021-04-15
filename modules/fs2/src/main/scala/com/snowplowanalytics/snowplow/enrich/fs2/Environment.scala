@@ -164,7 +164,7 @@ object Environment {
   def makePause[F[_]: Concurrent]: Resource[F, SignallingRef[F, Boolean]] =
     Resource.make(SignallingRef(true))(_.set(true))
 
-  private def metricsReporter[F[_]: Sync: ContextShift: Timer](blocker: Blocker, config: ConfigFile): F[Metrics[F]] =
+  private def metricsReporter[F[_]: ConcurrentEffect: ContextShift: Timer](blocker: Blocker, config: ConfigFile): F[Metrics[F]] =
     config.metrics.map(Metrics.build[F](blocker, _)).getOrElse(Metrics.noop[F].pure[F])
 
   /** Decode base64-encoded configs, passed via CLI. Read files, validate and parse */

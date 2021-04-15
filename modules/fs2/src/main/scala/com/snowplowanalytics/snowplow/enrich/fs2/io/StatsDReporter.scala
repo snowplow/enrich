@@ -12,17 +12,15 @@
  */
 package com.snowplowanalytics.snowplow.enrich.fs2.io
 
-import cats.syntax.show._
+import cats.implicits._
 
 import java.net.{DatagramPacket, DatagramSocket, InetAddress}
 import java.nio.charset.StandardCharsets.UTF_8
 
 import cats.effect.{Blocker, ContextShift, Resource, Sync, Timer => CatsTimer}
-import fs2.{Pure, Stream}
 import com.codahale.metrics._
 import scala.jdk.CollectionConverters._
 
-import _root_.io.chrisdavenport.log4cats.Logger
 import _root_.io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 
 import com.snowplowanalytics.snowplow.enrich.fs2.config.io.MetricsReporter
@@ -36,7 +34,7 @@ import com.snowplowanalytics.snowplow.enrich.fs2.config.io.MetricsReporter
 object StatsDReporter {
 
   /**
-   * A stream which periodically sends metrics from the registry to the StatsD server.
+   * A reporter which sends metrics from the registry to the StatsD server.
    *
    * The stream calls `InetAddress.getByName` each time there is a new batch of metrics. This allows
    * the run-time to resolve the address to a new IP address, in case DNS records change.  This is
@@ -47,26 +45,33 @@ object StatsDReporter {
    * so there could be a delay in following a DNS record change.  For the Docker image we release
    * the cache time is 30 seconds.
    */
-  def stream[F[_]: Sync: ContextShift: CatsTimer](
+  def make[F[_]: Sync: ContextShift: CatsTimer](
     blocker: Blocker,
     config: MetricsReporter.StatsD,
     registry: MetricRegistry
-  ): Stream[F, Unit] =
-    for {
-      logger <- Stream.eval(Slf4jLogger.create[F])
-      socket <- Stream.resource(Resource.fromAutoCloseableBlocking(blocker)(Sync[F].delay(new DatagramSocket)))
-      _ <- Stream.fixedDelay(config.period)
-      inetAddr <- Stream.eval(blocker.delay(InetAddress.getByName(config.hostname))).handleErrorWith(logAndAbort(logger))
-      _ <- serializedStream(registry, config)
-             .covary[F]
-             .evalMap(sendMetric[F](blocker, socket, inetAddr, config.port))
-             .handleErrorWith(logAndAbort(logger))
-    } yield ()
+  ): Resource[F, Metrics.Reporter[F]] =
+    Resource.fromAutoCloseableBlocking(blocker)(Sync[F].delay(new DatagramSocket)).map(impl[F](blocker, config, registry, _))
 
-  def logAndAbort[F[_]: Sync](logger: Logger[F])(t: Throwable): Stream[F, Nothing] =
-    Stream.eval(Sync[F].delay(logger.error(t)("Caught exception sending metrics"))).drain
+  def impl[F[_]: Sync: ContextShift: CatsTimer](
+    blocker: Blocker,
+    config: MetricsReporter.StatsD,
+    registry: MetricRegistry,
+    socket: DatagramSocket
+  ): Metrics.Reporter[F] =
+    new Metrics.Reporter[F] {
+      def report: F[Unit] =
+        (for {
+          inetAddr <- blocker.delay(InetAddress.getByName(config.hostname))
+          _ <- serializedMetrics(registry, config).traverse_(sendMetric[F](blocker, socket, inetAddr, config.port))
+        } yield ()).handleErrorWith { t =>
+          for {
+            logger <- Slf4jLogger.create[F]
+            _ <- Sync[F].delay(logger.error(t)("Caught exception sending metrics"))
+          } yield ()
+        }
+    }
 
-  def serializedStream(registry: MetricRegistry, config: MetricsReporter.StatsD): Stream[Pure, String] =
+  def serializedMetrics(registry: MetricRegistry, config: MetricsReporter.StatsD): List[String] =
     kvMetrics(registry).map(statsDFormat(config))
 
   def sendMetric[F[_]: ContextShift: Sync](
@@ -84,18 +89,17 @@ object StatsDReporter {
 
   final case class KVMetric(key: String, value: String)
 
-  def kvMetrics(registry: MetricRegistry): Stream[Pure, KVMetric] =
-    kvGauges(registry.getGauges.asScala.toSeq) ++
-      kvCounters(registry.getCounters.asScala.toSeq) ++
-      kvHistograms(registry.getHistograms.asScala.toSeq) ++
-      kvMeters(registry.getMeters.asScala.toSeq) ++
-      kvTimers(registry.getTimers.asScala.toSeq)
+  def kvMetrics(registry: MetricRegistry): List[KVMetric] =
+    kvGauges(registry.getGauges.asScala.toList) ++
+      kvCounters(registry.getCounters.asScala.toList) ++
+      kvHistograms(registry.getHistograms.asScala.toList) ++
+      kvMeters(registry.getMeters.asScala.toList) ++
+      kvTimers(registry.getTimers.asScala.toList)
 
   /* Handlers for the five DropWizard metric classes */
 
-  def kvGauges(gauges: Seq[(String, Gauge[_])]): Stream[Pure, KVMetric] =
-    Stream
-      .emits(gauges)
+  def kvGauges(gauges: List[(String, Gauge[_])]): List[KVMetric] =
+    gauges
       .map { case (k, v) => k -> v.getValue }
       .collect {
         case (k, v: Int) => KVMetric(k, v.toLong.show)
@@ -105,49 +109,49 @@ object StatsDReporter {
       }
 
   // Counters implement the `Counting` interface
-  def kvCounters(counters: Seq[(String, Counter)]): Stream[Pure, KVMetric] =
-    Stream.emits(counters).flatMap {
+  def kvCounters(counters: List[(String, Counter)]): List[KVMetric] =
+    counters.flatMap {
       case (k, v) =>
         kvCounting(k, v)
     }
 
   // Counters implement the `Counting` and `Sampling` interfaces
-  def kvHistograms(histograms: Seq[(String, Histogram)]): Stream[Pure, KVMetric] =
-    Stream.emits(histograms).flatMap {
+  def kvHistograms(histograms: List[(String, Histogram)]): List[KVMetric] =
+    histograms.flatMap {
       case (k, v) =>
         kvCounting(k, v) ++ kvSampling(k, v)
     }
 
   // Meters implement the `Counting` and `Metered` interfaces
-  def kvMeters(meters: Seq[(String, Meter)]): Stream[Pure, KVMetric] =
-    Stream.emits(meters).flatMap {
+  def kvMeters(meters: List[(String, Meter)]): List[KVMetric] =
+    meters.flatMap {
       case (k, v) =>
         kvCounting(k, v) ++ kvMetered(k, v)
     }
 
   // Timers implement the `Counting`, `Metered` and `Sampling` interfaces
-  def kvTimers(timers: Seq[(String, Timer)]): Stream[Pure, KVMetric] =
-    Stream.emits(timers).flatMap {
+  def kvTimers(timers: List[(String, Timer)]): List[KVMetric] =
+    timers.flatMap {
       case (k, v) =>
         kvCounting(k, v) ++ kvMetered(k, v) ++ kvSampling(k, v)
     }
 
   /* Handlers for the traits implemented by the Metric classes */
 
-  def kvCounting(key: String, counting: Counting): Stream[Pure, KVMetric] =
-    Stream.emit(KVMetric(s"$key.count", counting.getCount.show))
+  def kvCounting(key: String, counting: Counting): List[KVMetric] =
+    List(KVMetric(s"$key.count", counting.getCount.show))
 
-  def kvMetered(key: String, metered: Metered): Stream[Pure, KVMetric] =
-    Stream(
+  def kvMetered(key: String, metered: Metered): List[KVMetric] =
+    List(
       KVMetric(s"$key.fifteenMinuteRate", metered.getFifteenMinuteRate.show),
       KVMetric(s"$key.fiveMinuteRate", metered.getFiveMinuteRate.show),
       KVMetric(s"$key.oneMinuteRate", metered.getOneMinuteRate.show),
       KVMetric(s"$key.meanRate", metered.getMeanRate.show)
     )
 
-  def kvSampling(key: String, sampling: Sampling): Stream[Pure, KVMetric] = {
+  def kvSampling(key: String, sampling: Sampling): List[KVMetric] = {
     val snapshot = sampling.getSnapshot
-    Stream(
+    List(
       KVMetric(s"$key.min", snapshot.getMin.show),
       KVMetric(s"$key.max", snapshot.getMax.show),
       KVMetric(s"$key.mean", snapshot.getMean.show),

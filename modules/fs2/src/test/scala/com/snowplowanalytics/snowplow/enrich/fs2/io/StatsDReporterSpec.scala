@@ -28,7 +28,7 @@ class StatsDReporterSpec extends Specification {
 
       registry.register("gauge1", fixedGauge(42))
 
-      val result = StatsDReporter.serializedStream(registry, TestConfig).toList
+      val result = StatsDReporter.serializedMetrics(registry, TestConfig)
 
       result must contain(exactly("snowplow.test.gauge1:42|g|#tag1:abc"))
     }
@@ -39,7 +39,7 @@ class StatsDReporterSpec extends Specification {
       val counter = registry.counter("counter1")
       (1 to 42).foreach(_ => counter.inc())
 
-      val result = StatsDReporter.serializedStream(registry, TestConfig).toList
+      val result = StatsDReporter.serializedMetrics(registry, TestConfig)
 
       result must contain(exactly("snowplow.test.counter1.count:42|g|#tag1:abc"))
     }
@@ -51,7 +51,7 @@ class StatsDReporterSpec extends Specification {
       histogram.update(10)
       histogram.update(20)
 
-      val result = StatsDReporter.serializedStream(registry, TestConfig).toList
+      val result = StatsDReporter.serializedMetrics(registry, TestConfig)
 
       result must contain(
         exactly(
@@ -78,7 +78,7 @@ class StatsDReporterSpec extends Specification {
       meter.mark()
       meter.mark()
 
-      val result = StatsDReporter.serializedStream(registry, TestConfig).toList
+      val result = StatsDReporter.serializedMetrics(registry, TestConfig)
 
       result must contain(
         exactly(
@@ -97,7 +97,7 @@ class StatsDReporterSpec extends Specification {
       val timer = registry.timer("timer1")
       timer.time({ () => () }: java.util.concurrent.Callable[Unit])
 
-      val result = StatsDReporter.serializedStream(registry, TestConfig).toList
+      val result = StatsDReporter.serializedMetrics(registry, TestConfig)
 
       result must contain(
         allOf(

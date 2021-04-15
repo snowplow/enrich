@@ -71,8 +71,8 @@ enrich {
 
       ## Optional endpoint url configuration to override aws dyanomdb endpoints for Kinesis checkpoints lease table,
       ## this can be used to specify local endpoints when using Localstack
-      # dynamodbCustomEndpoint = "http://localhost:4569"
-      # dynamodbCustomEndpoint = ${?ENRICH_DYNAMODB_CUSTOM_ENDPOINT}
+      ## dynamodbCustomEndpoint = "http://localhost:4569"
+      ## dynamodbCustomEndpoint = ${?ENRICH_DYNAMODB_CUSTOM_ENDPOINT}
 
       # Optional override to disable cloudwatch
       # disableCloudWatch = true

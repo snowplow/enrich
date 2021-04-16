@@ -17,17 +17,13 @@
 // SBT
 import sbt._
 import Keys._
-
 import bintray.BintrayPlugin._
 import bintray.BintrayKeys._
-
 import com.typesafe.sbt.SbtNativePackager.autoImport._
 import com.typesafe.sbt.packager.linux.LinuxPlugin.autoImport._
 import com.typesafe.sbt.packager.docker.DockerPlugin.autoImport._
-import com.typesafe.sbt.packager.docker.{ DockerVersion, ExecCmd }
-
+import com.typesafe.sbt.packager.docker.{DockerPermissionStrategy, DockerVersion, ExecCmd}
 import scoverage.ScoverageKeys._
-
 import org.scalafmt.sbt.ScalafmtPlugin.autoImport._
 
 object BuildSettings {
@@ -39,7 +35,7 @@ object BuildSettings {
     version               :=  "1.4.2",
     javacOptions          :=  Seq("-source", "11", "-target", "11"),
     resolvers             ++= Dependencies.resolutionRepos,
-    licenses              += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html")),
+    licenses              += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html"))
   )
 
   /** Custom sbt-buildinfo replacement, used by SCE only */
@@ -127,6 +123,7 @@ object BuildSettings {
     daemonUser in Docker := "snowplow",
     dockerUpdateLatest := true,
     dockerVersion := Some(DockerVersion(18, 9, 0, Some("ce"))),
+    dockerPermissionStrategy := DockerPermissionStrategy.Run,
     daemonUserUid in Docker := None,
     defaultLinuxInstallLocation in Docker := "/home/snowplow" // must be home directory of daemonUser
   )
@@ -138,6 +135,7 @@ object BuildSettings {
     daemonUser in Docker := "snowplow",
     dockerUpdateLatest := true,
     dockerVersion := Some(DockerVersion(18, 9, 0, Some("ce"))),
+    dockerPermissionStrategy := DockerPermissionStrategy.Run,
     dockerCommands := dockerCommands.value.map {
       case ExecCmd("ENTRYPOINT", args) => ExecCmd("ENTRYPOINT", "docker-entrypoint.sh", args)
       case e => e

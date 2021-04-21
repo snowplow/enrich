@@ -12,21 +12,23 @@
  */
 package com.snowplowanalytics.snowplow.enrich.fs2.io
 
-import cats.syntax.applicativeError._
-import cats.effect.{Resource, Sync, Timer}
+import cats.implicits._
+import cats.{Applicative, Monad}
+import cats.effect.concurrent.Ref
+import cats.effect.{Clock, ConcurrentEffect, ContextShift, Sync, Timer}
 
 import fs2.Stream
 
-import com.codahale.metrics.{Gauge, MetricRegistry, Slf4jReporter}
+import scala.concurrent.duration.MILLISECONDS
 
-import org.slf4j.LoggerFactory
+import com.snowplowanalytics.snowplow.enrich.fs2.config.io.MetricsReporter
 
-import com.snowplowanalytics.snowplow.enrich.fs2.Environment
+import _root_.io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 
 trait Metrics[F[_]] {
 
   /** Send latest metrics to reporter */
-  def report: F[Unit]
+  def report: Stream[F, Unit]
 
   /**
    * Track latency between collector hit and enrichment
@@ -47,75 +49,119 @@ trait Metrics[F[_]] {
 object Metrics {
 
   val LoggerName = "enrich.metrics"
-  val LatencyGaugeName = "enrich.metrics.latency"
-  val RawCounterName = "enrich.metrics.raw.count"
-  val GoodCounterName = "enrich.metrics.good.count"
-  val BadCounterName = "enrich.metrics.bad.count"
+  val LatencyGaugeName = "latency"
+  val RawCounterName = "raw"
+  val GoodCounterName = "good"
+  val BadCounterName = "bad"
 
-  def run[F[_]: Sync: Timer](env: Environment[F]): Stream[F, Unit] =
-    env.metricsReportPeriod match {
-      case Some(period) =>
-        Stream.fixedRate[F](period).evalMap(_ => env.metrics.report)
-      case None =>
-        Stream.empty.covary[F]
-    }
+  final case class MetricSnapshot(
+    enrichLatency: Option[Long],
+    rawCount: Int,
+    goodCount: Int,
+    badCount: Int
+  )
 
-  /**
-   * Technically `Resource` doesn't give us much as we don't allocate a thread pool,
-   * but it will make sure the last report is issued
-   */
-  def resource[F[_]: Sync]: Resource[F, Metrics[F]] =
-    Resource
-      .make(init) { case (res, _) => Sync[F].delay(res.close()) }
-      .map { case (res, reg) => make[F](res, reg) }
+  trait Reporter[F[_]] {
+    def report(snapshot: MetricSnapshot): F[Unit]
+  }
 
-  /** Initialise backend resources */
-  def init[F[_]: Sync]: F[(Slf4jReporter, MetricRegistry)] =
-    Sync[F].delay {
-      val registry = new MetricRegistry()
-      val logger = LoggerFactory.getLogger(LoggerName)
-      val reporter = Slf4jReporter.forRegistry(registry).outputTo(logger).build()
-      (reporter, registry)
-    }
-
-  def make[F[_]: Sync](reporter: Slf4jReporter, registry: MetricRegistry): Metrics[F] =
-    new Metrics[F] {
-      val rawCounter = registry.counter(RawCounterName)
-      val goodCounter = registry.counter(GoodCounterName)
-      val badCounter = registry.counter(BadCounterName)
-
-      def report: F[Unit] =
-        Sync[F].delay(reporter.report())
+  def build[F[_]: ContextShift: ConcurrentEffect: Timer](
+    config: MetricsReporter
+  ): F[Metrics[F]] =
+    for {
+      refs <- MetricRefs.init[F]
+      rep = reporterStream(config, refs)
+    } yield new Metrics[F] {
+      def report: Stream[F, Unit] = rep
 
       def enrichLatency(collectorTstamp: Option[Long]): F[Unit] =
         collectorTstamp match {
           case Some(tstamp) =>
-            Sync[F]
-              .delay {
-                registry.remove(LatencyGaugeName)
-                val now = System.currentTimeMillis()
-                val _ = registry.register(LatencyGaugeName, getGauge(now, tstamp))
-              }
-              .handleError {
-                // Two threads can run into a race condition registering a gauge
-                case _: IllegalArgumentException => ()
-              }
+            for {
+              now <- Clock[F].realTime(MILLISECONDS)
+              _ <- refs.enrichLatency.set(Some((now - tstamp)))
+            } yield ()
           case None =>
             Sync[F].unit
         }
 
       def rawCount: F[Unit] =
-        Sync[F].delay(rawCounter.inc())
+        refs.rawCount.update(_ + 1)
 
       def goodCount: F[Unit] =
-        Sync[F].delay(goodCounter.inc())
+        refs.goodCount.update(_ + 1)
 
       def badCount: F[Unit] =
-        Sync[F].delay(badCounter.inc())
+        refs.badCount.update(_ + 1)
+    }
 
-      private def getGauge(now: Long, collectorTstamp: Long): Gauge[Long] =
-        new Gauge[Long] {
-          def getValue: Long = now - collectorTstamp
+  private final case class MetricRefs[F[_]](
+    enrichLatency: Ref[F, Option[Long]],
+    rawCount: Ref[F, Int],
+    goodCount: Ref[F, Int],
+    badCount: Ref[F, Int]
+  )
+
+  private object MetricRefs {
+    def init[F[_]: Sync]: F[MetricRefs[F]] =
+      for {
+        enrichLatency <- Ref.of[F, Option[Long]](None)
+        rawCounter <- Ref.of[F, Int](0)
+        goodCounter <- Ref.of[F, Int](0)
+        badCounter <- Ref.of[F, Int](0)
+      } yield MetricRefs(enrichLatency, rawCounter, goodCounter, badCounter)
+
+    def snapshot[F[_]: Monad](refs: MetricRefs[F]): F[MetricSnapshot] =
+      for {
+        latency <- refs.enrichLatency.get
+        rawCount <- refs.rawCount.get
+        goodCount <- refs.goodCount.get
+        badCount <- refs.badCount.get
+      } yield MetricSnapshot(latency, rawCount, goodCount, badCount)
+  }
+
+  /**
+   * A stream which reports metrics and immediately resets the latency gauge after each report.
+   * This is because latency must not get "stuck" on a value when enrich is no longer receiving new
+   * events.
+   */
+  def reporterStream[F[_]: Sync: Timer: ContextShift](
+    config: MetricsReporter,
+    metrics: MetricRefs[F]
+  ): Stream[F, Unit] =
+    for {
+      rep <- Stream.eval(reporter(config))
+      _ <- Stream.fixedDelay[F](config.period)
+      snapshot <- Stream.eval(MetricRefs.snapshot(metrics))
+      _ <- Stream.eval(rep.report(snapshot))
+    } yield ()
+
+  def reporter[F[_]: Sync: ContextShift: Timer](
+    config: MetricsReporter
+  ): F[Reporter[F]] =
+    config match {
+      case stdout: MetricsReporter.Stdout =>
+        for {
+          logger <- Slf4jLogger.fromName[F](LoggerName)
+          prefix = stdout.prefix.getOrElse(MetricsReporter.DefaultPrefix)
+        } yield new Reporter[F] {
+          def report(snapshot: MetricSnapshot): F[Unit] =
+            for {
+              _ <- logger.info(s"$prefix$RawCounterName = ${snapshot.rawCount}")
+              _ <- logger.info(s"$prefix$GoodCounterName = ${snapshot.goodCount}")
+              _ <- logger.info(s"$prefix$BadCounterName = ${snapshot.badCount}")
+              _ <- snapshot.enrichLatency.map(latency => logger.info(s"$prefix$LatencyGaugeName = $latency")).getOrElse(Sync[F].unit)
+            } yield ()
         }
     }
+
+  def noop[F[_]: Applicative]: Metrics[F] =
+    new Metrics[F] {
+      def report: Stream[F, Unit] = Stream.empty.covary[F]
+      def enrichLatency(collectorTstamp: Option[Long]): F[Unit] = Applicative[F].unit
+      def rawCount: F[Unit] = Applicative[F].unit
+      def goodCount: F[Unit] = Applicative[F].unit
+      def badCount: F[Unit] = Applicative[F].unit
+    }
+
 }

@@ -60,7 +60,6 @@ class OutputSpec extends Specification with ScalaCheck {
 
     }
 
-
     "serialize an over-sized good event to the bad output" in {
       val ee = new EnrichedEvent()
       ee.app_id = "x" * 10000000
@@ -68,7 +67,7 @@ class OutputSpec extends Specification with ScalaCheck {
       Output.serialize(Output.Good(ee)) must beLike {
         case Output.Bad(bytes) =>
           bytes must not be empty
-          bytes must have size(be_<=(6900000))
+          bytes must have size (be_<=(6900000))
       }
 
     }
@@ -80,7 +79,7 @@ class OutputSpec extends Specification with ScalaCheck {
       Output.serialize(Output.Pii(ee)) must beLike {
         case Output.Bad(bytes) =>
           bytes must not be empty
-          bytes must have size(be_<=(6900000))
+          bytes must have size (be_<=(6900000))
       }
 
     }

@@ -16,9 +16,9 @@ import java.util.concurrent.TimeUnit
 
 import cats.Monad
 import cats.syntax.flatMap._
-
 import cats.effect.concurrent.Ref
 import cats.effect.{Clock, Sync}
+import fs2.Stream
 
 import com.snowplowanalytics.snowplow.enrich.fs2.io.Metrics
 
@@ -39,8 +39,7 @@ object Counter {
   /** Create a pure metrics with mutable state */
   def mkCounterMetrics[F[_]: Monad: Clock](ref: Ref[F, Counter]): Metrics[F] =
     new Metrics[F] {
-      def report: F[Unit] =
-        Monad[F].unit
+      def report: Stream[F, Unit] = Stream.empty.covary[F]
 
       def enrichLatency(collectorTstamp: Option[Long]): F[Unit] =
         Clock[F].realTime(TimeUnit.MILLISECONDS).flatMap { now =>

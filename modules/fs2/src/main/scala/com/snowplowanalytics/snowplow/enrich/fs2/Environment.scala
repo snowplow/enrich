@@ -73,8 +73,7 @@ final case class Environment[F[_]](
   bad: ByteSink[F],
   sentry: Option[SentryClient],
   metrics: Metrics[F],
-  assetsUpdatePeriod: Option[FiniteDuration],
-  metricsReportPeriod: Option[FiniteDuration]
+  assetsUpdatePeriod: Option[FiniteDuration]
 )
 
 object Environment {
@@ -121,7 +120,7 @@ object Environment {
       for {
         client <- Client.parseDefault[F](parsedConfigs.igluJson).resource
         blocker <- Blocker[F]
-        metrics <- Metrics.resource[F]
+        metrics <- Resource.liftF(metricsReporter[F](file))
         rawSource = Source.read[F](blocker, file.auth, file.input)
         goodSink <- Sinks.sink[F](blocker, file.auth, file.good)
         piiSink <- file.pii.map(f => Sinks.sink[F](blocker, file.auth, f)).sequence
@@ -146,8 +145,7 @@ object Environment {
                              badSink,
                              sentry,
                              metrics,
-                             file.assetsUpdatePeriod,
-                             file.metricsReportPeriod
+                             file.assetsUpdatePeriod
       )
     }
 
@@ -158,6 +156,9 @@ object Environment {
    */
   def makePause[F[_]: Concurrent]: Resource[F, SignallingRef[F, Boolean]] =
     Resource.make(SignallingRef(true))(_.set(true))
+
+  private def metricsReporter[F[_]: ConcurrentEffect: ContextShift: Timer](config: ConfigFile): F[Metrics[F]] =
+    config.metrics.map(Metrics.build[F](_)).getOrElse(Metrics.noop[F].pure[F])
 
   /** Decode base64-encoded configs, passed via CLI. Read files, validate and parse */
   def parse[F[_]: Async: Clock: ContextShift](config: CliConfig): Parsed[F, ParsedConfigs] =

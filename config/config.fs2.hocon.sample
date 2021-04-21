@@ -52,6 +52,16 @@ sentry = {
 // no assets will be updated if the key is absent
 assetsUpdatePeriod = "7 days"
 
-// Optional, period after Dropwizard will print out its metrics
-// no metrics will be printed if the key is absent
-metricsReportPeriod = "10 seconds"
+// Optional, configure how metrics are reported
+metrics = {
+
+  // Log to stdout using Slf4j
+  type = "Stdout"
+
+  // Required, how frequently to report metrics
+  period = "10 seconds"
+
+  // Optional, override the default metric prefix
+  // prefix = "snowplow.enrich."
+
+}

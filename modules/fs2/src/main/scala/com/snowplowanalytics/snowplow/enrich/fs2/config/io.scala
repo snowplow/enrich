@@ -15,9 +15,11 @@ package com.snowplowanalytics.snowplow.enrich.fs2.config
 import java.nio.file.{InvalidPathException, Path, Paths}
 
 import cats.syntax.either._
+import scala.concurrent.duration.{Duration, FiniteDuration}
 
 import _root_.io.circe.{Decoder, Encoder}
 import _root_.io.circe.generic.extras.semiauto._
+import _root_.io.circe.config.syntax._
 
 object io {
 
@@ -97,5 +99,28 @@ object io {
       }
     implicit val outputEncoder: Encoder[Output] =
       deriveConfiguredEncoder[Output]
+  }
+
+  sealed trait MetricsReporter {
+    def period: FiniteDuration
+    def prefix: Option[String]
+  }
+
+  object MetricsReporter {
+    final case class Stdout(period: FiniteDuration, prefix: Option[String]) extends MetricsReporter
+
+    import ConfigFile.finiteDurationEncoder
+
+    implicit val metricsReporterDecoder: Decoder[MetricsReporter] =
+      deriveConfiguredDecoder[MetricsReporter].emap { mr =>
+        if (mr.period <= Duration.Zero)
+          "metrics report period in config file cannot be less than 0".asLeft
+        else mr.asRight
+      }
+
+    implicit val metricsReporterEncoder: Encoder[MetricsReporter] =
+      deriveConfiguredEncoder[MetricsReporter]
+
+    val DefaultPrefix = "snowplow.enrich."
   }
 }

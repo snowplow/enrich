@@ -133,7 +133,7 @@ object Environment {
         pauseEnrich <- makePause[F]
         assets <- Assets.State.make[F](blocker, pauseEnrich, assets)
         enrichments <- Enrichments.make[F](parsedConfigs.enrichmentConfigs)
-        sentry <- file.sentry.map(_.dsn) match {
+        sentry <- file.monitoring.flatMap(_.sentry).map(_.dsn) match {
                     case Some(dsn) => Resource.liftF[F, Option[SentryClient]](Sync[F].delay(Sentry.init(dsn.toString).some))
                     case None => Resource.pure[F, Option[SentryClient]](none[SentryClient])
                   }
@@ -165,7 +165,7 @@ object Environment {
     Resource.make(SignallingRef(true))(_.set(true))
 
   private def metricsReporter[F[_]: ConcurrentEffect: ContextShift: Timer](blocker: Blocker, config: ConfigFile): F[Metrics[F]] =
-    config.metrics.map(Metrics.build[F](blocker, _)).getOrElse(Metrics.noop[F].pure[F])
+    config.monitoring.flatMap(_.metrics).map(Metrics.build[F](blocker, _)).getOrElse(Metrics.noop[F].pure[F])
 
   /** Decode base64-encoded configs, passed via CLI. Read files, validate and parse */
   def parse[F[_]: Async: Clock: ContextShift](config: CliConfig): Parsed[F, ParsedConfigs] =

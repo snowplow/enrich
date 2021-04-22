@@ -21,7 +21,7 @@ import cats.effect.{Blocker, ContextShift, Resource, Sync, Timer}
 
 import _root_.io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 
-import com.snowplowanalytics.snowplow.enrich.fs2.config.io.MetricsReporter
+import com.snowplowanalytics.snowplow.enrich.fs2.config.io.MetricsReporters
 
 /**
  * Reports metrics to a StatsD server over UDP
@@ -45,13 +45,13 @@ object StatsDReporter {
    */
   def make[F[_]: Sync: ContextShift: Timer](
     blocker: Blocker,
-    config: MetricsReporter.StatsD
+    config: MetricsReporters.StatsD
   ): Resource[F, Metrics.Reporter[F]] =
     Resource.fromAutoCloseable(Sync[F].delay(new DatagramSocket)).map(impl[F](blocker, config, _))
 
   def impl[F[_]: Sync: ContextShift: Timer](
     blocker: Blocker,
-    config: MetricsReporter.StatsD,
+    config: MetricsReporters.StatsD,
     socket: DatagramSocket
   ): Metrics.Reporter[F] =
     new Metrics.Reporter[F] {
@@ -69,7 +69,7 @@ object StatsDReporter {
 
   type KeyValueMetric = (String, String)
 
-  def serializedMetrics(snapshot: Metrics.MetricSnapshot, config: MetricsReporter.StatsD): List[String] =
+  def serializedMetrics(snapshot: Metrics.MetricSnapshot, config: MetricsReporters.StatsD): List[String] =
     keyValues(snapshot).map(statsDFormat(config))
 
   def keyValues(snapshot: Metrics.MetricSnapshot): List[KeyValueMetric] =
@@ -92,10 +92,9 @@ object StatsDReporter {
     blocker.delay(socket.send(packet))
   }
 
-  private def statsDFormat(config: MetricsReporter.StatsD): KeyValueMetric => String = {
+  private def statsDFormat(config: MetricsReporters.StatsD): KeyValueMetric => String = {
     val tagStr = config.tags.map { case (k, v) => s"$k:$v" }.mkString(",")
-    val prefix = config.prefix.getOrElse(MetricsReporter.DefaultPrefix)
-    kv => s"${prefix}${kv._1}:${kv._2}|g|#$tagStr"
+    kv => s"${MetricsReporters.normalizeMetric(config.prefix, kv._1)}:${kv._2}|g|#$tagStr"
   }
 
 }

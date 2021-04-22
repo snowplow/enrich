@@ -1,87 +1,97 @@
-// "Gcp" is the only valid option now
-auth = {
-  type = "Gcp"
-}
-
-// Collector input
-input = {
-  type = "PubSub"
-  subscription = "projects/test-project/subscriptions/inputSub"
-
-  // Local FS supported for testing purposes
-  // type = "FileSystem"
-  // dir = "/var/collector"
-}
-
-// Enriched events output
-good = {
-  type = "PubSub"
-  topic = "projects/test-project/topics/good-topic"
-
-  // Enriched event fields to add as PubSub message attributes.
-  attributes = [ "app_id" ]
-
-  // Local FS supported for testing purposes
-  // type = "FileSystem"
-  // dir = "/var/enriched"
-}
-
-// Pii events output
-pii = {
-  type = "PubSub"
-  topic = "projects/test-project/topics/pii-topic"
-
-  // Enriched event fields to add as PubSub message attributes.
-  // attributes = [ "app_id" ]
-
-  // Local FS supported for testing purposes
-  // type = "FileSystem"
-  // dir = "/var/pii"
-}
-
-// Bad rows output
-bad = {
-  type = "PubSub"
-  topic = "projects/test-project/topics/bad-topic"
-
-  // Local FS supported for testing purposes
-  // type = "FileSystem"
-  // dir = "/var/bad"
-}
-
-// Optional, for tracking runtime exceptions
-sentry = {
-  dsn = "http://sentry.acme.com"
-}
-
-// Optional, period after which enrich assets should be checked for updates
-// no assets will be updated if the key is absent
-assetsUpdatePeriod = "7 days"
-
-// Optional, configure how metrics are reported
-metrics = {
-
-  // Send metrics to a StatsD server on localhost
-  type = "StatsD"
-  hostname = "localhost"
-  port = 8125
-
-  // Alternatively, log to stdout using Slf4j
-  // type = "Stdout"
-
-  // Required, how frequently to report metrics
-  period = "10 seconds"
-
-  // Any key-value pairs to be tagged on every metric
-  tags = {
-    app = enrich
-
-    // Environment variables can be resolved to tags
-    // host = ${HOSTNAME}
+{
+  "auth": {
+    # "Gcp" is the only valid option now
+    "type": "Gcp"
   }
 
-  // Optional, override the default metric prefix
-  // prefix = "snowplow.enrich."
+  # Collector input
+  "input": {
+    "type": "PubSub"
+    "subscription": "projects/test-project/subscriptions/inputSub"
+
+    # Local FS supported for testing purposes
+    # "type": "FileSystem"
+    # "dir": "/var/collector"
+  }
+
+  # Enriched events output
+  "good": {
+    "type": "PubSub"
+    "topic": "projects/test-project/topics/good-topic"
+
+    # Enriched event fields to add as PubSub message attributes.
+    "attributes": [ "app_id" ]
+
+    # Local FS supported for testing purposes
+    # "type": "FileSystem"
+    # "dir": "/var/enriched"
+  }
+
+  # Pii events output
+  "pii": {
+    "type": "PubSub"
+    "topic": "projects/test-project/topics/pii-topic"
+
+    # Enriched event fields to add as PubSub message attributes.
+    # "attributes": [ "app_id" ]
+
+    # Local FS supported for testing purposes
+    # "type": "FileSystem"
+    # "dir": "/var/pii"
+  }
+
+  # Bad rows output
+  "bad": {
+    "type": "PubSub"
+    "topic": "projects/test-project/topics/bad-topic"
+
+    # Local FS supported for testing purposes
+    # "type": "FileSystem"
+    # "dir": "/var/bad"
+  }
 
 
+  # Optional, period after which enrich assets should be checked for updates
+  # no assets will be updated if the key is absent
+  "assetsUpdatePeriod": "7 days"
+
+  "monitoring": {
+
+    # Optional, for tracking runtime exceptions
+    "sentry": {
+      "dsn": "http://sentry.acme.com"
+    }
+
+    # Optional, configure how metrics are reported
+    "metrics": {
+
+      # Send metrics to a StatsD server on localhost
+      "statsd": {
+
+        "hostname": "localhost"
+        "port": 8125
+
+        # Required, how frequently to report metrics
+        "period": "10 seconds"
+
+        # Any key-value pairs to be tagged on every StatsD metric
+        "tags": {
+          "app": enrich
+        }
+
+        # Optional, override the default metric prefix
+        # "prefix": "snowplow.enrich."
+      }
+
+      # Log to stdout using Slf4j
+      "stdout" {
+        "period": "10 seconds"
+
+        # Optional, override the default metric prefix
+        # "prefix": "snowplow.enrich."
+      }
+
+    }
+
+  }
 }

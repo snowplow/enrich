@@ -15,13 +15,13 @@ package com.snowplowanalytics.snowplow.enrich.fs2.io
 import cats.implicits._
 import cats.{Applicative, Monad}
 import cats.effect.concurrent.Ref
-import cats.effect.{Blocker, Clock, ConcurrentEffect, ContextShift, Resource, Sync, Timer}
+import cats.effect.{Async, Blocker, Clock, ConcurrentEffect, ContextShift, Resource, Sync, Timer}
 
 import fs2.Stream
 
-import scala.concurrent.duration.MILLISECONDS
+import scala.concurrent.duration.{FiniteDuration, MILLISECONDS}
 
-import com.snowplowanalytics.snowplow.enrich.fs2.config.io.MetricsReporter
+import com.snowplowanalytics.snowplow.enrich.fs2.config.io.MetricsReporters
 
 import _root_.io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 
@@ -67,13 +67,37 @@ object Metrics {
 
   def build[F[_]: ContextShift: ConcurrentEffect: Timer](
     blocker: Blocker,
-    config: MetricsReporter
+    config: MetricsReporters
+  ): F[Metrics[F]] =
+    config match {
+      case MetricsReporters(None, None) => noop[F].pure[F]
+      case MetricsReporters(statsd, stdout) => impl[F](blocker, statsd, stdout)
+    }
+
+  private def impl[F[_]: ContextShift: ConcurrentEffect: Timer](
+    blocker: Blocker,
+    statsd: Option[MetricsReporters.StatsD],
+    stdout: Option[MetricsReporters.Stdout]
   ): F[Metrics[F]] =
     for {
       refs <- MetricRefs.init[F]
-      rep = reporterStream(blocker, config, refs)
     } yield new Metrics[F] {
-      def report: Stream[F, Unit] = rep
+      def report: Stream[F, Unit] = {
+
+        val rep1 = statsd
+          .map { config =>
+            reporterStream(StatsDReporter.make[F](blocker, config), refs, config.period)
+          }
+          .getOrElse(Stream.never[F])
+
+        val rep2 = stdout
+          .map { config =>
+            reporterStream(Resource.liftF(stdoutReporter(config)), refs, config.period)
+          }
+          .getOrElse(Stream.never[F])
+
+        rep1.concurrently(rep2)
+      }
 
       def enrichLatency(collectorTstamp: Option[Long]): F[Unit] =
         collectorTstamp match {
@@ -129,44 +153,39 @@ object Metrics {
   }
 
   def reporterStream[F[_]: Sync: Timer: ContextShift](
-    blocker: Blocker,
-    config: MetricsReporter,
-    metrics: MetricRefs[F]
+    reporter: Resource[F, Reporter[F]],
+    metrics: MetricRefs[F],
+    period: FiniteDuration
   ): Stream[F, Unit] =
     for {
-      rep <- Stream.resource(makeReporter(blocker, config))
+      rep <- Stream.resource(reporter)
       lastReportRef <- Stream.eval(Clock[F].realTime(MILLISECONDS)).evalMap(Ref.of(_))
-      _ <- Stream.fixedDelay[F](config.period)
+      _ <- Stream.fixedDelay[F](period)
       lastReport <- Stream.eval(Clock[F].realTime(MILLISECONDS)).evalMap(lastReportRef.getAndSet(_))
       snapshot <- Stream.eval(MetricRefs.snapshot(metrics, lastReport))
       _ <- Stream.eval(rep.report(snapshot))
     } yield ()
 
-  def makeReporter[F[_]: Sync: ContextShift: Timer](
-    blocker: Blocker,
-    config: MetricsReporter
-  ): Resource[F, Reporter[F]] =
-    config match {
-      case stdout: MetricsReporter.Stdout =>
+  def stdoutReporter[F[_]: Sync: ContextShift: Timer](
+    config: MetricsReporters.Stdout
+  ): F[Reporter[F]] =
+    for {
+      logger <- Slf4jLogger.fromName[F](LoggerName)
+    } yield new Reporter[F] {
+      def report(snapshot: MetricSnapshot): F[Unit] =
         for {
-          logger <- Resource.liftF(Slf4jLogger.fromName[F](LoggerName))
-          prefix = stdout.prefix.getOrElse(MetricsReporter.DefaultPrefix)
-        } yield new Reporter[F] {
-          def report(snapshot: MetricSnapshot): F[Unit] =
-            for {
-              _ <- logger.info(s"$prefix$RawCounterName = ${snapshot.rawCount}")
-              _ <- logger.info(s"$prefix$GoodCounterName = ${snapshot.goodCount}")
-              _ <- logger.info(s"$prefix$BadCounterName = ${snapshot.badCount}")
-              _ <- snapshot.enrichLatency.map(latency => logger.info(s"$prefix$LatencyGaugeName = $latency")).getOrElse(Sync[F].unit)
-            } yield ()
-        }
-      case statsd: MetricsReporter.StatsD =>
-        StatsDReporter.make[F](blocker, statsd)
+          _ <- logger.info(s"${MetricsReporters.normalizeMetric(config.prefix, RawCounterName)} = ${snapshot.rawCount}")
+          _ <- logger.info(s"${MetricsReporters.normalizeMetric(config.prefix, GoodCounterName)} = ${snapshot.goodCount}")
+          _ <- logger.info(s"${MetricsReporters.normalizeMetric(config.prefix, BadCounterName)} = ${snapshot.badCount}")
+          _ <- snapshot.enrichLatency
+                 .map(latency => logger.info(s"${MetricsReporters.normalizeMetric(config.prefix, LatencyGaugeName)} = $latency"))
+                 .getOrElse(Sync[F].unit)
+        } yield ()
     }
 
-  def noop[F[_]: Applicative]: Metrics[F] =
+  def noop[F[_]: Async]: Metrics[F] =
     new Metrics[F] {
-      def report: Stream[F, Unit] = Stream.empty.covary[F]
+      def report: Stream[F, Unit] = Stream.never[F]
       def enrichLatency(collectorTstamp: Option[Long]): F[Unit] = Applicative[F].unit
       def rawCount: F[Unit] = Applicative[F].unit
       def goodCount: F[Unit] = Applicative[F].unit

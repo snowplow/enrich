@@ -67,7 +67,6 @@ class CliConfigSpec extends Specification with CatsIO {
         Some(io.Output.PubSub("projects/test-project/topics/pii-topic", Some(Set("app_id", "platform")))),
         io.Output.PubSub("projects/test-project/topics/bad-topic", None),
         None,
-        None,
         None
       )
 

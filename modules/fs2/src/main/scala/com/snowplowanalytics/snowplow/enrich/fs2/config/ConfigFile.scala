@@ -23,7 +23,7 @@ import _root_.io.circe.{Decoder, Encoder, Json}
 import _root_.io.circe.config.syntax._
 import _root_.io.circe.generic.extras.semiauto.{deriveConfiguredDecoder, deriveConfiguredEncoder}
 
-import com.snowplowanalytics.snowplow.enrich.fs2.config.io.{Authentication, Input, MetricsReporter, Output}
+import com.snowplowanalytics.snowplow.enrich.fs2.config.io.{Authentication, Input, Monitoring, Output}
 
 import pureconfig.ConfigSource
 import pureconfig.module.catseffect.syntax._
@@ -38,6 +38,7 @@ import pureconfig.module.circe._
  * @param pii pii enriched output (PubSub, Kinesis, FS etc)
  * @param bad bad rows output (PubSub, Kinesis, FS etc)
  * @param assetsUpdatePeriod time after which assets should be updated, in minutes
+ * @param monitoring configuration for sentry and metrics
  */
 final case class ConfigFile(
   auth: Authentication,
@@ -46,8 +47,7 @@ final case class ConfigFile(
   pii: Option[Output],
   bad: Output,
   assetsUpdatePeriod: Option[FiniteDuration],
-  sentry: Option[Sentry],
-  metrics: Option[MetricsReporter]
+  monitoring: Option[Monitoring]
 )
 
 object ConfigFile {
@@ -58,7 +58,7 @@ object ConfigFile {
 
   implicit val configFileDecoder: Decoder[ConfigFile] =
     deriveConfiguredDecoder[ConfigFile].emap {
-      case ConfigFile(_, _, _, _, _, Some(aup), _, _) if aup._1 <= 0L =>
+      case ConfigFile(_, _, _, _, _, Some(aup), _) if aup._1 <= 0L =>
         "assetsUpdatePeriod in config file cannot be less than 0".asLeft // TODO: use newtype
       case other => other.asRight
     }

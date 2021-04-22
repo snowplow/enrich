@@ -12,13 +12,13 @@
  */
 package com.snowplowanalytics.snowplow.enrich.fs2.io
 
-import com.snowplowanalytics.snowplow.enrich.fs2.config.io.MetricsReporter
+import com.snowplowanalytics.snowplow.enrich.fs2.config.io.MetricsReporters
 import scala.concurrent.duration.DurationLong
 
 import org.specs2.mutable.Specification
 
 class StatsDReporterSpec extends Specification {
-  val TestConfig = MetricsReporter.StatsD("localhost", 8125, Map("tag1" -> "abc"), 1.second, Some("snowplow.test."))
+  val TestConfig = MetricsReporters.StatsD("localhost", 8125, Map("tag1" -> "abc"), 1.second, Some("snowplow.test."))
 
   "StatsDeporter" should {
     "serialize metrics" in {

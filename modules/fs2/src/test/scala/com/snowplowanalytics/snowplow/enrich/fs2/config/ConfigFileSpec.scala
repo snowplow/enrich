@@ -38,8 +38,17 @@ class ConfigFileSpec extends Specification with CatsIO {
         Some(io.Output.PubSub("projects/test-project/topics/pii-topic", None)),
         io.Output.PubSub("projects/test-project/topics/bad-topic", None),
         Some(7.days),
-        Some(Sentry(URI.create("http://sentry.acme.com"))),
-        Some(io.MetricsReporter.StatsD("localhost", 8125, Map("app" -> "enrich"), 10.seconds, None))
+        Some(
+          io.Monitoring(
+            Some(Sentry(URI.create("http://sentry.acme.com"))),
+            Some(
+              io.MetricsReporters(
+                Some(io.MetricsReporters.StatsD("localhost", 8125, Map("app" -> "enrich"), 10.seconds, None)),
+                Some(io.MetricsReporters.Stdout(10.seconds, None))
+              )
+            )
+          )
+        )
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
     }
@@ -96,8 +105,17 @@ class ConfigFileSpec extends Specification with CatsIO {
         Some(io.Output.PubSub("projects/test-project/topics/pii-topic", Some(Set("app_id", invalidAttr2)))),
         io.Output.PubSub("projects/test-project/topics/bad-topic", None),
         Some(7.days),
-        Some(Sentry(URI.create("http://sentry.acme.com"))),
-        Some(io.MetricsReporter.StatsD("localhost", 8125, Map("app" -> "enrich"), 10.seconds, None))
+        Some(
+          io.Monitoring(
+            Some(Sentry(URI.create("http://sentry.acme.com"))),
+            Some(
+              io.MetricsReporters(
+                Some(io.MetricsReporters.StatsD("localhost", 8125, Map("app" -> "enrich"), 10.seconds, None)),
+                Some(io.MetricsReporters.Stdout(10.seconds, None))
+              )
+            )
+          )
+        )
       )
 
       Environment.validateConfig[IO](configFile).value.map(result => result must beLeft)

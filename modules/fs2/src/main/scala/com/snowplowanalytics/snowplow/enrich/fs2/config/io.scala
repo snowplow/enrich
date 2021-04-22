@@ -101,33 +101,61 @@ object io {
       deriveConfiguredEncoder[Output]
   }
 
-  sealed trait MetricsReporter {
-    def period: FiniteDuration
-    def prefix: Option[String]
-  }
+  final case class MetricsReporters(statsd: Option[MetricsReporters.StatsD], stdout: Option[MetricsReporters.Stdout])
 
-  object MetricsReporter {
-    final case class Stdout(period: FiniteDuration, prefix: Option[String]) extends MetricsReporter
+  object MetricsReporters {
+    final case class Stdout(period: FiniteDuration, prefix: Option[String])
     final case class StatsD(
       hostname: String,
       port: Int,
       tags: Map[String, String],
       period: FiniteDuration,
       prefix: Option[String]
-    ) extends MetricsReporter
+    )
 
     import ConfigFile.finiteDurationEncoder
 
-    implicit val metricsReporterDecoder: Decoder[MetricsReporter] =
-      deriveConfiguredDecoder[MetricsReporter].emap { mr =>
-        if (mr.period <= Duration.Zero)
+    implicit val stdoutDecoder: Decoder[Stdout] =
+      deriveConfiguredDecoder[Stdout].emap { stdout =>
+        if (stdout.period < Duration.Zero)
           "metrics report period in config file cannot be less than 0".asLeft
-        else mr.asRight
+        else
+          stdout.asRight
       }
 
-    implicit val metricsReporterEncoder: Encoder[MetricsReporter] =
-      deriveConfiguredEncoder[MetricsReporter]
+    implicit val statsDecoder: Decoder[StatsD] =
+      deriveConfiguredDecoder[StatsD].emap { statsd =>
+        if (statsd.period < Duration.Zero)
+          "metrics report period in config file cannot be less than 0".asLeft
+        else
+          statsd.asRight
+      }
 
-    val DefaultPrefix = "snowplow.enrich."
+    implicit val metricsReportersDecoder: Decoder[MetricsReporters] =
+      deriveConfiguredDecoder[MetricsReporters]
+
+    implicit val stdoutEncoder: Encoder[Stdout] =
+      deriveConfiguredEncoder[Stdout]
+
+    implicit val statsdEncoder: Encoder[StatsD] =
+      deriveConfiguredEncoder[StatsD]
+
+    implicit val metricsReportersEncoder: Encoder[MetricsReporters] =
+      deriveConfiguredEncoder[MetricsReporters]
+
+    def normalizeMetric(prefix: Option[String], metric: String): String =
+      s"${prefix.getOrElse(DefaultPrefix).stripSuffix(".")}.$metric".stripPrefix(".")
+
+    val DefaultPrefix = "snowplow.enrich"
   }
+
+  case class Monitoring(sentry: Option[Sentry], metrics: Option[MetricsReporters])
+
+  object Monitoring {
+    implicit val monitoringDecoder: Decoder[Monitoring] =
+      deriveConfiguredDecoder[Monitoring]
+    implicit val monitoringEncoder: Encoder[Monitoring] =
+      deriveConfiguredEncoder[Monitoring]
+  }
+
 }

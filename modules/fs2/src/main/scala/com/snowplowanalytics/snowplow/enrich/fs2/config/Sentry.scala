@@ -31,8 +31,8 @@ object Sentry {
   implicit val javaNetUriEncoder: Encoder[URI] =
     Encoder[String].contramap(_.toString)
 
-  implicit val authenticationDecoder: Decoder[Sentry] =
+  implicit val sentryDecoder: Decoder[Sentry] =
     deriveConfiguredDecoder[Sentry]
-  implicit val authenticationEncoder: Encoder[Sentry] =
+  implicit val sentryEncoder: Encoder[Sentry] =
     deriveConfiguredEncoder[Sentry]
 }

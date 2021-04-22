@@ -130,4 +130,14 @@ object io {
 
     val DefaultPrefix = "snowplow.enrich."
   }
+
+  case class Monitoring(sentry: Option[Sentry], metrics: Option[MetricsReporter])
+
+  object Monitoring {
+    implicit val monitoringDecoder: Decoder[Monitoring] =
+      deriveConfiguredDecoder[Monitoring]
+    implicit val monitoringEncoder: Encoder[Monitoring] =
+      deriveConfiguredEncoder[Monitoring]
+  }
+
 }

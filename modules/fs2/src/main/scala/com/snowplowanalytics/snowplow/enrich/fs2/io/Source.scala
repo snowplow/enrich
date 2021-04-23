@@ -26,6 +26,8 @@ import com.snowplowanalytics.snowplow.enrich.fs2.config.io.{Authentication, Inpu
 
 import com.google.pubsub.v1.PubsubMessage
 
+import java.nio.file.{Files, Path}
+
 object Source {
 
   /**
@@ -57,11 +59,12 @@ object Source {
       case (Authentication.Gcp, p: Input.PubSub) =>
         pubSub(blocker, p)
       case (_, p: Input.FileSystem) =>
-        directoryStream(blocker, p.dir).evalMap { file =>
-          readAll[F](file, blocker, 4096).compile
-            .to(Array)
-            .map(bytes => Payload(bytes, Sync[F].unit))
-        }
+        recursiveDirectoryStream(blocker, p.dir)
+          .evalMap { file =>
+            readAll[F](file, blocker, 4096).compile
+              .to(Array)
+              .map(bytes => Payload(bytes, Sync[F].unit))
+          }
     }
 
   def pubSub[F[_]: Concurrent: ContextShift](
@@ -81,4 +84,11 @@ object Source {
       .subscribe[F, Array[Byte]](blocker, projectId, subscriptionId, errorHandler, pubSubConfig)
       .map(record => Payload(record.value, record.ack))
   }
+
+  private def recursiveDirectoryStream[F[_]: Sync: ContextShift](blocker: Blocker, path: Path): Stream[F, Path] =
+    for {
+      subPath <- directoryStream(blocker, path)
+      isDir <- Stream.eval(blocker.delay(Files.isDirectory(subPath)))
+      file <- if (isDir) recursiveDirectoryStream(blocker, subPath) else Stream.emit(subPath)
+    } yield file
 }

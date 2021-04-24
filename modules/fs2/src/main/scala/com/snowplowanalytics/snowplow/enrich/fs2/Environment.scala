@@ -13,6 +13,7 @@
 package com.snowplowanalytics.snowplow.enrich.fs2
 
 import scala.concurrent.duration.FiniteDuration
+import java.lang.reflect.Field
 
 import java.lang.reflect.Field
 import cats.{Applicative, Show}
@@ -255,4 +256,5 @@ object Environment {
     fields.flatMap {
       case (k, f) => Option(f.get(ee)).map(v => k -> v.toString)
     }
+
 }

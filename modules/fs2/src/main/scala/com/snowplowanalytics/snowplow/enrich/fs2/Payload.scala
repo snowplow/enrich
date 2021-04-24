@@ -13,6 +13,8 @@
 package com.snowplowanalytics.snowplow.enrich.fs2
 
 import cats.effect.Concurrent
+import cats.Parallel
+import cats.implicits._
 import fs2.Pipe
 
 /**
@@ -27,8 +29,12 @@ case class Payload[F[_], A](data: A, finalise: F[Unit])
 
 object Payload {
 
-  def sink[F[_]: Concurrent, A](inner: Pipe[F, A, Unit]): Pipe[F, Payload[F, A], Unit] =
-    _.observeAsync(Enrich.ConcurrencyLevel)(_.map(_.data).through(inner))
-      .evalMap(_.finalise)
+  def sink[F[_]: Concurrent, A](f: A => F[Unit]): Pipe[F, Payload[F, A], Unit] =
+    _.parEvalMap(SinkConcurrency)(p => f(p.data) *> p.finalise)
+
+  def sinkAll[F[_]: Concurrent: Parallel, A](f: A => F[Unit]): Pipe[F, Payload[F, List[A]], Unit] =
+    sink(_.parTraverse_(f))
+
+  val SinkConcurrency = 10000
 
 }

@@ -14,7 +14,7 @@ package com.snowplowanalytics.snowplow.enrich
 
 import cats.data.Validated
 
-import _root_.fs2.{Pipe, Stream}
+import _root_.fs2.Stream
 
 import com.snowplowanalytics.snowplow.badrows.BadRow
 
@@ -25,8 +25,8 @@ package object fs2 {
   /** Raw Thrift payloads coming from a collector */
   type RawSource[F[_]] = Stream[F, Payload[F, Array[Byte]]]
 
-  type ByteSink[F[_]] = Pipe[F, Array[Byte], Unit]
-  type AttributedByteSink[F[_]] = Pipe[F, AttributedData[Array[Byte]], Unit]
+  type ByteSink[F[_]] = Array[Byte] => F[Unit]
+  type AttributedByteSink[F[_]] = AttributedData[Array[Byte]] => F[Unit]
 
   /** Enrichment result, containing list of (valid and invalid) results */
   type Result[F[_]] = Payload[F, List[Validated[BadRow, EnrichedEvent]]]

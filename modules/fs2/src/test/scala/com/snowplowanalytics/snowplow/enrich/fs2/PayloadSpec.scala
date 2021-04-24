@@ -23,24 +23,28 @@ import org.specs2.mutable.Specification
 
 class PayloadSpec extends Specification with CatsIO with ScalaCheck {
 
-  "sink" should {
+  "sinkAll" should {
     "execute finalize action only once" in {
       val input = List(1, 2, 3)
-      val pipe = { (s: Stream[IO, List[Int]]) => s.flatMap(Stream.emits(_)).drain }
       for {
         ref <- Ref.of[IO, Int](0)
         payload = Payload(input, ref.update(_ + 1))
-        _ <- Stream.emit(payload).through(Payload.sink(pipe)).compile.drain
+        _ <- Stream.emit(payload).through(Payload.sinkAll(_ => IO.unit)).compile.drain
         result <- ref.get
       } yield result must beEqualTo(1)
     }
 
     "not execute finalize action when an error occurs" in {
-      val pipe = { (s: Stream[IO, Int]) => s.evalMap(_ => IO.raiseError(new RuntimeException("boom!"))) }
+      val input = List(1, 2, 3)
       for {
         ref <- Ref.of[IO, Int](0)
-        payload = Payload(1, ref.update(_ + 1))
-        _ <- Stream.emit(payload).through(Payload.sink(pipe)).compile.drain.handleError(_ => ())
+        payload = Payload(input, ref.update(_ + 1))
+        _ <- Stream
+               .emit(payload)
+               .through(Payload.sinkAll[IO, Int](_ => IO.raiseError(new RuntimeException("boom!"))))
+               .compile
+               .drain
+               .handleError(_ => ())
         result <- ref.get
       } yield result must beEqualTo(0)
     }

@@ -26,7 +26,7 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData
 import com.snowplowanalytics.snowplow.analytics.scalasdk.SnowplowEvent.Contexts
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.YauaaConf
-import com.snowplowanalytics.snowplow.enrich.fs2.{EnrichSpec, Output, Payload}
+import com.snowplowanalytics.snowplow.enrich.fs2.{EnrichSpec, Payload}
 import com.snowplowanalytics.snowplow.enrich.fs2.test._
 
 import org.specs2.mutable.Specification
@@ -85,12 +85,11 @@ class YauaaEnrichmentSpec extends Specification with CatsIO {
       )
 
       TestEnvironment.make(input, List(enrichment)).use { test =>
-        test.run().map { events =>
-          events must beLike {
-            case List(Output.Good(event)) =>
-              event.derived_contexts must beEqualTo(expected)
-            case other => ko(s"Expected one enriched event, got $other")
-          }
+        test.run().map {
+          case (bad, pii, good) =>
+            (bad must be empty)
+            (pii must be empty)
+            good.map(_.derived_contexts) must contain(exactly(expected))
         }
       }
     }

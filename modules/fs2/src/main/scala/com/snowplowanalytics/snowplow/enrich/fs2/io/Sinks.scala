@@ -12,16 +12,16 @@
  */
 package com.snowplowanalytics.snowplow.enrich.fs2.io
 
+import java.nio.ByteBuffer
 import java.nio.file.{Path, StandardOpenOption}
+import java.nio.channels.FileChannel
 
 import scala.concurrent.duration._
 
 import cats.implicits._
 
-import cats.effect.{Blocker, Concurrent, ContextShift, Resource, Sync}
-
-import fs2.{Pipe, Stream}
-import fs2.io.file.writeAll
+import cats.effect.{Blocker, Concurrent, ContextShift, Resource, Sync, Timer}
+import cats.effect.concurrent.Semaphore
 
 import io.chrisdavenport.log4cats.Logger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
@@ -30,7 +30,7 @@ import com.permutive.pubsub.producer.Model.{ProjectId, Topic}
 import com.permutive.pubsub.producer.encoder.MessageEncoder
 import com.permutive.pubsub.producer.grpc.{GooglePubsubProducer, PubsubProducerConfig}
 
-import com.snowplowanalytics.snowplow.enrich.fs2.{AttributedByteSink, AttributedData, ByteSink, Enrich}
+import com.snowplowanalytics.snowplow.enrich.fs2.{AttributedByteSink, AttributedData, ByteSink}
 import com.snowplowanalytics.snowplow.enrich.fs2.config.io.{Authentication, Output}
 
 object Sinks {
@@ -46,19 +46,19 @@ object Sinks {
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
     Slf4jLogger.getLogger[F]
 
-  def sink[F[_]: Concurrent: ContextShift](
+  def sink[F[_]: Concurrent: ContextShift: Timer](
     blocker: Blocker,
     auth: Authentication,
     output: Output
   ): Resource[F, ByteSink[F]] =
     (auth, output) match {
       case (Authentication.Gcp, o: Output.PubSub) =>
-        pubsubSink[F, Array[Byte]](o).map(p => (s: Stream[F, Array[Byte]]) => s.map(b => AttributedData(b, Map.empty)).through(p))
+        pubsubSink[F, Array[Byte]](o).map(sink => bytes => sink(AttributedData(bytes, Map.empty)))
       case (_, o: Output.FileSystem) =>
-        Resource.pure[F, ByteSink[F]](fileSink(o.dir, blocker))
+        fileSink(o.dir, blocker)
     }
 
-  def attributedSink[F[_]: Concurrent: ContextShift](
+  def attributedSink[F[_]: Concurrent: ContextShift: Timer](
     blocker: Blocker,
     auth: Authentication,
     output: Output
@@ -67,14 +67,12 @@ object Sinks {
       case (Authentication.Gcp, o: Output.PubSub) =>
         pubsubSink[F, Array[Byte]](o)
       case (_, o: Output.FileSystem) =>
-        Resource.pure[F, ByteSink[F]](fileSink(o.dir, blocker)).map { p => (s: Stream[F, AttributedData[Array[Byte]]]) =>
-          s.map(_.data).through(p)
-        }
+        fileSink(o.dir, blocker).map(sink => row => sink(row.data))
     }
 
   def pubsubSink[F[_]: Concurrent, A: MessageEncoder](
     output: Output.PubSub
-  ): Resource[F, Pipe[F, AttributedData[A], Unit]] = {
+  ): Resource[F, AttributedData[A] => F[Unit]] = {
     val config = PubsubProducerConfig[F](
       batchSize = 5,
       delayThreshold = DelayThreshold,
@@ -83,14 +81,22 @@ object Sinks {
 
     GooglePubsubProducer
       .of[F, A](ProjectId(output.project), Topic(output.name), config)
-      .map(producer =>
-        (s: Stream[F, AttributedData[A]]) =>
-          s.parEvalMapUnordered(Enrich.ConcurrencyLevel)(row => producer.produce(row.data, row.attributes).void)
-      )
+      .map { producer => row: AttributedData[A] => producer.produce(row.data, row.attributes).void }
   }
 
-  private def fileSink[F[_]: Sync: ContextShift](path: Path, blocker: Blocker): ByteSink[F] =
-    _.flatMap(bytes => Stream.emits(bytes) ++ Stream.emit('\n'.toByte))
-      .through(writeAll[F](path, blocker, List(StandardOpenOption.CREATE_NEW)))
+  private def fileSink[F[_]: Concurrent: ContextShift](path: Path, blocker: Blocker): Resource[F, ByteSink[F]] =
+    for {
+      channel <- Resource.fromAutoCloseableBlocking(blocker)(
+                   Sync[F].delay(FileChannel.open(path, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE))
+                 )
+      sem <- Resource.liftF(Semaphore(1L))
+    } yield { bytes =>
+      sem.withPermit {
+        blocker.delay {
+          channel.write(ByteBuffer.wrap(bytes))
+          channel.write(ByteBuffer.wrap(Array('\n'.toByte)))
+        }.void
+      }
+    }
 
 }

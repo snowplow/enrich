@@ -102,26 +102,18 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
     "update metrics with raw, good and bad counters" in {
       val input = Stream.emits(List(Payload(Array.empty[Byte], IO.unit), EnrichSpec.payload[IO]))
       TestEnvironment.make(input).use { test =>
-        // The sleep for 100 millis should not be necessary; but it seems to prevent
-        // unexplained test failures in CI.
-        val finalise = IO.sleep(100.millis) *> test.finalise()
-
-        val enrichStream = Enrich.run[IO](test.env).onFinalize(finalise)
-        val rows = test.bad.dequeue
-          .either(test.good.dequeue)
-          .concurrently(enrichStream)
+        val enrichStream = Enrich.run[IO](test.env)
         for {
-          payloads <- rows.compile.toList
+          _ <- enrichStream.compile.drain
+          bad <- test.bad
+          good <- test.good
           counter <- test.counter.get
         } yield {
-          counter.raw must_== 2L
-          counter.good must_== 1L
-          counter.bad must_== 1L
-          payloads must be like {
-            case List(Left(_), Right(_)) => ok
-            case List(Right(_), Left(_)) => ok
-            case other => ko(s"Expected one bad and one good row, got $other")
-          }
+          (counter.raw must_== 2L)
+          (counter.good must_== 1L)
+          (counter.bad must_== 1L)
+          (bad.size must_== 1)
+          (good.size must_== 1)
         }
       }
     }
@@ -169,33 +161,32 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
       (assetsServer *> TestEnvironment.make(input, List(ipLookupsConf))).use { test =>
         test
           .run(_.copy(assetsUpdatePeriod = Some(1800.millis)))
-          .map { events =>
-            events must containTheSameElementsAs(List(Output.Good(one), Output.Good(two)))
+          .map {
+            case (bad, pii, good) =>
+              (bad must be empty)
+              (pii must be empty)
+              (good must contain(exactly(one, two)))
           }
       }
     }
   }
 
-  "resultSink" should {
+  "sinkResult" should {
     "emit an enriched event with attributes to the good sink" in {
       TestEnvironment.make(Stream.empty).use { test =>
-        val environment = test.env.copy(goodAttributes = Set("app_id"), piiAttributes = Set(""))
+        val environment = test.env.copy(goodAttributes = { ee => Map("app_id" -> ee.app_id) })
         val ee = new EnrichedEvent()
         ee.app_id = "test_app"
         ee.platform = "web"
 
-        val input = Stream.emit(List(Validated.Valid(ee)))
-
         for {
-          _ <- input.through(Enrich.resultSink(environment)).compile.drain
-          _ <- test.finalise()
-          good <- test.good.dequeue.compile.toList
-          pii <- test.pii.dequeue.compile.toList
-          bad <- test.bad.dequeue.compile.toList
+          _ <- Enrich.sinkResult(environment)(Validated.Valid(ee))
+          good <- test.good
+          pii <- test.pii
+          bad <- test.bad
         } yield {
-
           good should beLike {
-            case AttributedData(bytes, attrs) :: Nil =>
+            case Vector(AttributedData(bytes, attrs)) =>
               bytes must not be empty
               attrs must contain(exactly("app_id" -> "test_app"))
           }
@@ -208,30 +199,28 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
 
     "emit a pii event with attributes to the pii sink" in {
       TestEnvironment.make(Stream.empty).use { test =>
-        val environment = test.env.copy(goodAttributes = Set("app_id"), piiAttributes = Set("platform"))
+        val environment =
+          test.env.copy(goodAttributes = { ee => Map("app_id" -> ee.app_id) }, piiAttributes = { ee => Map("platform" -> ee.platform) })
         val ee = new EnrichedEvent()
         ee.app_id = "test_app"
         ee.platform = "web"
         ee.pii = "e30="
 
-        val input = Stream.emit(List(Validated.Valid(ee)))
-
         for {
-          _ <- input.through(Enrich.resultSink(environment)).compile.drain
-          _ <- test.finalise()
-          good <- test.good.dequeue.compile.toList
-          pii <- test.pii.dequeue.compile.toList
-          bad <- test.bad.dequeue.compile.toList
+          _ <- Enrich.sinkResult(environment)(Validated.Valid(ee))
+          good <- test.good
+          pii <- test.pii
+          bad <- test.bad
         } yield {
 
           good should beLike {
-            case AttributedData(bytes, attrs) :: Nil =>
+            case Vector(AttributedData(bytes, attrs)) =>
               bytes must not be empty
               attrs must contain(exactly("app_id" -> "test_app"))
           }
 
           pii should beLike {
-            case AttributedData(bytes, attrs) :: Nil =>
+            case Vector(AttributedData(bytes, attrs)) =>
               bytes must not be empty
               attrs must contain(exactly("platform" -> "srv"))
           }
@@ -248,14 +237,11 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
           .AdapterFailures(Instant.now, "vendor", "1-0-0", NonEmptyList.one(FailureDetails.AdapterFailure.NotJson("field", None, "error")))
         val badRow = BadRow.AdapterFailures(Enrich.processor, failure, EnrichSpec.collectorPayload.toBadRowPayload)
 
-        val input = Stream.emit(List(Validated.Invalid(badRow)))
-
         for {
-          _ <- input.through(Enrich.resultSink(test.env)).compile.drain
-          _ <- test.finalise()
-          good <- test.good.dequeue.compile.toList
-          pii <- test.pii.dequeue.compile.toList
-          bad <- test.bad.dequeue.compile.toList
+          _ <- Enrich.sinkResult(test.env)(Validated.Invalid(badRow))
+          good <- test.good
+          pii <- test.pii
+          bad <- test.bad
         } yield {
 
           (good should be empty)
@@ -267,6 +253,117 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
       }
     }
 
+  }
+
+  "sinkBad" should {
+    "serialize a bad event to the bad output" in {
+      implicit val cpGen = PayloadGen.getPageViewArbitrary
+      prop { (collectorPayload: CollectorPayload) =>
+        val failure = Failure.AdapterFailures(Instant.now,
+                                              "vendor",
+                                              "1-0-0",
+                                              NonEmptyList.one(FailureDetails.AdapterFailure.NotJson("field", None, "error"))
+        )
+        val badRow = BadRow.AdapterFailures(Enrich.processor, failure, collectorPayload.toBadRowPayload)
+
+        TestEnvironment.make(Stream.empty).use { test =>
+          for {
+            _ <- Enrich.sinkBad(test.env, badRow)
+            good <- test.good
+            pii <- test.pii
+            bad <- test.bad
+          } yield {
+            (bad.size must_== 1)
+            (good should be empty)
+            (pii should be empty)
+          }
+        }
+      }
+    }
+  }
+
+  "sinkGood" should {
+
+    "serialize a good event to the good output" in {
+      val ee = new EnrichedEvent()
+
+      TestEnvironment.make(Stream.empty).use { test =>
+        for {
+          _ <- Enrich.sinkGood(test.env, ee)
+          good <- test.good
+          pii <- test.pii
+          bad <- test.bad
+        } yield {
+          (good.size must_== 1)
+          (bad should be empty)
+          (pii should be empty)
+        }
+      }
+    }
+
+    "serialize an over-sized good event to the bad output" in {
+      val ee = new EnrichedEvent()
+      ee.app_id = "x" * 10000000
+
+      TestEnvironment.make(Stream.empty).use { test =>
+        for {
+          _ <- Enrich.sinkGood(test.env, ee)
+          good <- test.good
+          pii <- test.pii
+          bad <- test.bad
+        } yield {
+          bad should beLike {
+            case Vector(bytes) =>
+              bytes must not be empty
+              bytes must have size (be_<=(6900000))
+          }
+          (good should be empty)
+          (pii should be empty)
+        }
+      }
+    }
+
+    "serialize a pii event to the pii output" in {
+      val ee = new EnrichedEvent()
+      ee.pii = "eyJ4IjoieSJ9Cg=="
+
+      TestEnvironment.make(Stream.empty).use { test =>
+        for {
+          _ <- Enrich.sinkGood(test.env, ee)
+          good <- test.good
+          pii <- test.pii
+          bad <- test.bad
+        } yield {
+          (good.size must_== 1)
+          (pii.size must_== 1)
+          (bad should be empty)
+        }
+      }
+
+    }
+
+    "serialize an over-sized pii event to the bad output" in {
+      val ee = new EnrichedEvent()
+      ee.pii = "x" * 10000000
+
+      TestEnvironment.make(Stream.empty).use { test =>
+        for {
+          _ <- Enrich.sinkGood(test.env, ee)
+          good <- test.good
+          pii <- test.pii
+          bad <- test.bad
+        } yield {
+          bad should beLike {
+            case Vector(bytes) =>
+              bytes must not be empty
+              bytes must have size (be_<=(6900000))
+          }
+          (good.size must_== 1)
+          (pii should be empty)
+        }
+      }
+
+    }
   }
 }
 

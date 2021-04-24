@@ -24,8 +24,6 @@ import cats.effect.concurrent.Ref
 
 import io.circe.{Json, parser}
 
-import fs2.concurrent.{NoneTerminatedQueue, Queue}
-
 import com.snowplowanalytics.iglu.client.{CirceValidator, Client, Resolver}
 import com.snowplowanalytics.iglu.client.resolver.registries.Registry
 
@@ -33,7 +31,7 @@ import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 import com.snowplowanalytics.snowplow.badrows.BadRow
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
-import com.snowplowanalytics.snowplow.enrich.fs2.{Assets, AttributedData, Enrich, EnrichSpec, Environment, Output, RawSource}
+import com.snowplowanalytics.snowplow.enrich.fs2.{Assets, AttributedData, Enrich, EnrichSpec, Environment, RawSource}
 import com.snowplowanalytics.snowplow.enrich.fs2.Environment.Enrichments
 import com.snowplowanalytics.snowplow.enrich.fs2.SpecHelpers.{filesResource, ioClock}
 import cats.effect.testing.specs2.CatsIO
@@ -44,9 +42,9 @@ import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 case class TestEnvironment(
   env: Environment[IO],
   counter: Ref[IO, Counter],
-  good: NoneTerminatedQueue[IO, AttributedData[Array[Byte]]],
-  pii: NoneTerminatedQueue[IO, AttributedData[Array[Byte]]],
-  bad: NoneTerminatedQueue[IO, Array[Byte]]
+  good: IO[Vector[AttributedData[Array[Byte]]]],
+  pii: IO[Vector[AttributedData[Array[Byte]]]],
+  bad: IO[Vector[Array[Byte]]]
 ) {
 
   /**
@@ -64,33 +62,22 @@ case class TestEnvironment(
     implicit C: Concurrent[IO],
     CS: ContextShift[IO],
     T: Timer[IO]
-  ): IO[List[Output[BadRow, Event, Event]]] = {
+  ): IO[(Vector[BadRow], Vector[Event], Vector[Event])] = {
     val updatedEnv = updateEnv(env)
 
     val pauses = updatedEnv.pauseEnrich.discrete.evalMap(p => TestEnvironment.logger.info(s"Pause signal is $p"))
     val stream = Enrich.run[IO](updatedEnv).merge(Assets.run[IO](updatedEnv)).merge(pauses)
-    bad.dequeue
-      .map(Output.Bad(_))
-      .merge(good.dequeue.map(Output.Good(_)))
-      .merge(pii.dequeue.map(Output.Pii(_)))
-      .concurrently(stream)
-      .haltAfter(5.seconds)
-      .compile
-      .toList
-      .map { rows =>
-        rows.map {
-          case Output.Bad(bytes) => Output.Bad(TestEnvironment.parseBad(bytes))
-          case Output.Good(AttributedData(bytes, _)) =>
-            EnrichSpec.normalize(new String(bytes, UTF_8)).fold(Output.Bad(_), Output.Good(_))
-          case Output.Pii(AttributedData(bytes, _)) =>
-            EnrichSpec.normalize(new String(bytes, UTF_8)).fold(Output.Bad(_), Output.Pii(_))
-        }
-      }
+    for {
+      _ <- stream.haltAfter(5.seconds).compile.drain
+      goodVec <- good
+      piiVec <- pii
+      badVec <- bad
+    } yield (badVec.map(TestEnvironment.parseBad(_)),
+             piiVec.flatMap(p => EnrichSpec.normalize(new String(p.data, UTF_8)).toOption),
+             goodVec.flatMap(g => EnrichSpec.normalize(new String(g.data, UTF_8)).toOption)
+    )
   }
 
-  /** Let the Enrich output streams terminate after all inputs are processed */
-  def finalise(): IO[Unit] =
-    good.enqueue1(None) *> bad.enqueue1(None) *> pii.enqueue1(None)
 }
 
 object TestEnvironment extends CatsIO {
@@ -130,14 +117,14 @@ object TestEnvironment extends CatsIO {
       blocker <- ioBlocker
       _ <- filesResource(blocker, enrichments.flatMap(_.filesToCache).map(p => Paths.get(p._2)))
       counter <- Resource.liftF(Counter.make[IO])
-      goodQueue <- Resource.liftF(Queue.noneTerminated[IO, AttributedData[Array[Byte]]])
-      piiQueue <- Resource.liftF(Queue.noneTerminated[IO, AttributedData[Array[Byte]]])
-      badQueue <- Resource.liftF(Queue.noneTerminated[IO, Array[Byte]])
       metrics = Counter.mkCounterMetrics[IO](counter)(Monad[IO], ioClock)
       pauseEnrich <- Environment.makePause[IO]
       assets <- Assets.State.make(blocker, pauseEnrich, enrichments.flatMap(_.filesToCache))
       _ <- Resource.liftF(logger.info("AssetsState initialized"))
       enrichmentsRef <- Enrichments.make[IO](enrichments)
+      goodRef <- Resource.liftF(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
+      piiRef <- Resource.liftF(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
+      badRef <- Resource.liftF(Ref.of[IO, Vector[Array[Byte]]](Vector.empty))
       environment = Environment[IO](
                       igluClient,
                       enrichmentsRef,
@@ -145,17 +132,17 @@ object TestEnvironment extends CatsIO {
                       assets,
                       blocker,
                       source,
-                      _.map(Some(_)).through(goodQueue.enqueue),
-                      Some(_.map(Some(_)).through(piiQueue.enqueue)),
-                      _.map(Some(_)).through(badQueue.enqueue),
+                      g => goodRef.update(_ :+ g),
+                      Some(p => piiRef.update(_ :+ p)),
+                      b => badRef.update(_ :+ b),
                       None,
                       metrics,
                       None,
-                      Set.empty,
-                      Set.empty
+                      _ => Map.empty,
+                      _ => Map.empty
                     )
       _ <- Resource.liftF(pauseEnrich.set(false) *> logger.info("TestEnvironment initialized"))
-    } yield TestEnvironment(environment, counter, goodQueue, piiQueue, badQueue)
+    } yield TestEnvironment(environment, counter, goodRef.get, piiRef.get, badRef.get)
 
   def parseBad(bytes: Array[Byte]): BadRow =
     parser

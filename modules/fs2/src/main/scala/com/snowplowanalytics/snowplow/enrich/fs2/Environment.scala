@@ -13,6 +13,7 @@
 package com.snowplowanalytics.snowplow.enrich.fs2
 
 import scala.concurrent.duration.FiniteDuration
+import java.lang.reflect.Field
 
 import cats.Show
 import cats.data.EitherT
@@ -36,6 +37,8 @@ import com.snowplowanalytics.iglu.client.Client
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
 import com.snowplowanalytics.snowplow.enrich.fs2.config.{CliConfig, ConfigFile}
 import com.snowplowanalytics.snowplow.enrich.fs2.config.io.{Output => OutputConfig}
 import com.snowplowanalytics.snowplow.enrich.fs2.io.{FileSystem, Metrics, Sinks, Source}
@@ -76,8 +79,8 @@ final case class Environment[F[_]](
   sentry: Option[SentryClient],
   metrics: Metrics[F],
   assetsUpdatePeriod: Option[FiniteDuration],
-  goodAttributes: Set[String],
-  piiAttributes: Set[String]
+  goodAttributes: EnrichedEvent => Map[String, String],
+  piiAttributes: EnrichedEvent => Map[String, String]
 )
 
 object Environment {
@@ -152,7 +155,7 @@ object Environment {
         metrics,
         file.assetsUpdatePeriod,
         outputAttributes(file.good),
-        file.pii.map(outputAttributes).getOrElse(Set.empty)
+        file.pii.map(outputAttributes).getOrElse(_ => Map.empty)
       )
     }
 
@@ -207,9 +210,22 @@ object Environment {
     }
   }
 
-  private def outputAttributes(output: OutputConfig): Set[String] =
+  // TODO: write test for this.
+  private def outputAttributes(output: OutputConfig): EnrichedEvent => Map[String, String] =
     output match {
-      case OutputConfig.PubSub(_, attributes) => attributes.getOrElse(Set.empty)
-      case OutputConfig.FileSystem(_) => Set.empty
+      case OutputConfig.PubSub(_, attributes) =>
+        val fields = ConversionUtils.EnrichedFields
+          .filter(f => attributes.contains(f.getName))
+          .map(f => f.getName -> f)
+          .toMap
+        attributesFromFields(fields) _
+      case OutputConfig.FileSystem(_) =>
+        _ => Map.empty
     }
+
+  private def attributesFromFields(fields: Map[String, Field])(ee: EnrichedEvent): Map[String, String] =
+    fields.flatMap {
+      case (k, f) => Option(f.get(ee)).map(v => k -> v.toString)
+    }
+
 }

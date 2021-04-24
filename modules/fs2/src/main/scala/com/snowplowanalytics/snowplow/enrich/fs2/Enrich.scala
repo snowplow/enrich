@@ -12,18 +12,19 @@
  */
 package com.snowplowanalytics.snowplow.enrich.fs2
 
+import java.nio.charset.StandardCharsets.UTF_8
 import java.time.Instant
 import java.util.Base64
 import java.util.concurrent.TimeUnit
 
 import org.joda.time.DateTime
 import cats.data.{NonEmptyList, Validated, ValidatedNel}
-import cats.Applicative
+import cats.{Monad, Parallel}
 import cats.implicits._
 
 import cats.effect.{Blocker, Clock, Concurrent, ContextShift, Sync}
 
-import fs2.{Pipe, Stream}
+import fs2.Stream
 
 import _root_.io.sentry.SentryClient
 import _root_.io.circe.Json
@@ -68,7 +69,7 @@ object Enrich {
    * [[Environment]] initialisation, then if `assetsUpdatePeriod` has been specified -
    * they'll be refreshed periodically by [[Assets.updateStream]]
    */
-  def run[F[_]: Concurrent: ContextShift: Clock](env: Environment[F]): Stream[F, Unit] = {
+  def run[F[_]: Concurrent: ContextShift: Clock: Parallel](env: Environment[F]): Stream[F, Unit] = {
     val registry: F[EnrichmentRegistry[F]] = env.enrichments.get.map(_.registry)
     val enrich: Enrich[F] = enrichWith[F](registry, env.blocker, env.igluClient, env.sentry, env.metrics.enrichLatency)
 
@@ -76,54 +77,7 @@ object Enrich {
       .pauseWhen(env.pauseEnrich)
       .evalTap(_ => env.metrics.rawCount)
       .parEvalMapUnordered(ConcurrencyLevel)(enrich)
-      .through(Payload.sink(resultSink(env)))
-  }
-
-  def resultSink[F[_]: Concurrent](env: Environment[F]): Pipe[F, List[Validated[BadRow, EnrichedEvent]], Nothing] =
-    _.flatMap(Stream.emits(_))
-      .through(toOutputs(env))
-      .map(Output.serialize)
-      .through(Output.sink(badSink(env), goodSink(env), piiSink(env)))
-      .drain
-
-  def badSink[F[_]: Applicative](env: Environment[F]): ByteSink[F] =
-    _.evalTap(_ => env.metrics.badCount)
-      .through(env.bad)
-
-  def goodSink[F[_]: Applicative](env: Environment[F]): AttributedByteSink[F] =
-    _.evalTap(_ => env.metrics.goodCount)
-      .through(env.good)
-
-  def piiSink[F[_]: Applicative](env: Environment[F]): AttributedByteSink[F] =
-    _.through(env.pii.getOrElse(_.drain))
-
-  def toOutputs[F[_]](env: Environment[F]): Pipe[F, Validated[BadRow, EnrichedEvent], Output.Parsed] = {
-    val goodAttributer = addAttributes(env.goodAttributes)
-    val piiAttributer = addAttributes(env.piiAttributes)
-    _.flatMap {
-      case Validated.Valid(ee) =>
-        val pii = ConversionUtils
-          .getPiiEvent(processor, ee)
-          .map(pii => Output.Pii(piiAttributer(pii)))
-        Stream.emit(Output.Good(goodAttributer(ee))) ++ Stream.emits(pii.toSeq)
-      case Validated.Invalid(bad) =>
-        Stream.emit(Output.Bad(bad))
-    }
-  }
-
-  def addAttributes(fieldNames: Set[String]): EnrichedEvent => AttributedData[EnrichedEvent] = {
-    val fields = ConversionUtils.EnrichedFields.filter(f => fieldNames.contains(f.getName)).map(f => f.getName -> f).toMap
-
-    ee => {
-      val attrs = fields
-        .map {
-          case (k, f) => k -> Option(f.get(ee))
-        }
-        .collect {
-          case (k, Some(v)) => k -> v.toString
-        }
-      AttributedData(ee, attrs)
-    }
+      .through(Payload.sinkAll(sinkResult(env)))
   }
 
   /**
@@ -186,4 +140,54 @@ object Enrich {
     val failure = Failure.GenericFailure(time, NonEmptyList.one(error.toString))
     BadRow.GenericError(processor, failure, rawPayload)
   }
+
+  def sinkBad[F[_]: Monad](env: Environment[F], bad: BadRow): F[Unit] =
+    env.metrics.badCount >> env.bad(bad.compact.getBytes(UTF_8))
+
+  def sinkGood[F[_]: Concurrent: Parallel](env: Environment[F], enriched: EnrichedEvent): F[Unit] =
+    serializeEnriched(enriched) match {
+      case Left(br) => sinkBad(env, br)
+      case Right(bytes) =>
+        List(env.metrics.goodCount, env.good(AttributedData(bytes, env.goodAttributes(enriched))), sinkPii(env, enriched)).parSequence_
+    }
+
+  def sinkPii[F[_]: Monad](env: Environment[F], enriched: EnrichedEvent): F[Unit] =
+    (for {
+      piiSink <- env.pii
+      pii <- ConversionUtils.getPiiEvent(processor, enriched)
+    } yield serializeEnriched(pii) match {
+      case Left(br) => sinkBad(env, br)
+      case Right(bytes) => piiSink(AttributedData(bytes, env.piiAttributes(pii)))
+    }).getOrElse(Monad[F].unit)
+
+  def serializeEnriched(enriched: EnrichedEvent): Either[BadRow, Array[Byte]] = {
+    val asStr = ConversionUtils.tabSeparatedEnrichedEvent(enriched)
+    val asBytes = asStr.getBytes(UTF_8)
+    val size = asBytes.length
+    if (size > MaxRecordSize) {
+      val msg = s"event passed enrichment but then exceeded the maximum allowed size $MaxRecordSize"
+      val br = BadRow
+        .SizeViolation(
+          Enrich.processor,
+          Failure.SizeViolation(Instant.now(), MaxRecordSize, size, msg),
+          BadRowPayload.RawPayload(asStr.take(MaxErrorMessageSize))
+        )
+      Left(br)
+    } else Right(asBytes)
+  }
+
+  def sinkResult[F[_]: Concurrent: Parallel](env: Environment[F])(result: Validated[BadRow, EnrichedEvent]): F[Unit] =
+    result.fold(sinkBad(env, _), sinkGood(env, _))
+
+  /**
+   * The maximum size of a serialized payload that can be written to pubsub.
+   *
+   *  Equal to 6.9 MB. The message will be base64 encoded by the underlying library, which brings the
+   *  encoded message size to near 10 MB, which is the maximum allowed for PubSub.
+   */
+  private val MaxRecordSize = 6900000
+
+  /** The maximum substring of the message that we write into a SizeViolation bad row */
+  private val MaxErrorMessageSize = MaxRecordSize / 10
+
 }

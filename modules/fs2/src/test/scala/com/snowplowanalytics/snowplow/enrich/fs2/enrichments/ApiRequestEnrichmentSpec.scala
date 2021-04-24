@@ -43,7 +43,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequ
 }
 
 import com.snowplowanalytics.snowplow.enrich.fs2.enrichments.ApiRequestEnrichmentSpec.unstructEvent
-import com.snowplowanalytics.snowplow.enrich.fs2.{EnrichSpec, Output, Payload}
+import com.snowplowanalytics.snowplow.enrich.fs2.{EnrichSpec, Payload}
 import com.snowplowanalytics.snowplow.enrich.fs2.test._
 
 import org.specs2.mutable.Specification
@@ -84,12 +84,11 @@ class ApiRequestEnrichmentSpec extends Specification with CatsIO {
 
       val testWithHttp = HttpServer.resource(4.seconds) *> TestEnvironment.make(input, List(enrichment))
       testWithHttp.use { test =>
-        test.run().map { events =>
-          events must beLike {
-            case List(Output.Good(event)) =>
-              event.derived_contexts must beEqualTo(expected)
-            case other => ko(s"Expected one enriched event, got $other")
-          }
+        test.run().map {
+          case (bad, pii, good) =>
+            (bad must be empty)
+            (pii must be empty)
+            (good.map(_.derived_contexts) must contain(exactly(expected)))
         }
       }
     }

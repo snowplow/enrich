@@ -29,7 +29,7 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData
 
 import com.snowplowanalytics.snowplow.analytics.scalasdk.SnowplowEvent.Contexts
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
-import com.snowplowanalytics.snowplow.enrich.fs2.{EnrichSpec, Output, Payload}
+import com.snowplowanalytics.snowplow.enrich.fs2.{EnrichSpec, Payload}
 import com.snowplowanalytics.snowplow.enrich.fs2.test.{HttpServer, TestEnvironment}
 
 import org.specs2.mutable.Specification
@@ -58,10 +58,10 @@ class IabEnrichmentSpec extends Specification with CatsIO {
       val testWithHttp = HttpServer.resource(6.seconds) *> TestEnvironment.make(input, List(IabEnrichmentSpec.enrichmentConf))
       testWithHttp.use { test =>
         test.run().map {
-          case List(Output.Good(event)) =>
-            event.derived_contexts must beEqualTo(expected)
-          case other =>
-            ko(s"Expected one valid event, got $other")
+          case (bad, pii, good) =>
+            (bad must be empty)
+            (pii must be empty)
+            good.map(_.derived_contexts) must contain(exactly(expected))
         }
       }
     }
@@ -94,10 +94,10 @@ class IabEnrichmentSpec extends Specification with CatsIO {
       val testWithHttp = HttpServer.resource(6.seconds) *> TestEnvironment.make(input, List(IabEnrichmentSpec.enrichmentConf))
       testWithHttp.use { test =>
         test.run(_.copy(assetsUpdatePeriod = Some(1800.millis))).map {
-          case List(Output.Good(eventOne), Output.Good(eventTwo)) =>
-            List(eventOne.derived_contexts, eventTwo.derived_contexts) must containTheSameElementsAs(List(expectedOne, expectedTwo))
-          case other =>
-            ko(s"Expected two valid events, got $other")
+          case (bad, pii, good) =>
+            (bad must be empty)
+            (pii must be empty)
+            good.map(_.derived_contexts) must contain(exactly(expectedOne, expectedTwo))
         }
       }
     }

@@ -92,7 +92,7 @@ object Metrics {
 
         val rep2 = stdout
           .map { config =>
-            reporterStream(Resource.liftF(stdoutReporter(config)), refs, config.period)
+            reporterStream(Resource.eval(stdoutReporter(config)), refs, config.period)
           }
           .getOrElse(Stream.never[F])
 

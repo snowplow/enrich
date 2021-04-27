@@ -36,9 +36,9 @@ class Http4sRegistryLookupSpec extends Specification with CatsIO {
       val client = HttpClient[IO] { req =>
         val dsl = new Http4sDsl[IO] {}; import dsl._
         if (req.uri == uri"http://custom-iglu.com/schemas/com.myvendor/myname/jsonschema/42-42-42")
-          Resource.liftF(Ok("""{"xyz": true}"""))
+          Resource.eval(Ok("""{"xyz": true}"""))
         else
-          Resource.liftF(NotFound("unexpected url"))
+          Resource.eval(NotFound("unexpected url"))
       }
 
       Http4sRegistryLookup(client).lookup(repositoryRef, schemaKey).map { result =>
@@ -54,7 +54,7 @@ class Http4sRegistryLookupSpec extends Specification with CatsIO {
 
       val client = HttpClient[IO] { _ =>
         val dsl = new Http4sDsl[IO] {}; import dsl._
-        Resource.liftF(NotFound("not found"))
+        Resource.eval(NotFound("not found"))
       }
 
       Http4sRegistryLookup(client).lookup(repositoryRef, schemaKey).map { result =>
@@ -69,7 +69,7 @@ class Http4sRegistryLookupSpec extends Specification with CatsIO {
       val schemaKey = SchemaKey("com.myvendor", "myname", "jsonschema", SchemaVer.Full(42, 42, 42))
 
       val client = HttpClient[IO] { _ =>
-        Resource.liftF(IO.raiseError(new RuntimeException("boom!")))
+        Resource.eval(IO.raiseError(new RuntimeException("boom!")))
       }
 
       Http4sRegistryLookup(client).lookup(repositoryRef, schemaKey).map { result =>
@@ -87,9 +87,9 @@ class Http4sRegistryLookupSpec extends Specification with CatsIO {
       val client = HttpClient[IO] { req =>
         val dsl = new Http4sDsl[IO] {}; import dsl._
         if (req.uri == uri"http://custom-iglu.com/schemas/com.myvendor/myname/jsonschema/42")
-          Resource.liftF(Ok("""["iglu:com.myvendor/myname/jsonschema/42-0-0", "iglu:com.myvendor/myname/jsonschema/42-0-1"]"""))
+          Resource.eval(Ok("""["iglu:com.myvendor/myname/jsonschema/42-0-0", "iglu:com.myvendor/myname/jsonschema/42-0-1"]"""))
         else
-          Resource.liftF(NotFound("unexpected url"))
+          Resource.eval(NotFound("unexpected url"))
       }
 
       val expected = List(
@@ -108,7 +108,7 @@ class Http4sRegistryLookupSpec extends Specification with CatsIO {
         Registry.Http(Registry.Config("name", 1, Nil), Registry.HttpConnection(URI.create("http://custom-iglu.com"), None))
 
       val client = HttpClient[IO] { _ =>
-        Resource.liftF(IO.raiseError(new RuntimeException("boom!")))
+        Resource.eval(IO.raiseError(new RuntimeException("boom!")))
       }
 
       Http4sRegistryLookup(client).list(registry, "com.myvendor", "myname", 42).map { result =>

@@ -72,7 +72,7 @@ object Dependencies {
     val fs2PubSub        = "0.16.1"
     val fs2BlobStorage   = "0.7.3"
     val http4s           = "0.21.22"
-    val log4cats         = "1.1.1"
+    val log4cats         = "1.3.0"
     val catsRetry        = "1.1.1"
 
     val scopt            = "3.7.1"
@@ -171,7 +171,7 @@ object Dependencies {
     val fs2Io            = "co.fs2"                           %% "fs2-io"                            % V.fs2
     val http4sClient     = "org.http4s"                       %% "http4s-blaze-client"               % V.http4s
     val http4sCirce      = "org.http4s"                       %% "http4s-circe"                      % V.http4s
-    val log4cats         = "io.chrisdavenport"                %% "log4cats-slf4j"                    % V.log4cats
+    val log4cats         = "org.typelevel"                    %% "log4cats-slf4j"                    % V.log4cats
     val catsRetry        = "com.github.cb372"                 %% "cats-retry"                        % V.catsRetry
     val fs2BlobS3        = "com.github.fs2-blobstore"         %% "s3"                                % V.fs2BlobStorage
     val fs2BlobGcs       = "com.github.fs2-blobstore"         %% "gcs"                               % V.fs2BlobStorage

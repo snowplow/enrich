@@ -94,8 +94,8 @@ object Assets {
     ): Resource[F, State[F]] =
       for {
         clients <- Clients.make[F](blocker, assets.map(_._1), http)
-        map <- Resource.liftF(build[F](blocker, clients, assets.filterNot(asset => asset == TestPair)))
-        files <- Resource.liftF(Ref.of[F, Map[URI, Hash]](map))
+        map <- Resource.eval(build[F](blocker, clients, assets.filterNot(asset => asset == TestPair)))
+        files <- Resource.eval(Ref.of[F, Map[URI, Hash]](map))
       } yield State(files, stop, clients)
 
     def build[F[_]: Concurrent: Timer: ContextShift](

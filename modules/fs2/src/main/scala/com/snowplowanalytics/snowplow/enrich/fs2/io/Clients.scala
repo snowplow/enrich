@@ -121,8 +121,8 @@ object Clients {
   ): Resource[F, Clients[F]] = {
     val toInit = Client.required(uris)
     for {
-      s3 <- if (toInit.contains(Client.S3)) Resource.liftF(mkS3[F]).map(_.some) else Resource.pure[F, Option[S3Store[F]]](none)
-      gcs <- if (toInit.contains(Client.GCS)) Resource.liftF(mkGCS[F](blocker).map(_.some)) else Resource.pure[F, Option[GcsStore[F]]](none)
+      s3 <- if (toInit.contains(Client.S3)) Resource.eval(mkS3[F]).map(_.some) else Resource.pure[F, Option[S3Store[F]]](none)
+      gcs <- if (toInit.contains(Client.GCS)) Resource.eval(mkGCS[F](blocker).map(_.some)) else Resource.pure[F, Option[GcsStore[F]]](none)
     } yield Clients(s3, gcs, http)
   }
 

@@ -120,15 +120,15 @@ object TestEnvironment extends CatsIO {
       http <- Clients.mkHTTP[IO](ExecutionContext.global)
       blocker <- ioBlocker
       _ <- filesResource(blocker, enrichments.flatMap(_.filesToCache).map(p => Paths.get(p._2)))
-      counter <- Resource.liftF(Counter.make[IO])
+      counter <- Resource.eval(Counter.make[IO])
       metrics = Counter.mkCounterMetrics[IO](counter)(Monad[IO], ioClock)
       pauseEnrich <- Environment.makePause[IO]
       assets <- Assets.State.make(blocker, pauseEnrich, enrichments.flatMap(_.filesToCache), http)
-      _ <- Resource.liftF(logger.info("AssetsState initialized"))
+      _ <- Resource.eval(logger.info("AssetsState initialized"))
       enrichmentsRef <- Enrichments.make[IO](enrichments, BlockerF.ofBlocker(blocker))
-      goodRef <- Resource.liftF(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
-      piiRef <- Resource.liftF(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
-      badRef <- Resource.liftF(Ref.of[IO, Vector[Array[Byte]]](Vector.empty))
+      goodRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
+      piiRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
+      badRef <- Resource.eval(Ref.of[IO, Vector[Array[Byte]]](Vector.empty))
       environment = Environment[IO](
                       igluClient,
                       Http4sRegistryLookup(http),
@@ -146,7 +146,7 @@ object TestEnvironment extends CatsIO {
                       _ => Map.empty,
                       _ => Map.empty
                     )
-      _ <- Resource.liftF(pauseEnrich.set(false) *> logger.info("TestEnvironment initialized"))
+      _ <- Resource.eval(pauseEnrich.set(false) *> logger.info("TestEnvironment initialized"))
     } yield TestEnvironment(environment, counter, goodRef.get, piiRef.get, badRef.get)
 
   def parseBad(bytes: Array[Byte]): BadRow =

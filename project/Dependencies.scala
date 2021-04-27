@@ -73,7 +73,7 @@ object Dependencies {
     val fs2BlobStorage   = "0.7.3"
     val http4s           = "0.21.22"
     val log4cats         = "1.3.0"
-    val catsRetry        = "1.1.1"
+    val catsRetry        = "2.1.0"
 
     val scopt            = "3.7.1"
     val pureconfig       = "0.11.0"

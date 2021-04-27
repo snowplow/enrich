@@ -71,7 +71,7 @@ object Dependencies {
     val catsEffect       = "2.5.0"
     val fs2PubSub        = "0.16.1"
     val fs2BlobStorage   = "0.7.3"
-    val http4s           = "0.21.7"
+    val http4s           = "0.21.22"
     val log4cats         = "1.1.1"
     val catsRetry        = "1.1.1"
 

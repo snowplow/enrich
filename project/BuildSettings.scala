@@ -100,6 +100,7 @@ object BuildSettings {
       case x if x.endsWith("public-suffix-list.txt") => MergeStrategy.first
       case x if x.endsWith("ProjectSettings$.class") => MergeStrategy.first
       case x if x.endsWith("module-info.class") => MergeStrategy.first
+      case x if x.endsWith("nowarn.class") => MergeStrategy.first
       case x =>
         val oldStrategy = (assemblyMergeStrategy in assembly).value
         oldStrategy(x)

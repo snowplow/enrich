@@ -113,7 +113,7 @@ object Sinks {
       channel <- Resource.fromAutoCloseableBlocking(blocker)(
                    Sync[F].delay(FileChannel.open(path, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE))
                  )
-      sem <- Resource.liftF(Semaphore(1L))
+      sem <- Resource.eval(Semaphore(1L))
     } yield { bytes =>
       sem.withPermit {
         blocker.delay {

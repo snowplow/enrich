@@ -108,7 +108,7 @@ object Environment {
 
   object Enrichments {
     def make[F[_]: Async: Clock](configs: List[EnrichmentConf], blocker: BlockerF[F]): Resource[F, Ref[F, Enrichments[F]]] =
-      Resource.liftF {
+      Resource.eval {
         for {
           registry <- buildRegistry[F](configs, blocker)
           ref <- Ref.of(Enrichments[F](registry, configs))
@@ -134,7 +134,7 @@ object Environment {
         http <- Clients.mkHTTP(ec)
         client <- Client.parseDefault[F](parsedConfigs.igluJson).resource
         blocker <- Blocker[F]
-        metrics <- Resource.liftF(metricsReporter[F](blocker, file))
+        metrics <- Resource.eval(metricsReporter[F](blocker, file))
         rawSource = Source.read[F](blocker, file.auth, file.input)
         goodSink <- Sinks.attributedSink[F](blocker, file.auth, file.good)
         piiSink <- file.pii.map(f => Sinks.attributedSink[F](blocker, file.auth, f)).sequence
@@ -144,10 +144,10 @@ object Environment {
         assets <- Assets.State.make[F](blocker, pauseEnrich, assets, http)
         enrichments <- Enrichments.make[F](parsedConfigs.enrichmentConfigs, BlockerF.ofBlocker(blocker))
         sentry <- file.monitoring.flatMap(_.sentry).map(_.dsn) match {
-                    case Some(dsn) => Resource.liftF[F, Option[SentryClient]](Sync[F].delay(Sentry.init(dsn.toString).some))
+                    case Some(dsn) => Resource.eval[F, Option[SentryClient]](Sync[F].delay(Sentry.init(dsn.toString).some))
                     case None => Resource.pure[F, Option[SentryClient]](none[SentryClient])
                   }
-        _ <- Resource.liftF(pauseEnrich.set(false) *> Logger[F].info("Enrich environment initialized"))
+        _ <- Resource.eval(pauseEnrich.set(false) *> Logger[F].info("Enrich environment initialized"))
       } yield Environment[F](
         client,
         Http4sRegistryLookup(http),
@@ -214,7 +214,7 @@ object Environment {
         case Right(a) => Sync[F].pure(a)
         case Left(error) => Sync[F].raiseError(new RuntimeException(error.show)) // Safe since we already parsed it
       }
-      Resource.liftF[F, A](action)
+      Resource.eval[F, A](action)
     }
   }
 

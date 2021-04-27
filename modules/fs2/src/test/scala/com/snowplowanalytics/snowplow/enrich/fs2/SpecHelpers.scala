@@ -44,7 +44,7 @@ object SpecHelpers extends CatsIO {
   def refreshState(uris: List[Assets.Asset]): Resource[IO, Assets.State[IO]] =
     for {
       b <- TestEnvironment.ioBlocker
-      stop <- Resource.liftF(Ref.of[IO, Boolean](false))
+      stop <- Resource.eval(Ref.of[IO, Boolean](false))
       http <- Clients.mkHTTP[IO](ExecutionContext.global)
       state <- Assets.State.make[IO](b, stop, uris, http)
     } yield state

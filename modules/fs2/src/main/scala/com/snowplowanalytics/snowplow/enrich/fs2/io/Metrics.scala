@@ -145,7 +145,7 @@ object Metrics {
     config match {
       case stdout: MetricsReporter.Stdout =>
         for {
-          logger <- Resource.liftF(Slf4jLogger.fromName[F](LoggerName))
+          logger <- Resource.eval(Slf4jLogger.fromName[F](LoggerName))
           prefix = stdout.prefix.getOrElse(MetricsReporter.DefaultPrefix)
         } yield new Reporter[F] {
           def report(snapshot: MetricSnapshot): F[Unit] =

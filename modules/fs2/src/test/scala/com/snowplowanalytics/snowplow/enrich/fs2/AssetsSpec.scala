@@ -140,7 +140,7 @@ object AssetsSpec {
       blocker <- Blocker[IO]
       state <- SpecHelpers.refreshState(List(URI.create("http://localhost:8080") -> "index"))
       enrichments <- Environment.Enrichments.make[IO](List(), BlockerF.noop)
-      path <- Resource.liftF(Assets.getCurDir[IO])
+      path <- Resource.eval(Assets.getCurDir[IO])
       _ <- SpecHelpers.filesResource(blocker, TestFiles)
     } yield (blocker, state, enrichments, path)
 

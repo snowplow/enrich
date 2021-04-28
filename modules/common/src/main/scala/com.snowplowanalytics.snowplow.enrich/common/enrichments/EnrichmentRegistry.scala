@@ -90,7 +90,7 @@ object EnrichmentRegistry {
                        sd <- EitherT.fromEither[F](
                                SelfDescribingData.parse(json).leftMap(pe => NonEmptyList.one(pe.code))
                              )
-                       _ <- client.check(sd).leftMap(e => NonEmptyList.one(e.toString))
+                       _ <- client.check(sd).leftMap(e => NonEmptyList.one(e.asJson.noSpaces))
                        conf <- EitherT.fromEither[F](
                                  buildEnrichmentConfig(sd.schema, sd.data, localMode).toEither
                                )

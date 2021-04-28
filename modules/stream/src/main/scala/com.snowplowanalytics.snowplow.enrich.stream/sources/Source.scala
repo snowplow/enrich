@@ -137,16 +137,16 @@ abstract class Source(
       }
       .mkString("\t")
 
-  def getProprertyValue(ee: EnrichedEvent, property: String): String =
+  def getProprertyValue(ee: EnrichedEvent, property: String): Option[String] =
     property match {
-      case "event_id" => ee.event_id
-      case "event_fingerprint" => ee.event_fingerprint
-      case "domain_userid" => ee.domain_userid
-      case "network_userid" => ee.network_userid
-      case "user_ipaddress" => ee.user_ipaddress
-      case "domain_sessionid" => ee.domain_sessionid
-      case "user_fingerprint" => ee.user_fingerprint
-      case _ => UUID.randomUUID().toString
+      case "event_id" => Option(ee.event_id)
+      case "event_fingerprint" => Option(ee.event_fingerprint)
+      case "domain_userid" => Option(ee.domain_userid)
+      case "network_userid" => Option(ee.network_userid)
+      case "user_ipaddress" => Option(ee.user_ipaddress)
+      case "domain_sessionid" => Option(ee.domain_sessionid)
+      case "user_fingerprint" => Option(ee.user_fingerprint)
+      case _ => None
     }
 
   /**
@@ -184,7 +184,7 @@ abstract class Source(
             enriched =>
               (
                 tabSeparateEnrichedEvent(enriched),
-                getProprertyValue(enriched, partitionKey),
+                getProprertyValue(enriched, partitionKey).getOrElse(UUID.randomUUID().toString),
                 ConversionUtils.getPiiEvent(processor, enriched).map(tabSeparateEnrichedEvent)
               )
           )

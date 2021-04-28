@@ -42,8 +42,8 @@ object BuildSettings {
 
   /** Custom sbt-buildinfo replacement, used by SCE only */
   lazy val scalifySettings = Seq(
-    sourceGenerators in Compile += Def.task {
-      val file = (sourceManaged in Compile).value / "settings.scala"
+    Compile / sourceGenerators += Def.task {
+      val file = (Compile / sourceManaged).value / "settings.scala"
       IO.write(file, """package com.snowplowanalytics.snowplow.enrich.common.generated
         |object ProjectSettings {
         |  val version = "%s"
@@ -59,7 +59,7 @@ object BuildSettings {
   /** Snowplow Common Enrich Maven publishing settings */
   lazy val publishSettings = Seq(
     publishArtifact := true,
-    publishArtifact in Test := false,
+    Test / publishArtifact := false,
     pomIncludeRepository := { _ => false },
     homepage := Some(url("http://snowplowanalytics.com")),
     ThisBuild / dynverVTagPrefix := false, // Otherwise git tags required to have v-prefix
@@ -81,8 +81,8 @@ object BuildSettings {
   lazy val scoverageSettings = Seq(
     coverageMinimum := 50,
     coverageFailOnMinimum := false,
-    (test in Test) := {
-      (coverageReport dependsOn (test in Test)).value
+    (Test / test) := {
+      (coverageReport dependsOn (Test / test)).value
     }
   )
 
@@ -93,8 +93,8 @@ object BuildSettings {
   /** sbt-assembly settings for building a fat jar */
   import sbtassembly.AssemblyPlugin.autoImport._
   lazy val sbtAssemblySettings = Seq(
-    assemblyJarName in assembly := { s"${moduleName.value}-${version.value}.jar" },
-    assemblyMergeStrategy in assembly := {
+    assembly / assemblyJarName := { s"${moduleName.value}-${version.value}.jar" },
+    assembly / assemblyMergeStrategy := {
       case x if x.endsWith("native-image.properties") => MergeStrategy.first
       case x if x.endsWith("io.netty.versions.properties") => MergeStrategy.first
       case x if x.endsWith("public-suffix-list.txt") => MergeStrategy.first
@@ -102,34 +102,34 @@ object BuildSettings {
       case x if x.endsWith("module-info.class") => MergeStrategy.first
       case x if x.endsWith("nowarn.class") => MergeStrategy.first
       case x =>
-        val oldStrategy = (assemblyMergeStrategy in assembly).value
+        val oldStrategy = (assembly / assemblyMergeStrategy).value
         oldStrategy(x)
     }
   )
 
   /** Add example config for integration tests */
   lazy val addExampleConfToTestCp = Seq(
-    unmanagedClasspath in Test += {
+    Test / unmanagedClasspath += {
       baseDirectory.value.getParentFile.getParentFile / "config"
     }
   )
 
   /** Docker settings, used by SE */
   lazy val dockerSettings = Seq(
-    maintainer in Docker := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
+    Docker / maintainer := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
     dockerBaseImage := "snowplow/base-debian:0.2.1",
-    daemonUser in Docker := "snowplow",
+    Docker / daemonUser := "snowplow",
     dockerUpdateLatest := true,
     dockerVersion := Some(DockerVersion(18, 9, 0, Some("ce"))),
-    daemonUserUid in Docker := None,
-    defaultLinuxInstallLocation in Docker := "/home/snowplow" // must be home directory of daemonUser
+    Docker / daemonUserUid := None,
+    Docker / defaultLinuxInstallLocation := "/home/snowplow" // must be home directory of daemonUser
   )
 
   /** Docker settings, used by BE */
   lazy val dataflowDockerSettings = Seq(
-    maintainer in Docker := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
+    Docker / maintainer := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
     dockerBaseImage := "snowplow/k8s-dataflow:0.2.0",
-    daemonUser in Docker := "snowplow",
+    Docker / daemonUser := "snowplow",
     dockerUpdateLatest := true,
     dockerVersion := Some(DockerVersion(18, 9, 0, Some("ce"))),
     dockerCommands := dockerCommands.value.map {

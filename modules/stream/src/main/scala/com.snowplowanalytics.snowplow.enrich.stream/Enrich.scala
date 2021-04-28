@@ -208,7 +208,7 @@ trait Enrich {
   ): Either[String, List[EnrichmentConf]] =
     for {
       enrichmentConfig <- extractEnrichmentConfigs(enrichmentsDirArg)
-      reg <- EnrichmentRegistry.parse(enrichmentConfig, client, false).leftMap(_.toString).toEither
+      reg <- EnrichmentRegistry.parse(enrichmentConfig, client, false).leftMap(_.toList.mkString("; ")).toEither
     } yield reg
 
   /**

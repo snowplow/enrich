@@ -78,7 +78,7 @@ object config {
         resolverJson <- parseResolver(resolver)
         client <- Client.parseDefault[Id](resolverJson).leftMap(_.toString).value
         registryJson <- parseEnrichmentRegistry(enrichments, client)
-        confs <- EnrichmentRegistry.parse(registryJson, client, false).leftMap(_.toString).toEither
+        confs <- EnrichmentRegistry.parse(registryJson, client, false).leftMap(_.toList.mkString("; ")).toEither
         labels <- labels.map(parseLabels).getOrElse(Right(Map.empty[String, String]))
         sentryDSN <- parseSentryDsn(sentryDsn)
         _ <- if (emitPii(confs) && pii.isEmpty)

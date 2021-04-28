@@ -32,7 +32,7 @@ lazy val common = project
   .settings(BuildSettings.scalifySettings)
   .settings(BuildSettings.publishSettings)
   .settings(BuildSettings.scoverageSettings)
-  .settings(parallelExecution in Test := false)
+  .settings(Test / parallelExecution := false)
   .settings(
     libraryDependencies ++= Seq(
       Dependencies.Libraries.jodaTime,
@@ -100,7 +100,7 @@ lazy val kinesis = project
   .in(file("modules/kinesis"))
   .settings(allStreamSettings)
   .settings(moduleName := "snowplow-stream-enrich-kinesis")
-  .settings(packageName in Docker := "snowplow/stream-enrich-kinesis")
+  .settings(Docker / packageName := "snowplow/stream-enrich-kinesis")
   .settings(libraryDependencies ++= Seq(
     Dependencies.Libraries.kinesisClient,
     Dependencies.Libraries.kinesisSdk,
@@ -115,7 +115,7 @@ lazy val kafka = project
   .settings(moduleName := "snowplow-stream-enrich-kafka")
   .settings(allStreamSettings)
   .settings(
-    packageName in Docker := "snowplow/stream-enrich-kafka",
+    Docker / packageName := "snowplow/stream-enrich-kafka",
   )
   .settings(libraryDependencies ++= Seq(
     Dependencies.Libraries.kafkaClients
@@ -128,7 +128,7 @@ lazy val nsq = project
   .settings(moduleName := "snowplow-stream-enrich-nsq")
   .settings(allStreamSettings)
   .settings(
-    packageName in Docker := "snowplow/stream-enrich-nsq",
+    Docker / packageName := "snowplow/stream-enrich-nsq",
   )
   .settings(libraryDependencies ++= Seq(
     Dependencies.Libraries.log4j,
@@ -169,7 +169,7 @@ lazy val beam =
         Dependencies.Libraries.scalaTest,
         Dependencies.Libraries.circeLiteral % Test,
       ),
-      packageName in Docker := "snowplow/beam-enrich"
+      Docker / packageName := "snowplow/beam-enrich"
     )
     .settings(
       libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value,
@@ -179,7 +179,7 @@ lazy val beam =
       publish := {},
       publishLocal := {},
       publishArtifact := false,
-      testGrouping in Test := BuildSettings.oneJVMPerTest((definedTests in Test).value)
+      Test / testGrouping := BuildSettings.oneJVMPerTest((Test / definedTests).value)
     )
     .enablePlugins(JavaAppPackaging, DockerPlugin, BuildInfoPlugin)
 
@@ -198,9 +198,9 @@ lazy val fs2 = project
     description := "High-performance streaming Snowplow Enrich job built on top of functional streams",
     buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
     buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.fs2.generated",
-    packageName in Docker := "snowplow/fs2-enrich",
+    Docker / packageName := "snowplow/fs2-enrich",
   )
-  .settings(parallelExecution in Test := false)
+  .settings(Test / parallelExecution := false)
   .settings(
     libraryDependencies ++= Seq(
       Dependencies.Libraries.decline,

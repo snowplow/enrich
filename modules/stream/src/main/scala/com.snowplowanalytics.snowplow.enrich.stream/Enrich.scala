@@ -43,6 +43,7 @@ import org.slf4j.LoggerFactory
 import pureconfig._
 import pureconfig.generic.auto._
 import pureconfig.generic.{FieldCoproductHint, ProductHint}
+import software.amazon.awssdk.regions.Region
 
 import config._
 import model._
@@ -64,7 +65,7 @@ trait Enrich {
       config <- parseConfig(args)
       (enrichConfig, resolverArg, enrichmentsArg, forceDownload) = config
       credsWithRegion <- enrichConfig.streams.sourceSink match {
-                           case c: CloudAgnosticPlatformConfig => (extractCredentials(c), c.region).asRight
+                           case c: CloudAgnosticPlatformConfig => (extractCredentials(c), c.region.map(Region.of(_))).asRight
                            case _ => "Configured source/sink is not a cloud agnostic target".asLeft
                          }
       (credentials, awsRegion) = credsWithRegion
@@ -256,7 +257,7 @@ trait Enrich {
     targetFile: File,
     awsCreds: Credentials,
     gcpCreds: Credentials,
-    awsRegion: Option[String]
+    awsRegion: Option[Region]
   ): Either[String, Unit] =
     uri.getScheme match {
       case "http" | "https" =>
@@ -266,7 +267,7 @@ trait Enrich {
         }
       case "s3" =>
         for {
-          provider <- getAWSCredentialsProvider(awsCreds)
+          provider <- getAwsCredentialsProvider(awsCreds)
           downloadResult <- downloadFromS3(provider, uri, targetFile, awsRegion)
         } yield downloadResult
       case "gs" =>
@@ -290,7 +291,7 @@ trait Enrich {
     forceDownload: Boolean,
     awsCreds: Credentials,
     gcpCreds: Credentials,
-    awsRegion: Option[String]
+    awsRegion: Option[Region]
   ): Either[String, Unit] =
     confs
       .flatMap(_.filesToCache)

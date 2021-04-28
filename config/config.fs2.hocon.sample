@@ -24,7 +24,7 @@
 
     # Local FS supported for testing purposes
     # "type": "FileSystem"
-    # "dir": "/var/enriched"
+    # "file": "/var/enriched"
   }
 
   # Pii events output
@@ -37,7 +37,7 @@
 
     # Local FS supported for testing purposes
     # "type": "FileSystem"
-    # "dir": "/var/pii"
+    # "file": "/var/pii"
   }
 
   # Bad rows output
@@ -47,7 +47,7 @@
 
     # Local FS supported for testing purposes
     # "type": "FileSystem"
-    # "dir": "/var/bad"
+    # "file": "/var/bad"
   }
 
 

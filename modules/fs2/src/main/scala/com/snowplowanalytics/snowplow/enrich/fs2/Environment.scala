@@ -14,9 +14,8 @@ package com.snowplowanalytics.snowplow.enrich.fs2
 
 import scala.concurrent.duration.FiniteDuration
 import java.lang.reflect.Field
-
-import cats.Show
-import cats.data.EitherT
+import cats.{Applicative, Show}
+import cats.data.{EitherT, NonEmptyList, Validated, ValidatedNel}
 import cats.implicits._
 
 import cats.effect.{Async, Blocker, Clock, Concurrent, ConcurrentEffect, ContextShift, Resource, Sync, Timer}
@@ -192,6 +191,7 @@ object Environment {
                                .map(json => SelfDescribingData(EnrichmentsKey, json).asJson)
                          }
       configFile <- ConfigFile.parse[F](config.config)
+      configFile <- validateConfig[F](configFile)
       client <- Client.parseDefault[F](igluJson).leftMap(x => show"Cannot decode Iglu Client. $x")
       _ <- EitherT.liftF(
              Logger[F].info(show"Parsed Iglu Client with following registries: ${client.resolver.repos.map(_.config.name).mkString(", ")}")
@@ -218,15 +218,41 @@ object Environment {
     }
   }
 
-  // TODO: write test for this.
-  private def outputAttributes(output: OutputConfig): EnrichedEvent => Map[String, String] =
+  val enrichedFieldsMap: Map[String, Field] = ConversionUtils.EnrichedFields.map(f => f.getName -> f).toMap
+
+  type ValidationResult[A] = ValidatedNel[String, A]
+
+  private def validateAttributes(output: OutputConfig): ValidationResult[OutputConfig] =
     output match {
-      case OutputConfig.PubSub(_, attributes) =>
-        val fields = ConversionUtils.EnrichedFields
-          .filter(f => attributes.contains(f.getName))
-          .map(f => f.getName -> f)
-          .toMap
-        attributesFromFields(fields) _
+      case OutputConfig.PubSub(_, optAttributes) =>
+        optAttributes
+          .fold[ValidationResult[OutputConfig]](output.valid) { attributes =>
+            val invalidAttributes = attributes.filterNot(enrichedFieldsMap.contains)
+            if (invalidAttributes.nonEmpty) NonEmptyList(invalidAttributes.head, invalidAttributes.tail.toList).invalid
+            else output.valid
+          }
+      case OutputConfig.FileSystem(_) => output.valid
+    }
+
+  def validateConfig[F[_]: Applicative](configFile: ConfigFile): EitherT[F, String, ConfigFile] = {
+    val goodCheck: ValidationResult[OutputConfig] = validateAttributes(configFile.good)
+    val optPiiCheck: ValidationResult[Option[OutputConfig]] = configFile.pii.map(validateAttributes).sequence
+
+    (goodCheck, optPiiCheck).mapN { case (g, p) => (g, p) } match {
+      case Validated.Valid(_) => EitherT.rightT(configFile)
+      case Validated.Invalid(nel) => EitherT.leftT(s"Invalid attributes: ${nel.toList.mkString("[", ",", "]")}")
+    }
+  }
+
+  private[fs2] def outputAttributes(output: OutputConfig): EnrichedEvent => Map[String, String] =
+    output match {
+      case OutputConfig.PubSub(_, Some(attributes)) =>
+        val fields = enrichedFieldsMap.filter {
+          case (s, _) =>
+            attributes.contains(s)
+        }
+        attributesFromFields(fields)
+      case OutputConfig.PubSub(_, None) => _ => Map.empty
       case OutputConfig.FileSystem(_) =>
         _ => Map.empty
     }

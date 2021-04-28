@@ -1,3 +1,4 @@
+[![Release][release-image]][releases]
 [![License][license-image]][license]
 [![Coverage Status][coveralls-image]][coveralls]
 [![Test][test-image]][test]
@@ -52,3 +53,6 @@ limitations under the License.
 
 [coveralls]: https://coveralls.io/github/snowplow/enrich?branch=master
 [coveralls-image]: https://coveralls.io/repos/github/snowplow/enrich/badge.svg?branch=master
+
+[release-image]: https://img.shields.io/badge/release-2.0.0-blue.svg?style=flat
+[releases]: https://github.com/snowplow/enrich/releases

@@ -84,7 +84,7 @@ object io {
             throw new IllegalArgumentException(s"Cannot construct Output.PubSub from $topic")
         }
     }
-    case class FileSystem(dir: Path) extends Output
+    case class FileSystem(file: Path) extends Output
 
     implicit val outputDecoder: Decoder[Output] =
       deriveConfiguredDecoder[Output].emap {

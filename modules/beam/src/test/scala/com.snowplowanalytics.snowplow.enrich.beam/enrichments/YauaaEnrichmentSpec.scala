@@ -42,7 +42,7 @@ object YauaaEnrichmentSpec {
 
 class YauaaEnrichmentSpec extends PipelineSpec {
   import YauaaEnrichmentSpec._
-  "YauaaEnrichment" should "enrich using the yauaa enrichment" in {
+  "YauaaEnrichment" should "enrich using the yauaa enrichment" ignore {
     JobTest[Enrich.type]
       .args(
         "--job-name=j",

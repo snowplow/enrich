@@ -62,10 +62,10 @@ class CliConfigSpec extends Specification with CatsIO {
 
       val expected = ConfigFile(
         io.Authentication.Gcp,
-        io.Input.PubSub("projects/test-project/subscriptions/inputSub"),
-        io.Output.PubSub("projects/test-project/topics/good-topic", None),
-        Some(io.Output.PubSub("projects/test-project/topics/pii-topic", Some(Set("app_id", "platform")))),
-        io.Output.PubSub("projects/test-project/topics/bad-topic", None),
+        io.Input.PubSub("projects/test-project/subscriptions/inputSub", None, None),
+        io.Output.PubSub("projects/test-project/topics/good-topic", None, None, None, None, None),
+        Some(io.Output.PubSub("projects/test-project/topics/pii-topic", Some(Set("app_id", "platform")), None, None, None, None)),
+        io.Output.PubSub("projects/test-project/topics/bad-topic", None, None, None, None, None),
         None,
         None
       )

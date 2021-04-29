@@ -46,7 +46,11 @@ object io {
 
   object Input {
 
-    case class PubSub private (subscription: String) extends Input {
+    case class PubSub private (
+      subscription: String,
+      parallelPullCount: Option[Int],
+      maxQueueSize: Option[Int]
+    ) extends Input {
       val (project, name) =
         subscription.split("/").toList match {
           case List("projects", project, "subscriptions", name) =>
@@ -58,16 +62,25 @@ object io {
     case class FileSystem(dir: Path) extends Input
 
     implicit val inputDecoder: Decoder[Input] =
-      deriveConfiguredDecoder[Input].emap {
-        case s @ PubSub(sub) =>
-          sub.split("/").toList match {
-            case List("projects", _, "subscriptions", _) =>
-              s.asRight
-            case _ =>
-              s"Subscription must conform projects/project-name/subscriptions/subscription-name format, $s given".asLeft
-          }
-        case other => other.asRight
-      }
+      deriveConfiguredDecoder[Input]
+        .emap {
+          case s @ PubSub(sub, _, _) =>
+            sub.split("/").toList match {
+              case List("projects", _, "subscriptions", _) =>
+                s.asRight
+              case _ =>
+                s"Subscription must conform projects/project-name/subscriptions/subscription-name format, $s given".asLeft
+            }
+          case other => other.asRight
+        }
+        .emap {
+          case PubSub(_, Some(p), _) if p < 0 =>
+            "PubSub parallelPullCount must be > 0".asLeft
+          case PubSub(_, _, Some(m)) if m < 0 =>
+            "PubSub maxQueueSize must be > 0".asLeft
+          case other =>
+            other.asRight
+        }
     implicit val inputEncoder: Encoder[Input] =
       deriveConfiguredEncoder[Input]
   }
@@ -75,7 +88,14 @@ object io {
   sealed trait Output
 
   object Output {
-    case class PubSub private (topic: String, attributes: Option[Set[String]]) extends Output {
+    case class PubSub private (
+      topic: String,
+      attributes: Option[Set[String]],
+      delayThreshold: Option[FiniteDuration],
+      maxBatchSize: Option[Long],
+      maxBatchBytes: Option[Long],
+      numCallbackExecutors: Option[Int]
+    ) extends Output {
       val (project, name) =
         topic.split("/").toList match {
           case List("projects", project, "topics", name) =>
@@ -87,16 +107,32 @@ object io {
     case class FileSystem(file: Path) extends Output
 
     implicit val outputDecoder: Decoder[Output] =
-      deriveConfiguredDecoder[Output].emap {
-        case s @ PubSub(top, _) =>
-          top.split("/").toList match {
-            case List("projects", _, "topics", _) =>
-              s.asRight
-            case _ =>
-              s"Topic must conform projects/project-name/topics/topic-name format, $s given".asLeft
-          }
-        case other => other.asRight
-      }
+      deriveConfiguredDecoder[Output]
+        .emap {
+          case s @ PubSub(top, _, _, _, _, _) =>
+            top.split("/").toList match {
+              case List("projects", _, "topics", _) =>
+                s.asRight
+              case _ =>
+                s"Topic must conform projects/project-name/topics/topic-name format, $top given".asLeft
+            }
+          case other => other.asRight
+        }
+        .emap {
+          case PubSub(_, _, Some(d), _, _, _) if d < Duration.Zero =>
+            "PubSub delay threshold cannot be less than 0".asLeft
+          case PubSub(_, _, _, Some(m), _, _) if m < 0 =>
+            "PubSub max batch size cannot be less than 0".asLeft
+          case PubSub(_, _, _, _, Some(m), _) if m < 0 =>
+            "PubSub max batch bytes cannot be less than 0".asLeft
+          case PubSub(_, _, _, _, _, Some(m)) if m < 0 =>
+            "PubSub callback executors cannot be less than 0".asLeft
+          case other =>
+            other.asRight
+        }
+
+    import ConfigFile.finiteDurationEncoder
+
     implicit val outputEncoder: Encoder[Output] =
       deriveConfiguredEncoder[Output]
   }

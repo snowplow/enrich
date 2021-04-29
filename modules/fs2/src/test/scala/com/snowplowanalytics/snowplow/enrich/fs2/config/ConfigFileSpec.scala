@@ -33,10 +33,10 @@ class ConfigFileSpec extends Specification with CatsIO {
       val configPath = Paths.get(getClass.getResource("/config.fs2.hocon.sample").toURI)
       val expected = ConfigFile(
         io.Authentication.Gcp,
-        io.Input.PubSub("projects/test-project/subscriptions/inputSub"),
-        io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id"))),
-        Some(io.Output.PubSub("projects/test-project/topics/pii-topic", None)),
-        io.Output.PubSub("projects/test-project/topics/bad-topic", None),
+        io.Input.PubSub("projects/test-project/subscriptions/inputSub", None, None),
+        io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id")), None, None, None, None),
+        Some(io.Output.PubSub("projects/test-project/topics/pii-topic", None, None, None, None, None)),
+        io.Output.PubSub("projects/test-project/topics/bad-topic", None, None, None, None, None),
         Some(7.days),
         Some(
           io.Monitoring(
@@ -100,10 +100,10 @@ class ConfigFileSpec extends Specification with CatsIO {
 
       val configFile = ConfigFile(
         io.Authentication.Gcp,
-        io.Input.PubSub("projects/test-project/subscriptions/inputSub"),
-        io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id", invalidAttr1))),
-        Some(io.Output.PubSub("projects/test-project/topics/pii-topic", Some(Set("app_id", invalidAttr2)))),
-        io.Output.PubSub("projects/test-project/topics/bad-topic", None),
+        io.Input.PubSub("projects/test-project/subscriptions/inputSub", None, None),
+        io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id", invalidAttr1)), None, None, None, None),
+        Some(io.Output.PubSub("projects/test-project/topics/pii-topic", Some(Set("app_id", invalidAttr2)), None, None, None, None)),
+        io.Output.PubSub("projects/test-project/topics/bad-topic", None, None, None, None, None),
         Some(7.days),
         Some(
           io.Monitoring(

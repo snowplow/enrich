@@ -43,27 +43,27 @@ object Sinks {
    * batches if DelayThreshold is too large.  If the source MaxQueueSize is sufficiently large,
    * then the DelayThreshold should not ever cause blocking.
    */
-  val DelayThreshold: FiniteDuration = 200.milliseconds
+  val DefaultDelayThreshold: FiniteDuration = 200.milliseconds
 
   /**
    * A batch of messages will be emitted to PubSub when the batch reaches 1000 messages.
    * We use 1000 because it is the maximum batch size allowed by PubSub.
    * This overrides the permutive library default of `5`
    */
-  val PubsubMaxBatchSize = 1000L
+  val DefaultPubsubMaxBatchSize = 1000L
 
   /**
    * A batch of messages will be emitted to PubSub when the batch reaches 10 MB.
    * We use 10MB because it is the maximum batch size allowed by PubSub.
    */
-  val PubsubMaxBatchBytes = 10000000L
+  val DefaultPubsubMaxBatchBytes = 10000000L
 
   /**
    * The number of threads used internally by permutive library to process the callback after message delivery.
    * The callback does very little "work" so we use the minimum number of threads.
    * This overrides the permutive library default of 3 * num processors
    */
-  val NumCallbackExecutors = 1
+  val DefaultNumCallbackExecutors = 1
 
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
     Slf4jLogger.getLogger[F]
@@ -96,10 +96,10 @@ object Sinks {
     output: Output.PubSub
   ): Resource[F, AttributedData[A] => F[Unit]] = {
     val config = PubsubProducerConfig[F](
-      batchSize = PubsubMaxBatchSize,
-      requestByteThreshold = Some(PubsubMaxBatchBytes),
-      delayThreshold = DelayThreshold,
-      callbackExecutors = NumCallbackExecutors,
+      batchSize = output.maxBatchSize.getOrElse(DefaultPubsubMaxBatchSize),
+      requestByteThreshold = Some(output.maxBatchBytes.getOrElse(DefaultPubsubMaxBatchBytes)),
+      delayThreshold = output.delayThreshold.getOrElse(DefaultDelayThreshold),
+      callbackExecutors = output.numCallbackExecutors.getOrElse(DefaultNumCallbackExecutors),
       onFailedTerminate = err => Logger[F].error(err)("PubSub sink termination error")
     )
 

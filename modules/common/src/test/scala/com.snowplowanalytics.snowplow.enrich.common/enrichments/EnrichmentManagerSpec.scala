@@ -269,7 +269,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         rawEvent
       )
       enriched.value must beRight
-    }
+    }.pendingUntilFixed("requires release of yauaa_context 1-0-2 in iglu central")
 
     "emit an EnrichedEvent if a PII value that needs to be hashed is an empty string" >> {
       val parameters = Map(
@@ -598,7 +598,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       )
       enriched.value.map(_.useragent) must beRight(qs_ua)
       enriched.value.map(_.derived_contexts) must beRight((_: String).contains("\"agentName\":\"Firefox\""))
-    }
+    }.pendingUntilFixed("requires release of yauaa_context 1-0-2 in iglu central")
 
     "use user agent of HTTP header if 'ua' query string parameter is not set" >> {
       val parameters = Map(
@@ -616,7 +616,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         rawEvent
       )
       enriched.value.map(_.useragent) must beRight("header-useragent")
-    }
+    }.pendingUntilFixed("requires release of yauaa_context 1-0-2 in iglu central")
   }
 
   "getIabContext" should {

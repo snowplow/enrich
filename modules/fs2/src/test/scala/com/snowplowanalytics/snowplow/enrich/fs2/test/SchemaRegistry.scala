@@ -159,7 +159,7 @@ object SchemaRegistry {
           "vendor": "nl.basjes",
           "name": "yauaa_context",
           "format": "jsonschema",
-          "version": "1-0-1"
+          "version": "1-0-2"
       },
       "type": "object",
       "properties": {

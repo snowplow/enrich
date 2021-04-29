@@ -154,6 +154,7 @@ lazy val beam =
     .settings(BuildSettings.dataflowDockerSettings)
     .settings(BuildSettings.formatting)
     .settings(BuildSettings.scoverageSettings)
+    .settings(BuildSettings.sbtAssemblySettings)
     .settings(
       name := "beam-enrich",
       description := "Streaming enrich job written using SCIO",

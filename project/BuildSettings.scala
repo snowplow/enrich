@@ -101,6 +101,9 @@ object BuildSettings {
       case x if x.endsWith("ProjectSettings$.class") => MergeStrategy.first
       case x if x.endsWith("module-info.class") => MergeStrategy.first
       case x if x.endsWith("nowarn.class") => MergeStrategy.first
+      case x if x.endsWith("log4j.properties") => MergeStrategy.first
+      case x if x.endsWith(".proto") => MergeStrategy.first
+      case x if x.endsWith("reflection-config.json") => MergeStrategy.first
       case x =>
         val oldStrategy = (assembly / assemblyMergeStrategy).value
         oldStrategy(x)

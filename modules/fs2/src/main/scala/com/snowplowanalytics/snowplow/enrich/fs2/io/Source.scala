@@ -35,7 +35,7 @@ object Source {
    * These threads do very little "work" apart from writing the message to a concurrent Queue.
    * Overrides the permutive library default of `3`.
    */
-  val ParallelPullCount = 1
+  val DefaultParallelPullCount = 1
 
   /**
    * Configures the "max outstanding element count" of pubSub.
@@ -48,7 +48,7 @@ object Source {
    *
    * (`1000` is the permutive library default; we re-define it here to be explicit)
    */
-  val MaxQueueSize = 1000
+  val DefaultMaxQueueSize = 1000
 
   def read[F[_]: Concurrent: ContextShift](
     blocker: Blocker,
@@ -74,7 +74,11 @@ object Source {
     val onFailedTerminate: Throwable => F[Unit] =
       e => Sync[F].delay(System.err.println(s"Cannot terminate ${e.getMessage}"))
     val pubSubConfig =
-      PubsubGoogleConsumerConfig(onFailedTerminate = onFailedTerminate, parallelPullCount = ParallelPullCount, maxQueueSize = MaxQueueSize)
+      PubsubGoogleConsumerConfig(
+        onFailedTerminate = onFailedTerminate,
+        parallelPullCount = input.parallelPullCount.getOrElse(DefaultParallelPullCount),
+        maxQueueSize = input.maxQueueSize.getOrElse(DefaultMaxQueueSize)
+      )
     val projectId = Model.ProjectId(input.project)
     val subscriptionId = Model.Subscription(input.name)
     val errorHandler: (PubsubMessage, Throwable, F[Unit], F[Unit]) => F[Unit] = // Should be useless

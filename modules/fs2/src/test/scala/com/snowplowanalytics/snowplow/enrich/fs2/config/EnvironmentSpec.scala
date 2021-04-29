@@ -23,7 +23,7 @@ class EnvironmentSpec extends Specification with CatsIO {
 
   "outputAttributes" should {
     "fetch attribute values" in {
-      val output = io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id")))
+      val output = io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id")), None, None, None, None)
       val ee = new EnrichedEvent()
       ee.app_id = "test_app"
 

@@ -226,8 +226,8 @@ object Environment {
 
   private def validateAttributes(output: OutputConfig): ValidationResult[OutputConfig] =
     output match {
-      case OutputConfig.PubSub(_, optAttributes) =>
-        optAttributes
+      case ps: OutputConfig.PubSub =>
+        ps.attributes
           .fold[ValidationResult[OutputConfig]](output.valid) { attributes =>
             val invalidAttributes = attributes.filterNot(enrichedFieldsMap.contains)
             if (invalidAttributes.nonEmpty) NonEmptyList(invalidAttributes.head, invalidAttributes.tail.toList).invalid
@@ -249,13 +249,13 @@ object Environment {
 
   private[fs2] def outputAttributes(output: OutputConfig): EnrichedEvent => Map[String, String] =
     output match {
-      case OutputConfig.PubSub(_, Some(attributes)) =>
+      case OutputConfig.PubSub(_, Some(attributes), _, _, _, _) =>
         val fields = enrichedFieldsMap.filter {
           case (s, _) =>
             attributes.contains(s)
         }
         attributesFromFields(fields)
-      case OutputConfig.PubSub(_, None) => _ => Map.empty
+      case OutputConfig.PubSub(_, None, _, _, _, _) => _ => Map.empty
       case OutputConfig.FileSystem(_) =>
         _ => Map.empty
     }

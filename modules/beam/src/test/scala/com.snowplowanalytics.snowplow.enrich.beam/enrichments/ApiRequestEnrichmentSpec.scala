@@ -22,7 +22,7 @@ import io.circe.literal._
 
 import com.snowplowanalytics.snowplow.enrich.beam.{CI, Enrich, SpecHelpers}
 
-import com.spotify.scio.io.PubsubIO
+import com.spotify.scio.pubsub.PubsubIO
 import com.spotify.scio.testing._
 
 object ApiRequestEnrichmentSpec {

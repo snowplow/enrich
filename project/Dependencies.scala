@@ -86,9 +86,9 @@ object Dependencies {
     val jinJava          = "2.5.0"
 
     val sentry           = "1.7.30"
-    val scio             = "0.9.5"
-    val tcnative         = "2.0.30.Final"
-    val beam             = "2.24.0"
+    val scio             = "0.10.2"
+    val beam             = "2.28.0"
+    val grpc             = "1.32.2"
     val macros           = "2.1.1"
     val scalaTest        = "3.0.8"
   }
@@ -138,8 +138,8 @@ object Dependencies {
 
     // Beam
     val sentry           = "io.sentry"                  %  "sentry"                                   % V.sentry
-    val scio             = "com.spotify"                %% "scio-core"                                % V.scio
-    val tcnative         = "io.netty"                   % "netty-tcnative-boringssl-static"           % V.tcnative
+    val scioCore         = "com.spotify"                %% "scio-core"                                % V.scio
+    val scioGCP          = "com.spotify"                %% "scio-google-cloud-platform"               % V.scio
     val beam             = "org.apache.beam"            % "beam-runners-google-cloud-dataflow-java"   % V.beam
     val slf4j            = "org.slf4j"                  % "slf4j-simple"                              % V.slf4j
     val scioTest         = "com.spotify"                %% "scio-test"                                % V.scio            % Test

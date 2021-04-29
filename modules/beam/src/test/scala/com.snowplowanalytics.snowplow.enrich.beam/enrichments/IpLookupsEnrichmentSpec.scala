@@ -18,7 +18,7 @@ package enrichments
 import java.nio.file.Paths
 
 import com.spotify.scio.ScioMetrics
-import com.spotify.scio.io.PubsubIO
+import com.spotify.scio.pubsub.PubsubIO
 import com.spotify.scio.testing._
 import org.apache.commons.codec.binary.Base64
 

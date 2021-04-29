@@ -38,7 +38,7 @@ jobs:
         OER_KEY: ${{ secrets.OER_KEY }}
     - name: Check Scala formatting
       if: ${{ always() }}
-      run: sbt scalafmtCheck
+      run: sbt scalafmtCheckAll
     - name: Check assets can be published
       if: ${{ always() }}
       run: sbt publishLocal

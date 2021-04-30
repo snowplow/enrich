@@ -63,6 +63,7 @@ object BuildSettings {
     pomIncludeRepository := { _ => false },
     homepage := Some(url("http://snowplowanalytics.com")),
     ThisBuild / dynverVTagPrefix := false, // Otherwise git tags required to have v-prefix
+    ThisBuild / dynverSeparator := "-", // to be compatible with docker
     developers := List(
       Developer(
         "Snowplow Analytics Ltd",
@@ -132,6 +133,7 @@ object BuildSettings {
   lazy val dataflowDockerSettings = Seq(
     Docker / maintainer := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
     dockerBaseImage := "snowplow/k8s-dataflow:0.2.0",
+    dockerEnvVars := Map("HOME" -> "/tmp", "JAVA_OPTS" -> "-Duser.home=$HOME"),
     Docker / daemonUser := "snowplow",
     dockerUpdateLatest := true,
     dockerVersion := Some(DockerVersion(18, 9, 0, Some("ce"))),

@@ -18,17 +18,21 @@ package enrichments
 import java.nio.file.{Files, Path, Paths}
 
 import cats.syntax.option._
-import com.spotify.scio.io.PubsubIO
+import com.spotify.scio.pubsub.PubsubIO
 import com.spotify.scio.testing._
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubMessage
+import scala.jdk.CollectionConverters._
 
 object CurrencyConversionEnrichmentTransactionSpec {
   val querystring =
     "e=tr&tr_id=order-123&tr_af=pb&tr_tt=8000&tr_tx=200&tr_sh=50&tr_ci=London&tr_st=England&tr_co=UK&tr_cu=USD&tid=028288"
   val raw = Seq(
-    SpecHelpers.buildCollectorPayload(
-      path = "/ice.png",
-      querystring = querystring.some,
-      timestamp = 1562008983000L
+    new PubsubMessage(SpecHelpers.buildCollectorPayload(
+                        path = "/ice.png",
+                        querystring = querystring.some,
+                        timestamp = 1562008983000L
+                      ),
+                      Map.empty[String, String].asJava
     )
   )
   val expected = Map(
@@ -86,12 +90,12 @@ class CurrencyConversionEnrichmentTransactionSpec extends PipelineSpec {
         "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI()),
         "--enrichments=" + enrichmentPath
       )
-      .input(PubsubIO.readCoder[Array[Byte]]("in"), raw)
+      .input(PubsubIO.pubsub[PubsubMessage]("in"), raw)
       .distCache(DistCacheIO(""), List.empty[Either[String, String]])
-      .output(PubsubIO.readString("bad")) { b =>
+      .output(PubsubIO.string("bad")) { b =>
         b should beEmpty; ()
       }
-      .output(PubsubIO.readString("out")) { o =>
+      .output(PubsubIO.string("out")) { o =>
         o should satisfySingleValue { c: String =>
           SpecHelpers.compareEnrichedEvent(expected, c)
         }; ()

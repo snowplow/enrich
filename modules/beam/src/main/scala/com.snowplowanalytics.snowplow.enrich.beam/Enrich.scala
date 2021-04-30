@@ -35,11 +35,12 @@ import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
 
 import com.spotify.scio._
+import com.spotify.scio.pubsub._
 import com.spotify.scio.coders.Coder
 import com.spotify.scio.pubsub.PubSubAdmin
 import com.spotify.scio.values.{DistCache, SCollection}
 
-import org.apache.beam.sdk.io.gcp.pubsub.PubsubOptions
+import org.apache.beam.sdk.io.gcp.pubsub.{PubsubMessage, PubsubOptions}
 import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions
 import org.joda.time.DateTime
 import org.slf4j.LoggerFactory
@@ -96,8 +97,9 @@ object Enrich {
     val cachedFiles: DistCache[List[Either[String, String]]] =
       buildDistCache(sc, config.enrichmentConfs)
 
-    val raw: SCollection[Array[Byte]] =
-      sc.withName("raw-from-pubsub").pubsubSubscription[Array[Byte]](config.raw)
+    val in = sc.read[PubsubMessage](PubsubIO.pubsub[PubsubMessage](config.raw))(PubsubIO.ReadParam(PubsubIO.Subscription))
+
+    val raw: SCollection[Array[Byte]] = in.map(_.getPayload)
 
     val enriched: SCollection[Validated[BadRow, EnrichedEvent]] =
       enrichEvents(raw, config.resolver, config.enrichmentConfs, cachedFiles, config.sentryDSN, config.metrics)
@@ -123,7 +125,7 @@ object Enrich {
       .withName("get-properly-sized-enriched")
       .map(_._1)
       .withName("write-enriched-to-pubsub")
-      .saveAsPubsub(config.enriched)
+      .write(PubsubIO.string(config.enriched))(PubsubIO.WriteParam())
 
     val resizedEnriched: SCollection[BadRow] = tooBigSuccesses
       .withName("resize-oversized-enriched")
@@ -139,7 +141,7 @@ object Enrich {
           .withName("get-properly-sized-pii")
           .map(_._1)
           .withName("write-pii-to-pubsub")
-          .saveAsPubsub(topicPii)
+          .write(PubsubIO.string(topicPii))(PubsubIO.WriteParam())
 
         tooBigPiis
           .withName("resize-oversized-pii")
@@ -162,7 +164,7 @@ object Enrich {
       .withName("serialize-bad-rows")
       .map(_.compact)
       .withName("write-bad-rows-to-pubsub")
-      .saveAsPubsub(config.bad)
+      .write(PubsubIO.string(config.bad))(PubsubIO.WriteParam())
 
     ()
   }

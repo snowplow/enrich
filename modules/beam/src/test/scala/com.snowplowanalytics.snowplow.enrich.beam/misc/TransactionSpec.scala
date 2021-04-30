@@ -18,17 +18,21 @@ package misc
 import java.nio.file.Paths
 
 import cats.syntax.option._
-import com.spotify.scio.io.PubsubIO
+import com.spotify.scio.pubsub.PubsubIO
 import com.spotify.scio.testing._
 import io.circe.literal._
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubMessage
+import scala.jdk.CollectionConverters._
 
 object TransactionSpec {
   val querystring =
     "e=tr&tr_id=order-123&tr_af=pb&tr_tt=8000&tr_tx=200&tr_sh=50&tr_ci=London&tr_st=England&tr_co=UK&cx=eyJkYXRhIjpbeyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5zbm93cGxvdy91cmlfcmVkaXJlY3QvanNvbnNjaGVtYS8xLTAtMCIsImRhdGEiOnsidXJpIjoiaHR0cDovL3Nub3dwbG93YW5hbHl0aWNzLmNvbS8ifX1dLCJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5zbm93cGxvdy9jb250ZXh0cy9qc29uc2NoZW1hLzEtMC0wIn0=&tid=028288"
   val raw = Seq(
-    SpecHelpers.buildCollectorPayload(
-      path = "/ice.png",
-      querystring = querystring.some
+    new PubsubMessage(SpecHelpers.buildCollectorPayload(
+                        path = "/ice.png",
+                        querystring = querystring.some
+                      ),
+                      Map.empty[String, String].asJava
     )
   )
   val expected = Map(
@@ -64,12 +68,12 @@ class TransactionSpec extends PipelineSpec {
         "--bad=bad",
         "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI())
       )
-      .input(PubsubIO.readCoder[Array[Byte]]("in"), raw)
+      .input(PubsubIO.pubsub[PubsubMessage]("in"), raw)
       .distCache(DistCacheIO(""), List.empty[Either[String, String]])
-      .output(PubsubIO.readString("bad")) { b =>
+      .output(PubsubIO.string("bad")) { b =>
         b should beEmpty; ()
       }
-      .output(PubsubIO.readString("out")) { o =>
+      .output(PubsubIO.string("out")) { o =>
         o should satisfySingleValue { c: String =>
           SpecHelpers.compareEnrichedEvent(expected, c)
         }; ()

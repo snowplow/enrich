@@ -18,9 +18,11 @@ package enrichments
 import java.nio.file.Paths
 
 import com.spotify.scio.ScioMetrics
-import com.spotify.scio.io.PubsubIO
+import com.spotify.scio.pubsub.PubsubIO
 import com.spotify.scio.testing._
 import org.apache.commons.codec.binary.Base64
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubMessage
+import scala.jdk.CollectionConverters._
 
 object IpLookupsEnrichmentSpec {
   val raw = Seq(
@@ -68,14 +70,16 @@ class IpLookupsEnrichmentSpec extends PipelineSpec {
         "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI()),
         "--enrichments=" + Paths.get(getClass.getResource("/ip_lookups").toURI())
       )
-      .input(PubsubIO.readCoder[Array[Byte]]("in"), raw.map(Base64.decodeBase64))
+      .input(PubsubIO.pubsub[PubsubMessage]("in"),
+             raw.map(Base64.decodeBase64).map(arr => new PubsubMessage(arr, Map.empty[String, String].asJava))
+      )
       .distCache(DistCacheIO(url), List(Right(localFile)))
-      .output(PubsubIO.readString("out")) { o =>
+      .output(PubsubIO.string("out")) { o =>
         o should satisfySingleValue { c: String =>
           expected.forall(c.contains) // Add `println(c);` before `expected` to see the enrichment output
         }; ()
       }
-      .output(PubsubIO.readString("bad")) { b =>
+      .output(PubsubIO.string("bad")) { b =>
         b should beEmpty; ()
       }
       .distribution(Enrich.enrichedEventSizeDistribution) { d =>

@@ -18,15 +18,20 @@ package enrichments
 import java.nio.file.Paths
 
 import cats.syntax.option._
-import com.spotify.scio.io.PubsubIO
+import com.spotify.scio.pubsub.PubsubIO
 import com.spotify.scio.testing._
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubMessage
+import scala.jdk.CollectionConverters._
 
 object CampaignAttributionEnrichmentSpec {
   val raw = Seq(
-    SpecHelpers.buildCollectorPayload(
-      refererUri = "http://pb.com/?utm_source=GoogleSearch&utm_medium=cpc&utm_term=pb&utm_content=39&cid=tna&gclid=CI6".some,
-      path = "/i",
-      querystring = "e=pp".some
+    new PubsubMessage(SpecHelpers.buildCollectorPayload(
+                        refererUri =
+                          "http://pb.com/?utm_source=GoogleSearch&utm_medium=cpc&utm_term=pb&utm_content=39&cid=tna&gclid=CI6".some,
+                        path = "/i",
+                        querystring = "e=pp".some
+                      ),
+                      Map.empty[String, String].asJava
     )
   )
   val expected = Map(
@@ -55,12 +60,12 @@ class CampaignAttributionEnrichmentSpec extends PipelineSpec {
         "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI()),
         "--enrichments=" + Paths.get(getClass.getResource("/campaign_attribution").toURI())
       )
-      .input(PubsubIO.readCoder[Array[Byte]]("in"), raw)
+      .input(PubsubIO.pubsub[PubsubMessage]("in"), raw)
       .distCache(DistCacheIO(""), List.empty[Either[String, String]])
-      .output(PubsubIO.readString("bad")) { b =>
+      .output(PubsubIO.string("bad")) { b =>
         b should beEmpty; ()
       }
-      .output(PubsubIO.readString("out")) { o =>
+      .output(PubsubIO.string("out")) { o =>
         o should satisfySingleValue { c: String =>
           // once scio accepts Assertion
           //SpecHelpers.buildEnrichedEvent(c) should contain allElementsOf (expected)

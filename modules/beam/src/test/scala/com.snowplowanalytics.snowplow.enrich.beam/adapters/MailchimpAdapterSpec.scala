@@ -18,18 +18,22 @@ package adapters
 import java.nio.file.Paths
 
 import cats.syntax.option._
-import com.spotify.scio.io.PubsubIO
+import com.spotify.scio.pubsub.PubsubIO
 import com.spotify.scio.testing._
 import io.circe.literal._
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubMessage
+import scala.jdk.CollectionConverters._
 
 object MailchimpAdapterSpec {
   val body =
     "type=subscribe&fired_at=2014-11-04+09%3A42%3A31&data%5Bid%5D=e7c77d3852&data%5Bemail%5D=agentsmith%40snowplowtest.com&data%5Bemail_type%5D=html&data%5Bip_opt%5D=82.225.169.220&data%5Bweb_id%5D=210833825&data%5Bmerges%5D%5BEMAIL%5D=agentsmith%40snowplowtest.com&data%5Bmerges%5D%5BFNAME%5D=Agent&data%5Bmerges%5D%5BLNAME%5D=Smith&data%5Blist_id%5D=f1243a3b12"
   val raw = Seq(
-    SpecHelpers.buildCollectorPayload(
-      path = "/com.mailchimp/v1",
-      body = body.some,
-      contentType = "application/x-www-form-urlencoded".some
+    new PubsubMessage(SpecHelpers.buildCollectorPayload(
+                        path = "/com.mailchimp/v1",
+                        body = body.some,
+                        contentType = "application/x-www-form-urlencoded".some
+                      ),
+                      Map.empty[String, String].asJava
     )
   )
   val expected = Map(
@@ -54,12 +58,12 @@ class MailchimpAdapterSpec extends PipelineSpec {
         "--bad=bad",
         "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI())
       )
-      .input(PubsubIO.readCoder[Array[Byte]]("in"), raw)
+      .input(PubsubIO.pubsub[PubsubMessage]("in"), raw)
       .distCache(DistCacheIO(""), List.empty[Either[String, String]])
-      .output(PubsubIO.readString("bad")) { b =>
+      .output(PubsubIO.string("bad")) { b =>
         b should beEmpty; ()
       }
-      .output(PubsubIO.readString("out")) { o =>
+      .output(PubsubIO.string("out")) { o =>
         o should satisfySingleValue { c: String =>
           SpecHelpers.compareEnrichedEvent(expected, c)
         }; ()

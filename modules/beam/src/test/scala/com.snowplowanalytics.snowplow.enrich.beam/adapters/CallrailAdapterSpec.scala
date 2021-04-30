@@ -18,16 +18,20 @@ package adapters
 import java.nio.file.Paths
 
 import cats.syntax.option._
-import com.spotify.scio.io.PubsubIO
+import com.spotify.scio.pubsub.PubsubIO
 import com.spotify.scio.testing._
 import io.circe.literal._
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubMessage
+import scala.jdk.CollectionConverters._
 
 object CallrailAdapterSpec {
   val raw = Seq(
-    SpecHelpers.buildCollectorPayload(
-      path = "/com.callrail/v1",
-      querystring =
-        "aid=bnb&answered=true&callercity=BAKERSFIELD&callercountry=US&callername=SKYPE+CALLER&callernum=%2B166&callerstate=CA&callerzip=93307&callsource=keyword&datetime=2014-10-09+16%3A23%3A45&destinationnum=20&duration=247&first_call=true&id=30&ip=86.178.183.7&landingpage=http%3A%2F%2Flndpage.com%2F&recording=http%3A%2F%2Fapp.callrail.com%2Fcalls%2F30%2Frecording%2F9f&referrer=direct&referrermedium=Direct&trackingnum=%2B12015911668".some
+    new PubsubMessage(SpecHelpers.buildCollectorPayload(
+                        path = "/com.callrail/v1",
+                        querystring =
+                          "aid=bnb&answered=true&callercity=BAKERSFIELD&callercountry=US&callername=SKYPE+CALLER&callernum=%2B166&callerstate=CA&callerzip=93307&callsource=keyword&datetime=2014-10-09+16%3A23%3A45&destinationnum=20&duration=247&first_call=true&id=30&ip=86.178.183.7&landingpage=http%3A%2F%2Flndpage.com%2F&recording=http%3A%2F%2Fapp.callrail.com%2Fcalls%2F30%2Frecording%2F9f&referrer=direct&referrermedium=Direct&trackingnum=%2B12015911668".some
+                      ),
+                      Map.empty[String, String].asJava
     )
   )
   val expected = Map(
@@ -52,12 +56,12 @@ class CallrailAdapterSpec extends PipelineSpec {
         "--bad=bad",
         "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI())
       )
-      .input(PubsubIO.readCoder[Array[Byte]]("in"), raw)
+      .input(PubsubIO.pubsub[PubsubMessage]("in"), raw)
       .distCache(DistCacheIO(""), List.empty[Either[String, String]])
-      .output(PubsubIO.readString("bad")) { b =>
+      .output(PubsubIO.string("bad")) { b =>
         b should beEmpty; ()
       }
-      .output(PubsubIO.readString("out")) { o =>
+      .output(PubsubIO.string("out")) { o =>
         o should satisfySingleValue { c: String =>
           SpecHelpers.compareEnrichedEvent(expected, c)
         }; ()

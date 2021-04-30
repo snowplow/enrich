@@ -22,8 +22,10 @@ import io.circe.literal._
 
 import com.snowplowanalytics.snowplow.enrich.beam.{CI, Enrich, SpecHelpers}
 
-import com.spotify.scio.io.PubsubIO
+import com.spotify.scio.pubsub.PubsubIO
 import com.spotify.scio.testing._
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubMessage
+import scala.jdk.CollectionConverters._
 
 object ApiRequestEnrichmentSpec {
   val contexts =
@@ -31,11 +33,13 @@ object ApiRequestEnrichmentSpec {
   val unstructEvent =
     """%7B%22schema%22%3A%22iglu%3Acom.snowplowanalytics.snowplow%2Funstruct_event%2Fjsonschema%2F1-0-0%22%2C%22data%22%3A%7B%22schema%22%3A%22iglu%3Acom.snowplowanalytics.snowplow-website%2Fsignup_form_submitted%2Fjsonschema%2F1-0-0%22%2C%22data%22%3A%7B%22name%22%3A%22Bob%C2%AE%22%2C%22email%22%3A%22alex%2Btest%40snowplowanalytics.com%22%2C%22company%22%3A%22SP%22%2C%22eventsPerMonth%22%3A%22%3C%201%20million%22%2C%22serviceType%22%3A%22unsure%22%7D%7D%7D"""
   val raw = Seq(
-    SpecHelpers.buildCollectorPayload(
-      querystring = s"e=ue&cx=$contexts&ue_pr=$unstructEvent".some,
-      path = "/i",
-      userAgent = "Mozilla/5.0%20(Windows%20NT%206.1;%20WOW64;%20rv:12.0)%20Gecko/20100101%20Firefox/12.0".some,
-      refererUri = "http://www.pb.com/oracles/119.html?view=print#detail".some
+    new PubsubMessage(SpecHelpers.buildCollectorPayload(
+                        querystring = s"e=ue&cx=$contexts&ue_pr=$unstructEvent".some,
+                        path = "/i",
+                        userAgent = "Mozilla/5.0%20(Windows%20NT%206.1;%20WOW64;%20rv:12.0)%20Gecko/20100101%20Firefox/12.0".some,
+                        refererUri = "http://www.pb.com/oracles/119.html?view=print#detail".some
+                      ),
+                      Map.empty[String, String].asJava
     )
   )
   val expected = Map(
@@ -57,14 +61,14 @@ class ApiRequestEnrichmentSpec extends PipelineSpec {
         "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI),
         "--enrichments=" + Paths.get(getClass.getResource("/api_request").toURI)
       )
-      .input(PubsubIO.readCoder[Array[Byte]]("in"), raw)
+      .input(PubsubIO.pubsub[PubsubMessage]("in"), raw)
       .distCache(DistCacheIO(""), List.empty[Either[String, String]])
-      .output(PubsubIO.readString("out")) { o =>
+      .output(PubsubIO.string("out")) { o =>
         o should satisfySingleValue { c: String =>
           SpecHelpers.compareEnrichedEvent(expected, c)
         }; ()
       }
-      .output(PubsubIO.readString("bad")) { b =>
+      .output(PubsubIO.string("bad")) { b =>
         b should beEmpty; ()
       }
       .run()

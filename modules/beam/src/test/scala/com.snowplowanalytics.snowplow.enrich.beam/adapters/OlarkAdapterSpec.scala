@@ -18,18 +18,22 @@ package adapters
 import java.nio.file.Paths
 
 import cats.syntax.option._
-import com.spotify.scio.io.PubsubIO
+import com.spotify.scio.pubsub.PubsubIO
 import com.spotify.scio.testing._
 import io.circe.literal._
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubMessage
+import scala.jdk.CollectionConverters._
 
 object OlarkAdapterSpec {
   val body =
     "data=%7B%22kind%22%3A+%22Conversation%22%2C+%22tags%22%3A+%5B%22test_example%22%5D%2C+%22items%22%3A+%5B%7B%22body%22%3A+%22Hi+from+an+operator%22%2C+%22timestamp%22%3A+%221473774819.263083%22%2C+%22kind%22%3A+%22MessageToVisitor%22%2C+%22nickname%22%3A+%22Olark+operator%22%2C+%22operatorId%22%3A+%22647563%22%7D%2C+%7B%22body%22%3A+%22Hi+from+a+visitor%22%2C+%22timestamp%22%3A+%221473774821.411154%22%2C+%22kind%22%3A+%22MessageToOperator%22%2C+%22nickname%22%3A+%22Returning+Visitor+%7C+USA+%28San+Francisco%2C+CA%29+%237617%22%2C+%22visitorNickname%22%3A+%22Olark+Visitor%22%7D%5D%2C+%22operators%22%3A+%7B%22647563%22%3A+%7B%22username%22%3A+%22yali%22%2C+%22emailAddress%22%3A+%22yali%40snowplowanalytics.com%22%2C+%22kind%22%3A+%22Operator%22%2C+%22nickname%22%3A+%22Yali%22%2C+%22id%22%3A+%22647563%22%7D%7D%2C+%22visitor%22%3A+%7B%22city%22%3A+%22San+Francisco%22%2C+%22kind%22%3A+%22Visitor%22%2C+%22organization%22%3A+%22Visitor+Organization%22%2C+%22conversationBeginPage%22%3A+%22http%3A%2F%2Fwww.olark.com%22%2C+%22countryCode%22%3A+%22US%22%2C+%22referrer%22%3A+%22http%3A%2F%2Fwww.olark.com%22%2C+%22ip%22%3A+%22127.0.0.1%22%2C+%22region%22%3A+%22CA%22%2C+%22chat_feedback%22%3A+%7B%22overall_chat%22%3A+4%2C+%22responsiveness%22%3A+5%2C+%22friendliness%22%3A+5%2C+%22knowledge%22%3A+4%7D%2C+%22operatingSystem%22%3A+%22Windows%22%2C+%22emailAddress%22%3A+%22support%2Bintegrationtest%40olark.com%22%2C+%22country%22%3A+%22United+States%22%2C+%22phoneNumber%22%3A+%225555555555%22%2C+%22fullName%22%3A+%22Olark%22%2C+%22id%22%3A+%22NOTAREALVISITORIDS5LGl6QUrK2OaPP%22%2C+%22browser%22%3A+%22Internet+Explorer+11%22%7D%2C+%22id%22%3A+%22NOTAREALTRANSCRIPT5LGcbVTa3hKBRB%22%2C+%22manuallySubmitted%22%3A+false%7D"
   val raw = Seq(
-    SpecHelpers.buildCollectorPayload(
-      path = "/com.olark/v1",
-      body = body.some,
-      contentType = "application/x-www-form-urlencoded".some
+    new PubsubMessage(SpecHelpers.buildCollectorPayload(
+                        path = "/com.olark/v1",
+                        body = body.some,
+                        contentType = "application/x-www-form-urlencoded".some
+                      ),
+                      Map.empty[String, String].asJava
     )
   )
   val expected = Map(
@@ -54,12 +58,12 @@ class OlarkAdapterSpec extends PipelineSpec {
         "--bad=bad",
         "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI())
       )
-      .input(PubsubIO.readCoder[Array[Byte]]("in"), raw)
+      .input(PubsubIO.pubsub[PubsubMessage]("in"), raw)
       .distCache(DistCacheIO(""), List.empty[Either[String, String]])
-      .output(PubsubIO.readString("bad")) { b =>
+      .output(PubsubIO.string("bad")) { b =>
         b should beEmpty; ()
       }
-      .output(PubsubIO.readString("out")) { o =>
+      .output(PubsubIO.string("out")) { o =>
         o should satisfySingleValue { c: String =>
           SpecHelpers.compareEnrichedEvent(expected, c)
         }; ()

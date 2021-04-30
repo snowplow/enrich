@@ -20,16 +20,20 @@ import java.nio.file.Paths
 import scala.io.Source
 
 import cats.syntax.option._
-import com.spotify.scio.io.PubsubIO
+import com.spotify.scio.pubsub.PubsubIO
 import com.spotify.scio.testing._
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubMessage
+import scala.jdk.CollectionConverters._
 
 object Tp2MegaEventsAdapterSpec {
   val body = Source.fromResource("mega-events.txt").getLines().mkString
   val raw = Seq(
-    SpecHelpers.buildCollectorPayload(
-      path = "/com.snowplowanalytics.snowplow/tp2",
-      body = body.some,
-      contentType = "application/json".some
+    new PubsubMessage(SpecHelpers.buildCollectorPayload(
+                        path = "/com.snowplowanalytics.snowplow/tp2",
+                        body = body.some,
+                        contentType = "application/json".some
+                      ),
+                      Map.empty[String, String].asJava
     )
   )
 }
@@ -45,12 +49,12 @@ class Tp2MegaEventsAdapterSpec extends PipelineSpec {
         "--bad=bad",
         "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI())
       )
-      .input(PubsubIO.readCoder[Array[Byte]]("in"), raw)
+      .input(PubsubIO.pubsub[PubsubMessage]("in"), raw)
       .distCache(DistCacheIO(""), List.empty[Either[String, String]])
-      .output(PubsubIO.readString("bad")) { b =>
+      .output(PubsubIO.string("bad")) { b =>
         b should beEmpty; ()
       }
-      .output(PubsubIO.readString("out")) { o =>
+      .output(PubsubIO.string("out")) { o =>
         o should haveSize(7500); ()
       }
       .run()

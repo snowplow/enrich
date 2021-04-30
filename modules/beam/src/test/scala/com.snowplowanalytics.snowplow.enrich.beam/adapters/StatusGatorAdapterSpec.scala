@@ -18,18 +18,22 @@ package adapters
 import java.nio.file.Paths
 
 import cats.syntax.option._
-import com.spotify.scio.io.PubsubIO
+import com.spotify.scio.pubsub.PubsubIO
 import com.spotify.scio.testing._
 import io.circe.literal._
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubMessage
+import scala.jdk.CollectionConverters._
 
 object StatusGatorAdapterSpec {
   val body =
     "service_name=Amazon+Web+Services&favicon_url=https%3A%2F%2Fdwxjd9cd6rwno.cloudfront.net%2Ffavicons%2Famazon-web-services.ico&status_page_url=http%3A%2F%2Fstatus.aws.amazon.com%2F&home_page_url=http%3A%2F%2Faws.amazon.com%2F&current_status=warn&last_status=up&occurred_at=2017-11-11T15%3A36%3A18%2B00%3A00"
   val raw = Seq(
-    SpecHelpers.buildCollectorPayload(
-      path = "/com.statusgator/v1",
-      body = body.some,
-      contentType = "application/x-www-form-urlencoded".some
+    new PubsubMessage(SpecHelpers.buildCollectorPayload(
+                        path = "/com.statusgator/v1",
+                        body = body.some,
+                        contentType = "application/x-www-form-urlencoded".some
+                      ),
+                      Map.empty[String, String].asJava
     )
   )
   val expected = Map(
@@ -54,12 +58,12 @@ class StatusGatorAdapterSpec extends PipelineSpec {
         "--bad=bad",
         "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI())
       )
-      .input(PubsubIO.readCoder[Array[Byte]]("in"), raw)
+      .input(PubsubIO.pubsub[PubsubMessage]("in"), raw)
       .distCache(DistCacheIO(""), List.empty[Either[String, String]])
-      .output(PubsubIO.readString("bad")) { b =>
+      .output(PubsubIO.string("bad")) { b =>
         b should beEmpty; ()
       }
-      .output(PubsubIO.readString("out")) { o =>
+      .output(PubsubIO.string("out")) { o =>
         o should satisfySingleValue { c: String =>
           SpecHelpers.compareEnrichedEvent(expected, c)
         }; ()

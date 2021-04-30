@@ -18,18 +18,22 @@ package adapters
 import java.nio.file.Paths
 
 import cats.syntax.option._
-import com.spotify.scio.io.PubsubIO
+import com.spotify.scio.pubsub.PubsubIO
 import com.spotify.scio.testing._
 import io.circe.literal._
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubMessage
+import scala.jdk.CollectionConverters._
 
 object MailgunAdapterSpec {
   val body =
     "domain=sandbox57070072075d4cfd9008d4332108734c.mailgun.org&my_var_1=Mailgun+Variable+%231&my-var-2=awesome&message-headers=%5B%5B%22Received%22%2C+%22by+luna.mailgun.net+with+SMTP+mgrt+8734663311733%3B+Fri%2C+03+May+2013+18%3A26%3A27+%2B0000%22%5D%2C+%5B%22Content-Type%22%2C+%5B%22multipart%2Falternative%22%2C+%7B%22boundary%22%3A+%22eb663d73ae0a4d6c9153cc0aec8b7520%22%7D%5D%5D%2C+%5B%22Mime-Version%22%2C+%221.0%22%5D%2C+%5B%22Subject%22%2C+%22Test+deliver+webhook%22%5D%2C+%5B%22From%22%2C+%22Bob+%3Cbob%40sandbox57070072075d4cfd9008d4332108734c.mailgun.org%3E%22%5D%2C+%5B%22To%22%2C+%22Alice+%3Calice%40example.com%3E%22%5D%2C+%5B%22Message-Id%22%2C+%22%3C20130503182626.18666.16540%40sandbox57070072075d4cfd9008d4332108734c.mailgun.org%3E%22%5D%2C+%5B%22X-Mailgun-Variables%22%2C+%22%7B%5C%22my_var_1%5C%22%3A+%5C%22Mailgun+Variable+%231%5C%22%2C+%5C%22my-var-2%5C%22%3A+%5C%22awesome%5C%22%7D%22%5D%2C+%5B%22Date%22%2C+%22Fri%2C+03+May+2013+18%3A26%3A27+%2B0000%22%5D%2C+%5B%22Sender%22%2C+%22bob%40sandbox57070072075d4cfd9008d4332108734c.mailgun.org%22%5D%5D&Message-Id=%3C20130503182626.18666.16540%40sandbox57070072075d4cfd9008d4332108734c.mailgun.org%3E&recipient=alice%40example.com&event=delivered&timestamp=1510161827&token=cd87f5a30002794e37aa49e67fb46990e578b1e9197773d817&signature=c902ff9e3dea54c2dbe1871f9041653292ea9689d3d2b2d2ecfa996f025b9669&body-plain="
   val raw = Seq(
-    SpecHelpers.buildCollectorPayload(
-      path = "/com.mailgun/v1",
-      body = body.some,
-      contentType = "application/x-www-form-urlencoded".some
+    new PubsubMessage(SpecHelpers.buildCollectorPayload(
+                        path = "/com.mailgun/v1",
+                        body = body.some,
+                        contentType = "application/x-www-form-urlencoded".some
+                      ),
+                      Map.empty[String, String].asJava
     )
   )
   val expected = Map(
@@ -54,12 +58,12 @@ class MailgunAdapterSpec extends PipelineSpec {
         "--bad=bad",
         "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI())
       )
-      .input(PubsubIO.readCoder[Array[Byte]]("in"), raw)
+      .input(PubsubIO.pubsub[PubsubMessage]("in"), raw)
       .distCache(DistCacheIO(""), List.empty[Either[String, String]])
-      .output(PubsubIO.readString("bad")) { b =>
+      .output(PubsubIO.string("bad")) { b =>
         b should beEmpty; ()
       }
-      .output(PubsubIO.readString("out")) { o =>
+      .output(PubsubIO.string("out")) { o =>
         o should satisfySingleValue { c: String =>
           SpecHelpers.compareEnrichedEvent(expected, c)
         }; ()

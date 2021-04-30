@@ -18,19 +18,23 @@ package adapters
 import java.nio.file.Paths
 
 import cats.syntax.option._
-import com.spotify.scio.io.PubsubIO
+import com.spotify.scio.pubsub.PubsubIO
 import com.spotify.scio.testing._
 import io.circe.literal._
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubMessage
+import scala.jdk.CollectionConverters._
 
 object MarketoAdapterSpec {
   val body =
     json"""{"name": "webhook for A", "step": 6, "campaign": {"id": 160, "name": "avengers assemble"}, "lead": {"acquisition_date": "2010-11-11 11:11:11", "black_listed": false, "first_name": "the hulk", "updated_at": "2018-06-16 11:23:58", "created_at": "2018-06-16 11:23:58", "last_interesting_moment_date": "2018-09-26 20:26:40"}, "company": {"name": "iron man", "notes": "the something dog leapt over the lazy fox"}, "campaign": {"id": 987, "name": "triggered event"}, "datetime": "2018-03-07 14:28:16"}
 """
   val raw = Seq(
-    SpecHelpers.buildCollectorPayload(
-      path = "/com.marketo/v1",
-      body = body.noSpaces.some,
-      contentType = "application/json".some
+    new PubsubMessage(SpecHelpers.buildCollectorPayload(
+                        path = "/com.marketo/v1",
+                        body = body.noSpaces.some,
+                        contentType = "application/json".some
+                      ),
+                      Map.empty[String, String].asJava
     )
   )
   val expected = Map(
@@ -55,12 +59,12 @@ class MarketoAdapterSpec extends PipelineSpec {
         "--bad=bad",
         "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI())
       )
-      .input(PubsubIO.readCoder[Array[Byte]]("in"), raw)
+      .input(PubsubIO.pubsub[PubsubMessage]("in"), raw)
       .distCache(DistCacheIO(""), List.empty[Either[String, String]])
-      .output(PubsubIO.readString("bad")) { b =>
+      .output(PubsubIO.string("bad")) { b =>
         b should beEmpty; ()
       }
-      .output(PubsubIO.readString("out")) { o =>
+      .output(PubsubIO.string("out")) { o =>
         o should satisfySingleValue { c: String =>
           SpecHelpers.compareEnrichedEvent(expected, c)
         }; ()

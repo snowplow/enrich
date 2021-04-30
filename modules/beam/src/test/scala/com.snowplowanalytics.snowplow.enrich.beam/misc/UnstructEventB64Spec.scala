@@ -18,17 +18,21 @@ package misc
 import java.nio.file.Paths
 
 import cats.syntax.option._
-import com.spotify.scio.io.PubsubIO
+import com.spotify.scio.pubsub.PubsubIO
 import com.spotify.scio.testing._
 import io.circe.literal._
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubMessage
+import scala.jdk.CollectionConverters._
 
 object UnstructEventB64Spec {
   val querystring =
     "e=ue&ue_px=eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5zbm93cGxvdy91bnN0cnVjdF9ldmVudC9qc29uc2NoZW1hLzEtMC0wIiwiZGF0YSI6eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5zbm93cGxvdy5pbnB1dC1hZGFwdGVycy9zZWdtZW50X3dlYmhvb2tfY29uZmlnL2pzb25zY2hlbWEvMS0wLTAiLCJkYXRhIjp7InZlbmRvciI6Is6nzrHPgc65z4TOr869zrcgTkVXIFVuaWNvZGUgdGVzdCIsIm5hbWUiOiJhbGV4K3Rlc3RAc25vd3Bsb3dhbmFseXRpY3MuY29tIiwicGFyYW1ldGVycyI6eyJtYXBwaW5ncyI6eyJldmVudHNQZXJNb250aCI6IjwgMSBtaWxsaW9uIiwic2VydmljZVR5cGUiOiJ1bnN1cmUifX19fX0="
   val raw = Seq(
-    SpecHelpers.buildCollectorPayload(
-      path = "/ice.png",
-      querystring = querystring.some
+    new PubsubMessage(SpecHelpers.buildCollectorPayload(
+                        path = "/ice.png",
+                        querystring = querystring.some
+                      ),
+                      Map.empty[String, String].asJava
     )
   )
   val expected = Map(
@@ -52,12 +56,12 @@ class UnstructEventB64Spec extends PipelineSpec {
         "--bad=bad",
         "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI())
       )
-      .input(PubsubIO.readCoder[Array[Byte]]("in"), raw)
+      .input(PubsubIO.pubsub[PubsubMessage]("in"), raw)
       .distCache(DistCacheIO(""), List.empty[Either[String, String]])
-      .output(PubsubIO.readString("bad")) { b =>
+      .output(PubsubIO.string("bad")) { b =>
         b should beEmpty; ()
       }
-      .output(PubsubIO.readString("out")) { o =>
+      .output(PubsubIO.string("out")) { o =>
         o should satisfySingleValue { c: String =>
           SpecHelpers.compareEnrichedEvent(expected, c)
         }; ()

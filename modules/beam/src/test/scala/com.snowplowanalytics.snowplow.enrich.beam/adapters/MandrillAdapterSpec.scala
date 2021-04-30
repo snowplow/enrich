@@ -18,18 +18,22 @@ package adapters
 import java.nio.file.Paths
 
 import cats.syntax.option._
-import com.spotify.scio.io.PubsubIO
+import com.spotify.scio.pubsub.PubsubIO
 import com.spotify.scio.testing._
 import io.circe.literal._
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubMessage
+import scala.jdk.CollectionConverters._
 
 object MandrillAdapterSpec {
   val body =
     "mandrill_events=%5B%0A%20%20%20%20%7B%0A%20%20%20%20%20%20%20%20%22event%22%3A%20%22send%22%2C%0A%20%20%20%20%20%20%20%20%22msg%22%3A%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%22ts%22%3A%201365109999%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%22subject%22%3A%20%22This%20an%20example%20webhook%20message%22%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%22email%22%3A%20%22example.webhook%40mandrillapp.com%22%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%22sender%22%3A%20%22example.sender%40mandrillapp.com%22%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%22tags%22%3A%20%5B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22webhook-example%22%0A%20%20%20%20%20%20%20%20%20%20%20%20%5D%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%22opens%22%3A%20%5B%5D%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%22clicks%22%3A%20%5B%5D%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%22state%22%3A%20%22sent%22%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%22metadata%22%3A%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22user_id%22%3A%20111%0A%20%20%20%20%20%20%20%20%20%20%20%20%7D%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%22_id%22%3A%20%22exampleaaaaaaaaaaaaaaaaaaaaaaaaa%22%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%22_version%22%3A%20%22exampleaaaaaaaaaaaaaaa%22%0A%20%20%20%20%20%20%20%20%7D%2C%0A%20%20%20%20%20%20%20%20%22_id%22%3A%20%22exampleaaaaaaaaaaaaaaaaaaaaaaaaa%22%2C%0A%20%20%20%20%20%20%20%20%22ts%22%3A%201415692035%0A%20%20%20%20%7D%0A%5D"
   val raw = Seq(
-    SpecHelpers.buildCollectorPayload(
-      path = "/com.mandrill/v1",
-      body = body.some,
-      contentType = "application/x-www-form-urlencoded".some
+    new PubsubMessage(SpecHelpers.buildCollectorPayload(
+                        path = "/com.mandrill/v1",
+                        body = body.some,
+                        contentType = "application/x-www-form-urlencoded".some
+                      ),
+                      Map.empty[String, String].asJava
     )
   )
   val expected = Map(
@@ -54,12 +58,12 @@ class MandrillAdapterSpec extends PipelineSpec {
         "--bad=bad",
         "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI())
       )
-      .input(PubsubIO.readCoder[Array[Byte]]("in"), raw)
+      .input(PubsubIO.pubsub[PubsubMessage]("in"), raw)
       .distCache(DistCacheIO(""), List.empty[Either[String, String]])
-      .output(PubsubIO.readString("bad")) { b =>
+      .output(PubsubIO.string("bad")) { b =>
         b should beEmpty; ()
       }
-      .output(PubsubIO.readString("out")) { o =>
+      .output(PubsubIO.string("out")) { o =>
         o should satisfySingleValue { c: String =>
           SpecHelpers.compareEnrichedEvent(expected, c)
         }; ()

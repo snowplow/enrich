@@ -18,57 +18,71 @@ package enrichments
 import java.nio.file.Paths
 
 import cats.syntax.option._
-import com.spotify.scio.io.PubsubIO
+import com.spotify.scio.pubsub.PubsubIO
 import com.spotify.scio.testing._
 import io.circe.literal._
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubMessage
+import scala.jdk.CollectionConverters._
 
 object IabEnrichmentSpec {
   // nuids are here to maintain an order
   val raw = Seq(
-    SpecHelpers.buildCollectorPayload(
-      path = "/i",
-      querystring = "e=pp".some,
-      userAgent = "Mozilla/5.0%20(Windows%20NT%206.1;%20WOW64;%20rv:12.0)%20Gecko/20100101%20Firefox/12.0".some,
-      ipAddress = "216.160.83.56",
-      networkUserId = "11111111-1111-1111-1111-111111111111"
+    new PubsubMessage(SpecHelpers.buildCollectorPayload(
+                        path = "/i",
+                        querystring = "e=pp".some,
+                        userAgent = "Mozilla/5.0%20(Windows%20NT%206.1;%20WOW64;%20rv:12.0)%20Gecko/20100101%20Firefox/12.0".some,
+                        ipAddress = "216.160.83.56",
+                        networkUserId = "11111111-1111-1111-1111-111111111111"
+                      ),
+                      Map.empty[String, String].asJava
     ),
-    SpecHelpers.buildCollectorPayload(
-      path = "/i",
-      querystring = "e=pp".some,
-      userAgent =
-        "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Googlebot/2.1; +http://www.google.com/bot.html) Safari/537.36".some,
-      ipAddress = "216.160.83.56",
-      networkUserId = "22222222-2222-2222-2222-222222222222"
+    new PubsubMessage(SpecHelpers.buildCollectorPayload(
+                        path = "/i",
+                        querystring = "e=pp".some,
+                        userAgent =
+                          "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Googlebot/2.1; +http://www.google.com/bot.html) Safari/537.36".some,
+                        ipAddress = "216.160.83.56",
+                        networkUserId = "22222222-2222-2222-2222-222222222222"
+                      ),
+                      Map.empty[String, String].asJava
     ),
-    SpecHelpers.buildCollectorPayload(
-      path = "/i",
-      querystring = "e=pp".some,
-      userAgent =
-        "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Googlebot/2.1; +http://www.google.com/bot.html) Safari/537.36".some,
-      ipAddress = "216.160.83.56:8080",
-      networkUserId = "33333333-3333-3333-3333-333333333333"
+    new PubsubMessage(SpecHelpers.buildCollectorPayload(
+                        path = "/i",
+                        querystring = "e=pp".some,
+                        userAgent =
+                          "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Googlebot/2.1; +http://www.google.com/bot.html) Safari/537.36".some,
+                        ipAddress = "216.160.83.56:8080",
+                        networkUserId = "33333333-3333-3333-3333-333333333333"
+                      ),
+                      Map.empty[String, String].asJava
     ),
-    SpecHelpers.buildCollectorPayload(
-      path = "/i",
-      querystring = "e=pp".some,
-      userAgent =
-        "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Googlebot/2.1; +http://www.google.com/bot.html) Safari/537.36".some,
-      ipAddress = "2001:db8:0:0:0:ff00:42:8329",
-      networkUserId = "44444444-4444-4444-4444-444444444444"
+    new PubsubMessage(SpecHelpers.buildCollectorPayload(
+                        path = "/i",
+                        querystring = "e=pp".some,
+                        userAgent =
+                          "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Googlebot/2.1; +http://www.google.com/bot.html) Safari/537.36".some,
+                        ipAddress = "2001:db8:0:0:0:ff00:42:8329",
+                        networkUserId = "44444444-4444-4444-4444-444444444444"
+                      ),
+                      Map.empty[String, String].asJava
     ),
-    SpecHelpers.buildCollectorPayload(
-      path = "/i",
-      querystring = "e=pp".some,
-      userAgent =
-        "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Googlebot/2.1; +http://www.google.com/bot.html) Safari/537.36".some,
-      ipAddress = "[2001:db8:0:0:0:ff00:42:8329]:9090",
-      networkUserId = "44444444-4444-4444-4444-444444444444"
+    new PubsubMessage(SpecHelpers.buildCollectorPayload(
+                        path = "/i",
+                        querystring = "e=pp".some,
+                        userAgent =
+                          "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Googlebot/2.1; +http://www.google.com/bot.html) Safari/537.36".some,
+                        ipAddress = "[2001:db8:0:0:0:ff00:42:8329]:9090",
+                        networkUserId = "44444444-4444-4444-4444-444444444444"
+                      ),
+                      Map.empty[String, String].asJava
     ),
-    SpecHelpers.buildCollectorPayload(
-      path = "/i",
-      querystring = "e=pp".some,
-      ipAddress = "216.160.83.56",
-      networkUserId = "55555555-5555-5555-5555-555555555555"
+    new PubsubMessage(SpecHelpers.buildCollectorPayload(
+                        path = "/i",
+                        querystring = "e=pp".some,
+                        ipAddress = "216.160.83.56",
+                        networkUserId = "55555555-5555-5555-5555-555555555555"
+                      ),
+                      Map.empty[String, String].asJava
     )
   )
   val expecteds = List(
@@ -145,7 +159,7 @@ class IabEnrichmentSpec extends PipelineSpec {
         "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI()),
         "--enrichments=" + Paths.get(getClass.getResource("/iab").toURI())
       )
-      .input(PubsubIO.readCoder[Array[Byte]]("in"), raw)
+      .input(PubsubIO.pubsub[PubsubMessage]("in"), raw)
       .distCache(
         DistCacheIO(
           Seq(
@@ -156,10 +170,10 @@ class IabEnrichmentSpec extends PipelineSpec {
         ),
         List(Right(localIpFile), Right(localExcludeUaFile), Right(localIncludeUaFile))
       )
-      .output(PubsubIO.readString("bad")) { b =>
+      .output(PubsubIO.string("bad")) { b =>
         b should beEmpty; ()
       }
-      .output(PubsubIO.readString("out")) { o =>
+      .output(PubsubIO.string("out")) { o =>
         o should satisfy { cs: Iterable[String] =>
           val ordered =
             cs.toList

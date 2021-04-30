@@ -18,18 +18,22 @@ package adapters
 import java.nio.file.Paths
 
 import cats.syntax.option._
-import com.spotify.scio.io.PubsubIO
+import com.spotify.scio.pubsub.PubsubIO
 import com.spotify.scio.testing._
 import io.circe.literal._
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubMessage
+import scala.jdk.CollectionConverters._
 
 object PagerDutyAdapterSpec {
   val body =
     json"""{"messages":[{"type":"incident.resolve","data":{"incident":{"id":"P850PWC","incident_number":597,"created_on":"2014-12-17T17:02:51","status":"resolved","html_url":"https://snowplow.pagerduty.com/incidents/P850PWC","incident_key":"/opt/snowplow-saas/bin/run-and-load-goeuro-adwords.shgoeuro@1418835766","service":{"id":"PE7H89B","name":"ManagedServiceBatchYaliCrons","html_url":"https://snowplow.pagerduty.com/services/PE7H89B","deleted_at":null},"escalation_policy":{"id":"P8ETVHU","name":"Yalifirst","deleted_at":null},"assigned_to_user":null,"trigger_summary_data":{"description":"executordetectedfailureforgoeuro"},"trigger_details_html_url":"https://snowplow.pagerduty.com/incidents/P850PWC/log_entries/Q2KN5OMT7QL5L0","trigger_type":"trigger_svc_event","last_status_change_on":"2014-12-17T17:11:46","last_status_change_by":{"id":"P9L426X","name":"YaliSassoon","email":"yali@snowplowanalytics.com","html_url":"https://snowplow.pagerduty.com/users/P9L426X"},"number_of_escalations":0,"resolved_by_user":{"id":"P9L426X","name":"YaliSassoon","email":"yali@snowplowanalytics.com","html_url":"https://snowplow.pagerduty.com/users/P9L426X"},"assigned_to":[]}},"id":"c8565510-860f-11e4-bbe8-22000ad9bf74","created_on":"2014-12-17T17:11:46Z"}]}"""
   val raw = Seq(
-    SpecHelpers.buildCollectorPayload(
-      path = "/com.pagerduty/v1",
-      body = body.noSpaces.some,
-      contentType = "application/json".some
+    new PubsubMessage(SpecHelpers.buildCollectorPayload(
+                        path = "/com.pagerduty/v1",
+                        body = body.noSpaces.some,
+                        contentType = "application/json".some
+                      ),
+                      Map.empty[String, String].asJava
     )
   )
   val expected = Map(
@@ -54,12 +58,12 @@ class PagerDutyAdapterSpec extends PipelineSpec {
         "--bad=bad",
         "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI())
       )
-      .input(PubsubIO.readCoder[Array[Byte]]("in"), raw)
+      .input(PubsubIO.pubsub[PubsubMessage]("in"), raw)
       .distCache(DistCacheIO(""), List.empty[Either[String, String]])
-      .output(PubsubIO.readString("bad")) { b =>
+      .output(PubsubIO.string("bad")) { b =>
         b should beEmpty; ()
       }
-      .output(PubsubIO.readString("out")) { o =>
+      .output(PubsubIO.string("out")) { o =>
         o should satisfySingleValue { c: String =>
           SpecHelpers.compareEnrichedEvent(expected, c)
         }; ()

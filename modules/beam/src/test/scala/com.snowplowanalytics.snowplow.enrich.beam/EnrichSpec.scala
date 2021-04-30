@@ -17,9 +17,11 @@ package com.snowplowanalytics.snowplow.enrich.beam
 import java.nio.file.Paths
 
 import com.spotify.scio.ScioMetrics
-import com.spotify.scio.io.PubsubIO
+import com.spotify.scio.pubsub.PubsubIO
 import com.spotify.scio.testing._
 import org.apache.commons.codec.binary.Base64
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubMessage
+import scala.jdk.CollectionConverters._
 
 object EnrichSpec {
   val raw = Seq(
@@ -95,14 +97,16 @@ class EnrichSpec extends PipelineSpec {
         "--bad=bad",
         "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI())
       )
-      .input(PubsubIO.readCoder[Array[Byte]]("in"), raw.map(Base64.decodeBase64))
+      .input(PubsubIO.pubsub[PubsubMessage]("in"),
+             raw.map(Base64.decodeBase64).map(arr => new PubsubMessage(arr, Map.empty[String, String].asJava))
+      )
       .distCache(DistCacheIO(""), List.empty[Either[String, String]])
-      .output(PubsubIO.readString("out")) { o =>
+      .output(PubsubIO.string("out")) { o =>
         o should satisfySingleValue { c: String =>
           expected.forall(c.contains)
         }; ()
       }
-      .output(PubsubIO.readString("bad")) { b =>
+      .output(PubsubIO.string("bad")) { b =>
         b should beEmpty; ()
       }
       .distribution(Enrich.enrichedEventSizeDistribution) { d =>

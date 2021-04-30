@@ -18,18 +18,22 @@ package adapters
 import java.nio.file.Paths
 
 import cats.syntax.option._
-import com.spotify.scio.io.PubsubIO
+import com.spotify.scio.pubsub.PubsubIO
 import com.spotify.scio.testing._
 import io.circe.literal._
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubMessage
+import scala.jdk.CollectionConverters._
 
 object SendgridAdapterSpec {
   val body =
     json"""[{"email":"example@test.com","timestamp":1446549615,"smtp-id":"\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e","event":"processed","category":"cat facts","sg_event_id":"sZROwMGMagFgnOEmSdvhig==","sg_message_id":"14c5d75ce93.dfd.64b469.filter0001.16648.5515E0B88.0","marketing_campaign_id":12345,"marketing_campaign_name":"campaign name","marketing_campaign_version":"B","marketing_campaign_split_id":13471}]"""
   val raw = Seq(
-    SpecHelpers.buildCollectorPayload(
-      path = "/com.sendgrid/v3",
-      body = body.noSpaces.some,
-      contentType = "application/json".some
+    new PubsubMessage(SpecHelpers.buildCollectorPayload(
+                        path = "/com.sendgrid/v3",
+                        body = body.noSpaces.some,
+                        contentType = "application/json".some
+                      ),
+                      Map.empty[String, String].asJava
     )
   )
   val expected = Map(
@@ -54,12 +58,12 @@ class SendgridAdapterSpec extends PipelineSpec {
         "--bad=bad",
         "--resolver=" + Paths.get(getClass.getResource("/iglu_resolver.json").toURI())
       )
-      .input(PubsubIO.readCoder[Array[Byte]]("in"), raw)
+      .input(PubsubIO.pubsub[PubsubMessage]("in"), raw)
       .distCache(DistCacheIO(""), List.empty[Either[String, String]])
-      .output(PubsubIO.readString("bad")) { b =>
+      .output(PubsubIO.string("bad")) { b =>
         b should beEmpty; ()
       }
-      .output(PubsubIO.readString("out")) { o =>
+      .output(PubsubIO.string("out")) { o =>
         o should satisfySingleValue { c: String =>
           println(SpecHelpers.buildEnrichedEvent(c).filter { case (k, _) => expected.contains(k) })
           SpecHelpers.compareEnrichedEvent(expected, c)

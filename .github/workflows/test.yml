@@ -79,11 +79,11 @@ jobs:
         name: Version ${{ steps.ver.outputs.tag }}
         tag_name: ${{ steps.ver.outputs.tag }}
         files: |
-          modules/kinesis/target/scala-2.12/snowplow-stream-enrich-kinesis-{{ steps.ver.outputs.tag }}.jar
-          modules/kafka/target/scala-2.12/snowplow-stream-enrich-kafka-{{ steps.ver.outputs.tag }}.jar
-          modules/nsq/target/scala-2.12/snowplow-stream-enrich-nsq-{{ steps.ver.outputs.tag }}.jar
-          modules/beam/target/scala-2.12/beam-enrich-{{ steps.ver.outputs.tag }}.jar
-          modules/fs2/target/scala-2.12/fs2-enrich-{{ steps.ver.outputs.tag }}.jar
+          modules/kinesis/target/scala-2.12/snowplow-stream-enrich-kinesis-${{ steps.ver.outputs.tag }}.jar
+          modules/kafka/target/scala-2.12/snowplow-stream-enrich-kafka-${{ steps.ver.outputs.tag }}.jar
+          modules/nsq/target/scala-2.12/snowplow-stream-enrich-nsq-${{ steps.ver.outputs.tag }}.jar
+          modules/beam/target/scala-2.12/beam-enrich-${{ steps.ver.outputs.tag }}.jar
+          modules/fs2/target/scala-2.12/fs2-enrich-${{ steps.ver.outputs.tag }}.jar
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

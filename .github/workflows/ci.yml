@@ -1,6 +1,13 @@
-name: Test
+name: CI
 
-on: [push, pull_request]
+on:
+  push:
+    tags:
+      - '*'
+    branches:
+      - master
+      - develop
+  pull_request:
 
 jobs:
   test:
@@ -50,7 +57,7 @@ jobs:
       if: ${{ always() }}
       run: sbt publishLocal
 
-  upload_assets:
+  github_release:
     needs: test
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
@@ -87,7 +94,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  deploy_stream:
+  publish_stream:
     needs: test
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
@@ -112,7 +119,7 @@ jobs:
       if: ${{ always() }}
       run: sbt "project nsq" docker:publish
 
-  deploy_pubsub:
+  publish_pubsub:
     needs: test
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
@@ -128,10 +135,10 @@ jobs:
       env:
         DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-    - name: Build and publish Stream NH Docker image
+    - name: Build and publish Enrich PubSub Docker image
       run: sbt "project pubsub" docker:publish
 
-  deploy_beam:
+  publish_beam:
     needs: test
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
@@ -163,7 +170,7 @@ jobs:
     - name: Build and publish Beam Docker images
       run: sbt "project beam" docker:publish
 
-  deploy_sce:
+  publish_sce:
     needs: test
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest

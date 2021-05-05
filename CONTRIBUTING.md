@@ -44,7 +44,7 @@ The Enrich code base is divided into modules:
 - [Kinesis](https://github.com/snowplow/enrich/tree/master/modules/kinesis), [kafka](https://github.com/snowplow/enrich/tree/master/modules/kafka),
 [nsq](https://github.com/snowplow/enrich/tree/master/modules) and [stdin](https://github.com/snowplow/enrich/tree/master/modules); a set of applications that stream from various sources
 - [Beam](https://github.com/snowplow/enrich/tree/master/modules/beam), which contains code for the Google Dataflow job
-- [FS2](https://github.com/snowplow/enrich/tree/master/modules/fs2) an application for a GCP pipeline that does not require a distributed computing framework.
+- [PubSub](https://github.com/snowplow/enrich/tree/master/modules/pubsub) an application for a GCP pipeline that does not require a distributed computing framework.
 
 All of these projects can be built and tested with [SBT](https://www.scala-sbt.org/).
 

@@ -29,7 +29,7 @@ import com.snowplowanalytics.snowplow.enrich.common.EtlPipeline
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 
-import com.snowplowanalytics.snowplow.enrich.fs2.{Enrich, EnrichSpec}
+import com.snowplowanalytics.snowplow.enrich.pubsub.{Enrich, EnrichSpec}
 
 import org.joda.time.DateTime
 

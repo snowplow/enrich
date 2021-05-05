@@ -19,7 +19,7 @@
 lazy val root = project.in(file("."))
   .settings(name := "enrich")
   .settings(BuildSettings.basicSettings)
-  .aggregate(common, beam, stream, kinesis, kafka, nsq, stdin, fs2)
+  .aggregate(common, beam, stream, kinesis, kafka, nsq, stdin, pubsub)
 
 lazy val common = project
   .in(file("modules/common"))
@@ -200,8 +200,8 @@ lazy val beam =
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
-lazy val fs2 = project
-  .in(file("modules/fs2"))
+lazy val pubsub = project
+  .in(file("modules/pubsub"))
   .dependsOn(common)
   .settings(BuildSettings.basicSettings)
   .settings(BuildSettings.formatting)
@@ -209,11 +209,11 @@ lazy val fs2 = project
   .settings(BuildSettings.addExampleConfToTestCp)
   .settings(BuildSettings.sbtAssemblySettings)
   .settings(
-    name := "fs2-enrich",
+    name := "snowplow-enrich-pubsub",
     description := "High-performance streaming Snowplow Enrich job built on top of functional streams",
     buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
-    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.fs2.generated",
-    Docker / packageName := "snowplow/fs2-enrich",
+    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.pubsub.generated",
+    Docker / packageName := "snowplow/snowplow-enrich-pubsub",
   )
   .settings(Test / parallelExecution := false)
   .settings(
@@ -252,5 +252,5 @@ lazy val fs2 = project
 
 lazy val bench = project
   .in(file("modules/bench"))
-  .dependsOn(fs2 % "test->test")
+  .dependsOn(pubsub % "test->test")
   .enablePlugins(JmhPlugin)

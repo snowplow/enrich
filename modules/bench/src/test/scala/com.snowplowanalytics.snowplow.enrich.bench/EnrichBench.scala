@@ -24,8 +24,8 @@ import com.snowplowanalytics.iglu.client.Client
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.loaders.ThriftLoader
-import com.snowplowanalytics.snowplow.enrich.fs2.test.TestEnvironment
-import com.snowplowanalytics.snowplow.enrich.fs2.{Enrich, Environment, EnrichSpec, Payload}
+import com.snowplowanalytics.snowplow.enrich.pubsub.test.TestEnvironment
+import com.snowplowanalytics.snowplow.enrich.pubsub.{Enrich, Environment, EnrichSpec, Payload}
 
 import org.apache.http.message.BasicNameValuePair
 

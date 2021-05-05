@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit
 
 import com.snowplowanalytics.snowplow.enrich.common.loaders.ThriftLoader
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.fs2.{Enrich, EnrichSpec}
+import com.snowplowanalytics.snowplow.enrich.pubsub.{Enrich, EnrichSpec}
 
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.AverageTime))

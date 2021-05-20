@@ -18,10 +18,10 @@ import cats.effect.Sync
 import io.circe.Json
 import org.http4s.circe._
 import org.http4s.client.{Client => HttpClient}
-import org.http4s.{EntityDecoder, Uri}
-
+import org.http4s.{EntityDecoder, Header, Headers, Request, Uri}
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaList}
 import com.snowplowanalytics.iglu.core.circe.CirceIgluCodecs._
+import org.http4s.Method.GET
 
 object Http4sRegistryLookup {
 
@@ -53,7 +53,9 @@ object Http4sRegistryLookup {
   ): EitherT[F, RegistryError, Json] =
     for {
       uri <- EitherT.fromEither[F](toPath(http, key))
-      json <- EitherT(Sync[F].attempt(client.expect[Json](uri))).leftMap[RegistryError] { e =>
+      headers = http.apikey.fold[Headers](Headers.empty)(apikey => Headers.of(Header("apikey", apikey)))
+      request = Request[F](method = GET, uri = uri, headers = headers)
+      json <- EitherT(Sync[F].attempt(client.expect[Json](request))).leftMap[RegistryError] { e =>
                 val error = s"Unexpected exception fetching: $e"
                 RegistryError.RepoFailure(error)
               }

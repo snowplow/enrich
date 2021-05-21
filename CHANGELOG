@@ -1,3 +1,7 @@
+Version 2.0.1 (2021-05-21)
+--------------------------
+PubSub: fix missing apikey header to resolve schemas (#468)
+
 Version 2.0.0 (2021-05-06)
 --------------------------
 Common: fix duplicate workflow runs in CI/CD (#465)

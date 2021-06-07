@@ -33,6 +33,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequ
   HttpApi
 }
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.{CreateSqlQueryEnrichment, Rdbms, SqlQueryEnrichment}
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.extractor.{ ExtractorEnrichment, Extractable }
 import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 
 sealed trait EnrichmentConf {
@@ -208,5 +209,9 @@ object EnrichmentConf {
     cacheSize: Option[Int]
   ) extends EnrichmentConf {
     def enrichment: YauaaEnrichment = YauaaEnrichment(cacheSize)
+  }
+
+  final case class ExtractorConf(schemaKey: SchemaKey, entities: Set[Extractable], erase: Boolean) extends EnrichmentConf {
+    def enrichment: ExtractorEnrichment = ExtractorEnrichment(entities, erase)
   }
 }

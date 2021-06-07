@@ -42,6 +42,7 @@ import enrichments.{EventEnrichments => EE}
 import enrichments.{MiscEnrichments => ME}
 import enrichments.registry._
 import enrichments.registry.apirequest.ApiRequestEnrichment
+import enrichments.registry.extractor.ExtractorEnrichment
 import enrichments.registry.pii.PiiPseudonymizerEnrichment
 import enrichments.registry.sqlquery.SqlQueryEnrichment
 import enrichments.web.{PageEnrichments => WPE}
@@ -92,7 +93,14 @@ object EnrichmentManager {
                enriched.pii = pii.asString
              }
            }
+      _ <- extractor[F](processor, raw, enriched, registry.extractor)
     } yield enriched
+
+  def extractor[F[_]: Monad](processor: Processor, rawEvent: RawEvent, enriched: EnrichedEvent, enrichment: Option[ExtractorEnrichment]): EitherT[F, BadRow, Unit] =
+    enrichment match {
+      case Some(extractor) => extractor.process(processor, rawEvent, enriched)
+      case None => EitherT.rightT[F, BadRow](())
+    }
 
   /**
    * Run all the enrichments and aggregate the errors if any

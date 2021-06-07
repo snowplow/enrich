@@ -13,7 +13,7 @@
 package com.snowplowanalytics.snowplow.enrich.common.enrichments
 
 import cats.Monad
-import cats.data.{EitherT, NonEmptyList, ValidatedNel}
+import cats.data.{EitherT, ValidatedNel, NonEmptyList}
 
 import cats.effect.Clock
 import cats.implicits._
@@ -21,7 +21,7 @@ import cats.implicits._
 import io.circe._
 import io.circe.syntax._
 
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SelfDescribingData}
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SelfDescribingData, SchemaKey}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
 import com.snowplowanalytics.iglu.client.Client
@@ -37,6 +37,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.Enrichm
 import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, CirceUtils}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry._
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest.ApiRequestEnrichment
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.extractor.ExtractorEnrichment
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii.PiiPseudonymizerEnrichment
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.SqlQueryEnrichment
 
@@ -109,6 +110,8 @@ object EnrichmentRegistry {
   ): EitherT[F, String, EnrichmentRegistry[F]] =
     confs.foldLeft(EitherT.pure[F, String](EnrichmentRegistry[F]())) { (er, e) =>
       e match {
+        case c: ExtractorConf =>
+          er.map(_.copy(extractor = Some(c.enrichment)))
         case c: ApiRequestConf =>
           for {
             enrichment <- EitherT.right(c.enrichment[F](blocker))
@@ -250,5 +253,6 @@ final case class EnrichmentRegistry[F[_]](
   uaParser: Option[UaParserEnrichment] = None,
   userAgentUtils: Option[UserAgentUtilsEnrichment] = None,
   weather: Option[WeatherEnrichment[F]] = None,
-  yauaa: Option[YauaaEnrichment] = None
+  yauaa: Option[YauaaEnrichment] = None,
+  extractor: Option[ExtractorEnrichment] = None
 )

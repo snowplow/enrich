@@ -10,24 +10,18 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich
+package com.snowplowanalytics.snowplow.enrich.common.fs2
 
-import cats.syntax.either._
+import java.nio.file.Path
 
-import com.permutive.pubsub.consumer.decoder.MessageDecoder
-import com.permutive.pubsub.producer.encoder.MessageEncoder
+import _root_.io.circe.generic.extras.Configuration
 
-package object pubsub {
+package object config {
 
-  implicit val byteArrayEncoder: MessageEncoder[Array[Byte]] =
-    new MessageEncoder[Array[Byte]] {
-      def encode(a: Array[Byte]): Either[Throwable, Array[Byte]] =
-        a.asRight
-    }
+  type EncodedOrPath = Either[Base64Json, Path]
+  type EncodedHoconOrPath = Either[Base64Hocon, Path]
 
-  implicit val byteArrayMessageDecoder: MessageDecoder[Array[Byte]] =
-    new MessageDecoder[Array[Byte]] {
-      def decode(message: Array[Byte]): Either[Throwable, Array[Byte]] =
-        message.asRight
-    }
+  private[config] implicit def customCodecConfig: Configuration =
+    Configuration.default.withDiscriminator("type")
+
 }

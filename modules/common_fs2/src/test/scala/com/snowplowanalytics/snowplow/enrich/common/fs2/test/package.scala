@@ -10,24 +10,27 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich
+package com.snowplowanalytics.snowplow.enrich.common.fs2
 
-import cats.syntax.either._
+import scala.concurrent.duration.FiniteDuration
 
-import com.permutive.pubsub.consumer.decoder.MessageDecoder
-import com.permutive.pubsub.producer.encoder.MessageEncoder
+import cats.effect.{Concurrent, IO, Timer}
 
-package object pubsub {
+import _root_.fs2.Stream
 
-  implicit val byteArrayEncoder: MessageEncoder[Array[Byte]] =
-    new MessageEncoder[Array[Byte]] {
-      def encode(a: Array[Byte]): Either[Throwable, Array[Byte]] =
-        a.asRight
-    }
+package object test {
 
-  implicit val byteArrayMessageDecoder: MessageDecoder[Array[Byte]] =
-    new MessageDecoder[Array[Byte]] {
-      def decode(message: Array[Byte]): Either[Throwable, Array[Byte]] =
-        message.asRight
-    }
+  implicit class StreamOps[F[_], A](s: Stream[F, A]) {
+
+    /** Halting a stream after specified period of time */
+    def haltAfter(after: FiniteDuration)(implicit T: Timer[F], C: Concurrent[F]): Stream[F, A] =
+      Stream.eval_(Timer[F].sleep(after)).mergeHaltL(s)
+  }
+
+  implicit class StreamIoOps[A](s: Stream[IO, A]) {
+
+    /** Run test [[HttpServer]] in parallel with the stream */
+    def withHttp(implicit C: Concurrent[IO]): Stream[IO, A] =
+      s.concurrently(HttpServer.run)
+  }
 }

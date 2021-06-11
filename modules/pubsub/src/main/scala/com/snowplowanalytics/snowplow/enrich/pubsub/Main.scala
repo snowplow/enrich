@@ -12,17 +12,22 @@
  */
 package com.snowplowanalytics.snowplow.enrich.pubsub
 
-import cats.syntax.flatMap._
-import cats.effect.{ExitCode, IO, IOApp, Resource, SyncIO}
+import cats.implicits._
+
+import cats.effect.{Blocker, ExitCode, IO, IOApp, Resource, SyncIO}
 
 import _root_.io.sentry.SentryClient
 
-import _root_.io.chrisdavenport.log4cats.Logger
-import _root_.io.chrisdavenport.log4cats.slf4j.Slf4jLogger
+import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import java.util.concurrent.{Executors, TimeUnit}
 
 import scala.concurrent.ExecutionContext
+
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.CliConfig
+import com.snowplowanalytics.snowplow.enrich.common.fs2.{Assets, Enrich, Environment}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.ParsedConfigs
 
 object Main extends IOApp.WithContext {
 
@@ -47,14 +52,22 @@ object Main extends IOApp.WithContext {
   }
 
   def run(args: List[String]): IO[ExitCode] =
-    config.CliConfig.command.parse(args) match {
+    CliConfig.command.parse(args) match {
       case Right(cfg) =>
-        for {
-          _ <- logger.info("Initialising resources for Enrich job")
-          environment <- Environment.make[IO](cfg, executionContext).value
-          exit <- environment match {
-                    case Right(e) =>
-                      e.use { env =>
+        ParsedConfigs.parse[IO](cfg).value.flatMap {
+          case Right(parsed) =>
+            for {
+              _ <- logger.info("Initialising resources for Enrich job")
+              file = parsed.configFile
+              environment = for {
+                              blocker <- Blocker[IO]
+                              rawSource = Source.init[IO](blocker, file.auth, file.input)
+                              goodSink <- Sink.attributedSink[IO](blocker, file.auth, file.good)
+                              piiSink <- file.pii.map(f => Sink.attributedSink[IO](blocker, file.auth, f)).sequence
+                              badSink <- Sink.init[IO](blocker, file.auth, file.bad)
+                              env <- Environment.make[IO](executionContext, blocker, parsed, rawSource, goodSink, piiSink, badSink)
+                            } yield env
+              exit <- environment.use { env =>
                         val log = logger.info("Running enrichment stream")
                         val enrich = Enrich.run[IO](env)
                         val updates = Assets.run[IO](env)
@@ -68,10 +81,10 @@ object Main extends IOApp.WithContext {
                             IO.pure(ExitCode.Success)
                         }
                       }
-                    case Left(error) =>
-                      logger.error(s"Cannot initialise enrichment resources\n$error").as(ExitCode.Error)
-                  }
-        } yield exit
+            } yield exit
+          case Left(err) =>
+            logger.error(s"Cannot parse configurations. Error: $err").as(ExitCode.Error)
+        }
       case Left(error) =>
         IO(System.err.println(error)).as(ExitCode.Error)
     }

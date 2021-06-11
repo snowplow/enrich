@@ -200,26 +200,21 @@ lazy val beam =
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
-lazy val pubsub = project
-  .in(file("modules/pubsub"))
+lazy val commonFs2 = project
+  .in(file("modules/common-fs2"))
   .dependsOn(common)
   .settings(BuildSettings.basicSettings)
   .settings(BuildSettings.formatting)
   .settings(BuildSettings.scoverageSettings)
   .settings(BuildSettings.addExampleConfToTestCp)
-  .settings(BuildSettings.sbtAssemblySettings)
   .settings(
-    name := "snowplow-enrich-pubsub",
-    description := "High-performance streaming Snowplow Enrich job built on top of functional streams",
-    buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
-    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.pubsub.generated",
-    Docker / packageName := "snowplow/snowplow-enrich-pubsub",
+    name := "snowplow-enrich-common-fs2",
+    description := "Common functionality for fs2 enrich assets",
   )
   .settings(Test / parallelExecution := false)
   .settings(
     libraryDependencies ++= Seq(
       Dependencies.Libraries.decline,
-      Dependencies.Libraries.fs2PubSub,
       Dependencies.Libraries.circeExtras,
       Dependencies.Libraries.circeLiteral,
       Dependencies.Libraries.circeConfig,
@@ -243,6 +238,29 @@ lazy val pubsub = project
       Dependencies.Libraries.specs2Scalacheck,
       Dependencies.Libraries.http4sDsl,
       Dependencies.Libraries.http4sServer
+    ),
+    addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
+  )
+  .enablePlugins(BuildInfoPlugin)
+
+lazy val pubsub = project
+  .in(file("modules/pubsub"))
+  .dependsOn(commonFs2)
+  .settings(BuildSettings.basicSettings)
+  .settings(BuildSettings.formatting)
+  .settings(BuildSettings.scoverageSettings)
+  .settings(BuildSettings.sbtAssemblySettings)
+  .settings(
+    name := "snowplow-enrich-pubsub",
+    description := "High-performance streaming Snowplow Enrich job for PubSub built on top of functional streams",
+    buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
+    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.pubsub.generated",
+    Docker / packageName := "snowplow/snowplow-enrich-pubsub",
+  )
+  .settings(Test / parallelExecution := false)
+  .settings(
+    libraryDependencies ++= Seq(
+      Dependencies.Libraries.fs2PubSub,
     ),
     addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
   )

@@ -201,7 +201,7 @@ lazy val beam =
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
 lazy val commonFs2 = project
-  .in(file("modules/common_fs2"))
+  .in(file("modules/common-fs2"))
   .dependsOn(common)
   .settings(BuildSettings.basicSettings)
   .settings(BuildSettings.formatting)

@@ -62,7 +62,9 @@ object Main extends IOApp.WithContext {
         for {
           _ <- logger.info("Initialising resources for Enrich job")
           environment <-
-            Environment.make[IO](executionContext, cfg, Source.init, Sink.initAttributedSink, Sink.initAttributedSink, Sink.init, processor).value
+            Environment
+              .make[IO](executionContext, cfg, Source.init, Sink.initAttributedSink, Sink.initAttributedSink, Sink.init, processor)
+              .value
           exit <- environment match {
                     case Right(e) =>
                       e.use { env =>

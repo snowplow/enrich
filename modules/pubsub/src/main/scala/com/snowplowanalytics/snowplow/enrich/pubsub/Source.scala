@@ -14,8 +14,6 @@ package com.snowplowanalytics.snowplow.enrich.pubsub
 
 import cats.effect.{Blocker, Concurrent, ContextShift, Sync}
 
-import fs2.Stream
-
 import com.permutive.pubsub.consumer.Model
 import com.permutive.pubsub.consumer.grpc.{PubsubGoogleConsumer, PubsubGoogleConsumerConfig}
 
@@ -64,7 +62,7 @@ object Source {
   def pubSub[F[_]: Concurrent: ContextShift](
     blocker: Blocker,
     input: Input.PubSub
-  ): Stream[F, Payload[F, Array[Byte]]] = {
+  ): RawSource[F] = {
     val onFailedTerminate: Throwable => F[Unit] =
       e => Sync[F].delay(System.err.println(s"Cannot terminate ${e.getMessage}"))
     val pubSubConfig =

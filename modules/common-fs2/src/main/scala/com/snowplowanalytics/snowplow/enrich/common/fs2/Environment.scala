@@ -40,7 +40,8 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.Enrichm
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{ConfigFile, ParsedConfigs}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{CliConfig, ConfigFile, ParsedConfigs}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Authentication, Input, Output}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{Clients, Metrics}
 
 import scala.concurrent.ExecutionContext
@@ -121,46 +122,53 @@ object Environment {
   /** Initialize and allocate all necessary resources */
   def make[F[_]: ConcurrentEffect: ContextShift: Clock: Timer](
     ec: ExecutionContext,
-    blocker: Blocker,
-    parsedConfigs: ParsedConfigs,
-    rawSource: RawSource[F],
-    goodSink: AttributedByteSink[F],
-    piiSink: Option[AttributedByteSink[F]],
-    badSink: ByteSink[F],
+    config: CliConfig,
+    mkRawSource: (Blocker, Authentication, Input) => RawSource[F],
+    mkGoodSink: (Blocker, Authentication, Output) => Resource[F, AttributedByteSink[F]],
+    mkPiiSink: (Blocker, Authentication, Output) => Resource[F, AttributedByteSink[F]],
+    mkBadSink: (Blocker, Authentication, Output) => Resource[F, ByteSink[F]],
     processor: Processor
-  ): Resource[F, Environment[F]] =
-    for {
-      http <- Clients.mkHTTP(ec)
-      client <- Client.parseDefault[F](parsedConfigs.igluJson).resource
-      file = parsedConfigs.configFile
-      metrics <- Resource.eval(metricsReporter[F](blocker, file))
-      assets = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
-      pauseEnrich <- makePause[F]
-      assets <- Assets.State.make[F](blocker, pauseEnrich, assets, http)
-      enrichments <- Enrichments.make[F](parsedConfigs.enrichmentConfigs, BlockerF.ofBlocker(blocker))
-      sentry <- file.monitoring.flatMap(_.sentry).map(_.dsn) match {
-                  case Some(dsn) => Resource.eval[F, Option[SentryClient]](Sync[F].delay(Sentry.init(dsn.toString).some))
-                  case None => Resource.pure[F, Option[SentryClient]](none[SentryClient])
-                }
-      _ <- Resource.eval(pauseEnrich.set(false) *> Logger[F].info("Enrich environment initialized"))
-    } yield Environment[F](
-      client,
-      Http4sRegistryLookup(http),
-      enrichments,
-      pauseEnrich,
-      assets,
-      blocker,
-      rawSource,
-      goodSink,
-      piiSink,
-      badSink,
-      sentry,
-      metrics,
-      file.assetsUpdatePeriod,
-      parsedConfigs.goodAttributes,
-      parsedConfigs.piiAttributes,
-      processor
-    )
+  ): Parsed[F, Resource[F, Environment[F]]] =
+    ParsedConfigs.parse[F](config).map { parsedConfigs =>
+      val file = parsedConfigs.configFile
+      for {
+        blocker <- Blocker[F]
+        rawSource = mkRawSource(blocker, file.auth, file.input)
+        goodSink <- mkGoodSink(blocker, file.auth, file.good)
+        piiSink <- file.pii.map(out => mkPiiSink(blocker, file.auth, out)).sequence
+        badSink <- mkBadSink(blocker, file.auth, file.bad)
+        http <- Clients.mkHTTP(ec)
+        client <- Client.parseDefault[F](parsedConfigs.igluJson).resource
+        file = parsedConfigs.configFile
+        metrics <- Resource.eval(metricsReporter[F](blocker, file))
+        assets = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
+        pauseEnrich <- makePause[F]
+        assets <- Assets.State.make[F](blocker, pauseEnrich, assets, http)
+        enrichments <- Enrichments.make[F](parsedConfigs.enrichmentConfigs, BlockerF.ofBlocker(blocker))
+        sentry <- file.monitoring.flatMap(_.sentry).map(_.dsn) match {
+                    case Some(dsn) => Resource.eval[F, Option[SentryClient]](Sync[F].delay(Sentry.init(dsn.toString).some))
+                    case None => Resource.pure[F, Option[SentryClient]](none[SentryClient])
+                  }
+        _ <- Resource.eval(pauseEnrich.set(false) *> Logger[F].info("Enrich environment initialized"))
+      } yield Environment[F](
+        client,
+        Http4sRegistryLookup(http),
+        enrichments,
+        pauseEnrich,
+        assets,
+        blocker,
+        rawSource,
+        goodSink,
+        piiSink,
+        badSink,
+        sentry,
+        metrics,
+        file.assetsUpdatePeriod,
+        parsedConfigs.goodAttributes,
+        parsedConfigs.piiAttributes,
+        processor
+      )
+    }
 
   /**
    * Make sure `enrichPause` gets into paused state before destroying pipes

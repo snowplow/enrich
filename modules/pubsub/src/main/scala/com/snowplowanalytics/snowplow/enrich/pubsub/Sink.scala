@@ -76,6 +76,18 @@ object Sink {
         CSink.fileSink(o.file, blocker)
     }
 
+  def initAttributedSink[F[_]: Concurrent: ContextShift: Timer](
+    blocker: Blocker,
+    auth: Authentication,
+    output: Output
+  ): Resource[F, AttributedByteSink[F]] =
+    (auth, output) match {
+      case (Authentication.Gcp, o: Output.PubSub) =>
+        pubsubSink[F, Array[Byte]](o)
+      case (_, o: Output.FileSystem) =>
+        CSink.fileSink(o.file, blocker).map(sink => row => sink(row.data))
+    }
+
   def pubsubSink[F[_]: Concurrent, A: MessageEncoder](
     output: Output.PubSub
   ): Resource[F, AttributedData[A] => F[Unit]] = {
@@ -91,16 +103,4 @@ object Sink {
       .of[F, A](ProjectId(output.project), Topic(output.name), config)
       .map { producer => row: AttributedData[A] => producer.produce(row.data, row.attributes).void }
   }
-
-  def attributedSink[F[_]: Concurrent: ContextShift: Timer](
-    blocker: Blocker,
-    auth: Authentication,
-    output: Output
-  ): Resource[F, AttributedByteSink[F]] =
-    (auth, output) match {
-      case (Authentication.Gcp, o: Output.PubSub) =>
-        pubsubSink[F, Array[Byte]](o)
-      case (_, o: Output.FileSystem) =>
-        CSink.fileSink(o.file, blocker).map(sink => row => sink(row.data))
-    }
 }

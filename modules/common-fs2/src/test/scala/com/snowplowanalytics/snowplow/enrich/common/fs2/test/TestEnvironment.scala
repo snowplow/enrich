@@ -148,7 +148,8 @@ object TestEnvironment extends CatsIO {
                       metrics,
                       None,
                       _ => Map.empty,
-                      _ => Map.empty
+                      _ => Map.empty,
+                      EnrichSpec.processor
                     )
       _ <- Resource.eval(pauseEnrich.set(false) *> logger.info("TestEnvironment initialized"))
     } yield TestEnvironment(environment, counter, goodRef.get, piiRef.get, badRef.get)

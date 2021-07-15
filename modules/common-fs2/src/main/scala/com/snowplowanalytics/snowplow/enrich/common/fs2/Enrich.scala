@@ -47,8 +47,6 @@ import com.snowplowanalytics.snowplow.enrich.common.loaders.{CollectorPayload, T
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.generated.BuildInfo
-
 object Enrich {
 
   /**
@@ -60,8 +58,6 @@ object Enrich {
 
   /** Default adapter registry, can be constructed dynamically in future */
   val adapterRegistry = new AdapterRegistry()
-
-  val processor: Processor = Processor(BuildInfo.name, BuildInfo.version)
 
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
     Slf4jLogger.getLogger[F]
@@ -80,7 +76,7 @@ object Enrich {
     val registry: F[EnrichmentRegistry[F]] = env.enrichments.get.map(_.registry)
     val enrich: Enrich[F] = {
       implicit val rl: RegistryLookup[F] = env.registryLookup
-      enrichWith[F](registry, env.igluClient, env.sentry, env.metrics.enrichLatency)
+      enrichWith[F](registry, env.igluClient, env.sentry, env.metrics.enrichLatency, env.processor)
     }
 
     env.source
@@ -99,7 +95,8 @@ object Enrich {
     enrichRegistry: F[EnrichmentRegistry[F]],
     igluClient: Client[F, Json],
     sentry: Option[SentryClient],
-    enrichLatency: Option[Long] => F[Unit]
+    enrichLatency: Option[Long] => F[Unit],
+    processor: Processor
   )(
     row: Payload[F, Array[Byte]]
   ): F[Result[F]] = {
@@ -115,7 +112,7 @@ object Enrich {
         trackLatency = enrichLatency(collectorTstamp)
       } yield Payload(enriched, trackLatency *> row.finalise)
 
-    result.handleErrorWith(sendToSentry[F](row, sentry))
+    result.handleErrorWith(sendToSentry[F](row, sentry, processor))
   }
 
   /** Stringify `ThriftLoader` result for debugging purposes */
@@ -123,12 +120,14 @@ object Enrich {
     payload.fold(_.asJson.noSpaces, _.map(_.toBadRowPayload.asJson.noSpaces).getOrElse("None"))
 
   /** Log an error, turn the problematic `CollectorPayload` into `BadRow` and notify Sentry if configured */
-  def sendToSentry[F[_]: Sync: Clock](original: Payload[F, Array[Byte]], sentry: Option[SentryClient])(error: Throwable): F[Result[F]] =
+  def sendToSentry[F[_]: Sync: Clock]
+      (original: Payload[F, Array[Byte]], sentry: Option[SentryClient], processor: Processor)
+      (error: Throwable): F[Result[F]] =
     for {
       _ <- Logger[F].error("Runtime exception during payload enrichment. CollectorPayload converted to generic_error and ack'ed")
       now <- Clock[F].realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
       _ <- original.finalise
-      badRow = genericBadRow(original.data, now, error)
+      badRow = genericBadRow(original.data, now, error, processor)
       _ <- sentry match {
              case Some(client) =>
                Sync[F].delay(client.sendException(error))
@@ -141,7 +140,8 @@ object Enrich {
   def genericBadRow(
     row: Array[Byte],
     time: Instant,
-    error: Throwable
+    error: Throwable,
+    processor: Processor
   ): BadRow.GenericError = {
     val base64 = new String(Base64.getEncoder.encode(row))
     val rawPayload = BadRowPayload.RawPayload(base64)
@@ -153,7 +153,7 @@ object Enrich {
     env.metrics.badCount >> env.bad(bad.compact.getBytes(UTF_8))
 
   def sinkGood[F[_]: Concurrent: Parallel](env: Environment[F], enriched: EnrichedEvent): F[Unit] =
-    serializeEnriched(enriched) match {
+    serializeEnriched(enriched, env.processor) match {
       case Left(br) => sinkBad(env, br)
       case Right(bytes) =>
         List(env.metrics.goodCount, env.good(AttributedData(bytes, env.goodAttributes(enriched))), sinkPii(env, enriched)).parSequence_
@@ -162,13 +162,13 @@ object Enrich {
   def sinkPii[F[_]: Monad](env: Environment[F], enriched: EnrichedEvent): F[Unit] =
     (for {
       piiSink <- env.pii
-      pii <- ConversionUtils.getPiiEvent(processor, enriched)
-    } yield serializeEnriched(pii) match {
+      pii <- ConversionUtils.getPiiEvent(env.processor, enriched)
+    } yield serializeEnriched(pii, env.processor) match {
       case Left(br) => sinkBad(env, br)
       case Right(bytes) => piiSink(AttributedData(bytes, env.piiAttributes(pii)))
     }).getOrElse(Monad[F].unit)
 
-  def serializeEnriched(enriched: EnrichedEvent): Either[BadRow, Array[Byte]] = {
+  def serializeEnriched(enriched: EnrichedEvent, processor: Processor): Either[BadRow, Array[Byte]] = {
     val asStr = ConversionUtils.tabSeparatedEnrichedEvent(enriched)
     val asBytes = asStr.getBytes(UTF_8)
     val size = asBytes.length
@@ -176,7 +176,7 @@ object Enrich {
       val msg = s"event passed enrichment but then exceeded the maximum allowed size $MaxRecordSize"
       val br = BadRow
         .SizeViolation(
-          Enrich.processor,
+          processor,
           Failure.SizeViolation(Instant.now(), MaxRecordSize, size, msg),
           BadRowPayload.RawPayload(asStr.take(MaxErrorMessageSize))
         )

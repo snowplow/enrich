@@ -33,6 +33,8 @@ import org.typelevel.log4cats.slf4j.Slf4jLogger
 import com.snowplowanalytics.iglu.client.Client
 import com.snowplowanalytics.iglu.client.resolver.registries.{Http4sRegistryLookup, RegistryLookup}
 
+import com.snowplowanalytics.snowplow.badrows.Processor
+
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
@@ -66,6 +68,7 @@ import scala.concurrent.ExecutionContext
  * @param assetsUpdatePeriod  time after which enrich assets should be refresh
  * @param goodAttributes      fields from an enriched event to use as output message attributes
  * @param piiAttributes       fields from a PII event to use as output message attributes
+ * @param processor           identifies enrich assets in bad rows
  */
 final case class Environment[F[_]](
   igluClient: Client[F, Json],
@@ -82,7 +85,8 @@ final case class Environment[F[_]](
   metrics: Metrics[F],
   assetsUpdatePeriod: Option[FiniteDuration],
   goodAttributes: EnrichedEvent => Map[String, String],
-  piiAttributes: EnrichedEvent => Map[String, String]
+  piiAttributes: EnrichedEvent => Map[String, String],
+  processor: Processor
 )
 
 object Environment {
@@ -122,7 +126,8 @@ object Environment {
     rawSource: RawSource[F],
     goodSink: AttributedByteSink[F],
     piiSink: Option[AttributedByteSink[F]],
-    badSink: ByteSink[F]
+    badSink: ByteSink[F],
+    processor: Processor
   ): Resource[F, Environment[F]] =
     for {
       http <- Clients.mkHTTP(ec)
@@ -153,7 +158,8 @@ object Environment {
       metrics,
       file.assetsUpdatePeriod,
       parsedConfigs.goodAttributes,
-      parsedConfigs.piiAttributes
+      parsedConfigs.piiAttributes,
+      processor
     )
 
   /**

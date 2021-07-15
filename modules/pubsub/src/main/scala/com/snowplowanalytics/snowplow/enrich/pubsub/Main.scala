@@ -25,11 +25,17 @@ import java.util.concurrent.{Executors, TimeUnit}
 
 import scala.concurrent.ExecutionContext
 
+import com.snowplowanalytics.snowplow.badrows.Processor
+
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.CliConfig
 import com.snowplowanalytics.snowplow.enrich.common.fs2.{Assets, Enrich, Environment}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.ParsedConfigs
 
+import com.snowplowanalytics.snowplow.enrich.pubsub.generated.BuildInfo
+
 object Main extends IOApp.WithContext {
+
+  private final val processor = Processor(BuildInfo.name, BuildInfo.version)
 
   private implicit val logger: Logger[IO] =
     Slf4jLogger.getLogger[IO]
@@ -52,7 +58,7 @@ object Main extends IOApp.WithContext {
   }
 
   def run(args: List[String]): IO[ExitCode] =
-    CliConfig.command.parse(args) match {
+    CliConfig.command(BuildInfo.name, BuildInfo.version, BuildInfo.description).parse(args) match {
       case Right(cfg) =>
         ParsedConfigs.parse[IO](cfg).value.flatMap {
           case Right(parsed) =>
@@ -65,7 +71,7 @@ object Main extends IOApp.WithContext {
                               goodSink <- Sink.attributedSink[IO](blocker, file.auth, file.good)
                               piiSink <- file.pii.map(f => Sink.attributedSink[IO](blocker, file.auth, f)).sequence
                               badSink <- Sink.init[IO](blocker, file.auth, file.bad)
-                              env <- Environment.make[IO](executionContext, blocker, parsed, rawSource, goodSink, piiSink, badSink)
+                              env <- Environment.make[IO](executionContext, blocker, parsed, rawSource, goodSink, piiSink, badSink, processor)
                             } yield env
               exit <- environment.use { env =>
                         val log = logger.info("Running enrichment stream")

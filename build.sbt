@@ -210,8 +210,6 @@ lazy val commonFs2 = project
   .settings(
     name := "snowplow-enrich-common-fs2",
     description := "Common functionality for fs2 enrich assets",
-    buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
-    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.common.fs2.generated",
   )
   .settings(Test / parallelExecution := false)
   .settings(

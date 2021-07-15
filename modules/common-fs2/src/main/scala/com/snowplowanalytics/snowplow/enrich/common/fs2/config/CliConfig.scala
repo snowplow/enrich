@@ -19,8 +19,6 @@ import cats.implicits._
 
 import com.monovore.decline.{Argument, Command, Opts}
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.generated.BuildInfo
-
 final case class CliConfig(
   config: EncodedHoconOrPath,
   resolver: EncodedOrPath,
@@ -65,6 +63,6 @@ object CliConfig {
   val enrichedJobConfig: Opts[CliConfig] =
     (configFile, igluConfig, enrichments).mapN(CliConfig.apply)
 
-  val command: Command[CliConfig] =
-    Command(show"${BuildInfo.name}", show"${BuildInfo.name} ${BuildInfo.version}\n${BuildInfo.description}")(enrichedJobConfig)
+  def command(appName: String, appVersion: String, appDescription: String): Command[CliConfig] =
+    Command(show"$appName", show"$appName $appVersion\n$appDescription")(enrichedJobConfig)
 }

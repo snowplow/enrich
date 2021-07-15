@@ -36,6 +36,7 @@ import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 import com.snowplowanalytics.snowplow.badrows.{Failure, FailureDetails, Processor, BadRow, Payload => BadRowPayload}
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.IpLookupsEnrichment
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.MiscEnrichments
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
@@ -59,6 +60,7 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
       val expected = minimalEvent
         .copy(
           etl_tstamp = Some(Instant.ofEpochMilli(SpecHelpers.StaticTime)),
+          v_etl = MiscEnrichments.etlVersion(EnrichSpec.processor),
           user_ipaddress = Some("175.16.199.0"),
           event = Some("page_view"),
           event_vendor = Some("com.snowplowanalytics.snowplow"),
@@ -69,7 +71,7 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
         )
 
       Enrich
-        .enrichWith(TestEnvironment.enrichmentReg.pure[IO], TestEnvironment.igluClient, None, _ => IO.unit)(
+        .enrichWith(TestEnvironment.enrichmentReg.pure[IO], TestEnvironment.igluClient, None, _ => IO.unit, EnrichSpec.processor)(
           EnrichSpec.payload[IO]
         )
         .map(normalizeResult)
@@ -84,7 +86,7 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
       prop { (collectorPayload: CollectorPayload) =>
         val payload = Payload(collectorPayload.toRaw, IO.unit)
         Enrich
-          .enrichWith(TestEnvironment.enrichmentReg.pure[IO], TestEnvironment.igluClient, None, _ => IO.unit)(payload)
+          .enrichWith(TestEnvironment.enrichmentReg.pure[IO], TestEnvironment.igluClient, None, _ => IO.unit, EnrichSpec.processor)(payload)
           .map(normalizeResult)
           .map {
             case List(Validated.Valid(e)) => e.event must beSome("page_view")
@@ -231,7 +233,7 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
       TestEnvironment.make(Stream.empty).use { test =>
         val failure = Failure
           .AdapterFailures(Instant.now, "vendor", "1-0-0", NonEmptyList.one(FailureDetails.AdapterFailure.NotJson("field", None, "error")))
-        val badRow = BadRow.AdapterFailures(Enrich.processor, failure, EnrichSpec.collectorPayload.toBadRowPayload)
+        val badRow = BadRow.AdapterFailures(EnrichSpec.processor, failure, EnrichSpec.collectorPayload.toBadRowPayload)
 
         for {
           _ <- Enrich.sinkResult(test.env)(Validated.Invalid(badRow))
@@ -260,7 +262,7 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
                                               "1-0-0",
                                               NonEmptyList.one(FailureDetails.AdapterFailure.NotJson("field", None, "error"))
         )
-        val badRow = BadRow.AdapterFailures(Enrich.processor, failure, collectorPayload.toBadRowPayload)
+        val badRow = BadRow.AdapterFailures(EnrichSpec.processor, failure, collectorPayload.toBadRowPayload)
 
         TestEnvironment.make(Stream.empty).use { test =>
           for {
@@ -365,11 +367,13 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
 
 object EnrichSpec {
   val eventId: UUID = UUID.fromString("deadbeef-dead-beef-dead-beefdead")
+  val processor = Processor("common-fs2-tests", "0.0.0")
+  val vCollector = "ssc-test-0.0.0"
 
   val api: CollectorPayload.Api =
     CollectorPayload.Api("com.snowplowanalytics.snowplow", "tp2")
   val source: CollectorPayload.Source =
-    CollectorPayload.Source("ssc-0.0.0-test", "UTF-8", Some("collector.snplow.net"))
+    CollectorPayload.Source(vCollector, "UTF-8", Some("collector.snplow.net"))
   val context: CollectorPayload.Context = CollectorPayload.Context(None, Some("175.16.199.0"), None, None, List(), None)
   val querystring: List[NameValuePair] = List(
     new BasicNameValuePair("e", "pv"),
@@ -387,7 +391,7 @@ object EnrichSpec {
         Validated.Valid(event)
       case Validated.Invalid(error) =>
         val rawPayload = BadRowPayload.RawPayload(payload)
-        val badRow = BadRow.LoaderParsingError(Processor("snowplow-enrich-pubsub-test-suite", "x"), error, rawPayload)
+        val badRow = BadRow.LoaderParsingError(processor, error, rawPayload)
         Validated.Invalid(badRow)
     }
 
@@ -401,13 +405,14 @@ object EnrichSpec {
     .minimal(
       EnrichSpec.eventId,
       Instant.ofEpochMilli(0L),
-      "ssc-0.0.0-test",
-      s"snowplow-enrich-common-fs2-${generated.BuildInfo.version}-common-${generated.BuildInfo.version}"
+      vCollector,
+      s"${processor.artifact}-${processor.version}"
     )
 
   val Expected = minimalEvent
     .copy(
       etl_tstamp = Some(Instant.ofEpochMilli(SpecHelpers.StaticTime)),
+      v_etl = MiscEnrichments.etlVersion(EnrichSpec.processor),
       user_ipaddress = Some("175.16.199.0"),
       event = Some("page_view"),
       event_vendor = Some("com.snowplowanalytics.snowplow"),

@@ -19,7 +19,7 @@
 lazy val root = project.in(file("."))
   .settings(name := "enrich")
   .settings(BuildSettings.basicSettings)
-  .aggregate(common, beam, stream, kinesis, kafka, nsq, stdin, pubsub)
+  .aggregate(common, pubsub, beam, streamCommon, streamKinesis, streamKafka, streamNsq, streamStdin)
 
 lazy val common = project
   .in(file("modules/common"))
@@ -83,8 +83,8 @@ lazy val allStreamSettings = BuildSettings.basicSettings ++ BuildSettings.sbtAss
     Dependencies.Libraries.scalacheck
   ))
 
-lazy val stream = project
-  .in(file("modules/stream"))
+lazy val streamCommon = project
+  .in(file("modules/stream/common"))
   .settings(allStreamSettings)
   .settings(moduleName := "snowplow-stream-enrich")
   .settings(BuildSettings.scoverageSettings)
@@ -96,8 +96,8 @@ lazy val stream = project
   )
   .dependsOn(common)
 
-lazy val kinesis = project
-  .in(file("modules/kinesis"))
+lazy val streamKinesis = project
+  .in(file("modules/stream/kinesis"))
   .settings(allStreamSettings)
   .settings(moduleName := "snowplow-stream-enrich-kinesis")
   .settings(Docker / packageName := "snowplow/stream-enrich-kinesis")
@@ -108,10 +108,10 @@ lazy val kinesis = project
     Dependencies.Libraries.jacksonCbor
   ))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
-  .dependsOn(stream)
+  .dependsOn(streamCommon)
 
-lazy val kafka = project
-  .in(file("modules/kafka"))
+lazy val streamKafka = project
+  .in(file("modules/stream/kafka"))
   .settings(moduleName := "snowplow-stream-enrich-kafka")
   .settings(allStreamSettings)
   .settings(
@@ -121,10 +121,10 @@ lazy val kafka = project
     Dependencies.Libraries.kafkaClients
   ))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
-  .dependsOn(stream)
+  .dependsOn(streamCommon)
 
-lazy val nsq = project
-  .in(file("modules/nsq"))
+lazy val streamNsq = project
+  .in(file("modules/stream/nsq"))
   .settings(moduleName := "snowplow-stream-enrich-nsq")
   .settings(allStreamSettings)
   .settings(
@@ -136,15 +136,15 @@ lazy val nsq = project
     Dependencies.Libraries.nsqClient
   ))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
-  .dependsOn(stream)
+  .dependsOn(streamCommon)
 
-lazy val stdin = project
-  .in(file("modules/stdin"))
+lazy val streamStdin = project
+  .in(file("modules/stream/stdin"))
   .settings(allStreamSettings)
   .settings(
     moduleName := "snowplow-stream-enrich-stdin",
   )
-  .dependsOn(stream)
+  .dependsOn(streamCommon)
 
 lazy val beam =
   project

@@ -12,19 +12,29 @@
  */
 package com.snowplowanalytics.snowplow.enrich.pubsub
 
-import cats.syntax.flatMap._
+import cats.implicits._
+
 import cats.effect.{ExitCode, IO, IOApp, Resource, SyncIO}
 
 import _root_.io.sentry.SentryClient
 
-import _root_.io.chrisdavenport.log4cats.Logger
-import _root_.io.chrisdavenport.log4cats.slf4j.Slf4jLogger
+import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import java.util.concurrent.{Executors, TimeUnit}
 
 import scala.concurrent.ExecutionContext
 
+import com.snowplowanalytics.snowplow.badrows.Processor
+
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.CliConfig
+import com.snowplowanalytics.snowplow.enrich.common.fs2.{Assets, Enrich, Environment}
+
+import com.snowplowanalytics.snowplow.enrich.pubsub.generated.BuildInfo
+
 object Main extends IOApp.WithContext {
+
+  private final val processor = Processor(BuildInfo.name, BuildInfo.version)
 
   private implicit val logger: Logger[IO] =
     Slf4jLogger.getLogger[IO]
@@ -47,11 +57,14 @@ object Main extends IOApp.WithContext {
   }
 
   def run(args: List[String]): IO[ExitCode] =
-    config.CliConfig.command.parse(args) match {
+    CliConfig.command(BuildInfo.name, BuildInfo.version, BuildInfo.description).parse(args) match {
       case Right(cfg) =>
         for {
           _ <- logger.info("Initialising resources for Enrich job")
-          environment <- Environment.make[IO](cfg, executionContext).value
+          environment <-
+            Environment
+              .make[IO](executionContext, cfg, Source.init, Sink.initAttributedSink, Sink.initAttributedSink, Sink.init, processor)
+              .value
           exit <- environment match {
                     case Right(e) =>
                       e.use { env =>

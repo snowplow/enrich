@@ -10,24 +10,29 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich
+package com.snowplowanalytics.snowplow.enrich.common.fs2.config
+
+import java.net.URI
 
 import cats.syntax.either._
 
-import com.permutive.pubsub.consumer.decoder.MessageDecoder
-import com.permutive.pubsub.producer.encoder.MessageEncoder
+import _root_.io.circe.{Decoder, Encoder}
+import _root_.io.circe.generic.extras.semiauto._
 
-package object pubsub {
+case class Sentry(dsn: URI)
 
-  implicit val byteArrayEncoder: MessageEncoder[Array[Byte]] =
-    new MessageEncoder[Array[Byte]] {
-      def encode(a: Array[Byte]): Either[Throwable, Array[Byte]] =
-        a.asRight
+object Sentry {
+
+  implicit val javaNetUriDecoder: Decoder[URI] =
+    Decoder[String].emap { str =>
+      Either.catchOnly[IllegalArgumentException](URI.create(str)).leftMap(_.getMessage)
     }
 
-  implicit val byteArrayMessageDecoder: MessageDecoder[Array[Byte]] =
-    new MessageDecoder[Array[Byte]] {
-      def decode(message: Array[Byte]): Either[Throwable, Array[Byte]] =
-        message.asRight
-    }
+  implicit val javaNetUriEncoder: Encoder[URI] =
+    Encoder[String].contramap(_.toString)
+
+  implicit val sentryDecoder: Decoder[Sentry] =
+    deriveConfiguredDecoder[Sentry]
+  implicit val sentryEncoder: Encoder[Sentry] =
+    deriveConfiguredEncoder[Sentry]
 }

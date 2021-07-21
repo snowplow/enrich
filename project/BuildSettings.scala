@@ -132,14 +132,11 @@ object BuildSettings {
   /** Docker settings, used by BE */
   lazy val dataflowDockerSettings = Seq(
     Docker / maintainer := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
-    dockerBaseImage := "snowplow/k8s-dataflow:0.2.0",
-    dockerEnvVars := Map("HOME" -> "/tmp", "JAVA_OPTS" -> "-Duser.home=$HOME"),
-    Docker / daemonUser := "snowplow",
+    dockerBaseImage := "adoptopenjdk:11-jre-hotspot-focal",
+    Docker / defaultLinuxInstallLocation := "/opt/snowplow",
+    Docker / daemonUser := "daemon",
+    Docker / daemonUserUid := None,
     dockerUpdateLatest := true,
-    dockerVersion := Some(DockerVersion(18, 9, 0, Some("ce"))),
-    dockerCommands := dockerCommands.value.map {
-      case ExecCmd("ENTRYPOINT", args) => ExecCmd("ENTRYPOINT", "docker-entrypoint.sh", args)
-      case e => e
-    }
+    dockerVersion := Some(DockerVersion(18, 9, 0, Some("ce")))
   )
 }

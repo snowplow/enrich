@@ -23,7 +23,9 @@ object Dependencies {
      // For Twitter's util functions
     "Twitter Maven Repo"             at "https://maven.twttr.com/",
     // For legacy Snowplow libs
-    ("Snowplow Analytics Maven repo" at "http://maven.snplow.com/releases/").withAllowInsecureProtocol(true)
+    ("Snowplow Analytics Maven repo" at "http://maven.snplow.com/releases/").withAllowInsecureProtocol(true),
+    // confluent repo (see https://github.com/snowplow/enrich/issues/477)
+    "confluent" at "https://packages.confluent.io/maven/"
   )
 
   object V {
@@ -86,9 +88,9 @@ object Dependencies {
     val jinJava          = "2.5.0"
 
     val sentry           = "1.7.30"
-    val scio             = "0.10.2"
-    val beam             = "2.28.0"
-    val grpc             = "1.32.2"
+    val scio             = "0.10.4"
+    val beam             = "2.30.0"
+    val grpc             = "1.37.0"
     val macros           = "2.1.1"
     val scalaTest        = "3.0.8"
   }

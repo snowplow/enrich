@@ -12,16 +12,11 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2.test
 
-import scala.concurrent.duration._
-
-import cats.implicits._
-
-import cats.effect.{Blocker, Fiber, IO, Resource}
+import cats.effect.{Blocker, IO, Resource}
 import cats.effect.concurrent.Ref
 
 import io.circe.literal._
 
-import fs2.Stream
 import fs2.io.readInputStream
 
 import org.typelevel.log4cats.Logger
@@ -56,15 +51,6 @@ object HttpServer extends CatsIO {
   def routes(counter: Ref[IO, Int]): HttpRoutes[IO] =
     HttpRoutes
       .of[IO] {
-        case r @ GET -> Root / "asset" =>
-          logger.debug(r.pathInfo) *> Ok("data")
-        case r @ GET -> Root / "slow" =>
-          val action = for {
-            i <- counter.updateAndGet(_ + 1)
-            _ <- if (i == 1) IO.sleep(100.milliseconds) else IO.sleep(10.seconds)
-            res <- Ok(s"slow data $i")
-          } yield res
-          logger.debug(r.pathInfo) *> action
         case r @ GET -> Root / "counter" =>
           logger.debug(r.pathInfo) *> counter.updateAndGet(_ + 1).flatMap { i =>
             Ok(s"counter $i")
@@ -100,33 +86,16 @@ object HttpServer extends CatsIO {
           }
       }
 
-  def run: Stream[IO, Unit] =
+  def resource: Resource[IO, Unit] =
     for {
-      counter <- Stream.eval(Ref.of[IO, Int](0))
-      stream <- BlazeServerBuilder[IO](concurrent.ExecutionContext.global)
-                  .bindHttp(8080)
-                  .withHttpApp(routes(counter).orNotFound)
-                  .withoutBanner
-                  .withoutSsl
-                  .serve
-                  .void
-    } yield stream
-
-  /**
-   * Run HTTP server for some time and destroy afterwards
-   * @param duration how long the server should be running
-   *                 recommended test stream duration + 1 second,
-   *                 especially if asset stream used
-   */
-  def resource(duration: FiniteDuration): Resource[IO, Fiber[IO, Unit]] =
-    Resource.make {
-      run
-        .haltAfter(duration)
-        .compile
-        .drain
-        .start
-        .flatTap(_ => IO.sleep(500.millis) *> logger.info("Running test HttpServer"))
-    }(_.cancel *> logger.info("Destroyed test HttpServer"))
+      counter <- Resource.eval(Ref.of[IO, Int](0))
+      _ <- BlazeServerBuilder[IO](concurrent.ExecutionContext.global)
+             .bindHttp(8080)
+             .withHttpApp(routes(counter).orNotFound)
+             .withoutBanner
+             .withoutSsl
+             .resource
+    } yield ()
 
   private def readMaxMindDb(req: Int) = {
     val path =

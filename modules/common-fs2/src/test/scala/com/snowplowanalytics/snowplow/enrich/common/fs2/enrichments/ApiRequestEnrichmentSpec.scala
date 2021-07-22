@@ -14,8 +14,6 @@ package com.snowplowanalytics.snowplow.enrich.common.fs2.enrichments
 
 import java.util.Base64
 
-import scala.concurrent.duration._
-
 import org.apache.http.message.BasicNameValuePair
 
 import cats.implicits._
@@ -81,7 +79,7 @@ class ApiRequestEnrichmentSpec extends Specification with CatsIO {
         )
       )
 
-      val testWithHttp = HttpServer.resource(4.seconds) *> TestEnvironment.make(input, List(enrichment))
+      val testWithHttp = HttpServer.resource *> TestEnvironment.make(input, List(enrichment))
       testWithHttp.use { test =>
         test.run().map {
           case (bad, pii, good) =>

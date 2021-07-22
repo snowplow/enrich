@@ -106,7 +106,10 @@ object ParsedConfigs {
             if (invalidAttributes.nonEmpty) NonEmptyList(invalidAttributes.head, invalidAttributes.tail.toList).invalid
             else output.valid
           }
-      case OutputConfig.FileSystem(_) => output.valid
+      case OutputConfig.Kinesis(_, _, Some(key), _, _, _, _, _, _, _, _, _, _) if !enrichedFieldsMap.contains(key) =>
+        NonEmptyList.one(s"Partition key $key not valid").invalid
+      case _ =>
+        output.valid
     }
 
   private[config] def outputAttributes(output: OutputConfig): EnrichedEvent => Map[String, String] =
@@ -117,13 +120,19 @@ object ParsedConfigs {
             attributes.contains(s)
         }
         attributesFromFields(fields)
-      case OutputConfig.PubSub(_, None, _, _, _, _) => _ => Map.empty
-      case OutputConfig.FileSystem(_) =>
+      case OutputConfig.Kinesis(_, _, Some(key), _, _, _, _, _, _, _, _, _, _) =>
+        val fields = ParsedConfigs.enrichedFieldsMap.filter {
+          case (s, _) =>
+            s == key
+        }
+        attributesFromFields(fields)
+      case _ =>
         _ => Map.empty
     }
 
   private def attributesFromFields(fields: Map[String, Field])(ee: EnrichedEvent): Map[String, String] =
     fields.flatMap {
-      case (k, f) => Option(f.get(ee)).map(v => k -> v.toString)
+      case (k, f) =>
+        Option(f.get(ee)).map(v => k -> v.toString)
     }
 }

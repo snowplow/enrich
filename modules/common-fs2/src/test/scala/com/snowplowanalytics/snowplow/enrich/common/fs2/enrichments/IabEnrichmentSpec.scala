@@ -56,7 +56,7 @@ class IabEnrichmentSpec extends Specification with CatsIO {
           )
         )
       )
-      val testWithHttp = HttpServer.resource(6.seconds) *> TestEnvironment.make(input, List(IabEnrichmentSpec.enrichmentConf))
+      val testWithHttp = HttpServer.resource *> TestEnvironment.make(input, List(IabEnrichmentSpec.enrichmentConf))
       testWithHttp.use { test =>
         test.run().map {
           case (bad, pii, good) =>
@@ -92,7 +92,7 @@ class IabEnrichmentSpec extends Specification with CatsIO {
         )
       )
 
-      val testWithHttp = HttpServer.resource(6.seconds) *> TestEnvironment.make(input, List(IabEnrichmentSpec.enrichmentConf))
+      val testWithHttp = HttpServer.resource *> TestEnvironment.make(input, List(IabEnrichmentSpec.enrichmentConf))
       testWithHttp.use { test =>
         test.run(_.copy(assetsUpdatePeriod = Some(1800.millis))).map {
           case (bad, pii, good) =>

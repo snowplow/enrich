@@ -29,15 +29,14 @@ import org.specs2.mutable.Specification
 
 class ConfigFileSpec extends Specification with CatsIO {
   "parse" should {
-    "parse valid HOCON file with path provided" in {
+    "parse valid HOCON file with path provided for PubSub" in {
       val configPath = Paths.get(getClass.getResource("/config.pubsub.hocon.sample").toURI)
       val expected = ConfigFile(
-        io.Authentication.Gcp,
         io.Input.PubSub("projects/test-project/subscriptions/inputSub", None, None),
         io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id")), None, None, None, None),
         Some(io.Output.PubSub("projects/test-project/topics/pii-topic", None, None, None, None, None)),
         io.Output.PubSub("projects/test-project/topics/bad-topic", None, None, None, None, None),
-        io.Concurrency(10000, 64),
+        io.Concurrency(256, 3),
         Some(7.days),
         Some(
           io.Monitoring(
@@ -45,7 +44,88 @@ class ConfigFileSpec extends Specification with CatsIO {
             Some(
               io.MetricsReporters(
                 Some(io.MetricsReporters.StatsD("localhost", 8125, Map("app" -> "enrich"), 10.seconds, None)),
-                Some(io.MetricsReporters.Stdout(10.seconds, None))
+                Some(io.MetricsReporters.Stdout(10.seconds, None)),
+                None
+              )
+            )
+          )
+        )
+      )
+      ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
+    }
+
+    "parse reference example for Kinesis" in {
+      val configPath = Paths.get(getClass.getResource("/config.kinesis.reference.hocon").toURI)
+      val expected = ConfigFile(
+        io.Input.Kinesis(
+          "snowplow-enrich-kinesis",
+          "collector-payloads",
+          Some("eu-central-1"),
+          io.Input.Kinesis.InitPosition.TrimHorizon,
+          io.Input.Kinesis.Retrieval.Polling(10000),
+          100,
+          3,
+          None,
+          None,
+          None
+        ),
+        io.Output.Kinesis(
+          "enriched",
+          Some("eu-central-1"),
+          None,
+          io.Output.BackoffPolicy(100.millis, 10.seconds),
+          100.millis,
+          io.Output.Collection(500, 5242880),
+          None,
+          24,
+          "warning",
+          None,
+          None,
+          None,
+          None
+        ),
+        Some(
+          io.Output.Kinesis(
+            "pii",
+            Some("eu-central-1"),
+            None,
+            io.Output.BackoffPolicy(100.millis, 10.seconds),
+            100.millis,
+            io.Output.Collection(500, 5242880),
+            None,
+            24,
+            "warning",
+            None,
+            None,
+            None,
+            None
+          )
+        ),
+        io.Output.Kinesis(
+          "bad",
+          Some("eu-central-1"),
+          None,
+          io.Output.BackoffPolicy(100.millis, 10.seconds),
+          100.millis,
+          io.Output.Collection(500, 5242880),
+          None,
+          24,
+          "warning",
+          None,
+          None,
+          None,
+          None
+        ),
+        io.Concurrency(256, 1),
+        Some(7.days),
+        Some(
+          io.Monitoring(
+            Some(Sentry(URI.create("http://sentry.acme.com"))),
+            Some(
+              io.MetricsReporters(
+                Some(io.MetricsReporters.StatsD("localhost", 8125, Map("app" -> "enrich"), 10.seconds, None)),
+                Some(io.MetricsReporters.Stdout(10.seconds, None)),
+                Some(true)
               )
             )
           )
@@ -57,9 +137,6 @@ class ConfigFileSpec extends Specification with CatsIO {
     "parse valid 0 minutes as None" in {
       val input =
         json"""{
-          "auth": {
-            "type": "Gcp"
-          },
           "input": {
             "type": "PubSub",
             "subscription": "projects/test-project/subscriptions/inputSub"
@@ -77,8 +154,8 @@ class ConfigFileSpec extends Specification with CatsIO {
             "topic": "projects/test-project/topics/bad-topic"
           },
           "concurrency": {
-            "output": 10000,
-            "enrichment": 64
+            "enrich": 256,
+            "sink": 3
           },
           "assetsUpdatePeriod": "0 minutes",
           "metricsReportPeriod": "10 second"

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-2021 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -10,32 +10,28 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.pubsub
+package com.snowplowanalytics.snowplow.enrich.kinesis
+
+import cats.effect.{ExitCode, IO, IOApp, Resource, Sync, SyncIO}
 
 import cats.Parallel
 import cats.implicits._
 
-import cats.effect.{ExitCode, IO, IOApp, Resource, Sync, SyncIO}
-
 import java.util.concurrent.{Executors, TimeUnit}
 
+import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.ExecutionContext
 
-import com.permutive.pubsub.consumer.ConsumerRecord
+import fs2.aws.kinesis.CommittableRecord
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Run
 
-import com.snowplowanalytics.snowplow.enrich.pubsub.generated.BuildInfo
+import com.snowplowanalytics.snowplow.enrich.kinesis.generated.BuildInfo
 
 object Main extends IOApp.WithContext {
 
-  /**
-   * The maximum size of a serialized payload that can be written to pubsub.
-   *
-   *  Equal to 6.9 MB. The message will be base64 encoded by the underlying library, which brings the
-   *  encoded message size to near 10 MB, which is the maximum allowed for PubSub.
-   */
-  private val MaxRecordSize = 6900000
+  // Kinesis records must not exceed 1MB
+  private val MaxRecordSize = 1000000
 
   /**
    * An execution context matching the cats effect IOApp default. We create it explicitly so we can
@@ -55,23 +51,41 @@ object Main extends IOApp.WithContext {
   }
 
   def run(args: List[String]): IO[ExitCode] =
-    Run.run[IO, ConsumerRecord[IO, Array[Byte]]](
+    Run.run[IO, CommittableRecord](
       args,
       BuildInfo.name,
       BuildInfo.version,
       BuildInfo.description,
       executionContext,
-      (_, cliConfig) => IO(cliConfig),
-      (blocker, input, _) => Source.init(blocker, input),
-      (_, out, _) => Sink.initAttributed(out),
-      (_, out, _) => Sink.initAttributed(out),
-      (_, out, _) => Sink.init(out),
-      checkpoint,
-      List(GcsClient.mk[IO]),
-      _.value,
+      DynamoDbConfig.updateCliConfig[IO],
+      Source.init[IO],
+      (_, out, monitoring) => Sink.initAttributed(out, monitoring),
+      (_, out, monitoring) => Sink.initAttributed(out, monitoring),
+      (_, out, monitoring) => Sink.init(out, monitoring),
+      checkpoint[IO],
+      List(_ => S3Client.mk[IO]),
+      getPayload,
       MaxRecordSize
     )
 
-  private def checkpoint[F[_]: Parallel: Sync](records: List[ConsumerRecord[F, Array[Byte]]]): F[Unit] =
-    records.parTraverse_(_.ack)
+  private def getPayload(record: CommittableRecord): Array[Byte] = {
+    val data = record.record.data
+    val buffer = ArrayBuffer[Byte]()
+    while (data.hasRemaining())
+      buffer.append(data.get)
+    buffer.toArray
+  }
+
+  /** For each shard, the record with the biggest sequence number is found, and checkpointed. */
+  private def checkpoint[F[_]: Parallel: Sync](records: List[CommittableRecord]): F[Unit] =
+    records
+      .groupBy(_.shardId)
+      .foldLeft(List.empty[CommittableRecord]) { (acc, shardRecords) =>
+        shardRecords._2
+          .reduceLeftOption[CommittableRecord] { (biggest, record) =>
+            if (record.sequenceNumber > biggest.sequenceNumber) record else biggest
+          }
+          .toList ::: acc
+      }
+      .parTraverse_(record => Sync[F].delay(record.checkpointer.checkpoint))
 }

@@ -18,11 +18,11 @@ import java.util.concurrent.{Executors, TimeUnit}
 
 import scala.concurrent.ExecutionContext
 
-import com.permutive.pubsub.consumer.ConsumerRecord
+import fs2.aws.kinesis.CommittableRecord
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Run
 
-import com.snowplowanalytics.snowplow.enrich.pubsub.generated.BuildInfo
+import com.snowplowanalytics.snowplow.enrich.kinesis.generated.BuildInfo
 
 object Main extends IOApp.WithContext {
 
@@ -44,18 +44,17 @@ object Main extends IOApp.WithContext {
   }
 
   def run(args: List[String]): IO[ExitCode] =
-    Run.run[IO, ConsumerRecord[IO, Array[Byte]]](
+    Run.run[IO, CommittableRecord](
       args,
       BuildInfo.name,
       BuildInfo.version,
       BuildInfo.description,
       executionContext,
-      (blocker, input, _) => Source.init(blocker, input),
-      (_, out, _) => Sink.initAttributed(out),
-      (_, out, _) => Sink.initAttributed(out),
-      (_, out, _) => Sink.init(out),
-      _.value,
+      Source.init,
+      Sink.initAttributed,
+      Sink.initAttributed,
+      Sink.init,
+      _.record.data.array(),
       false
     )
-
 }

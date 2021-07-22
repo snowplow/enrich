@@ -132,7 +132,7 @@ object Environment {
     goodSink: Resource[F, AttributedByteSink[F]],
     piiSink: Option[Resource[F, AttributedByteSink[F]]],
     badSink:  Resource[F, ByteSink[F]],
-    checkpointer: Pipe[F, A, Unit],
+    checkpointer: Resource[F, Pipe[F, A, Unit]],
     getPayload: A => Array[Byte],
     processor: Processor
   ): Resource[F, Environment[F, A]] = {
@@ -152,6 +152,7 @@ object Environment {
                     case Some(dsn) => Resource.eval[F, Option[SentryClient]](Sync[F].delay(Sentry.init(dsn.toString).some))
                     case None => Resource.pure[F, Option[SentryClient]](none[SentryClient])
                   }
+        chkpt <- checkpointer
         _ <- Resource.eval(pauseEnrich.set(false) *> Logger[F].info("Enrich environment initialized"))
       } yield Environment[F, A](
         client,
@@ -164,7 +165,7 @@ object Environment {
         good,
         pii,
         bad,
-        checkpointer,
+        chkpt,
         getPayload,
         sentry,
         metrics,

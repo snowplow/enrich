@@ -19,7 +19,7 @@
 lazy val root = project.in(file("."))
   .settings(name := "enrich")
   .settings(BuildSettings.basicSettings)
-  .aggregate(common, pubsub, beam, streamCommon, streamKinesis, streamKafka, streamNsq, streamStdin)
+  .aggregate(common, pubsub, kinesis, beam, streamCommon, streamKinesis, streamKafka, streamNsq, streamStdin)
 
 lazy val common = project
   .in(file("modules/common"))
@@ -262,6 +262,33 @@ lazy val pubsub = project
     libraryDependencies ++= Seq(
       Dependencies.Libraries.fs2BlobGcs,
       Dependencies.Libraries.fs2PubSub,
+    ),
+    addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
+  )
+  .enablePlugins(BuildInfoPlugin)
+  .settings(BuildSettings.dockerSettings)
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
+
+lazy val kinesis = project
+  .in(file("modules/kinesis"))
+  .dependsOn(commonFs2)
+  .settings(BuildSettings.basicSettings)
+  .settings(BuildSettings.formatting)
+  .settings(BuildSettings.scoverageSettings)
+  .settings(BuildSettings.sbtAssemblySettings)
+  .settings(
+    name := "snowplow-enrich-kinesis",
+    description := "High-performance app built on top of functional streams that enriches Snowplow events from Kinesis",
+    buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
+    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.kinesis.generated",
+    Docker / packageName := "snowplow/snowplow-enrich-kinesis",
+  )
+  .settings(Test / parallelExecution := false)
+  .settings(
+    libraryDependencies ++= Seq(
+      Dependencies.Libraries.dynamodbSdk,
+      Dependencies.Libraries.fs2BlobS3,
+      Dependencies.Libraries.fs2Aws,
     ),
     addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
   )

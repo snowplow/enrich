@@ -27,6 +27,7 @@ import scala.concurrent.ExecutionContext
 import Clients._
 
 case class Clients[F[_]: ConcurrentEffect](clients: List[Client[F]]) {
+
   /** Download a URI as a stream of bytes, using the appropriate client */
   def download(uri: URI): Stream[F, Byte] =
     clients.find(_.prefixes.contains(uri.getScheme())) match {

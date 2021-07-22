@@ -21,7 +21,7 @@ import com.google.pubsub.v1.PubsubMessage
 
 import fs2.Stream
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Authentication, Input}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input
 
 import cats.effect.{Blocker, ContextShift, Sync}
 
@@ -42,21 +42,18 @@ object Source {
    * by the permutive library, until we ack it (after publishing to output). The value must be large
    * enough that it does not cause the sink to block whilst it is waiting for a batch to be
    * completed.
-   *
-   * (`1000` is the permutive library default; we re-define it here to be explicit)
    */
-  val DefaultMaxQueueSize = 1000
+  val DefaultMaxQueueSize = 2000
 
   def init[F[_]: Concurrent: ContextShift](
     blocker: Blocker,
-    auth: Authentication,
     input: Input
   ): Stream[F, ConsumerRecord[F, Array[Byte]]] =
-    (auth, input) match {
-      case (Authentication.Gcp, p: Input.PubSub) =>
+    input match {
+      case p: Input.PubSub =>
         pubSub(blocker, p)
-      case (auth, input) =>
-        throw new IllegalArgumentException(s"Auth $auth is not GCP and/or input $input is not PubSub")
+      case i =>
+        Stream.raiseError[F](new IllegalArgumentException(s"Input $i is not PubSub"))
     }
 
   def pubSub[F[_]: Concurrent: ContextShift](
@@ -76,6 +73,7 @@ object Source {
     val errorHandler: (PubsubMessage, Throwable, F[Unit], F[Unit]) => F[Unit] = // Should be useless
       (message, error, _, _) =>
         Sync[F].delay(System.err.println(s"Cannot decode message ${message.getMessageId} into array of bytes. ${error.getMessage}"))
+
     PubsubGoogleConsumer
       .subscribe[F, Array[Byte]](blocker, projectId, subscriptionId, errorHandler, pubSubConfig)
   }

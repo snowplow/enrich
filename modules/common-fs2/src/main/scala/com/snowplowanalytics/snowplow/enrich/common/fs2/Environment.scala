@@ -22,7 +22,7 @@ import cats.effect.{Async, Blocker, Clock, Concurrent, ConcurrentEffect, Context
 import cats.effect.concurrent.Ref
 
 import fs2.concurrent.SignallingRef
-import fs2.{Pipe, Stream}
+import fs2.Stream
 
 import _root_.io.circe.Json
 
@@ -62,11 +62,11 @@ import scala.concurrent.ExecutionContext
  * @param assetsState         a main entity from [[Assets]] stream, controlling when assets
  *                            have to be replaced with newer ones
  * @param blocker             thread pool for blocking operations and enrichments themselves
- * @param source              a stream of records
- * @param good                a sink for successfully enriched events
- * @param pii                 a sink for pii enriched events
- * @param bad                 a sink for events that failed validation or enrichment
- * @param checkpointer        pipe used to checkpoint the records
+ * @param source              stream of records containing the collector payloads
+ * @param sinkGood            function that sinks enriched event
+ * @param sinkPii             function that sinks pii event
+ * @param sinkBad             function that sinks an event that failed validation or enrichment
+ * @param checkpoint          function that checkpoints input stream records
  * @param getPayload          function that extracts the collector payload bytes from a record
  * @param sentry              optional sentry client
  * @param metrics             common counters
@@ -76,7 +76,7 @@ import scala.concurrent.ExecutionContext
  * @param processor           identifies enrich asset in bad rows
  * @param streamsSettings     parameters used to configure the streams
  * @tparam A                  type emitted by the source (e.g. `ConsumerRecord` for PubSub).
- *                            getPayload must be defined for this type, as well as a checkpointer
+ *                            getPayload must be defined for this type, as well as checkpointing
  */
 final case class Environment[F[_], A](
   igluClient: IgluClient[F, Json],
@@ -86,10 +86,10 @@ final case class Environment[F[_], A](
   assetsState: Assets.State[F],
   blocker: Blocker,
   source: Stream[F, A],
-  good: AttributedByteSink[F],
-  pii: Option[AttributedByteSink[F]],
-  bad: ByteSink[F],
-  checkpointer: Pipe[F, A, Unit],
+  sinkGood: AttributedByteSink[F],
+  sinkPii: Option[AttributedByteSink[F]],
+  sinkBad: ByteSink[F],
+  checkpoint: List[A] => F[Unit],
   getPayload: A => Array[Byte],
   sentry: Option[SentryClient],
   metrics: Metrics[F],
@@ -135,55 +135,52 @@ object Environment {
     ec: ExecutionContext,
     parsedConfigs: ParsedConfigs,
     source: Stream[F, A],
-    goodSink: Resource[F, AttributedByteSink[F]],
-    piiSink: Option[Resource[F, AttributedByteSink[F]]],
-    badSink:  Resource[F, ByteSink[F]],
+    goodSink: AttributedByteSink[F],
+    piiSink: Option[AttributedByteSink[F]],
+    badSink: ByteSink[F],
     clients: List[Client[F]],
-    checkpointer: Pipe[F, A, Unit],
+    checkpoint: List[A] => F[Unit],
     getPayload: A => Array[Byte],
     processor: Processor,
     maxRecordSize: Int
   ): Resource[F, Environment[F, A]] = {
-      val file = parsedConfigs.configFile
-      for {
-        good <- goodSink
-        bad <-badSink
-        pii <- piiSink.sequence
-        http <- Clients.mkHttp(ec)
-        clts = Clients.init[F](http, clients)
-        igluClient <- IgluClient.parseDefault[F](parsedConfigs.igluJson).resource
-        metrics <- Resource.eval(metricsReporter[F](blocker, file))
-        download = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
-        pauseEnrich <- makePause[F]
-        assets <- Assets.State.make[F](blocker, pauseEnrich, download, clts)
-        enrichments <- Enrichments.make[F](parsedConfigs.enrichmentConfigs, BlockerF.ofBlocker(blocker))
-        sentry <- file.monitoring.flatMap(_.sentry).map(_.dsn) match {
-                    case Some(dsn) => Resource.eval[F, Option[SentryClient]](Sync[F].delay(Sentry.init(dsn.toString).some))
-                    case None => Resource.pure[F, Option[SentryClient]](none[SentryClient])
-                  }
-        _ <- Resource.eval(pauseEnrich.set(false) *> Logger[F].info("Enrich environment initialized"))
-      } yield Environment[F, A](
-        igluClient,
-        Http4sRegistryLookup(http),
-        enrichments,
-        pauseEnrich,
-        assets,
-        blocker,
-        source,
-        good,
-        pii,
-        bad,
-        checkpointer,
-        getPayload,
-        sentry,
-        metrics,
-        file.assetsUpdatePeriod,
-        parsedConfigs.goodAttributes,
-        parsedConfigs.piiAttributes,
-        processor,
-        StreamsSettings(file.concurrency, maxRecordSize)
-      )
-    }
+    val file = parsedConfigs.configFile
+    for {
+      http <- Clients.mkHttp(ec)
+      clts = Clients.init[F](http, clients)
+      igluClient <- IgluClient.parseDefault[F](parsedConfigs.igluJson).resource
+      metrics <- Resource.eval(metricsReporter[F](blocker, file))
+      download = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
+      pauseEnrich <- makePause[F]
+      assets <- Assets.State.make[F](blocker, pauseEnrich, download, clts)
+      enrichments <- Enrichments.make[F](parsedConfigs.enrichmentConfigs, BlockerF.ofBlocker(blocker))
+      sentry <- file.monitoring.flatMap(_.sentry).map(_.dsn) match {
+                  case Some(dsn) => Resource.eval[F, Option[SentryClient]](Sync[F].delay(Sentry.init(dsn.toString).some))
+                  case None => Resource.pure[F, Option[SentryClient]](none[SentryClient])
+                }
+      _ <- Resource.eval(pauseEnrich.set(false) *> Logger[F].info("Enrich environment initialized"))
+    } yield Environment[F, A](
+      igluClient,
+      Http4sRegistryLookup(http),
+      enrichments,
+      pauseEnrich,
+      assets,
+      blocker,
+      source,
+      goodSink,
+      piiSink,
+      badSink,
+      checkpoint,
+      getPayload,
+      sentry,
+      metrics,
+      file.assetsUpdatePeriod,
+      parsedConfigs.goodAttributes,
+      parsedConfigs.piiAttributes,
+      processor,
+      StreamsSettings(file.concurrency, maxRecordSize)
+    )
+  }
 
   /**
    * Make sure `enrichPause` gets into paused state before destroying pipes

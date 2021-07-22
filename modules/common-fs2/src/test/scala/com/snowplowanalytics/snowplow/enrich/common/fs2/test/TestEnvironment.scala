@@ -75,7 +75,7 @@ case class TestEnvironment[A](
     val updatedEnv = updateEnv(env)
 
     val pauses = updatedEnv.pauseEnrich.discrete.evalMap(p => TestEnvironment.logger.info(s"Pause signal is $p"))
-    val stream = Enrich.run[IO, A](updatedEnv, false).merge(Assets.run[IO, A](updatedEnv)).merge(pauses)
+    val stream = Enrich.run[IO, A](updatedEnv).merge(Assets.run[IO, A](updatedEnv)).merge(pauses)
     for {
       _ <- stream.haltAfter(5.seconds).compile.drain
       goodVec <- good
@@ -147,7 +147,7 @@ object TestEnvironment extends CatsIO {
                       g => goodRef.update(_ :+ g),
                       Some(p => piiRef.update(_ :+ p)),
                       b => badRef.update(_ :+ b),
-                       _.map(_ => ()),
+                      _ => IO.unit,
                       identity,
                       None,
                       metrics,

@@ -13,11 +13,14 @@
 package com.snowplowanalytics.snowplow.enrich.common.fs2.config
 
 import java.nio.file.{InvalidPathException, Path, Paths}
+import java.time.Instant
+import java.net.URI
 
 import cats.syntax.either._
+
 import scala.concurrent.duration.{Duration, FiniteDuration}
 
-import _root_.io.circe.{Decoder, Encoder}
+import _root_.io.circe.{Decoder, Encoder, Json}
 import _root_.io.circe.generic.extras.semiauto._
 import _root_.io.circe.config.syntax._
 
@@ -30,16 +33,15 @@ object io {
   implicit val javaPathEncoder: Encoder[Path] =
     Encoder[String].contramap(_.toString)
 
-  sealed trait Authentication extends Product with Serializable
+  implicit val javaUriDecoder: Decoder[URI] =
+    Decoder[String].emap { s =>
+      Either.catchOnly[IllegalArgumentException](URI.create(s)).leftMap(err => s"error while parsing URI $s: ${err.getMessage}")
+    }
 
-  object Authentication {
-    case object Gcp extends Authentication
+  implicit val javaUriEncoder: Encoder[URI] =
+    Encoder.encodeString.contramap[URI](_.toString)
 
-    implicit val authenticationDecoder: Decoder[Authentication] =
-      deriveConfiguredDecoder[Authentication]
-    implicit val authenticationEncoder: Encoder[Authentication] =
-      deriveConfiguredEncoder[Authentication]
-  }
+  import ConfigFile.finiteDurationEncoder
 
   /** Source of raw collector data (only PubSub supported atm) */
   sealed trait Input
@@ -60,6 +62,89 @@ object io {
         }
     }
     case class FileSystem(dir: Path) extends Input
+    case class Kinesis private (
+      appName: String,
+      streamName: String,
+      region: Option[String],
+      initialPosition: Kinesis.InitPosition,
+      retrievalMode: Kinesis.Retrieval,
+      customEndpoint: Option[URI],
+      dynamodbCustomEndpoint: Option[URI]
+    ) extends Input
+
+    object Kinesis {
+      sealed trait InitPosition
+      object InitPosition {
+        case object Latest extends InitPosition
+        case object TrimHorizon extends InitPosition
+        case class AtTimestamp(timestamp: Instant) extends InitPosition
+
+        implicit val initPositionDecoder: Decoder[InitPosition] =
+          Decoder.decodeJson.emap { json =>
+            json.asString.map(_.toUpperCase) match {
+              case Some("TRIM_HORIZON") => TrimHorizon.asRight
+              case Some("LATEST") => Latest.asRight
+              case Some(other) =>
+                s"Initial position $other is not supported. Possible string values are TRIM_HORIZON and LATEST. AT_TIMESTAMP must be provided as object".asLeft
+              case None =>
+                json.asObject match {
+                  case Some(obj) =>
+                    val map = obj.toMap
+                    if (map.get("type") == Some(Json.fromString("AT_TIMESTAMP")))
+                      map.get("timestamp") match {
+                        case Some(timestampStr) =>
+                          timestampStr
+                            .as[Instant]
+                            .map(instant => AtTimestamp(instant))
+                            .leftMap(err => s"couldn't not parse timestamp. Error: ${err.getMessage}")
+                        case None =>
+                          s"${json.toString} does not contain timestamp field".asLeft
+                      }
+                    else
+                      s"type is not AT_TIMESTAMP in ${json.toString}".asLeft
+                  case None =>
+                    s"${json.toString} is neither string nor object".asLeft
+                }
+            }
+          }
+        implicit val initPositionEncoder: Encoder[InitPosition] = deriveConfiguredEncoder[InitPosition]
+      }
+
+      sealed trait Retrieval
+      object Retrieval {
+        case class Polling(maxRecords: Int) extends Retrieval
+        case object FanOut extends Retrieval
+
+        implicit val retrievalDecoder: Decoder[Retrieval] =
+          Decoder.decodeJson.emap { json =>
+            json.asString.map(_.toUpperCase) match {
+              case Some("FanOut") => FanOut.asRight
+              case Some(other) =>
+                s"Retrieval mode $other is not supported. Only possible string value is FanOut. Polling must be provided as object".asLeft
+              case None =>
+                json.asObject match {
+                  case Some(obj) =>
+                    val map = obj.toMap
+                    if (map.get("type") == Some(Json.fromString("Polling")))
+                      map.get("maxRecords") match {
+                        case Some(nb) =>
+                          nb.as[Int].map(max => Polling(max)).leftMap(_ => s"couldn't not parse $nb as Int")
+                        case None =>
+                          s"${json.toString} does not contain maxRecords".asLeft
+                      }
+                    else
+                      s"type is not Polling in ${json.toString}".asLeft
+                  case None =>
+                    s"${json.toString} is neither string nor object".asLeft
+                }
+            }
+          }
+        implicit val retrievalEncoder: Encoder[Retrieval] = deriveConfiguredEncoder[Retrieval]
+      }
+
+      implicit val kinesisDecoder: Decoder[Kinesis] = deriveConfiguredDecoder[Kinesis]
+      implicit val kinesisEncoder: Encoder[Kinesis] = deriveConfiguredEncoder[Kinesis]
+    }
 
     implicit val inputDecoder: Decoder[Input] =
       deriveConfiguredDecoder[Input]
@@ -105,6 +190,39 @@ object io {
         }
     }
     case class FileSystem(file: Path) extends Output
+    case class Kinesis(
+      streamName: String,
+      region: Option[String],
+      partitionKey: Option[String],
+      backoffPolicy: BackoffPolicy,
+      maxBufferedTime: FiniteDuration,
+      collection: Collection,
+      aggregation: Option[Aggregation]
+    ) extends Output
+
+    case class BackoffPolicy(minBackoff: FiniteDuration, maxBackoff: FiniteDuration)
+    object BackoffPolicy {
+      implicit def backoffPolicyDecoder: Decoder[BackoffPolicy] =
+        deriveConfiguredDecoder[BackoffPolicy]
+      implicit def backoffPolicyEncoder: Encoder[BackoffPolicy] =
+        deriveConfiguredEncoder[BackoffPolicy]
+    }
+
+    case class Collection(maxCount: Long, maxSize: Long)
+    object Collection {
+      implicit def collectionDecoder: Decoder[Collection] =
+        deriveConfiguredDecoder[Collection]
+      implicit def collectionEncoder: Encoder[Collection] =
+        deriveConfiguredEncoder[Collection]
+    }
+
+    case class Aggregation(maxCount: Long, maxSize: Long)
+    object Aggregation {
+      implicit def aggregationDecoder: Decoder[Aggregation] =
+        deriveConfiguredDecoder[Aggregation]
+      implicit def aggregationEncoder: Encoder[Aggregation] =
+        deriveConfiguredEncoder[Aggregation]
+    }
 
     implicit val outputDecoder: Decoder[Output] =
       deriveConfiguredDecoder[Output]
@@ -131,13 +249,11 @@ object io {
             other.asRight
         }
 
-    import ConfigFile.finiteDurationEncoder
-
     implicit val outputEncoder: Encoder[Output] =
       deriveConfiguredEncoder[Output]
   }
 
-  final case class Concurrency(output: Int, enrichment: Int)
+  final case class Concurrency(enrich: Long, sink: Int)
 
   object Concurrency {
     implicit val concurrencyDecoder: Decoder[Concurrency] =
@@ -146,7 +262,11 @@ object io {
       deriveConfiguredEncoder[Concurrency]
   }
 
-  final case class MetricsReporters(statsd: Option[MetricsReporters.StatsD], stdout: Option[MetricsReporters.Stdout])
+  final case class MetricsReporters(
+    statsd: Option[MetricsReporters.StatsD],
+    stdout: Option[MetricsReporters.Stdout],
+    cloudwatch: Option[Boolean]
+  )
 
   object MetricsReporters {
     final case class Stdout(period: FiniteDuration, prefix: Option[String])
@@ -157,8 +277,6 @@ object io {
       period: FiniteDuration,
       prefix: Option[String]
     )
-
-    import ConfigFile.finiteDurationEncoder
 
     implicit val stdoutDecoder: Decoder[Stdout] =
       deriveConfiguredDecoder[Stdout].emap { stdout =>

@@ -25,19 +25,24 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.ByteSink
 
 object Sink {
 
-  def fileSink[F[_]: Concurrent: ContextShift](path: Path, blocker: Blocker): Resource[F, ByteSink[F]] =
-    for {
-      channel <- Resource.fromAutoCloseableBlocking(blocker)(
-                   Sync[F].delay(FileChannel.open(path, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE))
-                 )
-      sem <- Resource.eval(Semaphore(1L))
-    } yield { bytes =>
-      sem.withPermit {
-        blocker.delay {
-          channel.write(ByteBuffer.wrap(bytes))
-          channel.write(ByteBuffer.wrap(Array('\n'.toByte)))
-        }.void
-      }
-    }
+  def fileSink[F[_]: Concurrent: ContextShift](path: Path, blocker: Blocker): ByteSink[F] = {
+    val resource =
+      for {
+        channel <- Resource.fromAutoCloseableBlocking(blocker)(
+                     Sync[F].delay(FileChannel.open(path, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE))
+                   )
+        sem <- Resource.eval(Semaphore(1L))
+      } yield (channel, sem)
 
+    bytes =>
+      resource.use {
+        case (channel, sem) =>
+          sem.withPermit {
+            blocker.delay {
+              channel.write(ByteBuffer.wrap(bytes))
+              channel.write(ByteBuffer.wrap(Array('\n'.toByte)))
+            }.void
+          }
+      }
+  }
 }

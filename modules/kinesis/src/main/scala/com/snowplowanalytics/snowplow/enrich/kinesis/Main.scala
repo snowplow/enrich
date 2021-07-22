@@ -10,19 +10,20 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.pubsub
+package com.snowplowanalytics.snowplow.enrich.kinesis
 
 import cats.effect.{ExitCode, IO, IOApp, Resource, SyncIO}
 
 import java.util.concurrent.{Executors, TimeUnit}
 
+import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.ExecutionContext
 
-import com.permutive.pubsub.consumer.ConsumerRecord
+import fs2.aws.kinesis.CommittableRecord
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Run
 
-import com.snowplowanalytics.snowplow.enrich.pubsub.generated.BuildInfo
+import com.snowplowanalytics.snowplow.enrich.kinesis.generated.BuildInfo
 
 object Main extends IOApp.WithContext {
 
@@ -44,18 +45,25 @@ object Main extends IOApp.WithContext {
   }
 
   def run(args: List[String]): IO[ExitCode] =
-    Run.run[IO, ConsumerRecord[IO, Array[Byte]]](
+    Run.run[IO, CommittableRecord](
       args,
       BuildInfo.name,
       BuildInfo.version,
       BuildInfo.description,
       executionContext,
-      (blocker, input, _) => Source.init(blocker, input),
-      (_, out, _) => Sink.initAttributed(out),
-      (_, out, _) => Sink.initAttributed(out),
-      (_, out, _) => Sink.init(out),
-      _.value,
+      Source.init,
+      Sink.initAttributed,
+      Sink.initAttributed,
+      Sink.init,
+      getPayload,
       false
     )
 
+  private def getPayload(record: CommittableRecord): Array[Byte] = {
+    val data = record.record.data
+    val buffer = ArrayBuffer[Byte]()
+    while (data.hasRemaining())
+      buffer.append(data.get)
+    buffer.toArray
+  }
 }

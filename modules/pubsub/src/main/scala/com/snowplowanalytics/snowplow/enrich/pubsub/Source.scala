@@ -12,16 +12,16 @@
  */
 package com.snowplowanalytics.snowplow.enrich.pubsub
 
-import cats.effect.{Blocker, Concurrent, ContextShift, Sync}
+import cats.effect.{Blocker, Concurrent, ContextShift, Resource, Sync}
 
 import com.permutive.pubsub.consumer.{ConsumerRecord, Model}
 import com.permutive.pubsub.consumer.grpc.{PubsubGoogleConsumer, PubsubGoogleConsumerConfig}
 
 import com.google.pubsub.v1.PubsubMessage
 
-import fs2.Stream
+import fs2.{Pipe, Stream}
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Authentication, Input}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input
 
 import cats.effect.{Blocker, ContextShift, Sync}
 
@@ -49,20 +49,19 @@ object Source {
 
   def init[F[_]: Concurrent: ContextShift](
     blocker: Blocker,
-    auth: Authentication,
     input: Input
-  ): Stream[F, ConsumerRecord[F, Array[Byte]]] =
-    (auth, input) match {
-      case (Authentication.Gcp, p: Input.PubSub) =>
+  ): (Stream[F, ConsumerRecord[F, Array[Byte]]], Resource[F, Pipe[F, ConsumerRecord[F, Array[Byte]], Unit]]) =
+    input match {
+      case p: Input.PubSub =>
         pubSub(blocker, p)
-      case (auth, input) =>
-        throw new IllegalArgumentException(s"Auth $auth is not GCP and/or input $input is not PubSub")
+      case i =>
+        throw new IllegalArgumentException(s"Input $i is not PubSub")
     }
 
   def pubSub[F[_]: Concurrent: ContextShift](
     blocker: Blocker,
     input: Input.PubSub
-  ): Stream[F, ConsumerRecord[F, Array[Byte]]] = {
+  ): (Stream[F, ConsumerRecord[F, Array[Byte]]], Resource[F, Pipe[F, ConsumerRecord[F, Array[Byte]], Unit]]) = {
     val onFailedTerminate: Throwable => F[Unit] =
       e => Sync[F].delay(System.err.println(s"Cannot terminate ${e.getMessage}"))
     val pubSubConfig =
@@ -76,7 +75,11 @@ object Source {
     val errorHandler: (PubsubMessage, Throwable, F[Unit], F[Unit]) => F[Unit] = // Should be useless
       (message, error, _, _) =>
         Sync[F].delay(System.err.println(s"Cannot decode message ${message.getMessageId} into array of bytes. ${error.getMessage}"))
-    PubsubGoogleConsumer
+
+    val stream = PubsubGoogleConsumer
       .subscribe[F, Array[Byte]](blocker, projectId, subscriptionId, errorHandler, pubSubConfig)
+    val checkpointer = Resource.pure[F, Pipe[F, ConsumerRecord[F, Array[Byte]], Unit]](_.evalMap(_.ack))
+
+    (stream, checkpointer)
   }
 }

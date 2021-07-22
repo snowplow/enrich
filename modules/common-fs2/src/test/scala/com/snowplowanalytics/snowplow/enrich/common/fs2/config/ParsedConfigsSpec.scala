@@ -31,7 +31,6 @@ class ParsedConfigsSpec extends Specification with CatsIO {
       val invalidAttr2 = "invalidAttr2"
 
       val configFile = ConfigFile(
-        io.Authentication.Gcp,
         io.Input.PubSub("projects/test-project/subscriptions/inputSub", None, None),
         io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id", invalidAttr1)), None, None, None, None),
         Some(io.Output.PubSub("projects/test-project/topics/pii-topic", Some(Set("app_id", invalidAttr2)), None, None, None, None)),
@@ -43,7 +42,8 @@ class ParsedConfigsSpec extends Specification with CatsIO {
             Some(
               io.MetricsReporters(
                 Some(io.MetricsReporters.StatsD("localhost", 8125, Map("app" -> "enrich"), 10.seconds, None)),
-                Some(io.MetricsReporters.Stdout(10.seconds, None))
+                Some(io.MetricsReporters.Stdout(10.seconds, None)),
+                None
               )
             )
           )

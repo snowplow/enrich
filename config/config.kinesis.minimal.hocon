@@ -1,0 +1,37 @@
+{
+  # Collector input
+  "input": {
+    # Name of the Kinesis stream to read from
+    "streamName": "collector-payloads"
+
+    # AWS region in which the Kinesis stream resides.
+    "region": "eu-central-1"
+  }
+
+  # Enriched events output
+  "good": {
+    # Name of the Kinesis stream to write to
+    "streamName": "enriched"
+
+    # AWS region in which the Kinesis stream resides.
+    "region": "eu-central-1"
+  }
+
+  # Pii events output
+  "pii": {
+    # Name of the Kinesis stream to write to
+    "streamName": "pii"
+
+    # AWS region in which the Kinesis stream resides.
+    "region": "eu-central-1"
+  }
+
+  # Bad rows output
+  "bad": {
+    # Name of the Kinesis stream to write to
+    "streamName": "bad"
+
+    # AWS region in which the Kinesis stream resides.
+    "region": "eu-central-1"
+  }
+}

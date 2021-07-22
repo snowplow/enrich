@@ -24,7 +24,7 @@ import org.typelevel.log4cats.slf4j.Slf4jLogger
 import cats.Monad
 
 import cats.effect.{Blocker, Concurrent, ContextShift, IO, Resource, Timer}
-import cats.effect.concurrent.Ref
+import cats.effect.concurrent.{Ref, Semaphore}
 import cats.effect.testing.specs2.CatsIO
 
 import fs2.Stream
@@ -74,8 +74,16 @@ case class TestEnvironment[A](
   ): IO[(Vector[BadRow], Vector[Event], Vector[Event])] = {
     val updatedEnv = updateEnv(env)
 
-    val pauses = updatedEnv.pauseEnrich.discrete.evalMap(p => TestEnvironment.logger.info(s"Pause signal is $p"))
-    val stream = Enrich.run[IO, A](updatedEnv, false).merge(Assets.run[IO, A](updatedEnv)).merge(pauses)
+    val stream = Enrich
+      .run[IO, A](updatedEnv)
+      .merge(
+        Assets.run[IO, A](updatedEnv.blocker,
+                          updatedEnv.semaphore,
+                          updatedEnv.assetsUpdatePeriod,
+                          updatedEnv.assetsState,
+                          updatedEnv.enrichments
+        )
+      )
     for {
       _ <- stream.haltAfter(5.seconds).compile.drain
       goodVec <- good
@@ -128,10 +136,9 @@ object TestEnvironment extends CatsIO {
       _ <- filesResource(blocker, enrichments.flatMap(_.filesToCache).map(p => Paths.get(p._2)))
       counter <- Resource.eval(Counter.make[IO])
       metrics = Counter.mkCounterMetrics[IO](counter)(Monad[IO], ioClock)
-      pauseEnrich <- Environment.makePause[IO]
       clients = Clients.init[IO](http, Nil)
-      assets <- Assets.State.make(blocker, pauseEnrich, enrichments.flatMap(_.filesToCache), clients)
-      _ <- Resource.eval(logger.info("AssetsState initialized"))
+      sem <- Resource.eval(Semaphore[IO](1L))
+      assetsState <- Resource.eval(Assets.State.make(blocker, sem, clients, enrichments.flatMap(_.filesToCache)))
       enrichmentsRef <- Enrichments.make[IO](enrichments, BlockerF.ofBlocker(blocker))
       goodRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
       piiRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
@@ -140,14 +147,14 @@ object TestEnvironment extends CatsIO {
                       igluClient,
                       Http4sRegistryLookup(http),
                       enrichmentsRef,
-                      pauseEnrich,
-                      assets,
+                      sem,
+                      assetsState,
                       blocker,
                       source,
                       g => goodRef.update(_ :+ g),
                       Some(p => piiRef.update(_ :+ p)),
                       b => badRef.update(_ :+ b),
-                       _.map(_ => ()),
+                      _ => IO.unit,
                       identity,
                       None,
                       metrics,
@@ -157,7 +164,7 @@ object TestEnvironment extends CatsIO {
                       EnrichSpec.processor,
                       StreamsSettings(Concurrency(10000, 64), 1024 * 1024)
                     )
-      _ <- Resource.eval(pauseEnrich.set(false) *> logger.info("TestEnvironment initialized"))
+      _ <- Resource.eval(logger.info("TestEnvironment initialized"))
     } yield TestEnvironment(environment, counter, goodRef.get, piiRef.get, badRef.get)
 
   def parseBad(bytes: Array[Byte]): BadRow =

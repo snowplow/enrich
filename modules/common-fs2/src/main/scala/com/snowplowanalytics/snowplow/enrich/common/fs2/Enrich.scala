@@ -17,14 +17,18 @@ import java.time.Instant
 import java.util.Base64
 import java.util.concurrent.TimeUnit
 
+import scala.concurrent.duration._
+
 import org.joda.time.DateTime
 
 import cats.data.{NonEmptyList, Validated, ValidatedNel}
 import cats.{Monad, Parallel}
 import cats.implicits._
 
-import cats.effect.{Clock, Concurrent, ContextShift, Sync}
+import cats.effect.{Clock, Concurrent, ContextShift, ExitCase, Fiber, Sync, Timer}
+import cats.effect.implicits._
 
+import fs2.concurrent.{NoneTerminatedQueue, Queue}
 import fs2.{Pipe, Stream}
 
 import _root_.io.sentry.SentryClient
@@ -58,39 +62,35 @@ object Enrich {
   /**
    * Run a primary enrichment stream, reading from [[Environment]] source, enriching
    * via [[enrichWith]] and sinking into the Good, Bad, and Pii sinks.
-   * Can be stopped via _stop signal_ from [[Environment]]
    *
    * The stream won't download any enrichment DBs, it is responsibility of [[Assets]]
    * [[Assets.State.make]] downloads assets for the first time unconditionally during
    * [[Environment]] initialisation, then if `assetsUpdatePeriod` has been specified -
    * they'll be refreshed periodically by [[Assets.updateStream]]
-   *
-   * @param ordered indicates whether the events should be processed ordered or not
    */
-  def run[F[_]: Concurrent: ContextShift: Clock: Parallel, A](env: Environment[F, A], ordered: Boolean): Stream[F, Unit] = {
+  def run[F[_]: Concurrent: ContextShift: Clock: Parallel: Timer, A](env: Environment[F, A]): Stream[F, Unit] = {
     val registry: F[EnrichmentRegistry[F]] = env.enrichments.get.map(_.registry)
     val enrich: Enrich[F] = {
       implicit val rl: RegistryLookup[F] = env.registryLookup
       enrichWith[F](registry, env.igluClient, env.sentry, env.processor)
     }
 
-    val enrichPipe: Pipe[F, (A, Array[Byte]), (A, Result)] =
-      in => {
-        val parallel =
-          if (ordered)
-            in.parEvalMap[F, (A, Result)](env.streamsSettings.concurrency.enrichment) _
-          else
-            in.parEvalMapUnordered[F, (A, Result)](env.streamsSettings.concurrency.enrichment) _
-        parallel { case (orig, bytes) => enrich(bytes).map((orig, _)) }
-      }
+    val enriched =
+      env.source.chunks
+        .evalTap(chunk => Logger[F].debug(s"Starting to process chunk of size ${chunk.size}"))
+        .evalTap(chunk => env.metrics.rawCount(chunk.size))
+        .map(chunk => chunk.map(a => (a, env.getPayload(a))))
+        .evalMap(chunk =>
+          env.semaphore.withPermit(
+            chunk.toList.map { case (orig, bytes) => enrich(bytes).map((orig, _)) }.parSequenceN(env.streamsSettings.concurrency.enrich)
+          )
+        )
 
-    env.source
-      .pauseWhen(env.pauseEnrich)
-      .evalTap(_ => env.metrics.rawCount)
-      .fproduct(env.getPayload)
-      .through(enrichPipe)
-      .through(sinkResult(sinkOne(env), env.metrics.enrichLatency, env.streamsSettings.concurrency.output))
-      .through(env.checkpointer)
+    val sinkAndCheckpoint: Pipe[F, List[(A, Result)], Unit] =
+      _.parEvalMap(env.streamsSettings.concurrency.sink)(sinkChunk(_, sinkOne(env), env.metrics.enrichLatency))
+        .evalMap(env.checkpoint)
+
+    Stream.eval(runWithShutdown(enriched, sinkAndCheckpoint))
   }
 
   /**
@@ -124,9 +124,14 @@ object Enrich {
     payload.fold(_.asJson.noSpaces, _.map(_.toBadRowPayload.asJson.noSpaces).getOrElse("None"))
 
   /** Log an error, turn the problematic `CollectorPayload` into `BadRow` and notify Sentry if configured */
-  def sendToSentry[F[_]: Sync: Clock]
-      (original: Array[Byte], sentry: Option[SentryClient], processor: Processor, collectorTstamp: Option[Long])
-      (error: Throwable): F[Result] =
+  def sendToSentry[F[_]: Sync: Clock](
+    original: Array[Byte],
+    sentry: Option[SentryClient],
+    processor: Processor,
+    collectorTstamp: Option[Long]
+  )(
+    error: Throwable
+  ): F[Result] =
     for {
       _ <- Logger[F].error("Runtime exception during payload enrichment. CollectorPayload converted to generic_error and ack'ed")
       now <- Clock[F].realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
@@ -152,31 +157,49 @@ object Enrich {
     BadRow.GenericError(processor, failure, rawPayload)
   }
 
+  def sinkChunk[F[_]: Concurrent: Parallel, B](
+    chunk: List[(B, Result)],
+    sinkOne: Validated[BadRow, EnrichedEvent] => F[Unit],
+    trackLatency: Option[Long] => F[Unit]
+  ): F[List[B]] =
+    chunk.parTraverse {
+      case (record, result) =>
+        val (events, collectorTstamp) = result
+        events.parTraverse_(one => sinkOne(one)).as(record) <* trackLatency(collectorTstamp)
+    }
+
+  def sinkOne[F[_]: Concurrent: Parallel, A](env: Environment[F, A])(result: Validated[BadRow, EnrichedEvent]): F[Unit] =
+    result.fold(sinkBad(env, _), sinkGood(env, _))
+
   def sinkBad[F[_]: Monad, A](env: Environment[F, A], bad: BadRow): F[Unit] =
-    env.metrics.badCount >> env.bad(badRowResize(env, bad))
+    env.metrics.badCount >> env.sinkBad(badRowResize(env, bad))
 
   def sinkGood[F[_]: Concurrent: Parallel, A](env: Environment[F, A], enriched: EnrichedEvent): F[Unit] =
     serializeEnriched(enriched, env.processor, env.streamsSettings.maxRecordSize) match {
       case Left(br) => sinkBad(env, br)
       case Right(bytes) =>
-        List(env.metrics.goodCount, env.good(AttributedData(bytes, env.goodAttributes(enriched))), sinkPii(env, enriched)).parSequence_
+        List(env.metrics.goodCount, env.sinkGood(AttributedData(bytes, env.goodAttributes(enriched))), sinkPii(env, enriched)).parSequence_
     }
 
   def sinkPii[F[_]: Monad, A](env: Environment[F, A], enriched: EnrichedEvent): F[Unit] =
     (for {
-      piiSink <- env.pii
+      sink <- env.sinkPii
       pii <- ConversionUtils.getPiiEvent(env.processor, enriched)
     } yield serializeEnriched(pii, env.processor, env.streamsSettings.maxRecordSize) match {
       case Left(br) => sinkBad(env, br)
-      case Right(bytes) => piiSink(AttributedData(bytes, env.piiAttributes(pii)))
+      case Right(bytes) => sink(AttributedData(bytes, env.piiAttributes(pii)))
     }).getOrElse(Monad[F].unit)
 
-  def serializeEnriched(enriched: EnrichedEvent, processor: Processor, maxRecordSize: Int): Either[BadRow, Array[Byte]] = {
+  def serializeEnriched(
+    enriched: EnrichedEvent,
+    processor: Processor,
+    maxRecordSize: Int
+  ): Either[BadRow, Array[Byte]] = {
     val asStr = ConversionUtils.tabSeparatedEnrichedEvent(enriched)
     val asBytes = asStr.getBytes(UTF_8)
     val size = asBytes.length
     if (size > maxRecordSize) {
-      val msg = s"event passed enrichment but then exceeded the maximum allowed size $maxRecordSize"
+      val msg = s"event passed enrichment but then exceeded the maximum allowed size $maxRecordSize bytes"
       val br = BadRow
         .SizeViolation(
           processor,
@@ -186,17 +209,6 @@ object Enrich {
       Left(br)
     } else Right(asBytes)
   }
-
-  /** @tparam B can be anything, there is no constraint on this type */
-  def sinkResult[F[_]: Concurrent: Parallel, B](
-    sink: Validated[BadRow, EnrichedEvent] => F[Unit],
-    trackLatency: Option[Long] => F[Unit],
-    concurrency: Int
-  ): Pipe[F, (B, Result), B] =
-    _.parEvalMap(concurrency){ case (orig, (events, collectorTstamp)) => events.parTraverse_(sink).as(orig) <* trackLatency(collectorTstamp) }
-
-  def sinkOne[F[_]: Concurrent: Parallel, A](env: Environment[F, A])(result: Validated[BadRow, EnrichedEvent]): F[Unit] =
-    result.fold(sinkBad(env, _), sinkGood(env, _))
 
   /**
    * Check if plain bad row (such as `enrichment_failure`) exceeds the `MaxRecordSize`
@@ -219,4 +231,54 @@ object Enrich {
         .getBytes(UTF_8)
     } else originalBytes
   }
+
+  /**
+   * This is the machinery needed to make sure that no chunk is sunk without
+   * being checkpointed when the app terminates.
+   *
+   * The stream runs on a separate fiber so that we can manually handle SIGINT.
+   *
+   * We use a queue as a level of indirection between the stream of enriched events and the sink + checkpointing.
+   * When we receive a SIGINT or exception then we terminate the fiber by pushing a `None` to the queue.
+   *
+   * The stream is only cancelled after the sink + checkpointing have been allowed to finish cleanly.
+   * We must not terminate the source any earlier, because this would shutdown the kinesis scheduler too early,
+   * and then we would not be able to checkpoint the outstanding records.
+   */
+  private def runWithShutdown[F[_]: Concurrent: Sync: Timer, A](
+    enriched: Stream[F, List[(A, Result)]],
+    sinkAndCheckpoint: Pipe[F, List[(A, Result)], Unit]
+  ): F[Unit] =
+    Queue.synchronousNoneTerminated[F, List[(A, Result)]].flatMap { queue =>
+      queue.dequeue
+        .through(sinkAndCheckpoint)
+        .concurrently(enriched.evalMap(x => queue.enqueue1(Some(x))).onFinalize(queue.enqueue1(None)))
+        .compile
+        .drain
+        .start
+        .bracketCase(_.join) {
+          case (_, ExitCase.Completed) =>
+            // The source has completed "naturally", e.g. processed all input files in the directory
+            Sync[F].unit
+          case (fiber, ExitCase.Canceled) =>
+            // SIGINT received. We wait for the enriched events already in the queue to get sunk and checkpointed
+            terminateStream(queue, fiber)
+          case (fiber, ExitCase.Error(e)) =>
+            // Runtime exception in the stream of enriched events.
+            // We wait for the enriched events already in the queue to get sunk and checkpointed.
+            // We then raise the original exception
+            Logger[F].error(e)("Unexpected error in enrich") *>
+              terminateStream(queue, fiber).handleErrorWith { e2 =>
+                Logger[F].error(e2)("Error when terminating the stream")
+              } *> Sync[F].raiseError(e)
+        }
+    }
+
+  private def terminateStream[F[_]: Concurrent: Sync: Timer, A](queue: NoneTerminatedQueue[F, A], fiber: Fiber[F, Unit]): F[Unit] =
+    for {
+      timeout <- Sync[F].pure(5.minutes)
+      _ <- Logger[F].warn(s"Terminating enrich stream. Waiting $timeout for it to complete")
+      _ <- queue.enqueue1(None)
+      _ <- fiber.join.timeoutTo(timeout, Logger[F].warn(s"Stream not complete after $timeout, canceling") *> fiber.cancel)
+    } yield ()
 }

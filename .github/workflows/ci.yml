@@ -77,7 +77,8 @@ jobs:
             "project streamKafka; set assembly / test := {}; assembly" \
             "project streamNsq; set assembly / test := {}; assembly" \
             "project beam; set assembly / test := {}; assembly" \
-            "project pubsub; set assembly / test := {}; assembly"
+            "project pubsub; set assembly / test := {}; assembly" \
+            "project kinesis; set assembly / test := {}; assembly"
     - name: Create GitHub release and attach artifacts
       uses: softprops/action-gh-release@v1
       with:
@@ -91,6 +92,7 @@ jobs:
           modules/stream/nsq/target/scala-2.12/snowplow-stream-enrich-nsq-${{ steps.ver.outputs.tag }}.jar
           modules/beam/target/scala-2.12/beam-enrich-${{ steps.ver.outputs.tag }}.jar
           modules/pubsub/target/scala-2.12/snowplow-enrich-pubsub-${{ steps.ver.outputs.tag }}.jar
+          modules/kinesis/target/scala-2.12/snowplow-enrich-kinesis-${{ steps.ver.outputs.tag }}.jar
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -137,6 +139,25 @@ jobs:
         DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
     - name: Build and publish Enrich PubSub Docker image
       run: sbt "project pubsub" docker:publish
+
+  publish_kinesis:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: coursier/cache-action@v6
+    - name: Set up JDK 11
+      uses: actions/setup-java@v1
+      with:
+        java-version: 11
+    - name: Docker login
+      run: docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+      env:
+        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+    - name: Build and publish Enrich Kinesis Docker image
+      run: sbt "project kinesis" docker:publish
 
   publish_beam:
     needs: test

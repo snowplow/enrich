@@ -21,79 +21,133 @@ import org.specs2.mutable.Specification
 import scala.concurrent.duration._
 
 import fs2.Stream
-import fs2.io.file.{exists, readAll}
+import fs2.io.file.exists
 
-import cats.effect.{Blocker, Concurrent, ContextShift, IO, Resource, Timer}
+import cats.effect.{Blocker, IO, Resource}
+import cats.effect.concurrent.Semaphore
 
 import cats.effect.testing.specs2.CatsIO
 
 import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test._
-import com.snowplowanalytics.snowplow.enrich.common.fs2.Assets.Asset
 
 class AssetsSpec extends Specification with CatsIO with ScalaCheck {
 
+  private val maxmind1Hash = "0fd4bf9af00cbad44d63d9ff9c37c6c7"
+  private val maxmind2Hash = "49a8954ec059847562dfab9062a2c50f"
+
+  private val maxmindFile = "maxmind"
+  private val flakyFile = "flaky"
+
+  /** List of local files that have to be deleted after every test */
+  private val TestFiles = List(
+    Paths.get(maxmindFile),
+    Paths.get(flakyFile)
+  )
+
   sequential
 
+  "Assets.State.make" should {
+    "download assets" in {
+      val uri = URI.create("http://localhost:8080/maxmind/GeoIP2-City.mmdb")
+      val filename = maxmindFile
+      val path = Paths.get("", filename)
+
+      val assetsInit =
+        Stream
+          .eval(
+            SpecHelpers.refreshState(List(uri -> filename)).use(_.hashes.get.map(_.get(uri)))
+          )
+          .withHttp
+          .haltAfter(1.second)
+          .compile
+          .toList
+          .map(_ == List(Some(Assets.Hash(maxmind1Hash))))
+
+      val resources =
+        for {
+          blocker <- Blocker[IO]
+          files <- SpecHelpers.filesResource(blocker, TestFiles)
+        } yield (blocker, files)
+
+      resources.use {
+        case (blocker, _) =>
+          for {
+            assetExistsBefore <- exists[IO](blocker, path)
+            hash <- assetsInit
+            assetExists <- exists[IO](blocker, path)
+          } yield {
+            assetExistsBefore must beFalse
+            hash must beTrue
+            assetExists must beTrue
+          }
+      }
+    }
+  }
+
+  "downloadAndHash" should {
+    "retry downloads" in {
+      val uri = URI.create("http://localhost:8080/flaky")
+      val path = Paths.get(flakyFile)
+
+      val resources = for {
+        blocker <- Blocker[IO]
+        state <- SpecHelpers.refreshState(Nil)
+        _ <- SpecHelpers.filesResource(blocker, TestFiles)
+      } yield (blocker, state)
+
+      Stream
+        .resource(resources)
+        .evalMap {
+          case (blocker, state) =>
+            Assets.downloadAndHash(blocker, state.clients, uri, path)
+        }
+        .withHttp
+        .haltAfter(5.second)
+        .compile
+        .toList
+        .map(_ == List(Assets.Hash("eccbc87e4b5ce2fe28308fd9f2a7baf3"))) // hash of file with "3"
+    }
+  }
+
   "updateStream" should {
-    "not set stop signal if no updates required" in
-      AssetsSpec.run(1.second) { (state, run) =>
-        run(100.millis, List.empty) *> state.pauseEnrich.get.map { pause =>
-          pause must beFalse
-        }
-      }
+    "update an asset that has been updated after initialization" in {
+      val uri = URI.create("http://localhost:8080/maxmind/GeoIP2-City.mmdb")
+      val filename = "maxmind"
 
-    "download an asset and leave pauseEnrich signal with false" in {
-      val path = Paths.get("asset")
-      val input = List(
-        (URI.create("http://localhost:8080/asset"), path.toString)
-      )
-      AssetsSpec.run(1500.millis) { (state, run) =>
-        for {
-          assetExistsBefore <- Blocker[IO].use(b => exists[IO](b, path))
-          _ <- run(100.millis, input)
-          pauseEnrich <- state.pauseEnrich.get
-          assetExists <- Blocker[IO].use(b => exists[IO](b, path))
-        } yield {
-          assetExistsBefore must beFalse // Otherwise previous execution left the file
-          pauseEnrich must beFalse
-          assetExists must beTrue
-        }
-      }
-    }
+      Stream
+        .resource(SpecHelpers.refreshState(List(uri -> filename)))
+        .flatMap { state =>
+          val resources =
+            for {
+              blocker <- Blocker[IO]
+              sem <- Resource.eval(Semaphore[IO](1L))
+              enrichments <- Environment.Enrichments.make[IO](List(), BlockerF.noop)
+              _ <- SpecHelpers.filesResource(blocker, TestFiles)
+            } yield (blocker, sem, enrichments)
 
-    "set stop signal to true when long downloads are performed" in {
-      val input = List(
-        (URI.create("http://localhost:8080/slow"), "asset1"), // First sets stop to true
-        (URI.create("http://localhost:8080/slow"), "asset2") // Second doesn't allow update to return prematurely
-      )
-      AssetsSpec.run(3.seconds) { (state, run) =>
-        for {
-          fiber <- (IO.sleep(2.seconds) *> state.pauseEnrich.get).start
-          _ <- run(500.milliseconds, input)
-          stop <- fiber.join
-        } yield stop must beTrue
-      }
-    }
+          val update = Stream
+            .resource(resources)
+            .flatMap {
+              case (blocker, sem, enrichments) =>
+                Assets.updateStream[IO](blocker, sem, state, enrichments, 1.second, List(uri -> filename))
+            }
+            .haltAfter(2.second)
 
-    "attempt to re-download non-existing file" in {
-      val path = Paths.get("flaky-asset")
-      val input = List(
-        (URI.create("http://localhost:8080/flaky"), path.toString)
-      )
-      AssetsSpec.run(5.seconds) { (state, run) =>
-        for {
-          _ <- run(800.millis, input)
-          stop <- state.pauseEnrich.get
-          assetExists <- Blocker[IO].use { b =>
-                           readAll[IO](path, b, 8).compile.to(Array).map(arr => new String(arr))
-                         }
-        } yield {
-          stop must beFalse
-          assetExists must beEqualTo("3")
+          val before =
+            Stream
+              .eval(state.hashes.get.map(_.get(uri)))
+              .concurrently(update)
+
+          val after = Stream.eval(state.hashes.get.map(_.get(uri)))
+          before ++ update ++ after
         }
-      }
+        .withHttp
+        .haltAfter(3.second)
+        .compile
+        .toList
+        .map(_ == List(Some(Assets.Hash(maxmind1Hash)), (), Some(Assets.Hash(maxmind2Hash))))
     }
   }
 
@@ -107,62 +161,4 @@ class AssetsSpec extends Specification with CatsIO with ScalaCheck {
       }
     }
   }
-}
-
-object AssetsSpec {
-
-  /** Run assets refresh function with specified refresh interval and list of assets */
-  type Run = (FiniteDuration, List[Asset]) => IO[Unit]
-
-  /**
-   * User-written function to test effects of [[Assets]] stream
-   * * First argument - state initialised to empty, can be inspected after
-   * * Second argument - [[Run]] function to specify custom refresh interval and list of assets
-   */
-  type Test[A] = (Assets.State[IO], Run) => IO[A]
-
-  /**
-   * Run a test with resources allocated specifically for it
-   * It will allocate thread pool, empty state, HTTP server and will
-   * automatically remove all files after the test is over
-   *
-   * @param time timeout after which the test will be forced to exit
-   * @param test the actual test suite function
-   */
-  def run[A](
-    time: FiniteDuration
-  )(
-    test: Test[A]
-  )(
-    implicit C: Concurrent[IO],
-    T: Timer[IO],
-    CS: ContextShift[IO]
-  ): IO[A] = {
-    val resources = for {
-      blocker <- Blocker[IO]
-      state <- SpecHelpers.refreshState(List(URI.create("http://localhost:8080") -> "index"))
-      enrichments <- Environment.Enrichments.make[IO](List(), BlockerF.noop)
-      path <- Resource.eval(Assets.getCurDir[IO])
-      _ <- SpecHelpers.filesResource(blocker, TestFiles)
-    } yield (blocker, state, enrichments, path)
-
-    resources.use {
-      case (blocker, state, enrichments, curDir) =>
-        val testFunction: Run = Assets
-          .updateStream[IO](blocker, state, enrichments, curDir, _, _)
-          .withHttp
-          .haltAfter(time)
-          .compile
-          .drain
-        test(state, testFunction)
-    }
-  }
-
-  /** List of local files that have to be deleted after every test */
-  private val TestFiles = List(
-    Paths.get("asset"),
-    Paths.get("asset1"),
-    Paths.get("asset2"),
-    Paths.get("flaky-asset")
-  )
 }

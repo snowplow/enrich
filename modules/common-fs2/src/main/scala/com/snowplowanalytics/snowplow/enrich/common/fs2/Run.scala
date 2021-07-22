@@ -17,18 +17,18 @@ import cats.implicits._
 
 import _root_.io.sentry.SentryClient
 
-import fs2.{Pipe, Stream}
+import fs2.Stream
 
 import scala.concurrent.ExecutionContext
 
-import cats.effect.{Blocker, Clock, Concurrent, ContextShift, ConcurrentEffect, ExitCode, Resource, Sync, Timer}
+import cats.effect.{Blocker, Clock, Concurrent, ConcurrentEffect, ContextShift, ExitCode, Resource, Sync, Timer}
 
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import com.snowplowanalytics.snowplow.badrows.Processor
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Authentication, Input, Output}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Input, Monitoring, Output}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{CliConfig, ParsedConfigs}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{Sink, Source}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.Client
@@ -43,108 +43,113 @@ object Run {
     version: String,
     description: String,
     ec: ExecutionContext,
-    mkSource: (Blocker, Authentication, Input) => Stream[F, A],
-    mkGoodSink: (Blocker, Authentication, Output) => Resource[F, AttributedByteSink[F]],
-    mkPiiSink: (Blocker, Authentication, Output) => Resource[F, AttributedByteSink[F]],
-    mkBadSink: (Blocker, Authentication, Output) => Resource[F, ByteSink[F]],
+    updateCliConfig: (Blocker, CliConfig) => F[CliConfig],
+    mkSource: (Blocker, Input, Option[Monitoring]) => Stream[F, A],
+    mkSinkGood: (Blocker, Output, Option[Monitoring]) => Resource[F, AttributedByteSink[F]],
+    mkSinkPii: (Blocker, Output, Option[Monitoring]) => Resource[F, AttributedByteSink[F]],
+    mkSinkBad: (Blocker, Output, Option[Monitoring]) => Resource[F, ByteSink[F]],
+    checkpoint: List[A] => F[Unit],
     mkClients: List[Blocker => Client[F]],
-    checkpointer: Pipe[F, A, Unit],
     getPayload: A => Array[Byte],
-    ordered: Boolean,
     maxRecordSize: Int
-  ): F[ExitCode] = 
+  ): F[ExitCode] =
     CliConfig.command(name, version, description).parse(args) match {
-      case Right(cfg) =>
-
-        ParsedConfigs.parse[F](cfg).fold (
-          err => Logger[F].error(s"CLI arguments valid but some of the configuration is not correct. Error: $err").as[ExitCode](ExitCode.Error),
-          parsed => 
-            Blocker[F].use { blocker =>
-              for {
-                _ <- Logger[F].info(s"Initialising resources for $name $version")
-                processor = Processor(name, version)
-                file = parsed.configFile
-                goodSink = initAttributedSink(blocker, file.auth, file.good, mkGoodSink)
-                piiSink = file.pii.map(out => initAttributedSink(blocker, file.auth, out, mkPiiSink))
-                badSink = file.bad match {
-                  case Output.FileSystem(path) =>
-                    Sink.fileSink[F](path, blocker)
-                  case _ =>
-                    mkBadSink(blocker, file.auth, file.bad)
-                }
-                clients = mkClients.map(mk => mk(blocker))
-                exit <- 
-                  (file.auth, file.input) match {
-                    case (_, p: Input.FileSystem) => 
-                      val env = Environment
-                        .make[F, Array[Byte]](
-                          blocker,
-                          ec,
-                          parsed,
-                          Source.filesystem[F](blocker, p.dir),
-                          goodSink,
-                          piiSink,
-                          badSink,
-                          clients,
-                          _.void,
-                          identity,
-                          processor,
-                          maxRecordSize
-                        )
-                      runEnvironment[F, Array[Byte]](env, false)
-                    case _ =>
-                      val env = Environment
-                        .make[F, A](
-                          blocker,
-                          ec,
-                          parsed,
-                          mkSource(blocker, file.auth, file.input),
-                          goodSink,
-                          piiSink,
-                          badSink,
-                          clients,
-                          checkpointer,
-                          getPayload,
-                          processor,
-                          maxRecordSize
-                        )
-                      runEnvironment[F, A](env, ordered)
-                  }
-              } yield exit
-            }
-        ).flatten
+      case Right(cli) =>
+        Blocker[F].use { blocker =>
+          updateCliConfig(blocker, cli).flatMap { cfg =>
+            ParsedConfigs
+              .parse[F](cfg)
+              .fold(
+                err =>
+                  Logger[F]
+                    .error(s"CLI arguments valid but some of the configuration is not correct. Error: $err")
+                    .as[ExitCode](ExitCode.Error),
+                parsed =>
+                  for {
+                    _ <- Logger[F].info(s"Initialising resources for $name $version")
+                    processor = Processor(name, version)
+                    file = parsed.configFile
+                    sinkGood = initAttributedSink(blocker, file.good, file.monitoring, mkSinkGood)
+                    sinkPii = file.pii.map(out => initAttributedSink(blocker, out, file.monitoring, mkSinkPii))
+                    sinkBad = file.bad match {
+                                case Output.FileSystem(path) =>
+                                  Sink.fileSink[F](path, blocker)
+                                case _ =>
+                                  mkSinkBad(blocker, file.bad, file.monitoring)
+                              }
+                    clients = mkClients.map(mk => mk(blocker))
+                    exit <- file.input match {
+                              case p: Input.FileSystem =>
+                                val env = Environment
+                                  .make[F, Array[Byte]](
+                                    blocker,
+                                    ec,
+                                    parsed,
+                                    Source.filesystem[F](blocker, p.dir),
+                                    sinkGood,
+                                    sinkPii,
+                                    sinkBad,
+                                    clients,
+                                    _ => Sync[F].unit,
+                                    identity,
+                                    processor,
+                                    maxRecordSize
+                                  )
+                                runEnvironment[F, Array[Byte]](env)
+                              case _ =>
+                                val env = Environment
+                                  .make[F, A](
+                                    blocker,
+                                    ec,
+                                    parsed,
+                                    mkSource(blocker, file.input, file.monitoring),
+                                    sinkGood,
+                                    sinkPii,
+                                    sinkBad,
+                                    clients,
+                                    checkpoint,
+                                    getPayload,
+                                    processor,
+                                    maxRecordSize
+                                  )
+                                runEnvironment[F, A](env)
+                            }
+                  } yield exit
+              )
+              .flatten
+          }
+        }
       case Left(error) =>
         Logger[F].error(s"CLI arguments are invalid. Error: $error") >> Sync[F].pure(ExitCode.Error)
     }
 
   private def initAttributedSink[F[_]: Concurrent: ContextShift: Timer](
     blocker: Blocker,
-    auth: Authentication,
     output: Output,
-    mkGoodSink: (Blocker, Authentication, Output) => Resource[F, AttributedByteSink[F]],
+    monitoring: Option[Monitoring],
+    mkSinkGood: (Blocker, Output, Option[Monitoring]) => Resource[F, AttributedByteSink[F]]
   ): Resource[F, AttributedByteSink[F]] =
     output match {
       case Output.FileSystem(path) =>
         Sink.fileSink[F](path, blocker).map(sink => row => sink(row.data))
       case _ =>
-        mkGoodSink(blocker, auth, output)
+        mkSinkGood(blocker, output, monitoring)
     }
 
   private def runEnvironment[F[_]: ConcurrentEffect: ContextShift: Parallel: Timer, A](
-    environment: Resource[F, Environment[F, A]],
-    ordered: Boolean
+    environment: Resource[F, Environment[F, A]]
   ): F[ExitCode] =
     environment.use { env =>
       val log = Logger[F].info("Running enrichment stream")
-      val enrich = Enrich.run[F, A](env, ordered)
-      val updates = Assets.run[F, A](env)
+      val enrich = Enrich.run[F, A](env)
+      val updates = Assets.run[F, A](env.blocker, env.semaphore, env.assetsUpdatePeriod, env.assetsState, env.enrichments)
       val reporting = env.metrics.report
       val flow = enrich.merge(updates).merge(reporting)
       log >> flow.compile.drain.as(ExitCode.Success).recoverWith {
         case exception: Throwable =>
           sendToSentry(exception, env.sentry) >>
-          Logger[F].error(s"The Enrich job has stopped") >>
-          Sync[F].raiseError[ExitCode](exception)
+            Logger[F].error(s"The Enrich job has stopped") >>
+            Sync[F].raiseError[ExitCode](exception)
       }
     }
 
@@ -155,4 +160,4 @@ object Run {
       case None =>
         Sync[F].unit
     }
-  }
+}

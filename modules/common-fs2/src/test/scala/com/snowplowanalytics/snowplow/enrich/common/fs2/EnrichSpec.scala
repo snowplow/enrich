@@ -176,7 +176,6 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
         ee.app_id = "test_app"
         ee.platform = "web"
 
-
         for {
           _ <- Enrich.sinkOne(environment)(Validated.Valid(ee))
           good <- test.good

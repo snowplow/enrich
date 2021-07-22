@@ -124,9 +124,14 @@ object Enrich {
     payload.fold(_.asJson.noSpaces, _.map(_.toBadRowPayload.asJson.noSpaces).getOrElse("None"))
 
   /** Log an error, turn the problematic `CollectorPayload` into `BadRow` and notify Sentry if configured */
-  def sendToSentry[F[_]: Sync: Clock]
-      (original: Array[Byte], sentry: Option[SentryClient], processor: Processor, collectorTstamp: Option[Long])
-      (error: Throwable): F[Result] =
+  def sendToSentry[F[_]: Sync: Clock](
+    original: Array[Byte],
+    sentry: Option[SentryClient],
+    processor: Processor,
+    collectorTstamp: Option[Long]
+  )(
+    error: Throwable
+  ): F[Result] =
     for {
       _ <- Logger[F].error("Runtime exception during payload enrichment. CollectorPayload converted to generic_error and ack'ed")
       now <- Clock[F].realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
@@ -171,7 +176,11 @@ object Enrich {
       case Right(bytes) => piiSink(AttributedData(bytes, env.piiAttributes(pii)))
     }).getOrElse(Monad[F].unit)
 
-  def serializeEnriched(enriched: EnrichedEvent, processor: Processor, maxRecordSize: Int): Either[BadRow, Array[Byte]] = {
+  def serializeEnriched(
+    enriched: EnrichedEvent,
+    processor: Processor,
+    maxRecordSize: Int
+  ): Either[BadRow, Array[Byte]] = {
     val asStr = ConversionUtils.tabSeparatedEnrichedEvent(enriched)
     val asBytes = asStr.getBytes(UTF_8)
     val size = asBytes.length
@@ -193,7 +202,9 @@ object Enrich {
     trackLatency: Option[Long] => F[Unit],
     concurrency: Int
   ): Pipe[F, (B, Result), B] =
-    _.parEvalMap(concurrency){ case (orig, (events, collectorTstamp)) => events.parTraverse_(sink).as(orig) <* trackLatency(collectorTstamp) }
+    _.parEvalMap(concurrency) {
+      case (orig, (events, collectorTstamp)) => events.parTraverse_(sink).as(orig) <* trackLatency(collectorTstamp)
+    }
 
   def sinkOne[F[_]: Concurrent: Parallel, A](env: Environment[F, A])(result: Validated[BadRow, EnrichedEvent]): F[Unit] =
     result.fold(sinkBad(env, _), sinkGood(env, _))

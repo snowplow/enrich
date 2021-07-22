@@ -63,6 +63,10 @@ object CliConfig {
   val enrichedJobConfig: Opts[CliConfig] =
     (configFile, igluConfig, enrichments).mapN(CliConfig.apply)
 
-  def command(appName: String, appVersion: String, appDescription: String): Command[CliConfig] =
+  def command(
+    appName: String,
+    appVersion: String,
+    appDescription: String
+  ): Command[CliConfig] =
     Command(show"$appName", show"$appName $appVersion\n$appDescription")(enrichedJobConfig)
 }

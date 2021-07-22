@@ -1,0 +1,205 @@
+{
+  # Collector input
+  "input": {
+    "type": "Kinesis"
+
+    # Name of the application which the KCL daemon should assume
+    "appName": "enrich-kinesis"
+
+    # Name of the Kinesis stream to read from
+    "streamName": "collector-payloads"
+
+    # AWS region in which the Kinesis stream resides.
+    "region": "eu-central-1"
+
+    # Either TRIM_HORIZON or LATEST
+    "initialPosition": "TRIM_HORIZON"
+
+    # Optional, set the polling mode for retrieving records. Default is FanOut
+    "retrievalMode": "FanOut"
+    # "retrievalMode": {
+    #   "type": "Polling"
+    #   "maxRecords": 1000
+    # }
+
+    # Optional, configure the checkpointer.
+    "checkpointSettings": {
+      # The max number of records to aggregate before checkpointing the records.
+      # Default is 1000.
+      "maxBatchSize": 1000
+
+      # The max amount of time to wait before checkpointing the records.
+      # Default is 10 seconds.
+      "maxBatchWait": 10 seconds
+    }
+  }
+
+  # Enriched events output
+  "good": {
+    "type": "Kinesis"
+
+    # Name of the Kinesis stream to write to
+    "streamName": "enriched"
+
+    # AWS region in which the Kinesis stream resides.
+    "region": "eu-central-1"
+
+    # Optional. How the output stream/topic will be partitioned in Kinesis
+    # Possible partition keys are: event_id, event_fingerprint, domain_userid, network_userid,
+    # user_ipaddress, domain_sessionid, user_fingerprint
+    # Refer to https://github.com/snowplow/snowplow/wiki/canonical-event-model to know what the
+    # possible parittion keys correspond to.
+    # Otherwise, the partition key will be a random UUID.
+    # "partitionKey" = "user_id"
+
+    # The delay threshold to use for batching
+    # Default is 200 milliseconds
+    "delayThreshold": 200 milliseconds
+
+    # Max number of items in the batch to collect before emitting
+    # Default is 500
+    "maxBatchSize": 500
+
+    # Max size of the batch in bytes before emitting
+    # Default is 5MB
+    "maxBatchBytes": 5000000
+
+    # Minimum and maximum backoff periods
+    "backoffPolicy": {
+      # Default is 100 ms
+      "minBackoff": 100 milliseconds
+      # Default is 10 s
+      "maxBackoff": 10 seconds
+    }
+  }
+
+  # Pii events output
+  "pii": {
+    "type": "Kinesis"
+
+    # Name of the Kinesis stream to write to
+    "streamName": "pii"
+
+    # AWS region in which the Kinesis stream resides.
+    "region": "eu-central-1"
+
+    # Optional. How the output stream/topic will be partitioned in Kinesis
+    # Possible partition keys are: event_id, event_fingerprint, domain_userid, network_userid,
+    # user_ipaddress, domain_sessionid, user_fingerprint
+    # Refer to https://github.com/snowplow/snowplow/wiki/canonical-event-model to know what the
+    # possible parittion keys correspond to.
+    # Otherwise, the partition key will be a random UUID.
+    # "partitionKey" = "user_id"
+
+    # The delay threshold to use for batching
+    # Default is 200 milliseconds
+    "delayThreshold": 200 milliseconds
+
+    # Max number of items in the batch to collect before emitting
+    # Default is 500
+    "maxBatchSize": 500
+
+    # Max size of the batch in bytes before emitting
+    # Default is 5MB
+    "maxBatchBytes": 5000000
+
+    # Minimum and maximum backoff periods
+    "backoffPolicy": {
+      # Default is 100 ms
+      "minBackoff": 100 milliseconds
+      # Default is 10 s
+      "maxBackoff": 10 seconds
+    }
+  }
+
+  # Bad rows output
+  "bad": {
+    "type": "Kinesis"
+
+    # Name of the Kinesis stream to write to
+    "streamName": "bad"
+
+    # AWS region in which the Kinesis stream resides.
+    "region": "eu-central-1"
+
+    # The delay threshold to use for batching
+    # Default is 200 milliseconds
+    "delayThreshold": 200 milliseconds
+
+    # Max number of items in the batch to collect before emitting
+    # Default is 500
+    "maxBatchSize": 500
+
+    # Max size of the batch in bytes before emitting
+    # Default is 5MB
+    "maxBatchBytes": 5000000
+
+    # Minimum and maximum backoff periods
+    "backoffPolicy": {
+      # Default is 100 ms
+      "minBackoff": 100 milliseconds
+      # Default is 10 s
+      "maxBackoff": 10 seconds
+    }
+  }
+
+  # Optional. Concurrency of the app
+  "concurrency" : {
+    # Controls the maximum number of events that can be waiting to get sunk
+    # The concurrency is shared for the sinking to good, bad and pii
+    # Default: 10 000
+    #
+    # PubSub: should at least exceed the number events that can be sunk within the delay threshold
+    # used for batching (default 200ms)
+    "output": 10000
+
+    # Maximum number of events that can get enriched at the same time
+    # Default: 64
+    "enrichment": 64
+  }
+
+  # Optional, period after which enrich assets should be checked for updates
+  # no assets will be updated if the key is absent
+  "assetsUpdatePeriod": "7 days"
+
+  "monitoring": {
+
+    # Optional, for tracking runtime exceptions
+    "sentry": {
+      "dsn": "http://sentry.acme.com"
+    }
+
+    # Optional, configure how metrics are reported
+    "metrics": {
+
+      # Send metrics to a StatsD server on localhost
+      "statsd": {
+
+        "hostname": "localhost"
+        "port": 8125
+
+        # Required, how frequently to report metrics
+        "period": "10 seconds"
+
+        # Any key-value pairs to be tagged on every StatsD metric
+        "tags": {
+          "app": enrich
+        }
+
+        # Optional, override the default metric prefix
+        # "prefix": "snowplow.enrich."
+      }
+
+      # Log to stdout using Slf4j
+      "stdout": {
+        "period": "10 seconds"
+
+        # Optional, override the default metric prefix
+        # "prefix": "snowplow.enrich."
+      }
+
+      # Optional, cloudwatch metrics are enabled by default
+      "cloudwatch": false
+    }
+  }
+}

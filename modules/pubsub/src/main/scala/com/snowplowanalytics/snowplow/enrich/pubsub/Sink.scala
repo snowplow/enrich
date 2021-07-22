@@ -26,7 +26,7 @@ import com.permutive.pubsub.producer.encoder.MessageEncoder
 import com.permutive.pubsub.producer.grpc.{GooglePubsubProducer, PubsubProducerConfig}
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.{AttributedByteSink, AttributedData, ByteSink}
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Authentication, Output}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Output
 
 object Sink {
 
@@ -64,28 +64,26 @@ object Sink {
   val DefaultNumCallbackExecutors = 1
 
   def init[F[_]: Concurrent: ContextShift: Timer](
-    auth: Authentication,
     output: Output
   ): Resource[F, ByteSink[F]] =
-    (auth, output) match {
-      case (Authentication.Gcp, o: Output.PubSub) =>
+    output match {
+      case o: Output.PubSub =>
         pubsubSink[F, Array[Byte]](o).map(sink => bytes => sink(AttributedData(bytes, Map.empty)))
-      case (auth, output) =>
-        throw new IllegalArgumentException(s"Auth $auth is not GCP and/or output $output is not PubSub")
+      case o =>
+        throw new IllegalArgumentException(s"Output $o is not PubSub")
     }
 
   def initAttributed[F[_]: Concurrent: ContextShift: Timer](
-    auth: Authentication,
     output: Output
   ): Resource[F, AttributedByteSink[F]] =
-    (auth, output) match {
-      case (Authentication.Gcp, o: Output.PubSub) =>
+    output match {
+      case o: Output.PubSub =>
         pubsubSink[F, Array[Byte]](o)
-      case (auth, output) =>
-        throw new IllegalArgumentException(s"Auth $auth is not GCP and/or output $output is not PubSub")
+      case o =>
+        throw new IllegalArgumentException(s"Output $o is not PubSub")
     }
 
-  def pubsubSink[F[_]: Concurrent, A: MessageEncoder](
+  private def pubsubSink[F[_]: Concurrent, A: MessageEncoder](
     output: Output.PubSub
   ): Resource[F, AttributedData[A] => F[Unit]] = {
     val config = PubsubProducerConfig[F](

@@ -1,9 +1,4 @@
 {
-  "auth": {
-    # "Gcp" is the only valid option now
-    "type": "Gcp"
-  }
-
   # Collector input
   "input": {
     "type": "PubSub"

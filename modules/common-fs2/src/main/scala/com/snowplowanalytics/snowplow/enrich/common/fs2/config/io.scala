@@ -13,8 +13,10 @@
 package com.snowplowanalytics.snowplow.enrich.common.fs2.config
 
 import java.nio.file.{InvalidPathException, Path, Paths}
+import java.time.Instant
 
 import cats.syntax.either._
+
 import scala.concurrent.duration.{Duration, FiniteDuration}
 
 import _root_.io.circe.{Decoder, Encoder}
@@ -29,17 +31,6 @@ object io {
     }
   implicit val javaPathEncoder: Encoder[Path] =
     Encoder[String].contramap(_.toString)
-
-  sealed trait Authentication extends Product with Serializable
-
-  object Authentication {
-    case object Gcp extends Authentication
-
-    implicit val authenticationDecoder: Decoder[Authentication] =
-      deriveConfiguredDecoder[Authentication]
-    implicit val authenticationEncoder: Encoder[Authentication] =
-      deriveConfiguredEncoder[Authentication]
-  }
 
   /** Source of raw collector data (only PubSub supported atm) */
   sealed trait Input
@@ -60,6 +51,73 @@ object io {
         }
     }
     case class FileSystem(dir: Path) extends Input
+    case class Kinesis private (
+      appName: String,
+      streamName: String,
+      region: String,
+      initialPosition: Kinesis.InitPosition,
+      retrievalMode: Kinesis.Retrieval,
+      checkpointSettings: Kinesis.CheckpointSettings
+    ) extends Input
+
+    object Kinesis {
+      sealed trait InitPosition
+      object InitPosition {
+        case object Latest extends InitPosition
+        case object TrimHorizon extends InitPosition
+        case class AtTimestamp(timestamp: Instant) extends InitPosition
+
+        implicit val initPositionDecoder: Decoder[InitPosition] =
+          Decoder.decodeJson.emap { json =>
+            json.asString match {
+              case Some("TRIM_HORIZON") => TrimHorizon.asRight
+              case Some("LATEST") => Latest.asRight
+              case Some(other) =>
+                s"Initial position $other is unknown. Choose from LATEST and TRIM_HORIZEON. AT_TIMESTAMP must provide the timestamp".asLeft
+              case None =>
+                val result = for {
+                  root <- json.asObject.map(_.toMap)
+                  atTimestamp <- root.get("AT_TIMESTAMP")
+                  atTimestampObj <- atTimestamp.asObject.map(_.toMap)
+                  timestampStr <- atTimestampObj.get("timestamp")
+                  timestamp <- timestampStr.as[Instant].toOption
+                } yield AtTimestamp(timestamp)
+                result match {
+                  case Some(atTimestamp) => atTimestamp.asRight
+                  case None =>
+                    "Initial position can be either LATEST or TRIM_HORIZON string or AT_TIMESTAMP object (e.g. 2020-06-03T00:00:00Z)".asLeft
+                }
+            }
+          }
+        implicit val initPositionEncoder: Encoder[InitPosition] = deriveConfiguredEncoder[InitPosition]
+      }
+
+      sealed trait Retrieval
+      object Retrieval {
+        case class Polling(maxRecords: Int) extends Retrieval
+        case object FanOut extends Retrieval
+
+        implicit val retrievalDecoder: Decoder[Retrieval] =
+          Decoder.decodeString.emap {
+            case "FanOut" => FanOut.asRight
+            case "Polling" => "retrieval mode Polling must provide the maxRecords option".asLeft
+            case other =>
+              s"retrieval mode $other is unknown. Choose from FanOut and Polling. Polling must provide a MaxRecords option".asLeft
+          }
+        implicit val retrievalEncoder: Encoder[Retrieval] = deriveConfiguredEncoder[Retrieval]
+      }
+
+      case class CheckpointSettings(maxBatchSize: Int, maxBatchWait: FiniteDuration)
+      object CheckpointSettings {
+        implicit val checkpointSettingsDecoder: Decoder[CheckpointSettings] =
+          deriveConfiguredDecoder[CheckpointSettings]
+        import ConfigFile.finiteDurationEncoder
+        implicit val checkpointSettingsEncoder: Encoder[CheckpointSettings] = deriveConfiguredEncoder[CheckpointSettings]
+      }
+
+      implicit val kinesisDecoder: Decoder[Kinesis] = deriveConfiguredDecoder[Kinesis]
+      implicit val kinesisEncoder: Encoder[Kinesis] = deriveConfiguredEncoder[Kinesis]
+    }
 
     implicit val inputDecoder: Decoder[Input] =
       deriveConfiguredDecoder[Input]
@@ -105,6 +163,25 @@ object io {
         }
     }
     case class FileSystem(file: Path) extends Output
+    case class Kinesis(
+      streamName: String,
+      region: String,
+      partitionKey: Option[String],
+      delayThreshold: FiniteDuration,
+      maxBatchSize: Long,
+      maxBatchBytes: Long,
+      backoffPolicy: BackoffPolicy
+    ) extends Output
+
+    case class BackoffPolicy(minBackoff: FiniteDuration, maxBackoff: FiniteDuration)
+
+    object BackoffPolicy {
+      implicit def backoffPolicyDecoder: Decoder[BackoffPolicy] =
+        deriveConfiguredDecoder[BackoffPolicy]
+      import ConfigFile.finiteDurationEncoder
+      implicit def backoffPolicyEncoder: Encoder[BackoffPolicy] =
+        deriveConfiguredEncoder[BackoffPolicy]
+    }
 
     implicit val outputDecoder: Decoder[Output] =
       deriveConfiguredDecoder[Output]
@@ -146,7 +223,11 @@ object io {
       deriveConfiguredEncoder[Concurrency]
   }
 
-  final case class MetricsReporters(statsd: Option[MetricsReporters.StatsD], stdout: Option[MetricsReporters.Stdout])
+  final case class MetricsReporters(
+    statsd: Option[MetricsReporters.StatsD],
+    stdout: Option[MetricsReporters.Stdout],
+    cloudwatch: Option[Boolean]
+  )
 
   object MetricsReporters {
     final case class Stdout(period: FiniteDuration, prefix: Option[String])
@@ -157,8 +238,6 @@ object io {
       period: FiniteDuration,
       prefix: Option[String]
     )
-
-    import ConfigFile.finiteDurationEncoder
 
     implicit val stdoutDecoder: Decoder[Stdout] =
       deriveConfiguredDecoder[Stdout].emap { stdout =>
@@ -178,6 +257,8 @@ object io {
 
     implicit val metricsReportersDecoder: Decoder[MetricsReporters] =
       deriveConfiguredDecoder[MetricsReporters]
+
+    import ConfigFile.finiteDurationEncoder
 
     implicit val stdoutEncoder: Encoder[Stdout] =
       deriveConfiguredEncoder[Stdout]

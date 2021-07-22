@@ -48,8 +48,8 @@ object Counter {
           ref.update(_.copy(latency = collectorTstamp.map(ct => now - ct)))
         }
 
-      def rawCount: F[Unit] =
-        ref.update(cnt => cnt.copy(raw = cnt.raw + 1))
+      def rawCount(nb: Int): F[Unit] =
+        ref.update(cnt => cnt.copy(raw = cnt.raw + nb))
 
       def goodCount: F[Unit] =
         ref.update(cnt => cnt.copy(good = cnt.good + 1))

@@ -21,7 +21,10 @@ import java.nio.file.{Files, Path}
 
 object Source {
 
-  def filesystem[F[_]: ContextShift: Sync](blocker: Blocker, path: Path): Stream[F, Array[Byte]] =
+  def filesystem[F[_]: ContextShift: Sync](
+    blocker: Blocker,
+    path: Path
+  ): Stream[F, Array[Byte]] =
     recursiveDirectoryStream(blocker, path)
       .evalMap { file =>
         readAll[F](file, blocker, 4096).compile

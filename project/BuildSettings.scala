@@ -97,8 +97,7 @@ object BuildSettings {
   lazy val sbtAssemblySettings = Seq(
     assembly / assemblyJarName := { s"${moduleName.value}-${version.value}.jar" },
     assembly / assemblyMergeStrategy := {
-      case x if x.endsWith("native-image.properties") => MergeStrategy.first
-      case x if x.endsWith("io.netty.versions.properties") => MergeStrategy.first
+      case x if x.endsWith(".properties") => MergeStrategy.first
       case x if x.endsWith("public-suffix-list.txt") => MergeStrategy.first
       case x if x.endsWith("ProjectSettings$.class") => MergeStrategy.first
       case x if x.endsWith("module-info.class") => MergeStrategy.first
@@ -110,6 +109,9 @@ object BuildSettings {
       case x if x.endsWith("config.fmpp") => MergeStrategy.first
       case x if x.contains("simulacrum") => MergeStrategy.first
       case x if x.endsWith("git.properties") => MergeStrategy.discard
+      case x if x.endsWith(".json") => MergeStrategy.first
+      case x if x.endsWith("AUTHORS") => MergeStrategy.first
+      case x if x.endsWith(".config") => MergeStrategy.first
       case x =>
         val oldStrategy = (assembly / assemblyMergeStrategy).value
         oldStrategy(x)

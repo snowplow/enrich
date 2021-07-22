@@ -18,7 +18,6 @@ import scala.concurrent.duration.TimeUnit
 import scala.concurrent.ExecutionContext
 
 import cats.effect.{Blocker, Clock, IO, Resource}
-import cats.effect.concurrent.Ref
 
 import cats.implicits._
 
@@ -28,6 +27,7 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.test._
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients
 
 import cats.effect.testing.specs2.CatsIO
+import cats.effect.concurrent.Semaphore
 
 object SpecHelpers extends CatsIO {
   implicit val ioClock: Clock[IO] =
@@ -41,13 +41,13 @@ object SpecHelpers extends CatsIO {
       def monotonic(unit: TimeUnit): IO[Long] = IO.pure(StaticTime)
     }
 
-  def refreshState(uris: List[Assets.Asset]): Resource[IO, Assets.State[IO]] =
+  def refreshState(assets: List[Assets.Asset]): Resource[IO, Assets.State[IO]] =
     for {
       b <- TestEnvironment.ioBlocker
-      stop <- Resource.eval(Ref.of[IO, Boolean](false))
+      sem <- Resource.eval(Semaphore[IO](1L))
       http <- Clients.mkHttp[IO](ExecutionContext.global)
       clients = Clients.init[IO](http, Nil)
-      state <- Assets.State.make[IO](b, stop, uris, clients)
+      state <- Resource.eval(Assets.State.make[IO](b, sem, clients, assets))
     } yield state
 
   /** Clean-up predefined list of files */

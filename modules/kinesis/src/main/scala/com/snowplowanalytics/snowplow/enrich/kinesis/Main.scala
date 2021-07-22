@@ -10,29 +10,25 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.pubsub
+package com.snowplowanalytics.snowplow.enrich.kinesis
 
 import cats.effect.{ExitCode, IO, IOApp, Resource, SyncIO}
 
 import java.util.concurrent.{Executors, TimeUnit}
 
+import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.ExecutionContext
 
-import com.permutive.pubsub.consumer.ConsumerRecord
+import fs2.aws.kinesis.CommittableRecord
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Run
 
-import com.snowplowanalytics.snowplow.enrich.pubsub.generated.BuildInfo
+import com.snowplowanalytics.snowplow.enrich.kinesis.generated.BuildInfo
 
 object Main extends IOApp.WithContext {
 
-  /**
-   * The maximum size of a serialized payload that can be written to pubsub.
-   *
-   *  Equal to 6.9 MB. The message will be base64 encoded by the underlying library, which brings the
-   *  encoded message size to near 10 MB, which is the maximum allowed for PubSub.
-   */
-  private val MaxRecordSize = 6900000
+  // Kinesis records must not exceed 1MB
+  private val MaxRecordSize = 1000000
 
   /**
    * An execution context matching the cats effect IOApp default. We create it explicitly so we can
@@ -52,21 +48,28 @@ object Main extends IOApp.WithContext {
   }
 
   def run(args: List[String]): IO[ExitCode] =
-    Run.run[IO, ConsumerRecord[IO, Array[Byte]]](
+    Run.run[IO, CommittableRecord](
       args,
       BuildInfo.name,
       BuildInfo.version,
       BuildInfo.description,
       executionContext,
-      (_, cliConfig) => IO(cliConfig),
-      (blocker, input, _) => Source.init(blocker, input),
-      (_, out, _) => Sink.initAttributed(out),
-      (_, out, _) => Sink.initAttributed(out),
-      (_, out, _) => Sink.init(out),
-      List(GcsClient.mk[IO]),
-      _.value,
+      DynamoDbConfig.updateCliConfig[IO],
+      Source.init,
+      Sink.initAttributed,
+      Sink.initAttributed,
+      Sink.init,
+      List(_ => S3Client.mk[IO]),
+      getPayload,
       false,
       MaxRecordSize
     )
 
+  private def getPayload(record: CommittableRecord): Array[Byte] = {
+    val data = record.record.data
+    val buffer = ArrayBuffer[Byte]()
+    while (data.hasRemaining())
+      buffer.append(data.get)
+    buffer.toArray
+  }
 }

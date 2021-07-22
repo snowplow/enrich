@@ -134,53 +134,54 @@ object Environment {
     source: Stream[F, A],
     goodSink: Resource[F, AttributedByteSink[F]],
     piiSink: Option[Resource[F, AttributedByteSink[F]]],
-    badSink:  Resource[F, ByteSink[F]],
+    badSink: Resource[F, ByteSink[F]],
     clients: List[Client[F]],
-    checkpointer: Pipe[F, A, Unit],
+    checkpointer: Resource[F, Pipe[F, A, Unit]],
     getPayload: A => Array[Byte],
     processor: Processor,
     maxRecordSize: Int
   ): Resource[F, Environment[F, A]] = {
-      val file = parsedConfigs.configFile
-      for {
-        good <- goodSink
-        bad <-badSink
-        pii <- piiSink.sequence
-        http <- Clients.mkHttp(ec)
-        clts = Clients.init[F](http, clients)
-        igluClient <- IgluClient.parseDefault[F](parsedConfigs.igluJson).resource
-        metrics <- Resource.eval(metricsReporter[F](blocker, file))
-        assets = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
-        pauseEnrich <- makePause[F]
-        assets <- Assets.State.make[F](blocker, pauseEnrich, assets, clts)
-        enrichments <- Enrichments.make[F](parsedConfigs.enrichmentConfigs, BlockerF.ofBlocker(blocker))
-        sentry <- file.monitoring.flatMap(_.sentry).map(_.dsn) match {
-                    case Some(dsn) => Resource.eval[F, Option[SentryClient]](Sync[F].delay(Sentry.init(dsn.toString).some))
-                    case None => Resource.pure[F, Option[SentryClient]](none[SentryClient])
-                  }
-        _ <- Resource.eval(pauseEnrich.set(false) *> Logger[F].info("Enrich environment initialized"))
-      } yield Environment[F, A](
-        igluClient,
-        Http4sRegistryLookup(http),
-        enrichments,
-        pauseEnrich,
-        assets,
-        blocker,
-        source,
-        good,
-        pii,
-        bad,
-        checkpointer,
-        getPayload,
-        sentry,
-        metrics,
-        file.assetsUpdatePeriod,
-        parsedConfigs.goodAttributes,
-        parsedConfigs.piiAttributes,
-        processor,
-        StreamsSettings(file.concurrency, maxRecordSize)
-      )
-    }
+    val file = parsedConfigs.configFile
+    for {
+      good <- goodSink
+      bad <- badSink
+      pii <- piiSink.sequence
+      http <- Clients.mkHttp(ec)
+      clts = Clients.init[F](http, clients)
+      igluClient <- IgluClient.parseDefault[F](parsedConfigs.igluJson).resource
+      metrics <- Resource.eval(metricsReporter[F](blocker, file))
+      assets = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
+      pauseEnrich <- makePause[F]
+      assets <- Assets.State.make[F](blocker, pauseEnrich, assets, clts)
+      enrichments <- Enrichments.make[F](parsedConfigs.enrichmentConfigs, BlockerF.ofBlocker(blocker))
+      sentry <- file.monitoring.flatMap(_.sentry).map(_.dsn) match {
+                  case Some(dsn) => Resource.eval[F, Option[SentryClient]](Sync[F].delay(Sentry.init(dsn.toString).some))
+                  case None => Resource.pure[F, Option[SentryClient]](none[SentryClient])
+                }
+      chkpt <- checkpointer
+      _ <- Resource.eval(pauseEnrich.set(false) *> Logger[F].info("Enrich environment initialized"))
+    } yield Environment[F, A](
+      igluClient,
+      Http4sRegistryLookup(http),
+      enrichments,
+      pauseEnrich,
+      assets,
+      blocker,
+      source,
+      good,
+      pii,
+      bad,
+      chkpt,
+      getPayload,
+      sentry,
+      metrics,
+      file.assetsUpdatePeriod,
+      parsedConfigs.goodAttributes,
+      parsedConfigs.piiAttributes,
+      processor,
+      StreamsSettings(file.concurrency, maxRecordSize)
+    )
+  }
 
   /**
    * Make sure `enrichPause` gets into paused state before destroying pipes

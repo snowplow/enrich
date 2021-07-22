@@ -1,0 +1,22 @@
+{
+  "input": {
+    "streamName": "spirit-walk-default-raw"
+    "region": "eu-central-1"
+  }
+
+  "good": {
+    "streamName": "spirit-walk-default-good"
+    "region": "eu-central-1"
+  }
+
+  "pii": {
+    "streamName": "spirit-walk-default-bad"
+    "region": "eu-central-1"
+  }
+
+  "bad": {
+    "streamName": "spirit-walk-default-bad"
+    "region": "eu-central-1"
+  }
+}
+

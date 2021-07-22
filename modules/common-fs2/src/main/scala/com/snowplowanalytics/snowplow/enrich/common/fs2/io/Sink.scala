@@ -27,9 +27,9 @@ object Sink {
 
   def fileSink[F[_]: Concurrent: ContextShift](path: Path, blocker: Blocker): Resource[F, ByteSink[F]] =
     for {
-      channel <- Resource.fromAutoCloseableBlocking(blocker)(
-                   Sync[F].delay(FileChannel.open(path, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE))
-                 )
+      channel <-  Resource.fromAutoCloseableBlocking(blocker)(
+                    Sync[F].delay(FileChannel.open(path, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE))
+                  )
       sem <- Resource.eval(Semaphore(1L))
     } yield { bytes =>
       sem.withPermit {
@@ -39,5 +39,4 @@ object Sink {
         }.void
       }
     }
-
 }

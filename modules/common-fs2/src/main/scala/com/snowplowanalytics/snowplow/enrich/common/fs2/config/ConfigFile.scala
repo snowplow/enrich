@@ -27,12 +27,11 @@ import pureconfig.ConfigSource
 import pureconfig.module.catseffect.syntax._
 import pureconfig.module.circe._
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Authentication, Concurrency, Input, Monitoring, Output}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Concurrency, Input, Monitoring, Output}
 
 /**
  * Parsed HOCON configuration file
  *
- * @param auth authentication details, such as credentials
  * @param input input (PubSub, Kinesis etc)
  * @param good good enriched output (PubSub, Kinesis, FS etc)
  * @param pii pii enriched output (PubSub, Kinesis, FS etc)
@@ -41,7 +40,6 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Authenticatio
  * @param monitoring configuration for sentry and metrics
  */
 final case class ConfigFile(
-  auth: Authentication,
   input: Input,
   good: Output,
   pii: Option[Output],
@@ -59,7 +57,7 @@ object ConfigFile {
 
   implicit val configFileDecoder: Decoder[ConfigFile] =
     deriveConfiguredDecoder[ConfigFile].emap {
-      case ConfigFile(_, _, _, _, _, _, Some(aup), _) if aup._1 <= 0L =>
+      case ConfigFile(_, _, _, _, _, Some(aup), _) if aup._1 <= 0L =>
         "assetsUpdatePeriod in config file cannot be less than 0".asLeft // TODO: use newtype
       case other => other.asRight
     }
@@ -70,8 +68,8 @@ object ConfigFile {
     in match {
       case Right(path) =>
         val result = Blocker[F].use { blocker =>
-          ConfigSource
-            .default(ConfigSource.file(path))
+          ConfigSource.file(path)
+            .withFallback(ConfigSource.default)
             .loadF[F, Json](blocker)
             .map(_.as[ConfigFile].leftMap(f => show"Couldn't parse the config $f"))
         }

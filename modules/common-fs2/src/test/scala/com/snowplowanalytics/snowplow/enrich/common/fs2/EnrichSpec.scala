@@ -99,7 +99,7 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
     "update metrics with raw, good and bad counters" in {
       val input = Stream.emits(List(Array.empty[Byte], EnrichSpec.payload))
       TestEnvironment.make(input).use { test =>
-        val enrichStream = Enrich.run[IO, Array[Byte]](test.env, false)
+        val enrichStream = Enrich.run[IO, Array[Byte]](test.env)
         for {
           _ <- enrichStream.compile.drain
           bad <- test.bad
@@ -175,7 +175,6 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
         val ee = new EnrichedEvent()
         ee.app_id = "test_app"
         ee.platform = "web"
-
 
         for {
           _ <- Enrich.sinkOne(environment)(Validated.Valid(ee))

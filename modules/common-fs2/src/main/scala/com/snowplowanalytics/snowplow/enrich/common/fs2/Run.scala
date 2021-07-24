@@ -72,8 +72,8 @@ object Run {
                     sinkGood = initAttributedSink(blocker, file.good, file.monitoring, mkSinkGood)
                     sinkPii = file.pii.map(out => initAttributedSink(blocker, out, file.monitoring, mkSinkPii))
                     sinkBad = file.bad match {
-                                case Output.FileSystem(path) =>
-                                  Sink.fileSink[F](path, blocker)
+                                case f: Output.FileSystem =>
+                                  Sink.fileSink[F](f, blocker)
                                 case _ =>
                                   mkSinkBad(blocker, file.bad, file.monitoring)
                               }
@@ -130,8 +130,8 @@ object Run {
     mkSinkGood: (Blocker, Output, Option[Monitoring]) => Resource[F, AttributedByteSink[F]]
   ): Resource[F, AttributedByteSink[F]] =
     output match {
-      case Output.FileSystem(path) =>
-        Sink.fileSink[F](path, blocker).map(sink => row => sink(row.data))
+      case f: Output.FileSystem =>
+        Sink.fileSink[F](f, blocker).map(sink => row => sink(row.data))
       case _ =>
         mkSinkGood(blocker, output, monitoring)
     }

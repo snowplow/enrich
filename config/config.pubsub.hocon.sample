@@ -20,6 +20,7 @@
     # Local FS supported for testing purposes
     # "type": "FileSystem"
     # "file": "/var/enriched"
+    # "maxBytes": 1000000
   }
 
   # Pii events output
@@ -33,6 +34,7 @@
     # Local FS supported for testing purposes
     # "type": "FileSystem"
     # "file": "/var/pii"
+    # "maxBytes": 1000000
   }
 
   # Bad rows output
@@ -43,6 +45,7 @@
     # Local FS supported for testing purposes
     # "type": "FileSystem"
     # "file": "/var/bad"
+    # "maxBytes": 1000000
   }
 
 

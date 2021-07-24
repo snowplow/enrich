@@ -182,7 +182,7 @@ object io {
             throw new IllegalArgumentException(s"Cannot construct Output.PubSub from $topic")
         }
     }
-    case class FileSystem(file: Path) extends Output
+    case class FileSystem(file: Path, maxBytes: Option[Long]) extends Output
     case class Kinesis(
       streamName: String,
       region: Option[String],

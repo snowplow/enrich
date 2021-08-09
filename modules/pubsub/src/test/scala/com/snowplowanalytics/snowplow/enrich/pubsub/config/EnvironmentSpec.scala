@@ -22,10 +22,11 @@ import org.specs2.mutable.Specification
 class EnvironmentSpec extends Specification with CatsIO {
 
   "outputAttributes" should {
-    "fetch attribute values" in {
-      val output = io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id")), None, None, None, None)
+    "fetch attribute values shorter than 1024 characters" in {
+      val output = io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id", "platform")), None, None, None, None)
       val ee = new EnrichedEvent()
       ee.app_id = "test_app"
+      ee.platform = "a".repeat(1025)
 
       val result = Environment.outputAttributes(output)(ee)
 

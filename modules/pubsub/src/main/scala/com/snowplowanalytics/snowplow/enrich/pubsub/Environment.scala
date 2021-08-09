@@ -263,6 +263,7 @@ object Environment {
   private def attributesFromFields(fields: Map[String, Field])(ee: EnrichedEvent): Map[String, String] =
     fields.flatMap {
       case (k, f) => Option(f.get(ee)).map(v => k -> v.toString)
-    }
+    }.filterNot(_._2.length > ATTRIBUTE_MAXLENGTH)
 
+  private final val ATTRIBUTE_MAXLENGTH = 1024
 }

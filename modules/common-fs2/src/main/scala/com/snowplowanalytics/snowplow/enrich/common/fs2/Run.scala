@@ -81,7 +81,7 @@ object Run {
                           goodSink,
                           piiSink,
                           badSink,
-                          _.as(()),
+                          _.void,
                           identity,
                           processor
                         )

@@ -112,6 +112,10 @@ object Enrich {
     val payload = ThriftLoader.toCollectorPayload(row, processor)
     val collectorTstamp = payload.toOption.flatMap(_.flatMap(_.context.timestamp).map(_.getMillis))
 
+    System.out.println("Going to crash")
+    throw new IllegalArgumentException("TEST CRASH")
+    System.out.println("Crashed")
+
     val result =
       for {
         _ <- Logger[F].debug(payloadToString(payload))

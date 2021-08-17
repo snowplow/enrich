@@ -81,7 +81,7 @@ object Run {
                           goodSink,
                           piiSink,
                           badSink,
-                          _.flatMap(_ => Stream.eval(Sync[F].unit)),
+                          _.as(()),
                           identity,
                           processor
                         )

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2021 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-2021 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -10,21 +10,53 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.kinesis
+package com.snowplowanalytics.snowplow.enrich.pubsub
 
-import cats.effect.{ExitCode, IO, IOApp}
+import cats.effect.{ExitCode, IO, IOApp, Resource, SyncIO}
 
-import org.typelevel.log4cats.Logger
-import org.typelevel.log4cats.slf4j.Slf4jLogger
+import java.util.concurrent.{Executors, TimeUnit}
+
+import scala.concurrent.ExecutionContext
+
+import fs2.Pipe
+
+import com.snowplowanalytics.snowplow.enrich.common.fs2.Run
 
 import com.snowplowanalytics.snowplow.enrich.kinesis.generated.BuildInfo
 
-object Main extends IOApp {
+object Main extends IOApp.WithContext {
 
-  private implicit val logger: Logger[IO] =
-    Slf4jLogger.getLogger[IO]
-
-  def run(args: List[String]): IO[ExitCode] = {
-    Logger[IO].info(s"Running ${BuildInfo.name}-${BuildInfo.version}").as(ExitCode.Success)
+  /**
+   * An execution context matching the cats effect IOApp default. We create it explicitly so we can
+   * also use it for our Blaze client.
+   */
+  override protected val executionContextResource: Resource[SyncIO, ExecutionContext] = {
+    val poolSize = math.max(2, Runtime.getRuntime().availableProcessors())
+    Resource
+      .make(SyncIO(Executors.newFixedThreadPool(poolSize)))(pool =>
+        SyncIO {
+          pool.shutdown()
+          pool.awaitTermination(10, TimeUnit.SECONDS)
+          ()
+        }
+      )
+      .map(ExecutionContext.fromExecutorService)
   }
+
+  def run(args: List[String]): IO[ExitCode] = ???
+    //Run.run[IO, ConsumerRecord[IO, Array[Byte]]](
+    //  args,
+    //  BuildInfo.name,
+    //  BuildInfo.version,
+    //  BuildInfo.description,
+    //  executionContext,
+    //  Source.init,
+    //  (_, auth, out) => Sink.initAttributed(auth, out),
+    //  (_, auth, out) => Sink.initAttributed(auth, out),
+    //  (_, auth, out) => Sink.init(auth, out),
+    //  checkpointer,
+    //  _.value,
+    //  false
+    //)
+
 }

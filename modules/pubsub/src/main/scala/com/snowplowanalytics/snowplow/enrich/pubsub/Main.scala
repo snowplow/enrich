@@ -20,8 +20,6 @@ import scala.concurrent.ExecutionContext
 
 import com.permutive.pubsub.consumer.ConsumerRecord
 
-import fs2.Pipe
-
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Run
 
 import com.snowplowanalytics.snowplow.enrich.pubsub.generated.BuildInfo
@@ -56,12 +54,9 @@ object Main extends IOApp.WithContext {
       (_, auth, out) => Sink.initAttributed(auth, out),
       (_, auth, out) => Sink.initAttributed(auth, out),
       (_, auth, out) => Sink.init(auth, out),
-      checkpointer,
       _.value,
       false
     )
 
-  private def checkpointer[F[_]]: Pipe[F, ConsumerRecord[F, Array[Byte]], Unit] =
-    _.evalMap(_.ack)
 
 }

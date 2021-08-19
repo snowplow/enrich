@@ -1,0 +1,107 @@
+{
+  "auth": {
+    "type": "Aws"
+  }
+
+  # Collector input
+  "input": {
+    "type": "Kinesis"
+    # Name of the application which the KCL daemon should assume
+    "appName": "enrich-kinesis"
+    # Name of the Kinesis stream to read from
+    "streamName": "collector-payloads"
+    # AWS region in which the Kinesis stream resides.
+    "region": "eu-central-1"
+    # Either TRIM_HORIZON or LATEST
+    "initialPosition": "TRIM_HORIZON"
+
+    # Optional, set the polling mode for retrieving records. Default is FanOut
+    # "retrievalMode": "FanOut"
+    # "retrievalMode": {
+    #   "type": "Polling"
+    #   "maxRecords": 1000
+    # }
+
+    # Optional, configure the checkpointer.
+    "checkpointSettings": {
+      # The max number of records to aggregate before checkpointing the records.
+      # Default is 1000.
+      "maxBatchSize": 1000
+      # The max amount of time to wait before checkpointing the records.
+      # Default is 10 seconds.
+      "maxBatchWait": 10 seconds
+    }
+  }
+
+  # Enriched events output
+  "good": {
+    "type": "Kinesis"
+    # Name of the Kinesis stream to write to
+    "streamName": "enriched"
+    # AWS region in which the Kinesis stream resides.
+    "region": "eu-central-1"
+  }
+
+  # Pii events output
+  "pii": {
+    "type": "Kinesis"
+    # Name of the Kinesis stream to write to
+    "streamName": "pii"
+    # AWS region in which the Kinesis stream resides.
+    "region": "eu-central-1"
+  }
+
+  # Bad rows output
+  "bad": {
+    "type": "Kinesis"
+    # Name of the Kinesis stream to write to
+    "streamName": "bad"
+    # AWS region in which the Kinesis stream resides.
+    "region": "eu-central-1"
+  }
+
+  # Optional, period after which enrich assets should be checked for updates
+  # no assets will be updated if the key is absent
+  "assetsUpdatePeriod": "7 days"
+
+  "monitoring": {
+
+    # Optional, for tracking runtime exceptions
+    "sentry": {
+      "dsn": "http://sentry.acme.com"
+    }
+
+    # Optional, configure how metrics are reported
+    "metrics": {
+
+      # Send metrics to a StatsD server on localhost
+      "statsd": {
+
+        "hostname": "localhost"
+        "port": 8125
+
+        # Required, how frequently to report metrics
+        "period": "10 seconds"
+
+        # Any key-value pairs to be tagged on every StatsD metric
+        "tags": {
+          "app": enrich
+        }
+
+        # Optional, override the default metric prefix
+        # "prefix": "snowplow.enrich."
+      }
+
+      # Log to stdout using Slf4j
+      "stdout": {
+        "period": "10 seconds"
+
+        # Optional, override the default metric prefix
+        # "prefix": "snowplow.enrich."
+      }
+
+      # Optional, cloudwatch metrics are enabled by default
+      "cloudwatch": false
+    }
+  }
+}

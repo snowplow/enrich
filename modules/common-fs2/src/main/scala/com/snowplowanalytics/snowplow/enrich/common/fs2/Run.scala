@@ -42,11 +42,10 @@ object Run {
     version: String,
     description: String,
     ec: ExecutionContext,
-    mkSource: (Blocker, Authentication, Input) => Stream[F, A],
+    mkSource: (Blocker, Authentication, Input) => (Stream[F, A], Resource[F, Pipe[F, A, Unit]]),
     mkGoodSink: (Blocker, Authentication, Output) => Resource[F, AttributedByteSink[F]],
     mkPiiSink: (Blocker, Authentication, Output) => Resource[F, AttributedByteSink[F]],
     mkBadSink: (Blocker, Authentication, Output) => Resource[F, ByteSink[F]],
-    checkpointer: Pipe[F, A, Unit],
     getPayload: A => Array[Byte],
     ordered: Boolean
   ): F[ExitCode] = 
@@ -72,27 +71,29 @@ object Run {
                 exit <- 
                   (file.auth, file.input) match {
                     case (_, p: Input.FileSystem) => 
+                      val (source, checkpointer) = Source.filesystem[F](blocker, p.dir)
                       val env = Environment
                         .make[F, Array[Byte]](
                           blocker,
                           ec,
                           parsed,
-                          Source.filesystem[F](blocker, p.dir),
+                          source,
                           goodSink,
                           piiSink,
                           badSink,
-                          _.void,
+                          checkpointer,
                           identity,
                           processor
                         )
                       runEnvironment[F, Array[Byte]](env, false)
                     case _ =>
+                      val (source, checkpointer) = mkSource(blocker, file.auth, file.input)
                       val env = Environment
                         .make[F, A](
                           blocker,
                           ec,
                           parsed,
-                          mkSource(blocker, file.auth, file.input),
+                          source,
                           goodSink,
                           piiSink,
                           badSink,

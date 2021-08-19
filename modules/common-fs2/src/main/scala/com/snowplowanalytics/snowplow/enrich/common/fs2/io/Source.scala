@@ -12,21 +12,30 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2.io
 
-import cats.effect.{Blocker, ContextShift, Sync}
+import cats.implicits._
 
-import fs2.Stream
+import cats.effect.{Blocker, ContextShift, Resource, Sync}
+
+import fs2.{Pipe, Stream}
 import fs2.io.file.{directoryStream, readAll}
 
 import java.nio.file.{Files, Path}
 
 object Source {
 
-  def filesystem[F[_]: ContextShift: Sync](blocker: Blocker, path: Path): Stream[F, Array[Byte]] =
-    recursiveDirectoryStream(blocker, path)
+  def filesystem[F[_]: ContextShift: Sync](
+    blocker: Blocker, path: Path
+  ): (Stream[F, Array[Byte]], Resource[F, Pipe[F, Array[Byte], Unit]]) = {
+    val stream = recursiveDirectoryStream(blocker, path)
       .evalMap { file =>
         readAll[F](file, blocker, 4096).compile
           .to(Array)
       }
+
+    val checkpointer =  Resource.pure[F, Pipe[F, Array[Byte], Unit]](_.void)
+
+    (stream, checkpointer)
+  }
 
   private def recursiveDirectoryStream[F[_]: ContextShift: Sync](blocker: Blocker, path: Path): Stream[F, Path] =
     for {

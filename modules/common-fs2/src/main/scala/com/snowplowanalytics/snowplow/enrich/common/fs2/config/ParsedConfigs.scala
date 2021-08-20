@@ -106,7 +106,7 @@ object ParsedConfigs {
             if (invalidAttributes.nonEmpty) NonEmptyList(invalidAttributes.head, invalidAttributes.tail.toList).invalid
             else output.valid
           }
-      case OutputConfig.FileSystem(_) => output.valid
+      case _ => output.valid
     }
 
   private[config] def outputAttributes(output: OutputConfig): EnrichedEvent => Map[String, String] =
@@ -118,8 +118,7 @@ object ParsedConfigs {
         }
         attributesFromFields(fields)
       case OutputConfig.PubSub(_, None, _, _, _, _) => _ => Map.empty
-      case OutputConfig.FileSystem(_) =>
-        _ => Map.empty
+      case _ => Map.empty
     }
 
   private def attributesFromFields(fields: Map[String, Field])(ee: EnrichedEvent): Map[String, String] =

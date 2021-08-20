@@ -68,8 +68,8 @@ object io {
       streamName: String,
       region: String,
       initialPosition: Kinesis.InitPosition,
-      retrievalMode: Kinesis.Retrieval,
-      checkpointing: Kinesis.CheckpointSettings
+      retrievalMode: Option[Kinesis.Retrieval],
+      checkpointSettings: Option[Kinesis.CheckpointSettings]
     ) extends Input
 
     object Kinesis {
@@ -176,6 +176,10 @@ object io {
         }
     }
     case class FileSystem(file: Path) extends Output
+    case class Kinesis(
+      streamName: String,
+      region: String
+    ) extends Output
 
     implicit val outputDecoder: Decoder[Output] =
       deriveConfiguredDecoder[Output]

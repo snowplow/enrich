@@ -16,7 +16,7 @@
     "initialPosition": "TRIM_HORIZON"
 
     # Optional, set the polling mode for retrieving records. Default is FanOut
-    # "retrievalMode": "FanOut"
+    "retrievalMode": "FanOut"
     # "retrievalMode": {
     #   "type": "Polling"
     #   "maxRecords": 1000

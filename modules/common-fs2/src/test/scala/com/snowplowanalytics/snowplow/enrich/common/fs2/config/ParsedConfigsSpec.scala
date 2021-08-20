@@ -43,7 +43,8 @@ class ParsedConfigsSpec extends Specification with CatsIO {
             Some(
               io.MetricsReporters(
                 Some(io.MetricsReporters.StatsD("localhost", 8125, Map("app" -> "enrich"), 10.seconds, None)),
-                Some(io.MetricsReporters.Stdout(10.seconds, None))
+                Some(io.MetricsReporters.Stdout(10.seconds, None)),
+                None
               )
             )
           )

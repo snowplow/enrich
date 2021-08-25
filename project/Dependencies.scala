@@ -58,7 +58,7 @@ object Dependencies {
     val collectorPayload = "0.0.0"
     val schemaSniffer    = "0.0.0"
 
-    val awsSdk           = "1.11.728"
+    val awsSdk           = "1.11.822"
     val gcpSdk           = "1.106.0"
     val kinesisClient    = "1.13.3"
     val kafka            = "2.2.1"
@@ -151,6 +151,7 @@ object Dependencies {
     val dynamodbSdk      = "com.amazonaws"                    %  "aws-java-sdk-dynamodb"             % V.awsSdk
     val s3Sdk            = "com.amazonaws"                    %  "aws-java-sdk-s3"                   % V.awsSdk
     val kinesisClient    = "com.amazonaws"                    %  "amazon-kinesis-client"             % V.kinesisClient
+    val sts              = "com.amazonaws"                    %  "aws-java-sdk-sts"                  % V.awsSdk
     val gsSdk            = "com.google.cloud"                 %  "google-cloud-storage"              % V.gcpSdk
     val kafkaClients     = "org.apache.kafka"                 %  "kafka-clients"                     % V.kafka
     val jacksonCbor      = "com.fasterxml.jackson.dataformat" %  "jackson-dataformat-cbor"           % V.jackson

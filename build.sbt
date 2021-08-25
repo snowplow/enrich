@@ -75,6 +75,7 @@ lazy val allStreamSettings = BuildSettings.basicSettings ++ BuildSettings.sbtAss
     Dependencies.Libraries.slf4j,
     Dependencies.Libraries.log4jOverSlf4j,
     Dependencies.Libraries.s3Sdk,
+    Dependencies.Libraries.sts,
     Dependencies.Libraries.gsSdk,
     Dependencies.Libraries.scopt,
     Dependencies.Libraries.pureconfig,

@@ -21,7 +21,7 @@ import com.google.pubsub.v1.PubsubMessage
 
 import fs2.{Pipe, Stream}
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Authentication, Input}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input
 
 import cats.effect.{Blocker, ContextShift, Sync}
 
@@ -49,14 +49,13 @@ object Source {
 
   def init[F[_]: Concurrent: ContextShift](
     blocker: Blocker,
-    auth: Authentication,
     input: Input
   ): (Stream[F, ConsumerRecord[F, Array[Byte]]], Resource[F, Pipe[F, ConsumerRecord[F, Array[Byte]], Unit]]) =
-    (auth, input) match {
-      case (Authentication.Gcp, p: Input.PubSub) =>
+    input match {
+      case p: Input.PubSub =>
         pubSub(blocker, p)
-      case (auth, input) =>
-        throw new IllegalArgumentException(s"Auth $auth is not GCP and/or input $input is not PubSub")
+      case i =>
+        throw new IllegalArgumentException(s"Input $i is not PubSub")
     }
 
   def pubSub[F[_]: Concurrent: ContextShift](

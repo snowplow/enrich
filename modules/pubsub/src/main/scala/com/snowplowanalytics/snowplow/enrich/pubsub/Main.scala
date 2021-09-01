@@ -51,12 +51,11 @@ object Main extends IOApp.WithContext {
       BuildInfo.description,
       executionContext,
       Source.init,
-      (_, auth, out) => Sink.initAttributed(auth, out),
-      (_, auth, out) => Sink.initAttributed(auth, out),
-      (_, auth, out) => Sink.init(auth, out),
+      (_, out) => Sink.initAttributed(out),
+      (_, out) => Sink.initAttributed(out),
+      (_, out) => Sink.init(out),
       _.value,
       false
     )
-
 
 }

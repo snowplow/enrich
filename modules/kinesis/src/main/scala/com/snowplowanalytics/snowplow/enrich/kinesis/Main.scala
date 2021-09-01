@@ -18,7 +18,7 @@ import java.util.concurrent.{Executors, TimeUnit}
 
 import scala.concurrent.ExecutionContext
 
-import fs2.Pipe
+import fs2.aws.kinesis.CommittableRecord
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Run
 
@@ -43,20 +43,18 @@ object Main extends IOApp.WithContext {
       .map(ExecutionContext.fromExecutorService)
   }
 
-  def run(args: List[String]): IO[ExitCode] = ???
-    //Run.run[IO, ConsumerRecord[IO, Array[Byte]]](
-    //  args,
-    //  BuildInfo.name,
-    //  BuildInfo.version,
-    //  BuildInfo.description,
-    //  executionContext,
-    //  Source.init,
-    //  (_, auth, out) => Sink.initAttributed(auth, out),
-    //  (_, auth, out) => Sink.initAttributed(auth, out),
-    //  (_, auth, out) => Sink.init(auth, out),
-    //  checkpointer,
-    //  _.value,
-    //  false
-    //)
-
+  def run(args: List[String]): IO[ExitCode] =
+    Run.run[IO, CommittableRecord](
+      args,
+      BuildInfo.name,
+      BuildInfo.version,
+      BuildInfo.description,
+      executionContext,
+      Source.init,
+      (_, auth, out) => Sink.initAttributed(auth, out),
+      (_, auth, out) => Sink.initAttributed(auth, out),
+      (_, auth, out) => Sink.init(auth, out),
+      _.record.data.array(),
+      false
+    )
 }

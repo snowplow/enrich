@@ -32,18 +32,6 @@ object io {
   implicit val javaPathEncoder: Encoder[Path] =
     Encoder[String].contramap(_.toString)
 
-  sealed trait Authentication extends Product with Serializable
-
-  object Authentication {
-    case object Gcp extends Authentication
-    case object Aws extends Authentication
-
-    implicit val authenticationDecoder: Decoder[Authentication] =
-      deriveConfiguredDecoder[Authentication]
-    implicit val authenticationEncoder: Encoder[Authentication] =
-      deriveConfiguredEncoder[Authentication]
-  }
-
   /** Source of raw collector data (only PubSub supported atm) */
   sealed trait Input
 
@@ -68,8 +56,8 @@ object io {
       streamName: String,
       region: String,
       initialPosition: Kinesis.InitPosition,
-      retrievalMode: Option[Kinesis.Retrieval],
-      checkpointSettings: Option[Kinesis.CheckpointSettings]
+      retrievalMode: Kinesis.Retrieval,
+      checkpointSettings: Kinesis.CheckpointSettings
     ) extends Input
 
     object Kinesis {
@@ -178,9 +166,24 @@ object io {
     case class FileSystem(file: Path) extends Output
     case class Kinesis(
       streamName: String,
-      region: String
+      region: String,
+      partitionKey: Option[String],
+      delayThreshold: FiniteDuration,
+      maxBatchSize: Long,
+      maxBatchBytes: Long,
+      backoffPolicy: BackoffPolicy
     ) extends Output
 
+    case class BackoffPolicy(minBackoff: FiniteDuration, maxBackoff: FiniteDuration)
+  
+    object BackoffPolicy {
+      implicit def backoffPolicyDecoder: Decoder[BackoffPolicy] =
+        deriveConfiguredDecoder[BackoffPolicy]
+      import ConfigFile.finiteDurationEncoder
+      implicit def backoffPolicyEncoder: Encoder[BackoffPolicy] =
+        deriveConfiguredEncoder[BackoffPolicy]
+    }
+  
     implicit val outputDecoder: Decoder[Output] =
       deriveConfiguredDecoder[Output]
         .emap {

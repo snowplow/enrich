@@ -19,7 +19,7 @@ import cats.implicits._
 
 import cats.effect.{Blocker, ConcurrentEffect, ContextShift, Resource, Sync, Timer}
 
-import fs2.{Stream, Pipe}
+import fs2.{Pipe, Stream}
 
 import fs2.aws.kinesis.{CommittableRecord, Kinesis, KinesisCheckpointSettings}
 
@@ -34,22 +34,21 @@ import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClient
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import software.amazon.awssdk.services.kinesis.KinesisAsyncClient
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Authentication, Input, Monitoring}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Input, Monitoring}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input.Kinesis.InitPosition
 
 object Source {
 
   def init[F[_]: ConcurrentEffect: ContextShift: Timer](
     blocker: Blocker,
-    auth: Authentication,
     input: Input,
     monitoring: Option[Monitoring]
   ): (Stream[F, CommittableRecord], Resource[F, Pipe[F, CommittableRecord, Unit]]) =
-    (auth, input) match {
-      case (Authentication.Aws, k: Input.Kinesis) =>
+    input match {
+      case k: Input.Kinesis =>
         kinesis(blocker, k, monitoring)
-      case (auth, input) =>
-        throw new IllegalArgumentException(s"Auth $auth is not GCP and/or input $input is not PubSub")
+      case i =>
+        throw new IllegalArgumentException(s"Input $i is not Kinesis")
     }
 
   def kinesis[F[_]: ConcurrentEffect: ContextShift: Sync: Timer](
@@ -57,10 +56,10 @@ object Source {
     kinesisConfig: Input.Kinesis,
     monitoring: Option[Monitoring]
   ): (Stream[F, CommittableRecord], Resource[F, Pipe[F, CommittableRecord, Unit]]) = {
-    val checkpointSettings = 
-      KinesisCheckpointSettings(kinesisConfig.checkpointing.maxBatchSize, kinesisConfig.checkpointing.maxBatchWait) match {
+    val checkpointSettings =
+      KinesisCheckpointSettings(kinesisConfig.checkpointSettings.maxBatchSize, kinesisConfig.checkpointSettings.maxBatchWait) match {
         case Left(err) => throw err
-        case Right(settings) => settings 
+        case Right(settings) => settings
       }
 
     val kinesis = for {
@@ -69,7 +68,7 @@ object Source {
       dynamoClient <- makeDynamoDbClient[F](region)
       cloudWatchClient <- makeCloudWatchClient[F](region)
     } yield Kinesis.create(blocker, scheduler(kinesisClient, dynamoClient, cloudWatchClient, kinesisConfig, monitoring, _))
-    
+
     val stream = for {
       k <- Stream.resource(kinesis)
       record <- k.readFromKinesisStream("THIS DOES NOTHING", "THIS DOES NOTHING")
@@ -91,14 +90,14 @@ object Source {
       val hostname = InetAddress.getLocalHost().getCanonicalHostName()
 
       val configsBuilder =
-        new ConfigsBuilder(
-          kinesisConfig.streamName,
-          kinesisConfig.appName,
-          kinesisClient,
-          dynamoDbClient,
-          cloudWatchClient,
-          s"$hostname:$uuid",
-          recordProcessorFactory)
+        new ConfigsBuilder(kinesisConfig.streamName,
+                           kinesisConfig.appName,
+                           kinesisClient,
+                           dynamoDbClient,
+                           cloudWatchClient,
+                           s"$hostname:$uuid",
+                           recordProcessorFactory
+        )
 
       val initPositionExtended = kinesisConfig.initialPosition match {
         case InitPosition.Latest =>
@@ -110,8 +109,7 @@ object Source {
       }
 
       val retrievalConfig =
-        configsBuilder
-          .retrievalConfig
+        configsBuilder.retrievalConfig
           .initialPositionInStreamExtended(initPositionExtended)
           .retrievalSpecificConfig {
             kinesisConfig.retrievalMode match {
@@ -141,7 +139,8 @@ object Source {
   private def makeKinesisClient[F[_]: Sync](region: Region): Resource[F, KinesisAsyncClient] =
     Resource.fromAutoCloseable {
       Sync[F].delay {
-        KinesisAsyncClient.builder()
+        KinesisAsyncClient
+          .builder()
           .region(region)
           .build
       }
@@ -150,7 +149,8 @@ object Source {
   private def makeDynamoDbClient[F[_]: Sync](region: Region): Resource[F, DynamoDbAsyncClient] =
     Resource.fromAutoCloseable {
       Sync[F].delay {
-        DynamoDbAsyncClient.builder()
+        DynamoDbAsyncClient
+          .builder()
           .region(region)
           .build
       }
@@ -159,7 +159,8 @@ object Source {
   private def makeCloudWatchClient[F[_]: Sync](region: Region): Resource[F, CloudWatchAsyncClient] =
     Resource.fromAutoCloseable {
       Sync[F].delay {
-        CloudWatchAsyncClient.builder()
+        CloudWatchAsyncClient
+          .builder()
           .region(region)
           .build
       }

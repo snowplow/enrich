@@ -51,9 +51,9 @@ object Main extends IOApp.WithContext {
       BuildInfo.description,
       executionContext,
       Source.init,
-      (_, auth, out) => Sink.initAttributed(auth, out),
-      (_, auth, out) => Sink.initAttributed(auth, out),
-      (_, auth, out) => Sink.init(auth, out),
+      Sink.initAttributed,
+      Sink.initAttributed,
+      Sink.init,
       _.record.data.array(),
       false
     )

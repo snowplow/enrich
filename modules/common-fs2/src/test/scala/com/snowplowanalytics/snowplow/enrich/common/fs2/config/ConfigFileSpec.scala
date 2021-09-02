@@ -32,7 +32,6 @@ class ConfigFileSpec extends Specification with CatsIO {
     "parse valid HOCON file with path provided for PubSub" in {
       val configPath = Paths.get(getClass.getResource("/config.pubsub.hocon.sample").toURI)
       val expected = ConfigFile(
-        io.Authentication.Gcp,
         io.Input.PubSub("projects/test-project/subscriptions/inputSub", None, None),
         io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id")), None, None, None, None),
         Some(io.Output.PubSub("projects/test-project/topics/pii-topic", None, None, None, None, None)),
@@ -57,18 +56,17 @@ class ConfigFileSpec extends Specification with CatsIO {
     "parse valid HOCON file with path provided for Kinesis" in {
       val configPath = Paths.get(getClass.getResource("/config.kinesis.hocon.sample").toURI)
       val expected = ConfigFile(
-        io.Authentication.Aws,
         io.Input.Kinesis(
           "enrich-kinesis",
           "collector-payloads",
           "eu-central-1",
           io.Input.Kinesis.InitPosition.TrimHorizon,
-          Some(io.Input.Kinesis.Retrieval.FanOut),
-          Some(io.Input.Kinesis.CheckpointSettings(1000, 10 seconds))
+          io.Input.Kinesis.Retrieval.FanOut,
+          io.Input.Kinesis.CheckpointSettings(1000, 10 seconds)
         ),
-        io.Output.Kinesis("enriched", "eu-central-1"),
-        Some(io.Output.Kinesis("pii", "eu-central-1")),
-        io.Output.Kinesis("bad", "eu-central-1"),
+        io.Output.Kinesis("enriched", "eu-central-1", None, 200.millis, 500, 5000000, io.Output.BackoffPolicy(10.millis, 10.seconds)),
+        Some(io.Output.Kinesis("pii", "eu-central-1", None, 200.millis, 500, 5000000, io.Output.BackoffPolicy(10.millis, 10.seconds))),
+        io.Output.Kinesis("bad", "eu-central-1", None, 200.millis, 500, 5000000, io.Output.BackoffPolicy(10.millis, 10.seconds)),
         Some(7.days),
         Some(
           io.Monitoring(
@@ -89,9 +87,6 @@ class ConfigFileSpec extends Specification with CatsIO {
     "parse valid 0 minutes as None" in {
       val input =
         json"""{
-          "auth": {
-            "type": "Gcp"
-          },
           "input": {
             "type": "PubSub",
             "subscription": "projects/test-project/subscriptions/inputSub"

@@ -118,7 +118,9 @@ object Sink {
         onFailure =
           (_, retryDetails) => Logger[F].warn(s"Failure while writing record to Kinesis - retries so far: ${retryDetails.retriesSoFar}"),
         onError = (exception, retryDetails) =>
-          Logger[F].warn(s"Error while writing record to Kinesis - retries so far: ${retryDetails.retriesSoFar} - exception: $exception")
+          Logger[F]
+            .error(s"Error while writing record to Kinesis - retries so far: ${retryDetails.retriesSoFar} - exception: $exception") >>
+            Async[F].raiseError(exception)
       )
       .void
   }

@@ -50,10 +50,10 @@ object Main extends IOApp.WithContext {
       BuildInfo.version,
       BuildInfo.description,
       executionContext,
-      Source.init,
-      (_, out) => Sink.initAttributed(out),
-      (_, out) => Sink.initAttributed(out),
-      (_, out) => Sink.init(out),
+      (blocker, input, _) => Source.init(blocker, input),
+      (_, out, _) => Sink.initAttributed(out),
+      (_, out, _) => Sink.initAttributed(out),
+      (_, out, _) => Sink.init(out),
       _.value,
       false
     )

@@ -28,7 +28,7 @@ import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import com.snowplowanalytics.snowplow.badrows.Processor
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Input, Output}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Input, Monitoring, Output}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{CliConfig, ParsedConfigs}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{Sink, Source}
 
@@ -42,10 +42,10 @@ object Run {
     version: String,
     description: String,
     ec: ExecutionContext,
-    mkSource: (Blocker, Input) => (Stream[F, A], Resource[F, Pipe[F, A, Unit]]),
-    mkGoodSink: (Blocker, Output) => Resource[F, AttributedByteSink[F]],
-    mkPiiSink: (Blocker, Output) => Resource[F, AttributedByteSink[F]],
-    mkBadSink: (Blocker, Output) => Resource[F, ByteSink[F]],
+    mkSource: (Blocker, Input, Option[Monitoring]) => (Stream[F, A], Resource[F, Pipe[F, A, Unit]]),
+    mkGoodSink: (Blocker, Output, Option[Monitoring]) => Resource[F, AttributedByteSink[F]],
+    mkPiiSink: (Blocker, Output, Option[Monitoring]) => Resource[F, AttributedByteSink[F]],
+    mkBadSink: (Blocker, Output, Option[Monitoring]) => Resource[F, ByteSink[F]],
     getPayload: A => Array[Byte],
     ordered: Boolean
   ): F[ExitCode] = 
@@ -60,13 +60,13 @@ object Run {
                 _ <- Logger[F].info(s"Initialising resources for $name $version")
                 processor = Processor(name, version)
                 file = parsed.configFile
-                goodSink = initAttributedSink(blocker, file.good, mkGoodSink)
-                piiSink = file.pii.map(out => initAttributedSink(blocker, out, mkPiiSink))
+                goodSink = initAttributedSink(blocker, file.good, file.monitoring, mkGoodSink)
+                piiSink = file.pii.map(out => initAttributedSink(blocker, out, file.monitoring, mkPiiSink))
                 badSink = file.bad match {
                   case Output.FileSystem(path) =>
                     Sink.fileSink[F](path, blocker)
                   case _ =>
-                    mkBadSink(blocker, file.bad)
+                    mkBadSink(blocker, file.bad, file.monitoring)
                 }
                 exit <- 
                   file.input match {
@@ -87,7 +87,7 @@ object Run {
                         )
                       runEnvironment[F, Array[Byte]](env, false)
                     case _ =>
-                      val (source, checkpointer) = mkSource(blocker, file.input)
+                      val (source, checkpointer) = mkSource(blocker, file.input, file.monitoring)
                       val env = Environment
                         .make[F, A](
                           blocker,
@@ -113,13 +113,14 @@ object Run {
   private def initAttributedSink[F[_]: Concurrent: ContextShift: Timer](
     blocker: Blocker,
     output: Output,
-    mkGoodSink: (Blocker, Output) => Resource[F, AttributedByteSink[F]],
+    monitoring: Option[Monitoring],
+    mkGoodSink: (Blocker, Output, Option[Monitoring]) => Resource[F, AttributedByteSink[F]],
   ): Resource[F, AttributedByteSink[F]] =
     output match {
       case Output.FileSystem(path) =>
         Sink.fileSink[F](path, blocker).map(sink => row => sink(row.data))
       case _ =>
-        mkGoodSink(blocker, output)
+        mkGoodSink(blocker, output, monitoring)
     }
 
   private def runEnvironment[F[_]: ConcurrentEffect: ContextShift: Parallel: Timer, A](

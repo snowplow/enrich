@@ -77,7 +77,7 @@ jobs:
             "project streamKafka; set assembly / test := {}; assembly" \
             "project streamNsq; set assembly / test := {}; assembly" \
             "project beam; set assembly / test := {}; assembly" \
-            "project pubsub; set assembly / test := {}; assembly"
+            "project pubsub; set assembly / test := {}; assembly" \
             "project kinesis; set assembly / test := {}; assembly"
     - name: Create GitHub release and attach artifacts
       uses: softprops/action-gh-release@v1

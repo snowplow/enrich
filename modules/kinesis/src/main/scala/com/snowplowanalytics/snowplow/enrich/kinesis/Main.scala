@@ -10,12 +10,13 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.pubsub
+package com.snowplowanalytics.snowplow.enrich.kinesis
 
 import cats.effect.{ExitCode, IO, IOApp, Resource, SyncIO}
 
 import java.util.concurrent.{Executors, TimeUnit}
 
+import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.ExecutionContext
 
 import fs2.aws.kinesis.CommittableRecord
@@ -54,7 +55,21 @@ object Main extends IOApp.WithContext {
       Sink.initAttributed,
       Sink.initAttributed,
       Sink.init,
-      _.record.data.array(),
+      getPayload,
       false
     )
+
+  private def getPayload(record: CommittableRecord): Array[Byte] = {
+    val data = record.record.data
+    System.out.println(s"isDirect: ${data.isDirect()}")
+    System.out.println(s"isReadonly: ${data.isReadOnly()}")
+    System.out.println(s"hasArray: ${data.hasArray()}")
+    System.out.println(s"remaining: ${data.remaining()}")
+    System.out.println(s"limit: ${data.limit()}")
+    val buffer = ArrayBuffer[Byte]()
+    while (data.hasRemaining()){
+      buffer.append(data.get)
+    }
+    buffer.toArray
+  }
 }

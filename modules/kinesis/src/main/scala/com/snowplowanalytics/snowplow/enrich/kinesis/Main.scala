@@ -61,15 +61,9 @@ object Main extends IOApp.WithContext {
 
   private def getPayload(record: CommittableRecord): Array[Byte] = {
     val data = record.record.data
-    System.out.println(s"isDirect: ${data.isDirect()}")
-    System.out.println(s"isReadonly: ${data.isReadOnly()}")
-    System.out.println(s"hasArray: ${data.hasArray()}")
-    System.out.println(s"remaining: ${data.remaining()}")
-    System.out.println(s"limit: ${data.limit()}")
     val buffer = ArrayBuffer[Byte]()
-    while (data.hasRemaining()){
+    while (data.hasRemaining())
       buffer.append(data.get)
-    }
     buffer.toArray
   }
 }

@@ -115,11 +115,11 @@ object Sink {
       .retryingOnFailuresAndAllErrors(
         wasSuccessful = _.isSuccessful,
         policy = retryPolicy,
-        onFailure =
-          (_, retryDetails) => Logger[F].warn(s"Failure while writing record to Kinesis - retries so far: ${retryDetails.retriesSoFar}"),
+        onFailure = (result, retryDetails) =>
+          Logger[F].warn(s"Writing to shard ${result.getShardId()} failed after ${retryDetails.retriesSoFar} retry"),
         onError = (exception, retryDetails) =>
           Logger[F]
-            .error(s"Error while writing record to Kinesis - retries so far: ${retryDetails.retriesSoFar} - exception: $exception") >>
+            .error(s"Writing to Kinesis errored after ${retryDetails.retriesSoFar} retry. Error: ${exception.toString}") >>
             Async[F].raiseError(exception)
       )
       .void

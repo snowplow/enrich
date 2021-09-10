@@ -126,11 +126,13 @@ object ParsedConfigs {
             s == key
         }
         attributesFromFields(fields)
-      case _ => Map.empty
+      case _ =>
+        _ => Map.empty
     }
 
   private def attributesFromFields(fields: Map[String, Field])(ee: EnrichedEvent): Map[String, String] =
     fields.flatMap {
-      case (k, f) => Option(f.get(ee)).map(v => k -> v.toString)
+      case (k, f) =>
+        Option(f.get(ee)).map(v => k -> v.toString)
     }
 }

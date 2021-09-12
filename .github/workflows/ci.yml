@@ -96,10 +96,19 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  publish_stream:
+  publish_docker:
     needs: test
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app:
+          - streamKinesis
+          - streamKafka
+          - streamNsq
+          - pubsub
+          - kinesis
+          - beam
     steps:
     - uses: actions/checkout@v2
     - uses: coursier/cache-action@v6
@@ -112,84 +121,45 @@ jobs:
       env:
         DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-    - name: Build and publish Stream Kinesis Docker image
-      run: sbt "project streamKinesis" docker:publish
-    - name: Build and publish Stream Kafka Docker image
-      if: ${{ always() }}
-      run: sbt "project streamKafka" docker:publish
-    - name: Build and publish Stream NSQ Docker image
-      if: ${{ always() }}
-      run: sbt "project streamNsq" docker:publish
 
-  publish_pubsub:
-    needs: test
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-    - uses: coursier/cache-action@v6
-    - name: Set up JDK 11
-      uses: actions/setup-java@v1
+    - name: Get current version
+      id: ver
+      run: echo "::set-output name=tag::${GITHUB_REF#refs/tags/}"
+    - name: Get app package name
+      id: packageName
+      run: |
+        export PACKAGE_NAME=$(sbt "project ${{ matrix.app }}" dockerAlias -Dsbt.log.noformat=true | sed -n '/\[info\]/ s/\[info\] //p' | tail -1 | tr -d '\n' | cut -d":" -f1)
+        echo "::set-output name=package_name::$PACKAGE_NAME"
+    - name: Get app base directory
+      id: baseDirectory
+      run: |
+        export BASE_DIRECTORY=$(sbt "project ${{ matrix.app }}" baseDirectory -Dsbt.log.noformat=true | sed -n '/\[info\]/ s/\[info\] //p' | tail -1 | tr -d '\n')
+        echo "::set-output name=directory::$BASE_DIRECTORY"
+
+    - name: Stage the Docker build
+      run: sbt "project ${{ matrix.app}}" docker:stage
+    - name: Docker metadata
+      id: meta
+      uses: docker/metadata-action@v3
       with:
-        java-version: 11
-    - name: Docker login
-      run: docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
-      env:
-        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-    - name: Build and publish Enrich PubSub Docker image
-      run: sbt "project pubsub" docker:publish
-
-  publish_kinesis:
-    needs: test
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-    - uses: coursier/cache-action@v6
-    - name: Set up JDK 11
-      uses: actions/setup-java@v1
+        images: ${{ steps.packageName.outputs.package_name }}
+        tags: |
+          type=raw,value=latest,enable=${{ !contains(steps.ver.outputs.tag, 'rc') }}
+          type=raw,value=${{ steps.ver.outputs.tag }}
+        flavor: |
+          latest=false
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v1
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v1
+    - name: Push image
+      uses: docker/build-push-action@v2
       with:
-        java-version: 11
-    - name: Docker login
-      run: docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
-      env:
-        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-    - name: Build and publish Enrich Kinesis Docker image
-      run: sbt "project kinesis" docker:publish
-
-  publish_beam:
-    needs: test
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres
-        ports:
-          - 5432:5432
-        env:
-          POSTGRES_USER: enricher
-          POSTGRES_PASSWORD: supersecret1
-          POSTGRES_DB: sql_enrichment_test
-          POSTGRES_PORT: 5432
-        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
-
-    steps:
-    - uses: actions/checkout@v2
-    - uses: coursier/cache-action@v6
-    - name: Set up JDK 11
-      uses: actions/setup-java@v1
-      with:
-        java-version: 11
-    - name: Docker login
-      run: docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
-      env:
-        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-    - name: Build and publish Beam Docker images
-      run: sbt "project beam" docker:publish
+        context: ${{ steps.baseDirectory.outputs.directory }}/target/docker/stage
+        file: ${{ steps.baseDirectory.outputs.directory }}/target/docker/stage/Dockerfile
+        platforms: linux/amd64,linux/arm64/v8
+        tags: ${{ steps.meta.outputs.tags }}
+        push: true
 
   publish_sce:
     needs: test

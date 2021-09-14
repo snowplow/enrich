@@ -68,6 +68,7 @@ lazy val common = project
       Dependencies.Libraries.circeLiteral % Test
     )
   )
+  .settings(excludeDependencies ++= Dependencies.Libraries.exclusions)
 
 lazy val allStreamSettings = BuildSettings.basicSettings ++ BuildSettings.sbtAssemblySettings ++
   BuildSettings.dockerSettings ++ BuildSettings.formatting ++

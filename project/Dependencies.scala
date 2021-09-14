@@ -189,5 +189,10 @@ object Dependencies {
     // force versions of transitive dependencies
     val thrift           = "org.apache.thrift"                % "libthrift"                          % V.thrift
     val sprayJson        = "io.spray"                         %% "spray-json"                        % V.sprayJson
+
+    // exclusions
+    val exclusions = Seq(
+      "org.apache.tomcat.embed" % "tomcat-embed-core"
+    )
   }
 }

@@ -17,6 +17,8 @@ import io.circe._
 import io.circe.literal._
 import io.circe.parser._
 
+import cats.Id
+
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 
 import org.specs2.Specification
@@ -88,7 +90,7 @@ class SqlQueryEnrichmentIntegrationTest extends Specification {
 
     val event = new EnrichedEvent
 
-    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment(BlockerF.noop))
+    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[Id](BlockerF.noop))
     val context = config.toEither.flatMap(_.lookup(event, Nil, Nil, None).toEither)
 
     val correctContext =
@@ -312,7 +314,7 @@ class SqlQueryEnrichmentIntegrationTest extends Specification {
       json""" {"applicationName": "ue_test_london"} """
     )
 
-    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).toEither.map(_.enrichment(BlockerF.noop))
+    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).toEither.map(_.enrichment[Id](BlockerF.noop))
 
     val context1 =
       config.flatMap(_.lookup(event1, List(weatherContext1), List(geoContext1), Some(ue1)).toEither)
@@ -403,7 +405,7 @@ class SqlQueryEnrichmentIntegrationTest extends Specification {
     val event = new EnrichedEvent
     event.user_id = null
 
-    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment(BlockerF.noop))
+    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[Id](BlockerF.noop))
     val context = config.toEither.flatMap(_.lookup(event, Nil, Nil, None).toEither)
 
     context must beRight(Nil)

@@ -81,6 +81,7 @@ lazy val allStreamSettings = BuildSettings.basicSettings ++ BuildSettings.sbtAss
     Dependencies.Libraries.scopt,
     Dependencies.Libraries.pureconfig,
     Dependencies.Libraries.snowplowTracker,
+    Dependencies.Libraries.jacksonCbor
     Dependencies.Libraries.specs2,
     Dependencies.Libraries.scalacheck
   ))
@@ -106,8 +107,7 @@ lazy val streamKinesis = project
   .settings(libraryDependencies ++= Seq(
     Dependencies.Libraries.kinesisClient,
     Dependencies.Libraries.kinesisSdk,
-    Dependencies.Libraries.dynamodbSdk,
-    Dependencies.Libraries.jacksonCbor
+    Dependencies.Libraries.dynamodbSdk
   ))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
   .dependsOn(streamCommon)

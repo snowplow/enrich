@@ -55,7 +55,7 @@ object Dependencies {
     val scalaWeather     = "1.0.0"
     val gatlingJsonpath  = "0.6.14"
     val scalaUri         = "1.5.1"
-    val badRows          = "2.1.0"
+    val badRows          = "2.1.1"
     val igluClient       = "1.0.2"
 
     val snowplowRawEvent = "0.1.0"

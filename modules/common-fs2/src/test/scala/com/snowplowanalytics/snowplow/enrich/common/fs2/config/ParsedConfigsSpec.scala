@@ -32,9 +32,11 @@ class ParsedConfigsSpec extends Specification with CatsIO {
 
       val configFile = ConfigFile(
         io.Input.PubSub("projects/test-project/subscriptions/inputSub", None, None),
-        io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id", invalidAttr1)), None, None, None, None),
-        Some(io.Output.PubSub("projects/test-project/topics/pii-topic", Some(Set("app_id", invalidAttr2)), None, None, None, None)),
-        io.Output.PubSub("projects/test-project/topics/bad-topic", None, None, None, None, None),
+        io.Outputs(
+          io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id", invalidAttr1)), None, None, None, None),
+          Some(io.Output.PubSub("projects/test-project/topics/pii-topic", Some(Set("app_id", invalidAttr2)), None, None, None, None)),
+          io.Output.PubSub("projects/test-project/topics/bad-topic", None, None, None, None, None)
+        ),
         io.Concurrency(10000, 64),
         Some(7.days),
         Some(

@@ -60,6 +60,7 @@ lazy val common = project
       Dependencies.Libraries.collectorPayload,
       Dependencies.Libraries.schemaSniffer,
       Dependencies.Libraries.thrift,
+      Dependencies.Libraries.sprayJson,
       Dependencies.Libraries.specs2,
       Dependencies.Libraries.specs2Cats,
       Dependencies.Libraries.specs2Scalacheck,

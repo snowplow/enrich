@@ -34,112 +34,114 @@
     }
   }
 
-  # Enriched events output
-  "good": {
-    "type": "Kinesis"
+  "output": {
+    # Enriched events output
+    "good": {
+      "type": "Kinesis"
 
-    # Name of the Kinesis stream to write to
-    "streamName": "enriched"
+      # Name of the Kinesis stream to write to
+      "streamName": "enriched"
 
-    # AWS region in which the Kinesis stream resides.
-    "region": "eu-central-1"
+      # AWS region in which the Kinesis stream resides.
+      "region": "eu-central-1"
+  
+      # Optional. How the output stream/topic will be partitioned in Kinesis
+      # Possible partition keys are: event_id, event_fingerprint, domain_userid, network_userid,
+      # user_ipaddress, domain_sessionid, user_fingerprint
+      # Refer to https://github.com/snowplow/snowplow/wiki/canonical-event-model to know what the
+      # possible parittion keys correspond to.
+      # Otherwise, the partition key will be a random UUID.
+      # "partitionKey" = "user_id"
 
-    # Optional. How the output stream/topic will be partitioned in Kinesis
-    # Possible partition keys are: event_id, event_fingerprint, domain_userid, network_userid,
-    # user_ipaddress, domain_sessionid, user_fingerprint
-    # Refer to https://github.com/snowplow/snowplow/wiki/canonical-event-model to know what the
-    # possible parittion keys correspond to.
-    # Otherwise, the partition key will be a random UUID.
-    # "partitionKey" = "user_id"
+      # The delay threshold to use for batching
+      # Default is 200 milliseconds
+      "delayThreshold": 200 milliseconds
 
-    # The delay threshold to use for batching
-    # Default is 200 milliseconds
-    "delayThreshold": 200 milliseconds
+      # Max number of items in the batch to collect before emitting
+      # Default is 500
+      "maxBatchSize": 500
 
-    # Max number of items in the batch to collect before emitting
-    # Default is 500
-    "maxBatchSize": 500
+      # Max size of the batch in bytes before emitting
+      # Default is 5MB
+      "maxBatchBytes": 5000000
 
-    # Max size of the batch in bytes before emitting
-    # Default is 5MB
-    "maxBatchBytes": 5000000
-
-    # Minimum and maximum backoff periods
-    "backoffPolicy": {
-      # Default is 100 ms
-      "minBackoff": 100 milliseconds
-      # Default is 10 s
-      "maxBackoff": 10 seconds
+      # Minimum and maximum backoff periods
+      "backoffPolicy": {
+        # Default is 100 ms
+        "minBackoff": 100 milliseconds
+        # Default is 10 s
+        "maxBackoff": 10 seconds
+      }
     }
-  }
 
-  # Pii events output
-  "pii": {
-    "type": "Kinesis"
+    # Pii events output
+    "pii": {
+      "type": "Kinesis"
 
-    # Name of the Kinesis stream to write to
-    "streamName": "pii"
+      # Name of the Kinesis stream to write to
+      "streamName": "pii"
 
-    # AWS region in which the Kinesis stream resides.
-    "region": "eu-central-1"
+      # AWS region in which the Kinesis stream resides.
+      "region": "eu-central-1"
 
-    # Optional. How the output stream/topic will be partitioned in Kinesis
-    # Possible partition keys are: event_id, event_fingerprint, domain_userid, network_userid,
-    # user_ipaddress, domain_sessionid, user_fingerprint
-    # Refer to https://github.com/snowplow/snowplow/wiki/canonical-event-model to know what the
-    # possible parittion keys correspond to.
-    # Otherwise, the partition key will be a random UUID.
-    # "partitionKey" = "user_id"
+      # Optional. How the output stream/topic will be partitioned in Kinesis
+      # Possible partition keys are: event_id, event_fingerprint, domain_userid, network_userid,
+      # user_ipaddress, domain_sessionid, user_fingerprint
+      # Refer to https://github.com/snowplow/snowplow/wiki/canonical-event-model to know what the
+      # possible parittion keys correspond to.
+      # Otherwise, the partition key will be a random UUID.
+      # "partitionKey" = "user_id"
 
-    # The delay threshold to use for batching
-    # Default is 200 milliseconds
-    "delayThreshold": 200 milliseconds
+      # The delay threshold to use for batching
+      # Default is 200 milliseconds
+      "delayThreshold": 200 milliseconds
 
-    # Max number of items in the batch to collect before emitting
-    # Default is 500
-    "maxBatchSize": 500
+      # Max number of items in the batch to collect before emitting
+      # Default is 500
+      "maxBatchSize": 500
 
-    # Max size of the batch in bytes before emitting
-    # Default is 5MB
-    "maxBatchBytes": 5000000
+      # Max size of the batch in bytes before emitting
+      # Default is 5MB
+      "maxBatchBytes": 5000000
 
-    # Minimum and maximum backoff periods
-    "backoffPolicy": {
-      # Default is 100 ms
-      "minBackoff": 100 milliseconds
-      # Default is 10 s
-      "maxBackoff": 10 seconds
+      # Minimum and maximum backoff periods
+      "backoffPolicy": {
+        # Default is 100 ms
+        "minBackoff": 100 milliseconds
+        # Default is 10 s
+        "maxBackoff": 10 seconds
+      }
     }
-  }
 
-  # Bad rows output
-  "bad": {
-    "type": "Kinesis"
+    # Bad rows output
+    "bad": {
+      "type": "Kinesis"
 
-    # Name of the Kinesis stream to write to
-    "streamName": "bad"
+      # Name of the Kinesis stream to write to
+      "streamName": "bad"
 
-    # AWS region in which the Kinesis stream resides.
-    "region": "eu-central-1"
+      # AWS region in which the Kinesis stream resides.
+      "region": "eu-central-1"
 
-    # The delay threshold to use for batching
-    # Default is 200 milliseconds
-    "delayThreshold": 200 milliseconds
+      # The delay threshold to use for batching
+      # Default is 200 milliseconds
+      "delayThreshold": 200 milliseconds
 
-    # Max number of items in the batch to collect before emitting
-    # Default is 500
-    "maxBatchSize": 500
+      # Max number of items in the batch to collect before emitting
+      # Default is 500
+      "maxBatchSize": 500
 
-    # Max size of the batch in bytes before emitting
-    # Default is 5MB
-    "maxBatchBytes": 5000000
+      # Max size of the batch in bytes before emitting
+      # Default is 5MB
+      "maxBatchBytes": 5000000
 
-    # Minimum and maximum backoff periods
-    "backoffPolicy": {
-      # Default is 100 ms
-      "minBackoff": 100 milliseconds
-      # Default is 10 s
-      "maxBackoff": 10 seconds
+      # Minimum and maximum backoff periods
+      "backoffPolicy": {
+        # Default is 100 ms
+        "minBackoff": 100 milliseconds
+        # Default is 10 s
+        "maxBackoff": 10 seconds
+      }
     }
   }
 

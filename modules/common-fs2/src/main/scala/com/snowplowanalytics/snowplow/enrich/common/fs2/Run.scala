@@ -69,13 +69,13 @@ object Run {
                     _ <- Logger[F].info(s"Initialising resources for $name $version")
                     processor = Processor(name, version)
                     file = parsed.configFile
-                    sinkGood = initAttributedSink(blocker, file.good, file.monitoring, mkSinkGood)
-                    sinkPii = file.pii.map(out => initAttributedSink(blocker, out, file.monitoring, mkSinkPii))
-                    sinkBad = file.bad match {
+                    sinkGood = initAttributedSink(blocker, file.output.good, file.monitoring, mkSinkGood)
+                    sinkPii = file.output.pii.map(out => initAttributedSink(blocker, out, file.monitoring, mkSinkPii))
+                    sinkBad = file.output.bad match {
                                 case f: Output.FileSystem =>
                                   Sink.fileSink[F](f, blocker)
                                 case _ =>
-                                  mkSinkBad(blocker, file.bad, file.monitoring)
+                                  mkSinkBad(blocker, file.output.bad, file.monitoring)
                               }
                     clients = mkClients.map(mk => mk(blocker))
                     exit <- file.input match {

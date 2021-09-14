@@ -27,23 +27,19 @@ import pureconfig.ConfigSource
 import pureconfig.module.catseffect.syntax._
 import pureconfig.module.circe._
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Input, Monitoring, Output}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Input, Monitoring, Outputs}
 
 /**
  * Parsed HOCON configuration file
  *
  * @param input input (PubSub, Kinesis etc)
- * @param good good enriched output (PubSub, Kinesis, FS etc)
- * @param pii pii enriched output (PubSub, Kinesis, FS etc)
- * @param bad bad rows output (PubSub, Kinesis, FS etc)
+ * @param output wraps good bad and pii outputs (PubSub, Kinesis, FS etc)
  * @param assetsUpdatePeriod time after which assets should be updated, in minutes
  * @param monitoring configuration for sentry and metrics
  */
 final case class ConfigFile(
   input: Input,
-  good: Output,
-  pii: Option[Output],
-  bad: Output,
+  output: Outputs,
   assetsUpdatePeriod: Option[FiniteDuration],
   monitoring: Option[Monitoring]
 )
@@ -56,7 +52,7 @@ object ConfigFile {
 
   implicit val configFileDecoder: Decoder[ConfigFile] =
     deriveConfiguredDecoder[ConfigFile].emap {
-      case ConfigFile(_, _, _, _, Some(aup), _) if aup._1 <= 0L =>
+      case ConfigFile(_, _, Some(aup), _) if aup._1 <= 0L =>
         "assetsUpdatePeriod in config file cannot be less than 0".asLeft // TODO: use newtype
       case other => other.asRight
     }

@@ -9,43 +9,45 @@
     # "dir": "/var/collector"
   }
 
-  # Enriched events output
-  "good": {
-    "type": "PubSub"
-    "topic": "projects/test-project/topics/good-topic"
+  "output": {
+    # Enriched events output
+    "good": {
+      "type": "PubSub"
+      "topic": "projects/test-project/topics/good-topic"
 
-    # Enriched event fields to add as PubSub message attributes.
-    "attributes": [ "app_id" ]
+      # Enriched event fields to add as PubSub message attributes.
+      "attributes": [ "app_id" ]
 
-    # Local FS supported for testing purposes
-    # "type": "FileSystem"
-    # "file": "/var/enriched"
-    # "maxBytes": 1000000
-  }
+      # Local FS supported for testing purposes
+      # "type": "FileSystem"
+      # "file": "/var/enriched"
+      # "maxBytes": 1000000
+    }
 
-  # Pii events output
-  "pii": {
-    "type": "PubSub"
-    "topic": "projects/test-project/topics/pii-topic"
+    # Pii events output
+    "pii": {
+      "type": "PubSub"
+      "topic": "projects/test-project/topics/pii-topic"
 
-    # Enriched event fields to add as PubSub message attributes.
-    # "attributes": [ "app_id" ]
+      # Enriched event fields to add as PubSub message attributes.
+      # "attributes": [ "app_id" ]
 
-    # Local FS supported for testing purposes
-    # "type": "FileSystem"
-    # "file": "/var/pii"
-    # "maxBytes": 1000000
-  }
+      # Local FS supported for testing purposes
+      # "type": "FileSystem"
+      # "file": "/var/pii"
+      # "maxBytes": 1000000
+    }
 
-  # Bad rows output
-  "bad": {
-    "type": "PubSub"
-    "topic": "projects/test-project/topics/bad-topic"
+    # Bad rows output
+    "bad": {
+      "type": "PubSub"
+      "topic": "projects/test-project/topics/bad-topic"
 
-    # Local FS supported for testing purposes
-    # "type": "FileSystem"
-    # "file": "/var/bad"
-    # "maxBytes": 1000000
+      # Local FS supported for testing purposes
+      # "type": "FileSystem"
+      # "file": "/var/bad"
+      # "maxBytes": 1000000
+    }
   }
 
 

@@ -63,7 +63,7 @@ object Dependencies {
     val kinesisClient    = "1.13.3"
     val kafka            = "2.2.1"
     val nsqClient        = "1.2.0"
-    val jackson          = "2.10.5"
+    val jackson          = "2.11.4"
     val config           = "1.3.4"
 
     val decline          = "1.0.0"

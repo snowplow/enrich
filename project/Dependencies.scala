@@ -43,6 +43,7 @@ object Dependencies {
     val slf4j            = "1.7.32"
     val log4j            = "2.17.0" // CVE-2021-44228
     val thrift           = "0.15.0" // override transitive dependency to mitigate security vulnerabilities
+    val sprayJson        = "1.3.6" // override transitive dependency to mitigate security vulnerabilities
 
     val refererParser    = "1.1.0"
     val maxmindIplookups = "0.7.1"
@@ -135,7 +136,8 @@ object Dependencies {
     val collectorPayload = "com.snowplowanalytics"      %  "collector-payload-1"           % V.collectorPayload
     val schemaSniffer    = "com.snowplowanalytics"      %  "schema-sniffer-1"              % V.schemaSniffer
     val iabClient        = "com.snowplowanalytics"      %  "iab-spiders-and-robots-client" % V.iabClient
-    val thrift           = "org.apache.thrift"          % "libthrift"                      % V.thrift
+    val thrift           = "org.apache.thrift"          %  "libthrift"                     % V.thrift
+    val sprayJson        = "io.spray"                   %% "spray-json"                    % V.sprayJson
 
     val specs2           = "org.specs2"                 %% "specs2-core"                   % V.specs2                    % Test
     val specs2Cats       = "org.specs2"                 %% "specs2-cats"                   % V.specs2                    % Test

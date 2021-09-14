@@ -33,9 +33,11 @@ class ConfigFileSpec extends Specification with CatsIO {
       val configPath = Paths.get(getClass.getResource("/config.pubsub.hocon.sample").toURI)
       val expected = ConfigFile(
         io.Input.PubSub("projects/test-project/subscriptions/inputSub", None, None),
-        io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id")), None, None, None, None),
-        Some(io.Output.PubSub("projects/test-project/topics/pii-topic", None, None, None, None, None)),
-        io.Output.PubSub("projects/test-project/topics/bad-topic", None, None, None, None, None),
+        io.Outputs(
+          io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id")), None, None, None, None),
+          Some(io.Output.PubSub("projects/test-project/topics/pii-topic", None, None, None, None, None)),
+          io.Output.PubSub("projects/test-project/topics/bad-topic", None, None, None, None, None)
+        ),
         io.Concurrency(256, 3),
         Some(7.days),
         Some(
@@ -69,24 +71,41 @@ class ConfigFileSpec extends Specification with CatsIO {
           None,
           None
         ),
-        io.Output.Kinesis(
-          "enriched",
-          Some("eu-central-1"),
-          None,
-          io.Output.BackoffPolicy(100.millis, 10.seconds),
-          100.millis,
-          io.Output.Collection(500, 5242880),
-          None,
-          24,
-          "warning",
-          None,
-          None,
-          None,
-          None
-        ),
-        Some(
+        io.Outputs(
           io.Output.Kinesis(
-            "pii",
+            "enriched",
+            Some("eu-central-1"),
+            None,
+            io.Output.BackoffPolicy(100.millis, 10.seconds),
+            100.millis,
+            io.Output.Collection(500, 5242880),
+            None,
+            24,
+            "warning",
+            None,
+            None,
+            None,
+            None
+          ),
+          Some(
+            io.Output.Kinesis(
+              "pii",
+              Some("eu-central-1"),
+              None,
+              io.Output.BackoffPolicy(100.millis, 10.seconds),
+              100.millis,
+              io.Output.Collection(500, 5242880),
+              None,
+              24,
+              "warning",
+              None,
+              None,
+              None,
+              None
+            )
+          ),
+          io.Output.Kinesis(
+            "bad",
             Some("eu-central-1"),
             None,
             io.Output.BackoffPolicy(100.millis, 10.seconds),
@@ -100,21 +119,6 @@ class ConfigFileSpec extends Specification with CatsIO {
             None,
             None
           )
-        ),
-        io.Output.Kinesis(
-          "bad",
-          Some("eu-central-1"),
-          None,
-          io.Output.BackoffPolicy(100.millis, 10.seconds),
-          100.millis,
-          io.Output.Collection(500, 5242880),
-          None,
-          24,
-          "warning",
-          None,
-          None,
-          None,
-          None
         ),
         io.Concurrency(256, 1),
         Some(7.days),
@@ -141,17 +145,19 @@ class ConfigFileSpec extends Specification with CatsIO {
             "type": "PubSub",
             "subscription": "projects/test-project/subscriptions/inputSub"
           },
-          "good": {
-            "type": "PubSub",
-            "topic": "projects/test-project/topics/good-topic"
-          },
-          "pii": {
-            "type": "PubSub",
-            "topic": "projects/test-project/topics/pii-topic"
-          },
-          "bad": {
-            "type": "PubSub",
-            "topic": "projects/test-project/topics/bad-topic"
+          "output": {
+            "good": {
+              "type": "PubSub",
+              "topic": "projects/test-project/topics/good-topic"
+            },
+            "pii": {
+              "type": "PubSub",
+              "topic": "projects/test-project/topics/pii-topic"
+            },
+            "bad": {
+              "type": "PubSub",
+              "topic": "projects/test-project/topics/bad-topic"
+            }
           },
           "concurrency": {
             "enrich": 256,

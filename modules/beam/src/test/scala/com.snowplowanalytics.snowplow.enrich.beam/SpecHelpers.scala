@@ -103,7 +103,7 @@ object SpecHelpers {
     )
 
   val enrichmentRegistry = EnrichmentRegistry
-    .build(enrichmentConfs, BlockerF.noop)
+    .build[Id](enrichmentConfs, BlockerF.noop)
     .fold(
       e => throw new RuntimeException(e.toList.mkString("\n")),
       r => r

@@ -68,6 +68,7 @@ lazy val common = project
       Dependencies.Libraries.circeLiteral % Test
     )
   )
+  .settings(excludeDependencies ++= Dependencies.Libraries.exclusions)
 
 lazy val allStreamSettings = BuildSettings.basicSettings ++ BuildSettings.sbtAssemblySettings ++
   BuildSettings.dockerSettings ++ BuildSettings.formatting ++
@@ -98,6 +99,7 @@ lazy val streamCommon = project
     buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.stream.generated"
   )
   .dependsOn(common)
+  .settings(excludeDependencies ++= Dependencies.Libraries.exclusions)
 
 lazy val streamKinesis = project
   .in(file("modules/stream/kinesis"))
@@ -111,6 +113,7 @@ lazy val streamKinesis = project
   ))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
   .dependsOn(streamCommon)
+  .settings(excludeDependencies ++= Dependencies.Libraries.exclusions)
 
 lazy val streamKafka = project
   .in(file("modules/stream/kafka"))
@@ -124,6 +127,7 @@ lazy val streamKafka = project
   ))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
   .dependsOn(streamCommon)
+  .settings(excludeDependencies ++= Dependencies.Libraries.exclusions)
 
 lazy val streamNsq = project
   .in(file("modules/stream/nsq"))
@@ -139,6 +143,7 @@ lazy val streamNsq = project
   ))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
   .dependsOn(streamCommon)
+  .settings(excludeDependencies ++= Dependencies.Libraries.exclusions)
 
 lazy val streamStdin = project
   .in(file("modules/stream/stdin"))
@@ -147,6 +152,7 @@ lazy val streamStdin = project
     moduleName := "snowplow-stream-enrich-stdin",
   )
   .dependsOn(streamCommon)
+  .settings(excludeDependencies ++= Dependencies.Libraries.exclusions)
 
 lazy val beam =
   project
@@ -199,6 +205,7 @@ lazy val beam =
       Test / testGrouping := BuildSettings.oneJVMPerTest((Test / definedTests).value)
     )
     .enablePlugins(JavaAppPackaging, DockerPlugin, BuildInfoPlugin)
+    .settings(excludeDependencies ++= Dependencies.Libraries.exclusions)
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
@@ -270,6 +277,7 @@ lazy val pubsub = project
   .enablePlugins(BuildInfoPlugin)
   .settings(BuildSettings.dockerSettings)
   .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
+  .settings(excludeDependencies ++= Dependencies.Libraries.exclusions)
 
 lazy val kinesis = project
   .in(file("modules/kinesis"))
@@ -297,6 +305,7 @@ lazy val kinesis = project
   .enablePlugins(BuildInfoPlugin)
   .settings(BuildSettings.dockerSettings)
   .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
+  .settings(excludeDependencies ++= Dependencies.Libraries.exclusions)
 
 lazy val bench = project
   .in(file("modules/bench"))

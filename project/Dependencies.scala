@@ -188,5 +188,10 @@ object Dependencies {
     val pureconfigCirce  = "com.github.pureconfig"            %% "pureconfig-circe"                  % V.pureconfig
     val http4sDsl        = "org.http4s"                       %% "http4s-dsl"                        % V.http4s          % Test
     val http4sServer     = "org.http4s"                       %% "http4s-blaze-server"               % V.http4s          % Test
+
+    // exclusions
+    val exclusions = Seq(
+      "org.apache.tomcat.embed" % "tomcat-embed-core"
+    )
   }
 }

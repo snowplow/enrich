@@ -46,148 +46,150 @@
     # dynamodbCustomEndpoint = "http://localhost:4569"
   }
 
-  # Enriched events output
-  "good": {
-    "type": "Kinesis"
+  "output": {
+    # Enriched events output
+    "good": {
+      "type": "Kinesis"
 
-    # Name of the Kinesis stream to write to
-    "streamName": "enriched"
+      # Name of the Kinesis stream to write to
+      "streamName": "enriched"
 
-    # Optional. Region where the Kinesis stream is located
-    # This field is optional if it can be resolved with AWS region provider chain.
-    # It checks places like env variables, system properties, AWS profile file.
-    # https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/regions/providers/DefaultAwsRegionProviderChain.html
-    "region": "eu-central-1"
+      # Optional. Region where the Kinesis stream is located
+      # This field is optional if it can be resolved with AWS region provider chain.
+      # It checks places like env variables, system properties, AWS profile file.
+      # https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/regions/providers/DefaultAwsRegionProviderChain.html
+      "region": "eu-central-1"
 
-    # Optional. How the output stream/topic will be partitioned in Kinesis
-    # Possible partition keys are: event_id, event_fingerprint, domain_userid, network_userid,
-    # user_ipaddress, domain_sessionid, user_fingerprint
-    # Refer to https://github.com/snowplow/snowplow/wiki/canonical-event-model to know what the
-    # possible parittion keys correspond to.
-    # Otherwise, the partition key will be a random UUID.
-    # "partitionKey" = "user_id"
+      # Optional. How the output stream/topic will be partitioned in Kinesis
+      # Possible partition keys are: event_id, event_fingerprint, domain_userid, network_userid,
+      # user_ipaddress, domain_sessionid, user_fingerprint
+      # Refer to https://github.com/snowplow/snowplow/wiki/canonical-event-model to know what the
+      # possible parittion keys correspond to.
+      # Otherwise, the partition key will be a random UUID.
+      # "partitionKey" = "user_id"
 
-    # Optional. Minimum and maximum backoff periods
-    "backoffPolicy": {
-      "minBackoff": 100 milliseconds
-      "maxBackoff": 10 seconds
+      # Optional. Minimum and maximum backoff periods
+      "backoffPolicy": {
+        "minBackoff": 100 milliseconds
+        "maxBackoff": 10 seconds
+      }
+
+      # Optional. Maximum amount of time an enriched event may spend being buffered before it gets sent
+      "maxBufferedTime": 100 millis
+
+      # Optional. See https://docs.aws.amazon.com/streams/latest/dev/kinesis-kpl-concepts.html
+      "collection": {
+        # Maximum number of Kinesis records to pack into a PutRecords request
+        "maxCount": 500
+
+        # Maximum amount of data to send with a PutRecords request
+        "maxSize": 5242880
+      }
+
+      # Optional. See https://docs.aws.amazon.com/streams/latest/dev/kinesis-kpl-concepts.html
+      # If not specified, aggregation is deactivated
+      #"aggregation": {
+      #  # Maximum number of enriched events to pack into an aggregated Kinesis record
+      #  "maxCount": 4294967295
+      #
+      #  # Maximum number of bytes to pack into an aggregated Kinesis record
+      #  "maxSize": 51200
+      #}
     }
 
-    # Optional. Maximum amount of time an enriched event may spend being buffered before it gets sent
-    "maxBufferedTime": 100 millis
+    # Pii events output
+    "pii": {
+      "type": "Kinesis"
 
-    # Optional. See https://docs.aws.amazon.com/streams/latest/dev/kinesis-kpl-concepts.html
-    "collection": {
-      # Maximum number of Kinesis records to pack into a PutRecords request
-      "maxCount": 500
+      # Name of the Kinesis stream to write to
+      "streamName": "pii"
 
-      # Maximum amount of data to send with a PutRecords request
-      "maxSize": 5242880
+      # Optional. Region where the Kinesis stream is located
+      # This field is optional if it can be resolved with AWS region provider chain.
+      # It checks places like env variables, system properties, AWS profile file.
+      # https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/regions/providers/DefaultAwsRegionProviderChain.html
+      "region": "eu-central-1"
+
+      # Optional. How the output stream/topic will be partitioned in Kinesis
+      # Possible partition keys are: event_id, event_fingerprint, domain_userid, network_userid,
+      # user_ipaddress, domain_sessionid, user_fingerprint
+      # Refer to https://github.com/snowplow/snowplow/wiki/canonical-event-model to know what the
+      # possible parittion keys correspond to.
+      # Otherwise, the partition key will be a random UUID.
+      # "partitionKey" = "user_id"
+
+      # Optional. Minimum and maximum backoff periods
+      "backoffPolicy": {
+        "minBackoff": 100 milliseconds
+        "maxBackoff": 10 seconds
+      }
+
+      # Optional. Maximum amount of time an enriched event may spend being buffered before it gets sent
+      "maxBufferedTime": 100 millis
+
+      # Optional. See https://docs.aws.amazon.com/streams/latest/dev/kinesis-kpl-concepts.html
+      "collection": {
+        # Maximum number of Kinesis records to pack into a PutRecords request
+        "maxCount": 500
+
+        # Maximum amount of data to send with a PutRecords request
+        "maxSize": 5242880
+      }
+
+      # Optional. See https://docs.aws.amazon.com/streams/latest/dev/kinesis-kpl-concepts.html
+      # If not specified, aggregation is deactivated
+      #"aggregation": {
+      #  # Maximum number of enriched events to pack into an aggregated Kinesis record
+      #  "maxCount": 4294967295
+      #
+      #  # Maximum number of bytes to pack into an aggregated Kinesis record
+      #  "maxSize": 51200
+      #}
     }
 
-    # Optional. See https://docs.aws.amazon.com/streams/latest/dev/kinesis-kpl-concepts.html
-    # If not specified, aggregation is deactivated
-    #"aggregation": {
-    #  # Maximum number of enriched events to pack into an aggregated Kinesis record
-    #  "maxCount": 4294967295
-    #
-    #  # Maximum number of bytes to pack into an aggregated Kinesis record
-    #  "maxSize": 51200
-    #}
+    # Bad rows output
+    "bad": {
+      "type": "Kinesis"
+
+      # Name of the Kinesis stream to write to
+      "streamName": "bad"
+
+      # Optional. Region where the Kinesis stream is located
+      # This field is optional if it can be resolved with AWS region provider chain.
+      # It checks places like env variables, system properties, AWS profile file.
+      # https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/regions/providers/DefaultAwsRegionProviderChain.html
+      "region": "eu-central-1"
+
+      # Optional. Minimum and maximum backoff periods
+      "backoffPolicy": {
+        "minBackoff": 100 milliseconds
+        "maxBackoff": 10 seconds
+      }
+
+      # Optional. Maximum amount of time an enriched event may spend being buffered before it gets sent
+      "maxBufferedTime": 100 millis
+
+      # Optional. See https://docs.aws.amazon.com/streams/latest/dev/kinesis-kpl-concepts.html
+      "collection": {
+        # Maximum number of Kinesis records to pack into a PutRecords request
+        "maxCount": 500
+
+        # Maximum amount of data to send with a PutRecords request
+        "maxSize": 5242880
+      }
+
+      # Optional. See https://docs.aws.amazon.com/streams/latest/dev/kinesis-kpl-concepts.html
+      # If not specified, aggregation is deactivated
+      #"aggregation": {
+      #  # Maximum number of enriched events to pack into an aggregated Kinesis record
+      #  "maxCount": 4294967295
+      #
+      #  # Maximum number of bytes to pack into an aggregated Kinesis record
+      #  "maxSize": 51200
+      #}
+    }
   }
-
-  # Pii events output
-  "pii": {
-    "type": "Kinesis"
-
-    # Name of the Kinesis stream to write to
-    "streamName": "pii"
-
-    # Optional. Region where the Kinesis stream is located
-    # This field is optional if it can be resolved with AWS region provider chain.
-    # It checks places like env variables, system properties, AWS profile file.
-    # https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/regions/providers/DefaultAwsRegionProviderChain.html
-    "region": "eu-central-1"
-
-    # Optional. How the output stream/topic will be partitioned in Kinesis
-    # Possible partition keys are: event_id, event_fingerprint, domain_userid, network_userid,
-    # user_ipaddress, domain_sessionid, user_fingerprint
-    # Refer to https://github.com/snowplow/snowplow/wiki/canonical-event-model to know what the
-    # possible parittion keys correspond to.
-    # Otherwise, the partition key will be a random UUID.
-    # "partitionKey" = "user_id"
-
-    # Optional. Minimum and maximum backoff periods
-    "backoffPolicy": {
-      "minBackoff": 100 milliseconds
-      "maxBackoff": 10 seconds
-    }
-
-    # Optional. Maximum amount of time an enriched event may spend being buffered before it gets sent
-    "maxBufferedTime": 100 millis
-
-    # Optional. See https://docs.aws.amazon.com/streams/latest/dev/kinesis-kpl-concepts.html
-    "collection": {
-      # Maximum number of Kinesis records to pack into a PutRecords request
-      "maxCount": 500
-
-      # Maximum amount of data to send with a PutRecords request
-      "maxSize": 5242880
-    }
-
-    # Optional. See https://docs.aws.amazon.com/streams/latest/dev/kinesis-kpl-concepts.html
-    # If not specified, aggregation is deactivated
-    #"aggregation": {
-    #  # Maximum number of enriched events to pack into an aggregated Kinesis record
-    #  "maxCount": 4294967295
-    #
-    #  # Maximum number of bytes to pack into an aggregated Kinesis record
-    #  "maxSize": 51200
-    #}
-  }
-
-  # Bad rows output
-  "bad": {
-    "type": "Kinesis"
-
-    # Name of the Kinesis stream to write to
-    "streamName": "bad"
-
-    # Optional. Region where the Kinesis stream is located
-    # This field is optional if it can be resolved with AWS region provider chain.
-    # It checks places like env variables, system properties, AWS profile file.
-    # https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/regions/providers/DefaultAwsRegionProviderChain.html
-    "region": "eu-central-1"
-
-    # Optional. Minimum and maximum backoff periods
-    "backoffPolicy": {
-      "minBackoff": 100 milliseconds
-      "maxBackoff": 10 seconds
-    }
-
-    # Optional. Maximum amount of time an enriched event may spend being buffered before it gets sent
-    "maxBufferedTime": 100 millis
-
-    # Optional. See https://docs.aws.amazon.com/streams/latest/dev/kinesis-kpl-concepts.html
-    "collection": {
-      # Maximum number of Kinesis records to pack into a PutRecords request
-      "maxCount": 500
-
-      # Maximum amount of data to send with a PutRecords request
-      "maxSize": 5242880
-    }
-
-    # Optional. See https://docs.aws.amazon.com/streams/latest/dev/kinesis-kpl-concepts.html
-    # If not specified, aggregation is deactivated
-    #"aggregation": {
-    #  # Maximum number of enriched events to pack into an aggregated Kinesis record
-    #  "maxCount": 4294967295
-    #
-    #  # Maximum number of bytes to pack into an aggregated Kinesis record
-    #  "maxSize": 51200
-    #}
-  }
-
+  
   # Optional. Concurrency of the app
   "concurrency" : {
     # Number of events that can get enriched at the same time within a chunk
@@ -195,34 +197,34 @@
     # Number of chunks that can get sunk at the same time
     "sink": 1
   }
-
+  
   # Optional, period after which enrich assets should be checked for updates
   # no assets will be updated if the key is absent
   "assetsUpdatePeriod": "7 days"
-
+  
   "monitoring": {
-
+  
     # Optional, for tracking runtime exceptions
     "sentry": {
       "dsn": "http://sentry.acme.com"
     }
-
+  
     # Optional, configure how metrics are reported
     "metrics": {
 
-      # Optional. Send metrics to a StatsD server on localhost
+      # Optional. Send metrics to a StatsD server
       "statsd": {
         "hostname": "localhost"
         "port": 8125
-
+  
         # Required, how frequently to report metrics
         "period": "10 seconds"
-
+  
         # Any key-value pairs to be tagged on every StatsD metric
         "tags": {
           "app": enrich
         }
-
+  
         # Optional, override the default metric prefix
         # "prefix": "snowplow.enrich."
       }
@@ -230,7 +232,7 @@
       # Optional. Log to stdout using Slf4j
       "stdout": {
         "period": "10 seconds"
-
+  
         # Optional, override the default metric prefix
         # "prefix": "snowplow.enrich."
       }

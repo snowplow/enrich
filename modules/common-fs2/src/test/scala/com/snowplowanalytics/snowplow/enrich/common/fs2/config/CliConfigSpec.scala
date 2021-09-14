@@ -42,18 +42,20 @@ class CliConfigSpec extends Specification with CatsIO {
              type = "PubSub"
              subscription = "projects/test-project/subscriptions/inputSub"
            }
-           good = {
-             type = "PubSub"
-             topic = "projects/test-project/topics/good-topic"
-           }
-           pii = {
-             type = "PubSub"
-             topic = "projects/test-project/topics/pii-topic"
-             attributes = [ "app_id", "platform" ]
-           }
-           bad = {
-             type = "PubSub"
-             topic = "projects/test-project/topics/bad-topic"
+           output = {
+             good = {
+               type = "PubSub"
+               topic = "projects/test-project/topics/good-topic"
+             }
+             pii = {
+               type = "PubSub"
+               topic = "projects/test-project/topics/pii-topic"
+               attributes = [ "app_id", "platform" ]
+             }
+             bad = {
+               type = "PubSub"
+               topic = "projects/test-project/topics/bad-topic"
+             }
            }
           concurrency = {
             enrich = 256
@@ -64,9 +66,11 @@ class CliConfigSpec extends Specification with CatsIO {
 
       val expected = ConfigFile(
         io.Input.PubSub("projects/test-project/subscriptions/inputSub", None, None),
-        io.Output.PubSub("projects/test-project/topics/good-topic", None, None, None, None, None),
-        Some(io.Output.PubSub("projects/test-project/topics/pii-topic", Some(Set("app_id", "platform")), None, None, None, None)),
-        io.Output.PubSub("projects/test-project/topics/bad-topic", None, None, None, None, None),
+        io.Outputs(
+          io.Output.PubSub("projects/test-project/topics/good-topic", None, None, None, None, None),
+          Some(io.Output.PubSub("projects/test-project/topics/pii-topic", Some(Set("app_id", "platform")), None, None, None, None)),
+          io.Output.PubSub("projects/test-project/topics/bad-topic", None, None, None, None, None)
+        ),
         io.Concurrency(256, 3),
         None,
         None

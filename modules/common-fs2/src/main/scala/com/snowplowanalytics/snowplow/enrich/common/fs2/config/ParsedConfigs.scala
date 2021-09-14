@@ -74,8 +74,11 @@ object ParsedConfigs {
                          }
       configFile <- ConfigFile.parse[F](config.config)
       configFile <- validateConfig[F](configFile)
-      goodAttributes = outputAttributes(configFile.good)
-      piiAttributes = configFile.pii.map(outputAttributes).getOrElse { _: EnrichedEvent => Map.empty[String, String] }
+      _ <- EitherT.liftF(
+             Logger[F].info(s"Parsed config file: ${configFile}")
+           )
+      goodAttributes = outputAttributes(configFile.output.good)
+      piiAttributes = configFile.output.pii.map(outputAttributes).getOrElse { _: EnrichedEvent => Map.empty[String, String] }
       client <- Client.parseDefault[F](igluJson).leftMap(x => show"Cannot decode Iglu Client. $x")
       _ <- EitherT.liftF(
              Logger[F].info(show"Parsed Iglu Client with following registries: ${client.resolver.repos.map(_.config.name).mkString(", ")}")
@@ -87,8 +90,8 @@ object ParsedConfigs {
     } yield ParsedConfigs(igluJson, configs, configFile, goodAttributes, piiAttributes)
 
   private[config] def validateConfig[F[_]: Applicative](configFile: ConfigFile): EitherT[F, String, ConfigFile] = {
-    val goodCheck: ValidationResult[OutputConfig] = validateAttributes(configFile.good)
-    val optPiiCheck: ValidationResult[Option[OutputConfig]] = configFile.pii.map(validateAttributes).sequence
+    val goodCheck: ValidationResult[OutputConfig] = validateAttributes(configFile.output.good)
+    val optPiiCheck: ValidationResult[Option[OutputConfig]] = configFile.output.pii.map(validateAttributes).sequence
 
     (goodCheck, optPiiCheck)
       .mapN { case (_, _) => configFile }

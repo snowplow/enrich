@@ -92,6 +92,8 @@ object Dependencies {
     val grpc             = "1.32.2"
     val macros           = "2.1.1"
     val scalaTest        = "3.0.8"
+
+    val thrift           = "0.14.1"
   }
 
   object Libraries {
@@ -182,5 +184,8 @@ object Dependencies {
     val pureconfigCirce  = "com.github.pureconfig"            %% "pureconfig-circe"                  % V.pureconfig
     val http4sDsl        = "org.http4s"                       %% "http4s-dsl"                        % V.http4s          % Test
     val http4sServer     = "org.http4s"                       %% "http4s-blaze-server"               % V.http4s          % Test
+
+    // force versions of transitive dependencies
+    val thrift           = "org.apache.thrift"                % "libthrift"                          % V.thrift
   }
 }

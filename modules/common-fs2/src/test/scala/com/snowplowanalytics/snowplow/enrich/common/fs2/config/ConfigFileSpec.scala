@@ -33,9 +33,11 @@ class ConfigFileSpec extends Specification with CatsIO {
       val configPath = Paths.get(getClass.getResource("/config.pubsub.hocon.sample").toURI)
       val expected = ConfigFile(
         io.Input.PubSub("projects/test-project/subscriptions/inputSub", None, None),
-        io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id")), None, None, None, None),
-        Some(io.Output.PubSub("projects/test-project/topics/pii-topic", None, None, None, None, None)),
-        io.Output.PubSub("projects/test-project/topics/bad-topic", None, None, None, None, None),
+        io.Outputs(
+          io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id")), None, None, None, None),
+          Some(io.Output.PubSub("projects/test-project/topics/pii-topic", None, None, None, None, None)),
+          io.Output.PubSub("projects/test-project/topics/bad-topic", None, None, None, None, None)
+        ),
         io.Concurrency(10000, 64),
         Some(7.days),
         Some(
@@ -65,9 +67,11 @@ class ConfigFileSpec extends Specification with CatsIO {
           io.Input.Kinesis.Retrieval.FanOut,
           io.Input.Kinesis.CheckpointSettings(1000, 10 seconds)
         ),
-        io.Output.Kinesis("enriched", Some("eu-central-1"), None, 200.millis, 500, 5000000, io.Output.BackoffPolicy(100.millis, 10.seconds)),
-        Some(io.Output.Kinesis("pii", Some("eu-central-1"), None, 200.millis, 500, 5000000, io.Output.BackoffPolicy(100.millis, 10.seconds))),
-        io.Output.Kinesis("bad", Some("eu-central-1"), None, 200.millis, 500, 5000000, io.Output.BackoffPolicy(100.millis, 10.seconds)),
+        io.Outputs(
+          io.Output.Kinesis("enriched", Some("eu-central-1"), None, 200.millis, 500, 5000000, io.Output.BackoffPolicy(100.millis, 10.seconds)),
+          Some(io.Output.Kinesis("pii", Some("eu-central-1"), None, 200.millis, 500, 5000000, io.Output.BackoffPolicy(100.millis, 10.seconds))),
+          io.Output.Kinesis("bad", Some("eu-central-1"), None, 200.millis, 500, 5000000, io.Output.BackoffPolicy(100.millis, 10.seconds)),
+        ),
         io.Concurrency(10000, 64),
         Some(7.days),
         Some(
@@ -93,17 +97,19 @@ class ConfigFileSpec extends Specification with CatsIO {
             "type": "PubSub",
             "subscription": "projects/test-project/subscriptions/inputSub"
           },
-          "good": {
-            "type": "PubSub",
-            "topic": "projects/test-project/topics/good-topic"
-          },
-          "pii": {
-            "type": "PubSub",
-            "topic": "projects/test-project/topics/pii-topic"
-          },
-          "bad": {
-            "type": "PubSub",
-            "topic": "projects/test-project/topics/bad-topic"
+          "output": {
+            "good": {
+              "type": "PubSub",
+              "topic": "projects/test-project/topics/good-topic"
+            },
+            "pii": {
+              "type": "PubSub",
+              "topic": "projects/test-project/topics/pii-topic"
+            },
+            "bad": {
+              "type": "PubSub",
+              "topic": "projects/test-project/topics/bad-topic"
+            }
           },
           "concurrency": {
             "output": 10000,

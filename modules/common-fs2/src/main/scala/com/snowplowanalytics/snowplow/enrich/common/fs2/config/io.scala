@@ -143,6 +143,12 @@ object io {
       deriveConfiguredEncoder[Input]
   }
 
+  case class Outputs(good: Output, pii: Option[Output], bad: Output)
+  object Outputs {
+    implicit val outputsDecoder: Decoder[Outputs] = deriveConfiguredDecoder[Outputs]
+    implicit val kinesisEncoder: Encoder[Outputs] = deriveConfiguredEncoder[Outputs]
+  }
+
   sealed trait Output
 
   object Output {

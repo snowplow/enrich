@@ -94,6 +94,7 @@ object Dependencies {
     val scalaTest        = "3.0.8"
 
     val thrift           = "0.14.1"
+    val sprayJson        = "1.3.6"
   }
 
   object Libraries {
@@ -187,5 +188,6 @@ object Dependencies {
 
     // force versions of transitive dependencies
     val thrift           = "org.apache.thrift"                % "libthrift"                          % V.thrift
+    val sprayJson        = "io.spray"                         %% "spray-json"                        % V.sprayJson
   }
 }

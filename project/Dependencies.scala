@@ -43,10 +43,10 @@ object Dependencies {
 
     val refererParser    = "1.1.0"
     val maxmindIplookups = "0.7.1"
-    val circe            = "0.13.0"
-    val circeOptics      = "0.13.0"
+    val circe            = "0.14.0"
+    val circeOptics      = "0.14.0"
     val circeConfig      = "0.7.0"
-    val circeJackson     = "0.13.0"
+    val circeJackson     = "0.14.0"
     val scalaForex       = "1.0.0"
     val scalaWeather     = "1.0.0"
     val gatlingJsonpath  = "0.6.14"

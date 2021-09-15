@@ -93,8 +93,10 @@ object Dependencies {
     val macros           = "2.1.1"
     val scalaTest        = "3.0.8"
 
+    // transitive
     val thrift           = "0.14.1"
     val sprayJson        = "1.3.6"
+    val netty            = "4.1.68.Final"
   }
 
   object Libraries {
@@ -189,6 +191,8 @@ object Dependencies {
     // force versions of transitive dependencies
     val thrift           = "org.apache.thrift"                % "libthrift"                          % V.thrift
     val sprayJson        = "io.spray"                         %% "spray-json"                        % V.sprayJson
+    val nettyAll         = "io.netty"                         % "netty-all"                          % V.netty
+    val nettyCodec       = "io.netty"                         % "netty-codec"                        % V.netty
 
     // exclusions
     val exclusions = Seq(

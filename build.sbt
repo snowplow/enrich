@@ -80,7 +80,7 @@ lazy val allStreamSettings = BuildSettings.basicSettings ++ BuildSettings.sbtAss
     Dependencies.Libraries.slf4j,
     Dependencies.Libraries.log4jOverSlf4j,
     Dependencies.Libraries.s3Sdk,
-    Dependencies.Libraries.gsSdk,
+    Dependencies.Libraries.gcs,
     Dependencies.Libraries.scopt,
     Dependencies.Libraries.pureconfig,
     Dependencies.Libraries.snowplowTracker,
@@ -270,6 +270,7 @@ lazy val pubsub = project
   .settings(Test / parallelExecution := false)
   .settings(
     libraryDependencies ++= Seq(
+      Dependencies.Libraries.gcs,
       Dependencies.Libraries.fs2BlobGcs,
       Dependencies.Libraries.fs2PubSub,
     ),

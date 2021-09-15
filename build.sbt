@@ -80,10 +80,11 @@ lazy val allStreamSettings = BuildSettings.basicSettings ++ BuildSettings.sbtAss
     Dependencies.Libraries.slf4j,
     Dependencies.Libraries.log4jOverSlf4j,
     Dependencies.Libraries.s3Sdk,
-    Dependencies.Libraries.gsSdk,
+    Dependencies.Libraries.gcs,
     Dependencies.Libraries.scopt,
     Dependencies.Libraries.pureconfig,
     Dependencies.Libraries.snowplowTracker,
+    Dependencies.Libraries.jacksonCbor,
     Dependencies.Libraries.specs2,
     Dependencies.Libraries.scalacheck
   ))
@@ -111,7 +112,6 @@ lazy val streamKinesis = project
     Dependencies.Libraries.kinesisClient,
     Dependencies.Libraries.kinesisSdk,
     Dependencies.Libraries.dynamodbSdk,
-    Dependencies.Libraries.jacksonCbor
   ))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
   .dependsOn(streamCommon)
@@ -240,6 +240,7 @@ lazy val commonFs2 = project
       Dependencies.Libraries.http4sCirce,
       Dependencies.Libraries.fs2BlobS3,
       Dependencies.Libraries.fs2BlobGcs,
+      Dependencies.Libraries.gcs,
       Dependencies.Libraries.pureconfig.withRevision(Dependencies.V.pureconfig013),
       Dependencies.Libraries.pureconfigCats.withRevision(Dependencies.V.pureconfig013),
       Dependencies.Libraries.pureconfigCirce.withRevision(Dependencies.V.pureconfig013),

@@ -29,9 +29,9 @@ class StatsDReporterSpec extends Specification {
 
       result must contain(
         exactly(
-          "snowplow.test.raw:10|g|#tag1:abc",
-          "snowplow.test.good:20|g|#tag1:abc",
-          "snowplow.test.bad:30|g|#tag1:abc",
+          "snowplow.test.raw:10|c|#tag1:abc",
+          "snowplow.test.good:20|c|#tag1:abc",
+          "snowplow.test.bad:30|c|#tag1:abc",
           "snowplow.test.latency:10000|g|#tag1:abc"
         )
       )
@@ -44,9 +44,9 @@ class StatsDReporterSpec extends Specification {
 
       result must contain(
         exactly(
-          "snowplow.test.raw:10|g|#tag1:abc",
-          "snowplow.test.good:20|g|#tag1:abc",
-          "snowplow.test.bad:30|g|#tag1:abc"
+          "snowplow.test.raw:10|c|#tag1:abc",
+          "snowplow.test.good:20|c|#tag1:abc",
+          "snowplow.test.bad:30|c|#tag1:abc"
         )
       )
     }

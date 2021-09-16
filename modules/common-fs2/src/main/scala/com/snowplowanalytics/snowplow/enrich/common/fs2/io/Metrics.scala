@@ -55,7 +55,7 @@ object Metrics {
   val BadCounterName = "bad"
 
   final case class MetricSnapshot(
-    enrichLatency: Option[Long],
+    enrichLatency: Option[Long], // milliseconds
     rawCount: Int,
     goodCount: Int,
     badCount: Int
@@ -80,19 +80,20 @@ object Metrics {
     stdout: Option[MetricsReporters.Stdout]
   ): F[Metrics[F]] =
     for {
-      refs <- MetricRefs.init[F]
+      refsStatsd <- MetricRefs.init[F]
+      refsStdout <- MetricRefs.init[F]
     } yield new Metrics[F] {
       def report: Stream[F, Unit] = {
 
         val rep1 = statsd
           .map { config =>
-            reporterStream(StatsDReporter.make[F](blocker, config), refs, config.period)
+            reporterStream(StatsDReporter.make[F](blocker, config), refsStatsd, config.period)
           }
           .getOrElse(Stream.never[F])
 
         val rep2 = stdout
           .map { config =>
-            reporterStream(Resource.eval(stdoutReporter(config)), refs, config.period)
+            reporterStream(Resource.eval(stdoutReporter(config)), refsStdout, config.period)
           }
           .getOrElse(Stream.never[F])
 
@@ -104,24 +105,28 @@ object Metrics {
           case Some(tstamp) =>
             for {
               now <- Clock[F].realTime(MILLISECONDS)
-              _ <- refs.enrichTimestamps.set(Some(now -> tstamp))
+              _ <- refsStatsd.latency.set(Some(now - tstamp))
+              _ <- refsStdout.latency.set(Some(now - tstamp))
             } yield ()
           case None =>
             Sync[F].unit
         }
 
       def rawCount: F[Unit] =
-        refs.rawCount.update(_ + 1)
+        refsStatsd.rawCount.update(_ + 1) *>
+        refsStdout.rawCount.update(_ + 1)
 
       def goodCount: F[Unit] =
-        refs.goodCount.update(_ + 1)
+        refsStatsd.goodCount.update(_ + 1) *>
+        refsStdout.goodCount.update(_ + 1)
 
       def badCount: F[Unit] =
-        refs.badCount.update(_ + 1)
+        refsStatsd.badCount.update(_ + 1) *>
+        refsStdout.badCount.update(_ + 1)
     }
 
   private final case class MetricRefs[F[_]](
-    enrichTimestamps: Ref[F, Option[(Long, Long)]], // A ref of when event was last processed, and its collector timestamp
+    latency: Ref[F, Option[Long]], // milliseconds
     rawCount: Ref[F, Int],
     goodCount: Ref[F, Int],
     badCount: Ref[F, Int]
@@ -130,24 +135,19 @@ object Metrics {
   private object MetricRefs {
     def init[F[_]: Sync]: F[MetricRefs[F]] =
       for {
-        enrichTimestamps <- Ref.of[F, Option[(Long, Long)]](None)
+        latency <- Ref.of[F, Option[Long]](None)
         rawCounter <- Ref.of[F, Int](0)
         goodCounter <- Ref.of[F, Int](0)
         badCounter <- Ref.of[F, Int](0)
-      } yield MetricRefs(enrichTimestamps, rawCounter, goodCounter, badCounter)
+      } yield MetricRefs(latency, rawCounter, goodCounter, badCounter)
 
-    def snapshot[F[_]: Monad](refs: MetricRefs[F], minTime: Long): F[MetricSnapshot] =
+    def snapshot[F[_]: Monad](refs: MetricRefs[F]): F[MetricSnapshot] =
       for {
-        timestampsOpt <- refs.enrichTimestamps.get
-        rawCount <- refs.rawCount.get
-        goodCount <- refs.goodCount.get
-        badCount <- refs.badCount.get
+        latency <- refs.latency.getAndSet(None)
+        rawCount <- refs.rawCount.getAndSet(0)
+        goodCount <- refs.goodCount.getAndSet(0)
+        badCount <- refs.badCount.getAndSet(0)
       } yield {
-        // Only report the latency if it was recorded more recently than minTime
-        val latency = timestampsOpt match {
-          case Some((enrichTstamp, collectorTstamp)) if enrichTstamp > minTime => Some(enrichTstamp - collectorTstamp)
-          case _ => None
-        }
         MetricSnapshot(latency, rawCount, goodCount, badCount)
       }
   }
@@ -159,10 +159,8 @@ object Metrics {
   ): Stream[F, Unit] =
     for {
       rep <- Stream.resource(reporter)
-      lastReportRef <- Stream.eval(Clock[F].realTime(MILLISECONDS)).evalMap(Ref.of(_))
       _ <- Stream.fixedDelay[F](period)
-      lastReport <- Stream.eval(Clock[F].realTime(MILLISECONDS)).evalMap(lastReportRef.getAndSet(_))
-      snapshot <- Stream.eval(MetricRefs.snapshot(metrics, lastReport))
+      snapshot <- Stream.eval(MetricRefs.snapshot(metrics))
       _ <- Stream.eval(rep.report(snapshot))
     } yield ()
 

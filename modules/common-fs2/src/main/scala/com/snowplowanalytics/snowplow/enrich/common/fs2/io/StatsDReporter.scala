@@ -92,9 +92,10 @@ object StatsDReporter {
     blocker.delay(socket.send(packet))
   }
 
-  private def statsDFormat(config: MetricsReporters.StatsD): KeyValueMetric => String = {
+  private def statsDFormat(config: MetricsReporters.StatsD)(metric: KeyValueMetric): String = {
     val tagStr = config.tags.map { case (k, v) => s"$k:$v" }.mkString(",")
-    kv => s"${MetricsReporters.normalizeMetric(config.prefix, kv._1)}:${kv._2}|g|#$tagStr"
+    val metricType = if (metric._1.contains("latency")) "g" else "c"
+    s"${MetricsReporters.normalizeMetric(config.prefix, metric._1)}:${metric._2}|$metricType|#$tagStr"
   }
 
 }

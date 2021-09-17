@@ -10,24 +10,26 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich
+package com.snowplowanalytics.snowplow.enrich.common.fs2.config
 
-import cats.syntax.either._
+import java.util.Base64.getEncoder
 
-import com.permutive.pubsub.consumer.decoder.MessageDecoder
-import com.permutive.pubsub.producer.encoder.MessageEncoder
+import com.monovore.decline.Argument
 
-package object pubsub {
+import org.specs2.mutable.Specification
 
-  implicit val byteArrayEncoder: MessageEncoder[Array[Byte]] =
-    new MessageEncoder[Array[Byte]] {
-      def encode(a: Array[Byte]): Either[Throwable, Array[Byte]] =
-        a.asRight
+class Base64HoconSpec extends Specification {
+  "Argument[Base64Hocon]" should {
+    "parse a base64-encoded HOCON" in {
+      val inputStr = """input = {}"""
+      val input = getEncoder.encodeToString(inputStr.getBytes())
+      Argument[Base64Hocon].read(input).toEither must beRight
     }
 
-  implicit val byteArrayMessageDecoder: MessageDecoder[Array[Byte]] =
-    new MessageDecoder[Array[Byte]] {
-      def decode(message: Array[Byte]): Either[Throwable, Array[Byte]] =
-        message.asRight
+    "fail to parse plain string as HOCON" in {
+      val inputStr = "+"
+      val input = getEncoder.encodeToString(inputStr.getBytes())
+      Argument[Base64Hocon].read(input).toEither must beLeft
     }
+  }
 }

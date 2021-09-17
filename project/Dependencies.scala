@@ -43,15 +43,15 @@ object Dependencies {
 
     val refererParser    = "1.1.0"
     val maxmindIplookups = "0.7.1"
-    val circe            = "0.13.0"
-    val circeOptics      = "0.13.0"
+    val circe            = "0.14.0"
+    val circeOptics      = "0.14.0"
     val circeConfig      = "0.7.0"
-    val circeJackson     = "0.13.0"
+    val circeJackson     = "0.14.0"
     val scalaForex       = "1.0.0"
     val scalaWeather     = "1.0.0"
     val gatlingJsonpath  = "0.6.14"
     val scalaUri         = "1.4.5"
-    val badRows          = "2.1.0"
+    val badRows          = "2.1.1"
     val igluClient       = "1.0.2"
 
     val snowplowRawEvent = "0.1.0"
@@ -59,17 +59,19 @@ object Dependencies {
     val schemaSniffer    = "0.0.0"
 
     val awsSdk           = "1.11.822"
-    val gcpSdk           = "1.106.0"
+    val gcpSdk           = "1.118.1"
+
     val kinesisClient    = "1.13.3"
     val kafka            = "2.2.1"
     val nsqClient        = "1.2.0"
-    val jackson          = "2.10.5"
+    val jackson          = "2.11.4"
     val config           = "1.3.4"
 
     val decline          = "1.0.0"
     val fs2              = "2.5.5"
     val catsEffect       = "2.5.0"
     val fs2PubSub        = "0.16.1"
+    val fs2Aws           = "3.1.1"
     val fs2BlobStorage   = "0.7.3"
     val http4s           = "0.21.22"
     val log4cats         = "1.3.0"
@@ -91,6 +93,11 @@ object Dependencies {
     val grpc             = "1.32.2"
     val macros           = "2.1.1"
     val scalaTest        = "3.0.8"
+
+    // transitive
+    val thrift           = "0.14.1"
+    val sprayJson        = "1.3.6"
+    val netty            = "4.1.68.Final"
   }
 
   object Libraries {
@@ -152,7 +159,7 @@ object Dependencies {
     val s3Sdk            = "com.amazonaws"                    %  "aws-java-sdk-s3"                   % V.awsSdk
     val kinesisClient    = "com.amazonaws"                    %  "amazon-kinesis-client"             % V.kinesisClient
     val sts              = "com.amazonaws"                    %  "aws-java-sdk-sts"                  % V.awsSdk
-    val gsSdk            = "com.google.cloud"                 %  "google-cloud-storage"              % V.gcpSdk
+    val gcs              = "com.google.cloud"                 %  "google-cloud-storage"              % V.gcpSdk
     val kafkaClients     = "org.apache.kafka"                 %  "kafka-clients"                     % V.kafka
     val jacksonCbor      = "com.fasterxml.jackson.dataformat" %  "jackson-dataformat-cbor"           % V.jackson
     val config           = "com.typesafe"                     %  "config"                            % V.config
@@ -169,6 +176,7 @@ object Dependencies {
     // FS2
     val decline          = "com.monovore"                     %% "decline"                           % V.decline
     val fs2PubSub        = "com.permutive"                    %% "fs2-google-pubsub-grpc"            % V.fs2PubSub
+    val fs2Aws           = "io.laserdisc"                     %% "fs2-aws"                           % V.fs2Aws
     val fs2              = "co.fs2"                           %% "fs2-core"                          % V.fs2
     val fs2Io            = "co.fs2"                           %% "fs2-io"                            % V.fs2
     val http4sClient     = "org.http4s"                       %% "http4s-blaze-client"               % V.http4s
@@ -181,5 +189,16 @@ object Dependencies {
     val pureconfigCirce  = "com.github.pureconfig"            %% "pureconfig-circe"                  % V.pureconfig
     val http4sDsl        = "org.http4s"                       %% "http4s-dsl"                        % V.http4s          % Test
     val http4sServer     = "org.http4s"                       %% "http4s-blaze-server"               % V.http4s          % Test
+
+    // force versions of transitive dependencies
+    val thrift           = "org.apache.thrift"                % "libthrift"                          % V.thrift
+    val sprayJson        = "io.spray"                         %% "spray-json"                        % V.sprayJson
+    val nettyAll         = "io.netty"                         % "netty-all"                          % V.netty
+    val nettyCodec       = "io.netty"                         % "netty-codec"                        % V.netty
+
+    // exclusions
+    val exclusions = Seq(
+      "org.apache.tomcat.embed" % "tomcat-embed-core"
+    )
   }
 }

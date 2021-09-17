@@ -84,7 +84,7 @@ lazy val allStreamSettings = BuildSettings.basicSettings ++ BuildSettings.sbtAss
     Dependencies.Libraries.scopt,
     Dependencies.Libraries.pureconfig,
     Dependencies.Libraries.snowplowTracker,
-    Dependencies.Libraries.jacksonCbor
+    Dependencies.Libraries.jacksonCbor,
     Dependencies.Libraries.specs2,
     Dependencies.Libraries.scalacheck
   ))
@@ -111,7 +111,8 @@ lazy val streamKinesis = project
   .settings(libraryDependencies ++= Seq(
     Dependencies.Libraries.kinesisClient,
     Dependencies.Libraries.kinesisSdk,
-    Dependencies.Libraries.dynamodbSdk
+    Dependencies.Libraries.dynamodbSdk,
+    Dependencies.Libraries.sts
   ))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
   .dependsOn(streamCommon)
@@ -302,6 +303,7 @@ lazy val kinesis = project
       Dependencies.Libraries.dynamodbSdk,
       Dependencies.Libraries.fs2BlobS3,
       Dependencies.Libraries.fs2Aws,
+      Dependencies.Libraries.sts
     ),
     addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
   )

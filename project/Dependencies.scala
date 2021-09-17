@@ -162,6 +162,7 @@ object Dependencies {
     val dynamodbSdk      = "com.amazonaws"                    %  "aws-java-sdk-dynamodb"             % V.awsSdk
     val s3Sdk            = "com.amazonaws"                    %  "aws-java-sdk-s3"                   % V.awsSdk
     val kinesisClient    = "com.amazonaws"                    %  "amazon-kinesis-client"             % V.kinesisClient
+    val sts              = "com.amazonaws"                    %  "aws-java-sdk-sts"                  % V.awsSdk           % Runtime
     val gcs              = "com.google.cloud"                 %  "google-cloud-storage"              % V.gcpSdk
     val gson             = "com.google.code.gson"             %  "gson"                              % V.gson
     val kafkaClients     = "org.apache.kafka"                 %  "kafka-clients"                     % V.kafka

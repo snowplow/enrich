@@ -241,6 +241,8 @@ lazy val commonFs2 = project
       Dependencies.Libraries.pureconfig.withRevision(Dependencies.V.pureconfig013),
       Dependencies.Libraries.pureconfigCats.withRevision(Dependencies.V.pureconfig013),
       Dependencies.Libraries.pureconfigCirce.withRevision(Dependencies.V.pureconfig013),
+      Dependencies.Libraries.trackerCore,
+      Dependencies.Libraries.emitterHttps,
       Dependencies.Libraries.specs2,
       Dependencies.Libraries.specs2CE,
       Dependencies.Libraries.scalacheck,

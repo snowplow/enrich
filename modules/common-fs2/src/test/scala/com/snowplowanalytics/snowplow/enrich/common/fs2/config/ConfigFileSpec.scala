@@ -29,7 +29,7 @@ import org.specs2.mutable.Specification
 
 class ConfigFileSpec extends Specification with CatsIO {
   "parse" should {
-    "parse valid HOCON file with path provided for PubSub" in {
+    "parse reference example for PubSub" in {
       val configPath = Paths.get(getClass.getResource("/config.pubsub.hocon.sample").toURI)
       val expected = ConfigFile(
         io.Input.PubSub("projects/test-project/subscriptions/inputSub", None, None),
@@ -51,6 +51,19 @@ class ConfigFileSpec extends Specification with CatsIO {
               )
             )
           )
+        ),
+        io.Telemetry(
+          false,
+          15.minutes,
+          "POST",
+          "collector-g.snowplowanalytics.com",
+          443,
+          true,
+          Some("my_pipeline"),
+          Some("hfy67e5ydhtrd"),
+          Some("665bhft5u6udjf"),
+          Some("enrich-kinesis-ce"),
+          Some("1.0.0")
         )
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
@@ -85,6 +98,19 @@ class ConfigFileSpec extends Specification with CatsIO {
               )
             )
           )
+        ),
+        io.Telemetry(
+          false,
+          15.minutes,
+          "POST",
+          "collector-g.snowplowanalytics.com",
+          443,
+          true,
+          Some("my_pipeline"),
+          Some("hfy67e5ydhtrd"),
+          Some("665bhft5u6udjf"),
+          Some("enrich-kinesis-ce"),
+          Some("1.0.0")
         )
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
@@ -116,7 +142,15 @@ class ConfigFileSpec extends Specification with CatsIO {
             "enrichment": 64
           },
           "assetsUpdatePeriod": "0 minutes",
-          "metricsReportPeriod": "10 second"
+          "metricsReportPeriod": "10 second",
+          "telemetry": {
+            "disable": false,
+            "interval": "15 minutes",
+            "method": "POST",
+            "url": "collector-g.snowplowanalytics.com",
+            "port": "443",
+            "secure": true
+          }
         }"""
 
       ConfigFile.parse[IO](Base64Hocon(input).asLeft).value.map {

@@ -22,6 +22,7 @@ import scala.concurrent.ExecutionContext
 import fs2.aws.kinesis.CommittableRecord
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Run
+import com.snowplowanalytics.snowplow.enrich.common.fs2.Telemetry
 
 import com.snowplowanalytics.snowplow.enrich.kinesis.generated.BuildInfo
 
@@ -62,7 +63,8 @@ object Main extends IOApp.WithContext {
       List(_ => S3Client.mk[IO]),
       getPayload,
       false,
-      MaxRecordSize
+      MaxRecordSize,
+      Some(Telemetry.Cloud.Aws)
     )
 
   private def getPayload(record: CommittableRecord): Array[Byte] = {

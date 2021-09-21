@@ -12,11 +12,7 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2.config
 
-import cats.syntax.either._
-
 import org.specs2.mutable.Specification
-
-import cats.effect.IO
 
 import cats.effect.testing.specs2.CatsIO
 
@@ -30,53 +26,6 @@ class CliConfigSpec extends Specification with CatsIO {
            }
           """.stripMargin
       Base64Hocon.parseHocon(string) must beRight
-    }
-  }
-
-  "ConfigFile.parse" should {
-    "parse valid HOCON" in {
-      val hocon =
-        Base64Hocon
-          .parseHocon("""
-           input = {
-             type = "PubSub"
-             subscription = "projects/test-project/subscriptions/inputSub"
-           }
-           output = {
-             good = {
-               type = "PubSub"
-               topic = "projects/test-project/topics/good-topic"
-             }
-             pii = {
-               type = "PubSub"
-               topic = "projects/test-project/topics/pii-topic"
-               attributes = [ "app_id", "platform" ]
-             }
-             bad = {
-               type = "PubSub"
-               topic = "projects/test-project/topics/bad-topic"
-             }
-           }
-          concurrency = {
-            enrich = 256
-            sink = 3
-          }
-          """)
-          .getOrElse(throw new RuntimeException("Cannot parse HOCON file"))
-
-      val expected = ConfigFile(
-        io.Input.PubSub("projects/test-project/subscriptions/inputSub", None, None),
-        io.Outputs(
-          io.Output.PubSub("projects/test-project/topics/good-topic", None, None, None, None, None),
-          Some(io.Output.PubSub("projects/test-project/topics/pii-topic", Some(Set("app_id", "platform")), None, None, None, None)),
-          io.Output.PubSub("projects/test-project/topics/bad-topic", None, None, None, None, None)
-        ),
-        io.Concurrency(256, 3),
-        None,
-        None
-      )
-
-      ConfigFile.parse[IO](hocon.asLeft).value.map(result => result must beRight(expected))
     }
   }
 }

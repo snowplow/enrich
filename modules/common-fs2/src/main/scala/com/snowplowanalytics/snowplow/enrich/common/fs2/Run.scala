@@ -51,7 +51,9 @@ object Run {
     checkpoint: List[A] => F[Unit],
     mkClients: List[Blocker => Client[F]],
     getPayload: A => Array[Byte],
-    maxRecordSize: Int
+    maxRecordSize: Int,
+    cloud: Option[Telemetry.Cloud],
+    getRegion: => Option[String]
   ): F[ExitCode] =
     CliConfig.command(name, version, description).parse(args) match {
       case Right(cli) =>
@@ -93,7 +95,9 @@ object Run {
                                     _ => Sync[F].unit,
                                     identity,
                                     processor,
-                                    maxRecordSize
+                                    maxRecordSize,
+                                    cloud,
+                                    getRegion
                                   )
                                 runEnvironment[F, Array[Byte]](env)
                               case _ =>
@@ -110,7 +114,9 @@ object Run {
                                     checkpoint,
                                     getPayload,
                                     processor,
-                                    maxRecordSize
+                                    maxRecordSize,
+                                    cloud,
+                                    getRegion
                                   )
                                 runEnvironment[F, A](env)
                             }
@@ -143,8 +149,9 @@ object Run {
       val log = Logger[F].info("Running enrichment stream")
       val enrich = Enrich.run[F, A](env)
       val updates = Assets.run[F, A](env.blocker, env.semaphore, env.assetsUpdatePeriod, env.assetsState, env.enrichments)
+      val telemetry = Telemetry.run[F, A](env)
       val reporting = env.metrics.report
-      val flow = enrich.merge(updates).merge(reporting)
+      val flow = enrich.merge(updates).merge(reporting).merge(telemetry)
       log >> flow.compile.drain.as(ExitCode.Success).recoverWith {
         case exception: Throwable =>
           sendToSentry(exception, env.sentry) >>

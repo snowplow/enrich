@@ -42,11 +42,12 @@ import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{ConfigFile, ParsedConfigs}
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Concurrency
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Concurrency, Telemetry => TelemetryConfig}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{Clients, Metrics}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.Client
 
 import scala.concurrent.ExecutionContext
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input.Kinesis
 
 /**
  * All allocated resources, configs and mutable variables necessary for running Enrich process
@@ -73,10 +74,12 @@ import scala.concurrent.ExecutionContext
  * @param assetsUpdatePeriod  time after which enrich assets should be refresh
  * @param goodAttributes      fields from an enriched event to use as output message attributes
  * @param piiAttributes       fields from a PII event to use as output message attributes
+ * @param telemetryConfig     configuration for telemetry
  * @param processor           identifies enrich asset in bad rows
  * @param streamsSettings     parameters used to configure the streams
+ * @param region              region in the cloud where enrich runs
+ * @param cloud               cloud where enrich runs (AWS or GCP)
  * @tparam A                  type emitted by the source (e.g. `ConsumerRecord` for PubSub).
- *                            getPayload must be defined for this type, as well as a checkpointer
  */
 final case class Environment[F[_], A](
   igluClient: IgluClient[F, Json],
@@ -96,8 +99,11 @@ final case class Environment[F[_], A](
   assetsUpdatePeriod: Option[FiniteDuration],
   goodAttributes: EnrichedEvent => Map[String, String],
   piiAttributes: EnrichedEvent => Map[String, String],
+  telemetryConfig: TelemetryConfig,
   processor: Processor,
-  streamsSettings: Environment.StreamsSettings
+  streamsSettings: Environment.StreamsSettings,
+  region: Option[String],
+  cloud: Option[Telemetry.Cloud]
 )
 
 object Environment {
@@ -142,7 +148,9 @@ object Environment {
     checkpointer: Pipe[F, A, Unit],
     getPayload: A => Array[Byte],
     processor: Processor,
-    maxRecordSize: Int
+    maxRecordSize: Int,
+    cloud: Option[Telemetry.Cloud],
+    getRegion: => Option[String]
   ): Resource[F, Environment[F, A]] = {
     val file = parsedConfigs.configFile
     for {
@@ -180,8 +188,11 @@ object Environment {
       file.assetsUpdatePeriod,
       parsedConfigs.goodAttributes,
       parsedConfigs.piiAttributes,
+      file.telemetry,
       processor,
-      StreamsSettings(file.concurrency, maxRecordSize)
+      StreamsSettings(file.concurrency, maxRecordSize),
+      getRegionFromConfig(file).orElse(getRegion),
+      cloud
     )
   }
 
@@ -207,4 +218,12 @@ object Environment {
   }
 
   case class StreamsSettings(concurrency: Concurrency, maxRecordSize: Int)
+
+  private def getRegionFromConfig(file: ConfigFile): Option[String] =
+    file.input match {
+      case Kinesis(_, _, region, _, _, _) =>
+        region
+      case _ =>
+        None
+    }
 }

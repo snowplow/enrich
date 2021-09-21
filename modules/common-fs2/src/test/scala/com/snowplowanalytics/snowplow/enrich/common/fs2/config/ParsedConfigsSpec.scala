@@ -50,6 +50,19 @@ class ParsedConfigsSpec extends Specification with CatsIO {
               )
             )
           )
+        ),
+        io.Telemetry(
+          false,
+          15.minutes,
+          "POST",
+          "collector-g.snowplowanalytics.com",
+          443,
+          true,
+          Some("my_pipeline"),
+          Some("hfy67e5ydhtrd"),
+          Some("665bhft5u6udjf"),
+          Some("enrich-kinesis-ce"),
+          Some("1.0.0")
         )
       )
 

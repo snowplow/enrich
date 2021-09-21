@@ -22,14 +22,18 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 import cats.Id
 import cats.data.NonEmptyList
-import com.snowplowanalytics.iglu.core._
-import com.snowplowanalytics.snowplow.scalatracker.Tracker
-import com.snowplowanalytics.snowplow.scalatracker.emitters.id.AsyncEmitter
+
 import io.circe.Json
+import io.circe.JsonObject
+
+import com.snowplowanalytics.iglu.core._
+
+import com.snowplowanalytics.snowplow.scalatracker.idimplicits._
+import com.snowplowanalytics.snowplow.scalatracker.Tracker
+import com.snowplowanalytics.snowplow.scalatracker.Emitter.EndpointParams
+import com.snowplowanalytics.snowplow.scalatracker.emitters.id.AsyncEmitter
 
 import model.SnowplowMonitoringConfig
-import utils._
-import io.circe.JsonObject
 
 /**
  * Functionality for sending Snowplow events for monitoring purposes
@@ -45,8 +49,7 @@ object SnowplowTracking {
    * @return a new tracker instance
    */
   def initializeTracker(config: SnowplowMonitoringConfig): Tracker[Id] = {
-    val emitter =
-      AsyncEmitter.createAndStart(config.collectorUri, Some(config.collectorPort), false, None)
+    val emitter = AsyncEmitter.createAndStart(EndpointParams(config.collectorUri, Some(config.collectorPort)))
     new Tracker(NonEmptyList.one(emitter), generated.BuildInfo.name, config.appId)
   }
 

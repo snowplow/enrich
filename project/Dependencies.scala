@@ -84,7 +84,7 @@ object Dependencies {
     val scopt            = "3.7.1"
     val pureconfig       = "0.11.0"
     val pureconfig013    = "0.13.0"
-    val snowplowTracker  = "0.6.1"
+    val snowplowTracker  = "1.0.0"
 
     val specs2           = "4.5.1"
     val specs2CE         = "0.4.1"

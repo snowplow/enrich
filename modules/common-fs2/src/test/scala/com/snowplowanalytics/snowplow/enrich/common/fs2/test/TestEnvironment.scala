@@ -45,7 +45,7 @@ import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 import com.snowplowanalytics.snowplow.enrich.common.fs2.{Assets, AttributedData, Enrich, EnrichSpec, Environment}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Environment.{Enrichments, StreamsSettings}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.SpecHelpers.{filesResource, ioClock}
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Concurrency
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Concurrency, Telemetry}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients
 
 case class TestEnvironment[A](
@@ -149,6 +149,7 @@ object TestEnvironment extends CatsIO {
                       enrichmentsRef,
                       sem,
                       assetsState,
+                      http,
                       blocker,
                       source,
                       g => goodRef.update(_ :+ g),
@@ -161,8 +162,11 @@ object TestEnvironment extends CatsIO {
                       None,
                       _ => Map.empty,
                       _ => Map.empty,
+                      Telemetry(true, 1.minute, "POST", "foo.bar", 1234, true, None, None, None, None, None),
                       EnrichSpec.processor,
-                      StreamsSettings(Concurrency(10000, 64), 1024 * 1024)
+                      StreamsSettings(Concurrency(10000, 64), 1024 * 1024),
+                      None,
+                      None
                     )
       _ <- Resource.eval(logger.info("TestEnvironment initialized"))
     } yield TestEnvironment(environment, counter, goodRef.get, piiRef.get, badRef.get)

@@ -173,21 +173,23 @@ object Dependencies {
     val jinJava          = "com.hubspot.jinjava"              %  "jinjava"                           % V.jinJava         % Test
 
     // FS2
-    val decline          = "com.monovore"                     %% "decline"                           % V.decline
-    val fs2PubSub        = "com.snowplowanalytics"            %% "fs2-google-pubsub-grpc"            % V.fs2PubSub
-    val fs2Aws           = "io.laserdisc"                     %% "fs2-aws"                           % V.fs2Aws
-    val fs2              = "co.fs2"                           %% "fs2-core"                          % V.fs2
-    val fs2Io            = "co.fs2"                           %% "fs2-io"                            % V.fs2
-    val http4sClient     = "org.http4s"                       %% "http4s-blaze-client"               % V.http4s
-    val http4sCirce      = "org.http4s"                       %% "http4s-circe"                      % V.http4s
-    val log4cats         = "org.typelevel"                    %% "log4cats-slf4j"                    % V.log4cats
-    val catsRetry        = "com.github.cb372"                 %% "cats-retry"                        % V.catsRetry
-    val fs2BlobS3        = "com.github.fs2-blobstore"         %% "s3"                                % V.fs2BlobStorage
-    val fs2BlobGcs       = "com.github.fs2-blobstore"         %% "gcs"                               % V.fs2BlobStorage
-    val pureconfigCats   = "com.github.pureconfig"            %% "pureconfig-cats-effect"            % V.pureconfig
-    val pureconfigCirce  = "com.github.pureconfig"            %% "pureconfig-circe"                  % V.pureconfig
-    val http4sDsl        = "org.http4s"                       %% "http4s-dsl"                        % V.http4s          % Test
-    val http4sServer     = "org.http4s"                       %% "http4s-blaze-server"               % V.http4s          % Test
+    val decline          = "com.monovore"                     %% "decline"                               % V.decline
+    val fs2PubSub        = "com.snowplowanalytics"            %% "fs2-google-pubsub-grpc"                % V.fs2PubSub
+    val fs2Aws           = "io.laserdisc"                     %% "fs2-aws"                               % V.fs2Aws
+    val fs2              = "co.fs2"                           %% "fs2-core"                              % V.fs2
+    val fs2Io            = "co.fs2"                           %% "fs2-io"                                % V.fs2
+    val http4sClient     = "org.http4s"                       %% "http4s-blaze-client"                   % V.http4s
+    val http4sCirce      = "org.http4s"                       %% "http4s-circe"                          % V.http4s
+    val log4cats         = "org.typelevel"                    %% "log4cats-slf4j"                        % V.log4cats
+    val catsRetry        = "com.github.cb372"                 %% "cats-retry"                            % V.catsRetry
+    val fs2BlobS3        = "com.github.fs2-blobstore"         %% "s3"                                    % V.fs2BlobStorage
+    val fs2BlobGcs       = "com.github.fs2-blobstore"         %% "gcs"                                   % V.fs2BlobStorage
+    val pureconfigCats   = "com.github.pureconfig"            %% "pureconfig-cats-effect"                % V.pureconfig
+    val pureconfigCirce  = "com.github.pureconfig"            %% "pureconfig-circe"                      % V.pureconfig
+    val http4sDsl        = "org.http4s"                       %% "http4s-dsl"                            % V.http4s          % Test
+    val http4sServer     = "org.http4s"                       %% "http4s-blaze-server"                   % V.http4s          % Test
+    val trackerCore      = "com.snowplowanalytics"            %% "snowplow-scala-tracker-core"           % V.snowplowTracker
+    val emitterHttps     = "com.snowplowanalytics"            %% "snowplow-scala-tracker-emitter-http4s" % V.snowplowTracker
 
     // force versions of transitive dependencies
     val thrift           = "org.apache.thrift"                % "libthrift"                          % V.thrift

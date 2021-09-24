@@ -70,7 +70,7 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
         )
 
       Enrich
-        .enrichWith(TestEnvironment.enrichmentReg.pure[IO], TestEnvironment.igluClient, None, _ => IO.unit, EnrichSpec.processor)(
+        .enrichWith(TestEnvironment.enrichmentReg.pure[IO], TestEnvironment.igluClient, None, EnrichSpec.processor)(
           EnrichSpec.payload
         )
         .map(normalizeResult)
@@ -85,7 +85,7 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
       prop { (collectorPayload: CollectorPayload) =>
         val payload = collectorPayload.toRaw
         Enrich
-          .enrichWith(TestEnvironment.enrichmentReg.pure[IO], TestEnvironment.igluClient, None, _ => IO.unit, EnrichSpec.processor)(payload)
+          .enrichWith(TestEnvironment.enrichmentReg.pure[IO], TestEnvironment.igluClient, None, EnrichSpec.processor)(payload)
           .map(normalizeResult)
           .map {
             case List(Validated.Valid(e)) => e.event must beSome("page_view")
@@ -176,8 +176,9 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
         ee.app_id = "test_app"
         ee.platform = "web"
 
+
         for {
-          _ <- Enrich.sinkResult(environment)(Validated.Valid(ee))
+          _ <- Enrich.sinkOne(environment)(Validated.Valid(ee))
           good <- test.good
           pii <- test.pii
           bad <- test.bad
@@ -204,7 +205,7 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
         ee.pii = "e30="
 
         for {
-          _ <- Enrich.sinkResult(environment)(Validated.Valid(ee))
+          _ <- Enrich.sinkOne(environment)(Validated.Valid(ee))
           good <- test.good
           pii <- test.pii
           bad <- test.bad
@@ -235,7 +236,7 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
         val badRow = BadRow.AdapterFailures(EnrichSpec.processor, failure, EnrichSpec.collectorPayload.toBadRowPayload)
 
         for {
-          _ <- Enrich.sinkResult(test.env)(Validated.Invalid(badRow))
+          _ <- Enrich.sinkOne(test.env)(Validated.Invalid(badRow))
           good <- test.good
           pii <- test.pii
           bad <- test.bad
@@ -394,7 +395,7 @@ object EnrichSpec {
     }
 
   def normalizeResult(payload: Result): List[Validated[BadRow, Event]] =
-    payload.map {
+    payload._1.map {
       case Validated.Valid(a) => normalize(ConversionUtils.tabSeparatedEnrichedEvent(a))
       case Validated.Invalid(e) => e.invalid
     }

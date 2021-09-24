@@ -42,6 +42,7 @@ import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{ConfigFile, ParsedConfigs}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Concurrency
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{Clients, Metrics}
 
 import scala.concurrent.ExecutionContext
@@ -72,6 +73,7 @@ import scala.concurrent.ExecutionContext
  * @param goodAttributes      fields from an enriched event to use as output message attributes
  * @param piiAttributes       fields from a PII event to use as output message attributes
  * @param processor           identifies enrich asset in bad rows
+ * @param streamsSettings     parameters used to configure the streams
  */
 final case class Environment[F[_], A](
   igluClient: Client[F, Json],
@@ -91,7 +93,8 @@ final case class Environment[F[_], A](
   assetsUpdatePeriod: Option[FiniteDuration],
   goodAttributes: EnrichedEvent => Map[String, String],
   piiAttributes: EnrichedEvent => Map[String, String],
-  processor: Processor
+  processor: Processor,
+  streamsSettings: Environment.StreamsSettings
 )
 
 object Environment {
@@ -134,7 +137,8 @@ object Environment {
     badSink:  Resource[F, ByteSink[F]],
     checkpointer: Pipe[F, A, Unit],
     getPayload: A => Array[Byte],
-    processor: Processor
+    processor: Processor,
+    maxRecordSize: Int
   ): Resource[F, Environment[F, A]] = {
       val file = parsedConfigs.configFile
       for {
@@ -171,7 +175,8 @@ object Environment {
         file.assetsUpdatePeriod,
         parsedConfigs.goodAttributes,
         parsedConfigs.piiAttributes,
-        processor
+        processor,
+        StreamsSettings(file.concurrency, maxRecordSize)
       )
     }
 
@@ -195,4 +200,6 @@ object Environment {
       Resource.eval[F, A](action)
     }
   }
+
+  case class StreamsSettings(concurrency: Concurrency, maxRecordSize: Int)
 }

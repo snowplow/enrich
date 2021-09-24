@@ -50,6 +50,18 @@
     # "file": "/var/bad"
   }
 
+  # Concurrency of the app
+  "concurrency" : {
+    # Controls the maximum number of events that can be waiting to get sunk
+    # The concurrency is shared for the sinking to good, bad and pii 
+    #
+    # PubSub: should at least exceed the number events that can be sunk within the delay threshold
+    # used for batching (default 200ms)
+    "output": 10000
+
+    # Maximum number of events that can get enriched at the same time
+    "enrichment": 64
+  }
 
   # Optional, period after which enrich assets should be checked for updates
   # no assets will be updated if the key is absent

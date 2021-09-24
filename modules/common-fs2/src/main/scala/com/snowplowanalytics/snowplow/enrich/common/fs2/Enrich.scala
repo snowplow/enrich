@@ -49,13 +49,6 @@ import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
 
 object Enrich {
 
-  /**
-   * Parallelism of an enrich stream.
-   * Unlike for thread pools it doesn't make much sense to use `CPUs x 2` formulae
-   * as we're not sizing threads, but fibers and memory is the only cost of them
-   */
-  val ConcurrencyLevel = 64
-
   /** Default adapter registry, can be constructed dynamically in future */
   val adapterRegistry = new AdapterRegistry()
 
@@ -78,33 +71,36 @@ object Enrich {
     val registry: F[EnrichmentRegistry[F]] = env.enrichments.get.map(_.registry)
     val enrich: Enrich[F] = {
       implicit val rl: RegistryLookup[F] = env.registryLookup
-      enrichWith[F](registry, env.igluClient, env.sentry, env.metrics.enrichLatency, env.processor)
+      enrichWith[F](registry, env.igluClient, env.sentry, env.processor)
     }
 
     val enrichPipe: Pipe[F, (A, Array[Byte]), (A, Result)] =
-      if(ordered)
-        _.parEvalMapUnordered(ConcurrencyLevel){ case (orig, bytes) => enrich(bytes).map((orig, _)) }
-      else
-        _.parEvalMap(ConcurrencyLevel){ case (orig, bytes) => enrich(bytes).map((orig, _)) }
+      in => {
+        val parallel =
+          if (ordered)
+            in.parEvalMap[F, (A, Result)](env.streamsSettings.concurrency.enrichment) _
+          else
+            in.parEvalMapUnordered[F, (A, Result)](env.streamsSettings.concurrency.enrichment) _
+        parallel { case (orig, bytes) => enrich(bytes).map((orig, _)) }
+      }
 
     env.source
       .pauseWhen(env.pauseEnrich)
       .evalTap(_ => env.metrics.rawCount)
       .map(a => (a, env.getPayload(a)))
       .through(enrichPipe)
-      .through(sinkAll(sinkResult(env)))
+      .through(sinkResult(sinkOne(env), env.metrics.enrichLatency, env.streamsSettings.concurrency.output))
       .through(env.checkpointer)
   }
 
   /**
    * Enrich a single `CollectorPayload` to get list of bad rows and/or enriched events
-   * `enrichLatency` gauge gets updated for each event
+   * @return enriched event or bad row, along with the collector timestamp
    */
   def enrichWith[F[_]: Clock: ContextShift: RegistryLookup: Sync](
     enrichRegistry: F[EnrichmentRegistry[F]],
     igluClient: Client[F, Json],
     sentry: Option[SentryClient],
-    enrichLatency: Option[Long] => F[Unit],
     processor: Processor
   )(
     row: Array[Byte]
@@ -118,10 +114,9 @@ object Enrich {
         etlTstamp <- Clock[F].realTime(TimeUnit.MILLISECONDS).map(millis => new DateTime(millis))
         registry <- enrichRegistry
         enriched <- EtlPipeline.processEvents[F](adapterRegistry, registry, igluClient, processor, etlTstamp, payload)
-        _ <- enrichLatency(collectorTstamp)
-      } yield enriched
+      } yield (enriched, collectorTstamp)
 
-    result.handleErrorWith(sendToSentry[F](row, sentry, processor))
+    result.handleErrorWith(sendToSentry[F](row, sentry, processor, collectorTstamp))
   }
 
   /** Stringify `ThriftLoader` result for debugging purposes */
@@ -130,7 +125,7 @@ object Enrich {
 
   /** Log an error, turn the problematic `CollectorPayload` into `BadRow` and notify Sentry if configured */
   def sendToSentry[F[_]: Sync: Clock]
-      (original: Array[Byte], sentry: Option[SentryClient], processor: Processor)
+      (original: Array[Byte], sentry: Option[SentryClient], processor: Processor, collectorTstamp: Option[Long])
       (error: Throwable): F[Result] =
     for {
       _ <- Logger[F].error("Runtime exception during payload enrichment. CollectorPayload converted to generic_error and ack'ed")
@@ -142,7 +137,7 @@ object Enrich {
              case None =>
                Sync[F].unit
            }
-    } yield List(badRow.invalid)
+    } yield (List(badRow.invalid), collectorTstamp)
 
   /** Build a `generic_error` bad row for unhandled runtime errors */
   def genericBadRow(
@@ -161,7 +156,7 @@ object Enrich {
     env.metrics.badCount >> env.bad(bad.compact.getBytes(UTF_8))
 
   def sinkGood[F[_]: Concurrent: Parallel, A](env: Environment[F, A], enriched: EnrichedEvent): F[Unit] =
-    serializeEnriched(enriched, env.processor) match {
+    serializeEnriched(enriched, env.processor, env.streamsSettings.maxRecordSize) match {
       case Left(br) => sinkBad(env, br)
       case Right(bytes) =>
         List(env.metrics.goodCount, env.good(AttributedData(bytes, env.goodAttributes(enriched))), sinkPii(env, enriched)).parSequence_
@@ -171,52 +166,35 @@ object Enrich {
     (for {
       piiSink <- env.pii
       pii <- ConversionUtils.getPiiEvent(env.processor, enriched)
-    } yield serializeEnriched(pii, env.processor) match {
+    } yield serializeEnriched(pii, env.processor, env.streamsSettings.maxRecordSize) match {
       case Left(br) => sinkBad(env, br)
       case Right(bytes) => piiSink(AttributedData(bytes, env.piiAttributes(pii)))
     }).getOrElse(Monad[F].unit)
 
-  def serializeEnriched(enriched: EnrichedEvent, processor: Processor): Either[BadRow, Array[Byte]] = {
+  def serializeEnriched(enriched: EnrichedEvent, processor: Processor, maxRecordSize: Int): Either[BadRow, Array[Byte]] = {
     val asStr = ConversionUtils.tabSeparatedEnrichedEvent(enriched)
     val asBytes = asStr.getBytes(UTF_8)
     val size = asBytes.length
-    if (size > MaxRecordSize) {
-      val msg = s"event passed enrichment but then exceeded the maximum allowed size $MaxRecordSize"
+    if (size > maxRecordSize) {
+      val msg = s"event passed enrichment but then exceeded the maximum allowed size $maxRecordSize"
       val br = BadRow
         .SizeViolation(
           processor,
-          Failure.SizeViolation(Instant.now(), MaxRecordSize, size, msg),
-          BadRowPayload.RawPayload(asStr.take(MaxErrorMessageSize))
+          Failure.SizeViolation(Instant.now(), maxRecordSize, size, msg),
+          BadRowPayload.RawPayload(asStr.take(maxRecordSize / 10))
         )
       Left(br)
     } else Right(asBytes)
   }
 
-  def sinkAll[F[_]: Concurrent: Parallel, A, B](f: B => F[Unit]): Pipe[F, (A, List[B]), A] =
-    _.parEvalMap(SinkConcurrency){case (a, bs) => bs.parTraverse_(f).map(_ => a)}
+  def sinkResult[F[_]: Concurrent: Parallel, A](
+    sink: Validated[BadRow, EnrichedEvent] => F[Unit],
+    trackLatency: Option[Long] => F[Unit],
+    concurrency: Int
+  ): Pipe[F, (A, Result), A] =
+    _.parEvalMap(concurrency){ case (orig, (events, collectorTstamp)) => events.parTraverse_(sink).as(orig) <* trackLatency(collectorTstamp) }
 
-  def sinkResult[F[_]: Concurrent: Parallel, A](env: Environment[F, A])(result: Validated[BadRow, EnrichedEvent]): F[Unit] =
+  def sinkOne[F[_]: Concurrent: Parallel, A](env: Environment[F, A])(result: Validated[BadRow, EnrichedEvent]): F[Unit] =
     result.fold(sinkBad(env, _), sinkGood(env, _))
 
-  /**
-   * The maximum size of a serialized payload that can be written to pubsub.
-   *
-   *  Equal to 6.9 MB. The message will be base64 encoded by the underlying library, which brings the
-   *  encoded message size to near 10 MB, which is the maximum allowed for PubSub.
-   */
-  private val MaxRecordSize = 6900000
-
-  /** The maximum substring of the message that we write into a SizeViolation bad row */
-  private val MaxErrorMessageSize = MaxRecordSize / 10
-
-  /**
-   * Controls the maximum number of events we can be waiting to get sunk
-   *
-   *  For the Pubsub sink this should at least exceed the number events we can sink within
-   *  `Sink.DefaultDelayThreshold`.
-   *
-   *  For the FileSystem source this is the primary way that we control the memory footprint of the
-   *  app.
-   */
-  private val SinkConcurrency = 10000
 }

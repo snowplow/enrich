@@ -37,6 +37,7 @@ class ConfigFileSpec extends Specification with CatsIO {
         io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id")), None, None, None, None),
         Some(io.Output.PubSub("projects/test-project/topics/pii-topic", None, None, None, None, None)),
         io.Output.PubSub("projects/test-project/topics/bad-topic", None, None, None, None, None),
+        io.Concurrency(10000, 64),
         Some(7.days),
         Some(
           io.Monitoring(
@@ -75,7 +76,10 @@ class ConfigFileSpec extends Specification with CatsIO {
             "type": "PubSub",
             "topic": "projects/test-project/topics/bad-topic"
           },
-
+          "concurrency": {
+            "output": 10000,
+            "enrichment": 64
+          },
           "assetsUpdatePeriod": "0 minutes",
           "metricsReportPeriod": "10 second"
         }"""

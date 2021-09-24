@@ -252,11 +252,13 @@ lazy val pubsub = project
   .settings(BuildSettings.sbtAssemblySettings)
   .settings(
     name := "snowplow-enrich-pubsub",
-    description := "High-performance streaming Snowplow Enrich job for PubSub built on top of functional streams",
+    description := "High-performance streaming Snowplow Enrich job for PubSub built on top of functional streams"
+  )
+  .settings(
     buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
     buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.pubsub.generated",
-    Docker / packageName := "snowplow/snowplow-enrich-pubsub",
   )
+  .settings(Docker / packageName := "snowplow/snowplow-enrich-pubsub")
   .settings(Test / parallelExecution := false)
   .settings(
     libraryDependencies ++= Seq(

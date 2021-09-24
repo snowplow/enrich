@@ -27,7 +27,7 @@ import pureconfig.ConfigSource
 import pureconfig.module.catseffect.syntax._
 import pureconfig.module.circe._
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Authentication, Input, Monitoring, Output}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Authentication, Concurrency, Input, Monitoring, Output}
 
 /**
  * Parsed HOCON configuration file
@@ -46,6 +46,7 @@ final case class ConfigFile(
   good: Output,
   pii: Option[Output],
   bad: Output,
+  concurrency: Concurrency,
   assetsUpdatePeriod: Option[FiniteDuration],
   monitoring: Option[Monitoring]
 )
@@ -58,7 +59,7 @@ object ConfigFile {
 
   implicit val configFileDecoder: Decoder[ConfigFile] =
     deriveConfiguredDecoder[ConfigFile].emap {
-      case ConfigFile(_, _, _, _, _, Some(aup), _) if aup._1 <= 0L =>
+      case ConfigFile(_, _, _, _, _, _, Some(aup), _) if aup._1 <= 0L =>
         "assetsUpdatePeriod in config file cannot be less than 0".asLeft // TODO: use newtype
       case other => other.asRight
     }

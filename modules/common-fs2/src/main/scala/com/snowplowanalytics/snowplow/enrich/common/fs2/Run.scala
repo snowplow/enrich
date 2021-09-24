@@ -48,7 +48,8 @@ object Run {
     mkBadSink: (Blocker, Authentication, Output) => Resource[F, ByteSink[F]],
     checkpointer: Pipe[F, A, Unit],
     getPayload: A => Array[Byte],
-    ordered: Boolean
+    ordered: Boolean,
+    maxRecordSize: Int
   ): F[ExitCode] = 
     CliConfig.command(name, version, description).parse(args) match {
       case Right(cfg) =>
@@ -83,7 +84,8 @@ object Run {
                           badSink,
                           _.void,
                           identity,
-                          processor
+                          processor,
+                          maxRecordSize
                         )
                       runEnvironment[F, Array[Byte]](env, false)
                     case _ =>
@@ -98,7 +100,8 @@ object Run {
                           badSink,
                           checkpointer,
                           getPayload,
-                          processor
+                          processor,
+                          maxRecordSize
                         )
                       runEnvironment[F, A](env, ordered)
                   }
@@ -132,13 +135,11 @@ object Run {
       val updates = Assets.run[F, A](env)
       val reporting = env.metrics.report
       val flow = enrich.merge(updates).merge(reporting)
-      log >> flow.compile.drain.attempt.flatMap {
-        case Left(exception) =>
+      log >> flow.compile.drain.as(ExitCode.Success).recoverWith {
+        case exception: Throwable =>
           sendToSentry(exception, env.sentry) >>
           Logger[F].error(s"The Enrich job has stopped") >>
           Sync[F].raiseError[ExitCode](exception)
-        case Right(_) =>
-          Sync[F].pure(ExitCode.Success)
       }
     }
 

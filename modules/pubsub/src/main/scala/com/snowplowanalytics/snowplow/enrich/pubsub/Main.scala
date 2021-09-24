@@ -29,6 +29,14 @@ import com.snowplowanalytics.snowplow.enrich.pubsub.generated.BuildInfo
 object Main extends IOApp.WithContext {
 
   /**
+   * The maximum size of a serialized payload that can be written to pubsub.
+   *
+   *  Equal to 6.9 MB. The message will be base64 encoded by the underlying library, which brings the
+   *  encoded message size to near 10 MB, which is the maximum allowed for PubSub.
+   */
+  private val MaxRecordSize = 6900000
+
+  /**
    * An execution context matching the cats effect IOApp default. We create it explicitly so we can
    * also use it for our Blaze client.
    */
@@ -58,7 +66,8 @@ object Main extends IOApp.WithContext {
       (_, auth, out) => Sink.init(auth, out),
       checkpointer,
       _.value,
-      false
+      false,
+      MaxRecordSize
     )
 
   private def checkpointer[F[_]]: Pipe[F, ConsumerRecord[F, Array[Byte]], Unit] =

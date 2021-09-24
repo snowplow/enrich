@@ -58,6 +58,10 @@ class CliConfigSpec extends Specification with CatsIO {
              type = "PubSub"
              topic = "projects/test-project/topics/bad-topic"
            }
+          concurrency = {
+            output = 10000
+            enrichment = 64
+          }
           """)
           .getOrElse(throw new RuntimeException("Cannot parse HOCON file"))
 
@@ -67,6 +71,7 @@ class CliConfigSpec extends Specification with CatsIO {
         io.Output.PubSub("projects/test-project/topics/good-topic", None, None, None, None, None),
         Some(io.Output.PubSub("projects/test-project/topics/pii-topic", Some(Set("app_id", "platform")), None, None, None, None)),
         io.Output.PubSub("projects/test-project/topics/bad-topic", None, None, None, None, None),
+        io.Concurrency(10000, 64),
         None,
         None
       )

@@ -27,8 +27,8 @@ package object fs2 {
   type ByteSink[F[_]] = Array[Byte] => F[Unit]
   type AttributedByteSink[F[_]] = AttributedData[Array[Byte]] => F[Unit]
 
-  /** Enrichment result, containing list of (valid and invalid) results */
-  type Result = List[Validated[BadRow, EnrichedEvent]]
+  /** Enrichment result, containing list of (valid and invalid) results as well as the collector timestamp */
+  type Result = (List[Validated[BadRow, EnrichedEvent]], Option[Long])
 
   /** Function to transform an origin raw payload into good and/or bad rows */
   type Enrich[F[_]] = Array[Byte] => F[Result]

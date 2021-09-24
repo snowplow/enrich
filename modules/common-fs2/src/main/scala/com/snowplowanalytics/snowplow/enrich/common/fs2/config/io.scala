@@ -137,6 +137,15 @@ object io {
       deriveConfiguredEncoder[Output]
   }
 
+  final case class Concurrency(output: Int, enrichment: Int)
+
+  object Concurrency {
+    implicit val concurrencyDecoder: Decoder[Concurrency] =
+      deriveConfiguredDecoder[Concurrency]
+    implicit val concurrencyEncoder: Encoder[Concurrency] =
+      deriveConfiguredEncoder[Concurrency]
+  }
+
   final case class MetricsReporters(statsd: Option[MetricsReporters.StatsD], stdout: Option[MetricsReporters.Stdout])
 
   object MetricsReporters {

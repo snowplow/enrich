@@ -43,8 +43,9 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.Enrichm
 import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.{Assets, AttributedData, Enrich, EnrichSpec, Environment}
-import com.snowplowanalytics.snowplow.enrich.common.fs2.Environment.Enrichments
+import com.snowplowanalytics.snowplow.enrich.common.fs2.Environment.{Enrichments, StreamsSettings}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.SpecHelpers.{filesResource, ioClock}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Concurrency
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients
 
 case class TestEnvironment[A](
@@ -117,7 +118,7 @@ object TestEnvironment extends CatsIO {
     Client[IO, Json](Resolver(List(embeddedRegistry), None), CirceValidator)
 
   /**
-   * A dummy test environment without enrichmenta and with noop sinks and sources
+   * A dummy test environment without enrichment and with noop sinks and sources
    * One can replace stream and sinks via `.copy`
    */
   def make(source: Stream[IO, Array[Byte]], enrichments: List[EnrichmentConf] = Nil): Resource[IO, TestEnvironment[Array[Byte]]] =
@@ -152,7 +153,8 @@ object TestEnvironment extends CatsIO {
                       None,
                       _ => Map.empty,
                       _ => Map.empty,
-                      EnrichSpec.processor
+                      EnrichSpec.processor,
+                      StreamsSettings(Concurrency(10000, 64), 1024 * 1024)
                     )
       _ <- Resource.eval(pauseEnrich.set(false) *> logger.info("TestEnvironment initialized"))
     } yield TestEnvironment(environment, counter, goodRef.get, piiRef.get, badRef.get)

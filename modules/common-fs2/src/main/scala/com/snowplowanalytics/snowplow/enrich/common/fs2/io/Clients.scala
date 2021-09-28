@@ -14,119 +14,54 @@ package com.snowplowanalytics.snowplow.enrich.common.fs2.io
 
 import java.net.URI
 
-import cats.syntax.option._
-import cats.syntax.functor._
-import cats.syntax.flatMap._
+import cats.effect.{ConcurrentEffect, Resource}
 
-import cats.effect.{Blocker, ConcurrentEffect, ContextShift, Resource, Sync}
-
-import fs2.{RaiseThrowable, Stream}
-
-import blobstore.Path
-import blobstore.s3.S3Store
-import blobstore.gcs.GcsStore
-
-import com.google.cloud.storage.StorageOptions
+import fs2.Stream
 
 import org.http4s.{Request, Uri}
 import org.http4s.client.{Client => HttpClient}
 import org.http4s.client.blaze.BlazeClientBuilder
 
-import software.amazon.awssdk.services.s3.S3AsyncClient
-
 import scala.concurrent.ExecutionContext
 
-case class Clients[F[_]](
-  s3Store: Option[S3Store[F]],
-  gcsStore: Option[GcsStore[F]],
-  http: HttpClient[F]
-) {
-
-  /** Download an `uri` as a stream of bytes, using the appropriate client */
-  def download(uri: URI)(implicit RT: RaiseThrowable[F]): Stream[F, Byte] =
-    Clients.Client.getByUri(uri) match {
-      case Some(Clients.Client.S3) =>
-        for {
-          s3 <- s3Store match {
-                  case Some(c) => Stream.emit(c)
-                  case None => Stream.raiseError(new IllegalStateException(s"S3 client is not initialized to download $uri"))
-                }
-          data <- s3.get(Path(uri.toString), 16 * 1024)
-        } yield data
-      case Some(Clients.Client.GCS) =>
-        for {
-          gcs <- gcsStore match {
-                   case Some(c) => Stream.emit(c)
-                   case None => Stream.raiseError(new IllegalStateException(s"GCS client is not initialized to download $uri"))
-                 }
-          data <- gcs.get(Path(uri.toString), 16 * 1024)
-        } yield data
-      case Some(Clients.Client.HTTP) =>
-        val request = Request[F](uri = Uri.unsafeFromString(uri.toString))
-        for {
-          response <- http.stream(request)
-          body <- if (response.status.isSuccess) response.body
-                  else Stream.raiseError[F](Clients.DownloadingFailure(uri))
-        } yield body
+case class Clients[F[_]: ConcurrentEffect](clients: List[Client[F]]) {
+  /** Download a URI as a stream of bytes, using the appropriate client */
+  def download(uri: URI): Stream[F, Byte] =
+    clients.find(_.prefixes.contains(uri.getScheme())) match {
+      case Some(client) =>
+        client.download(uri)
       case None =>
-        Stream.raiseError(new IllegalStateException(s"No client  initialized to download $uri"))
+        Stream.raiseError[F](new IllegalStateException(s"No client initialized to download $uri"))
     }
 }
 
 object Clients {
+  def init[F[_]: ConcurrentEffect](httpClient: HttpClient[F], others: List[Client[F]]): Clients[F] =
+    Clients(wrapHttpClient(httpClient) :: others)
 
-  sealed trait Client
-  object Client {
-    case object S3 extends Client
-    case object GCS extends Client
-    case object HTTP extends Client
+  def wrapHttpClient[F[_]: ConcurrentEffect](client: HttpClient[F]): Client[F] =
+    new Client[F] {
+      val prefixes = List("http", "https")
 
-    def getByUri(uri: URI): Option[Client] =
-      uri.getScheme match {
-        case "http" | "https" =>
-          Some(HTTP)
-        case "gs" =>
-          Some(GCS)
-        case "s3" =>
-          Some(S3)
-        case _ =>
-          None
+      def download(uri: URI): Stream[F, Byte] = {
+        val request = Request[F](uri = Uri.unsafeFromString(uri.toString))
+        for {
+          response <- client.stream(request)
+          body <- if (response.status.isSuccess) response.body
+                  else Stream.raiseError[F](DownloadingFailure(uri))
+        } yield body
       }
-
-    def required(uris: List[URI]): Set[Client] =
-      uris.foldLeft(Set.empty[Client]) { (acc, uri) =>
-        getByUri(uri) match {
-          case Some(client) => acc + client
-          case None => acc // This should short-circuit on initialisation
-        }
-      }
-  }
-
-  def mkS3[F[_]: ConcurrentEffect]: F[S3Store[F]] =
-    Sync[F].delay(S3AsyncClient.builder().build()).flatMap(client => S3Store[F](client))
-
-  def mkGCS[F[_]: ConcurrentEffect: ContextShift](blocker: Blocker): F[GcsStore[F]] =
-    Sync[F].delay(StorageOptions.getDefaultInstance.getService).map { storage =>
-      GcsStore(storage, blocker, List.empty)
     }
 
-  def mkHTTP[F[_]: ConcurrentEffect](ec: ExecutionContext): Resource[F, HttpClient[F]] =
+  def mkHttp[F[_]: ConcurrentEffect](ec: ExecutionContext): Resource[F, HttpClient[F]] =
     BlazeClientBuilder[F](ec).resource
-
-  /** Initialise all necessary clients capable of fetching provides `uris` */
-  def make[F[_]: ConcurrentEffect: ContextShift](
-    blocker: Blocker,
-    uris: List[URI],
-    http: HttpClient[F]
-  ): Resource[F, Clients[F]] = {
-    val toInit = Client.required(uris)
-    for {
-      s3 <- if (toInit.contains(Client.S3)) Resource.eval(mkS3[F]).map(_.some) else Resource.pure[F, Option[S3Store[F]]](none)
-      gcs <- if (toInit.contains(Client.GCS)) Resource.eval(mkGCS[F](blocker).map(_.some)) else Resource.pure[F, Option[GcsStore[F]]](none)
-    } yield Clients(s3, gcs, http)
-  }
 
   case class DownloadingFailure(uri: URI) extends Throwable {
     override def getMessage: String = s"Cannot download $uri"
   }
+}
+
+trait Client[F[_]] {
+  val prefixes: List[String]
+  def download(uri: URI): Stream[F, Byte]
 }

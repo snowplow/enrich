@@ -30,7 +30,7 @@ import com.snowplowanalytics.snowplow.badrows.Processor
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Authentication, Input, Output}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{CliConfig, ParsedConfigs}
-import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{Sink, Source}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{Client, Sink, Source}
 
 object Run {
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
@@ -46,6 +46,7 @@ object Run {
     mkGoodSink: (Blocker, Authentication, Output) => Resource[F, AttributedByteSink[F]],
     mkPiiSink: (Blocker, Authentication, Output) => Resource[F, AttributedByteSink[F]],
     mkBadSink: (Blocker, Authentication, Output) => Resource[F, ByteSink[F]],
+    mkClients: List[Blocker => Client[F]],
     checkpointer: Pipe[F, A, Unit],
     getPayload: A => Array[Byte],
     ordered: Boolean,
@@ -70,6 +71,7 @@ object Run {
                   case _ =>
                     mkBadSink(blocker, file.auth, file.bad)
                 }
+                clients = mkClients.map(mk => mk(blocker))
                 exit <- 
                   (file.auth, file.input) match {
                     case (_, p: Input.FileSystem) => 
@@ -82,6 +84,7 @@ object Run {
                           goodSink,
                           piiSink,
                           badSink,
+                          clients,
                           _.void,
                           identity,
                           processor,
@@ -98,6 +101,7 @@ object Run {
                           goodSink,
                           piiSink,
                           badSink,
+                          clients,
                           checkpointer,
                           getPayload,
                           processor,

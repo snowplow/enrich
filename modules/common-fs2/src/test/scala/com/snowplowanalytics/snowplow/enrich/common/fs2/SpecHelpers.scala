@@ -45,8 +45,9 @@ object SpecHelpers extends CatsIO {
     for {
       b <- TestEnvironment.ioBlocker
       stop <- Resource.eval(Ref.of[IO, Boolean](false))
-      http <- Clients.mkHTTP[IO](ExecutionContext.global)
-      state <- Assets.State.make[IO](b, stop, uris, http)
+      http <- Clients.mkHttp[IO](ExecutionContext.global)
+      clients = Clients.init[IO](http, Nil)
+      state <- Assets.State.make[IO](b, stop, uris, clients)
     } yield state
 
   /** Clean-up predefined list of files */

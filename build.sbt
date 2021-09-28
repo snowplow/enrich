@@ -227,8 +227,6 @@ lazy val commonFs2 = project
       Dependencies.Libraries.catsRetry,
       Dependencies.Libraries.http4sClient,
       Dependencies.Libraries.http4sCirce,
-      Dependencies.Libraries.fs2BlobS3,
-      Dependencies.Libraries.fs2BlobGcs,
       Dependencies.Libraries.pureconfig.withRevision(Dependencies.V.pureconfig013),
       Dependencies.Libraries.pureconfigCats.withRevision(Dependencies.V.pureconfig013),
       Dependencies.Libraries.pureconfigCirce.withRevision(Dependencies.V.pureconfig013),
@@ -262,6 +260,7 @@ lazy val pubsub = project
   .settings(Test / parallelExecution := false)
   .settings(
     libraryDependencies ++= Seq(
+      Dependencies.Libraries.fs2BlobGcs,
       Dependencies.Libraries.fs2PubSub,
     ),
     addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")

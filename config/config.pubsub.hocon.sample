@@ -53,7 +53,7 @@
   # Concurrency of the app
   "concurrency" : {
     # Controls the maximum number of events that can be waiting to get sunk
-    # The concurrency is shared for the sinking to good, bad and pii 
+    # The concurrency is shared for the sinking to good, bad and pii
     #
     # PubSub: should at least exceed the number events that can be sunk within the delay threshold
     # used for batching (default 200ms)

@@ -31,7 +31,7 @@ import _root_.io.sentry.{Sentry, SentryClient}
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.{Client => IgluClient}
 import com.snowplowanalytics.iglu.client.resolver.registries.{Http4sRegistryLookup, RegistryLookup}
 
 import com.snowplowanalytics.snowplow.badrows.Processor
@@ -43,7 +43,7 @@ import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{ConfigFile, ParsedConfigs}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Concurrency
-import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{Clients, Metrics}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{Client, Clients, Metrics}
 
 import scala.concurrent.ExecutionContext
 
@@ -76,7 +76,7 @@ import scala.concurrent.ExecutionContext
  * @param streamsSettings     parameters used to configure the streams
  */
 final case class Environment[F[_], A](
-  igluClient: Client[F, Json],
+  igluClient: IgluClient[F, Json],
   registryLookup: RegistryLookup[F],
   enrichments: Ref[F, Environment.Enrichments[F]],
   pauseEnrich: SignallingRef[F, Boolean],
@@ -135,6 +135,7 @@ object Environment {
     goodSink: Resource[F, AttributedByteSink[F]],
     piiSink: Option[Resource[F, AttributedByteSink[F]]],
     badSink:  Resource[F, ByteSink[F]],
+    clients: List[Client[F]],
     checkpointer: Pipe[F, A, Unit],
     getPayload: A => Array[Byte],
     processor: Processor,
@@ -145,12 +146,13 @@ object Environment {
         good <- goodSink
         bad <-badSink
         pii <- piiSink.sequence
-        http <- Clients.mkHTTP(ec)
-        client <- Client.parseDefault[F](parsedConfigs.igluJson).resource
+        http <- Clients.mkHttp(ec)
+        clts = Clients.init[F](http, clients)
+        igluClient <- IgluClient.parseDefault[F](parsedConfigs.igluJson).resource
         metrics <- Resource.eval(metricsReporter[F](blocker, file))
         assets = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
         pauseEnrich <- makePause[F]
-        assets <- Assets.State.make[F](blocker, pauseEnrich, assets, http)
+        assets <- Assets.State.make[F](blocker, pauseEnrich, assets, clts)
         enrichments <- Enrichments.make[F](parsedConfigs.enrichmentConfigs, BlockerF.ofBlocker(blocker))
         sentry <- file.monitoring.flatMap(_.sentry).map(_.dsn) match {
                     case Some(dsn) => Resource.eval[F, Option[SentryClient]](Sync[F].delay(Sentry.init(dsn.toString).some))
@@ -158,7 +160,7 @@ object Environment {
                   }
         _ <- Resource.eval(pauseEnrich.set(false) *> Logger[F].info("Enrich environment initialized"))
       } yield Environment[F, A](
-        client,
+        igluClient,
         Http4sRegistryLookup(http),
         enrichments,
         pauseEnrich,

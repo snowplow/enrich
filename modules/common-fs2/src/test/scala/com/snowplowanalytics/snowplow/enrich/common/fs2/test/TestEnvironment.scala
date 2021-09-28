@@ -123,13 +123,14 @@ object TestEnvironment extends CatsIO {
    */
   def make(source: Stream[IO, Array[Byte]], enrichments: List[EnrichmentConf] = Nil): Resource[IO, TestEnvironment[Array[Byte]]] =
     for {
-      http <- Clients.mkHTTP[IO](ExecutionContext.global)
+      http <- Clients.mkHttp[IO](ExecutionContext.global)
       blocker <- ioBlocker
       _ <- filesResource(blocker, enrichments.flatMap(_.filesToCache).map(p => Paths.get(p._2)))
       counter <- Resource.eval(Counter.make[IO])
       metrics = Counter.mkCounterMetrics[IO](counter)(Monad[IO], ioClock)
       pauseEnrich <- Environment.makePause[IO]
-      assets <- Assets.State.make(blocker, pauseEnrich, enrichments.flatMap(_.filesToCache), http)
+      clients = Clients.init[IO](http, Nil)
+      assets <- Assets.State.make(blocker, pauseEnrich, enrichments.flatMap(_.filesToCache), clients)
       _ <- Resource.eval(logger.info("AssetsState initialized"))
       enrichmentsRef <- Enrichments.make[IO](enrichments, BlockerF.ofBlocker(blocker))
       goodRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))

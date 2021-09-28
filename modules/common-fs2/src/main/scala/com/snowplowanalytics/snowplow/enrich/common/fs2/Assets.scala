@@ -30,8 +30,6 @@ import fs2.Stream
 import fs2.hash.md5
 import fs2.io.file.{copy, deleteIfExists, exists, readAll, tempFileResource, writeAll}
 
-import org.http4s.client.{Client => HttpClient}
-
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
@@ -91,10 +89,9 @@ object Assets {
       blocker: Blocker,
       stop: Ref[F, Boolean],
       assets: List[Asset],
-      http: HttpClient[F]
+      clients: Clients[F]
     ): Resource[F, State[F]] =
       for {
-        clients <- Clients.make[F](blocker, assets.map(_._1), http)
         map <- Resource.eval(build[F](blocker, clients, assets.filterNot(asset => asset == TestPair)))
         files <- Resource.eval(Ref.of[F, Map[URI, Hash]](map))
       } yield State(files, stop, clients)

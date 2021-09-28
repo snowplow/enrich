@@ -64,6 +64,7 @@ object Main extends IOApp.WithContext {
       (_, auth, out) => Sink.initAttributed(auth, out),
       (_, auth, out) => Sink.initAttributed(auth, out),
       (_, auth, out) => Sink.init(auth, out),
+      List(GcsClient.mk[IO]),
       checkpointer,
       _.value,
       false,

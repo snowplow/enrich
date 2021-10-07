@@ -105,6 +105,8 @@ object BuildSettings {
       case x if x.endsWith(".json") => MergeStrategy.first
       case x if x.endsWith("AUTHORS") => MergeStrategy.first
       case x if x.endsWith(".config") => MergeStrategy.first
+      case x if x.endsWith(".types") => MergeStrategy.first
+      case x if x.contains("netty") => MergeStrategy.first
       case x =>
         val oldStrategy = (assembly / assemblyMergeStrategy).value
         oldStrategy(x)

@@ -20,6 +20,9 @@ import io.circe.parser._
 import io.circe.syntax._
 import io.circe.Json
 
+import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
+
 import scala.collection.JavaConverters._
 
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
@@ -33,6 +36,9 @@ import com.snowplowanalytics.iglu.core.circe.CirceIgluCodecs._
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{Base64Json, CliConfig, EncodedOrPath}
 
 object DynamoDbConfig {
+
+  private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
+    Slf4jLogger.getLogger[F]
 
   private val dynamoDbRegex = "^dynamodb:([^/]*)/([^/]*)/([^/]*)$".r
 
@@ -77,6 +83,7 @@ object DynamoDbConfig {
     val dynamoDBClient = mkClient(region)
     val dynamoDB = new DynamoDB(dynamoDBClient)
     for {
+      _ <- unsafeLogger.info(s"Retrieving resolver in DynamoDB $region/$table/$key")
       item <- blocker.blockOn(Sync[F].delay(dynamoDB.getTable(table).getItem("id", key)))
       jsonStr <- Option(item).flatMap(i => Option(i.getString("json"))) match {
                    case Some(content) =>
@@ -104,12 +111,20 @@ object DynamoDbConfig {
     // Assumes that the table is small and contains only the config
     val scanRequest = new ScanRequest().withTableName(table)
     for {
+      _ <- unsafeLogger.info(s"Retrieving enrichments in DynamoDB $region/$table/$prefix*")
       scanned <- blocker.blockOn(Sync[F].delay(dynamoDBClient.scan(scanRequest)))
       values = scanned.getItems().asScala.collect {
                  case map if Option(map.get("id")).map(_.getS().startsWith(prefix)) == Some(true) && map.containsKey("json") =>
                    map.get("json").getS()
                }
-      sdj = SelfDescribingData[Json](enrichmentSchema, Json.arr(values.map(Json.fromString): _*))
+      jsons <- values.map(parse).toList.sequence match {
+                 case Left(decodingFailure) =>
+                   val msg = s"An error occured while parsing an enrichment config: ${decodingFailure.message}"
+                   Sync[F].raiseError(new RuntimeException(msg))
+                 case Right(parsed) =>
+                   Sync[F].pure(parsed)
+               }
+      sdj = SelfDescribingData[Json](enrichmentSchema, Json.arr(jsons: _*))
       encoded = Base64Json(sdj.asJson)
     } yield encoded
   }

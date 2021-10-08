@@ -74,6 +74,9 @@ object ParsedConfigs {
                          }
       configFile <- ConfigFile.parse[F](config.config)
       configFile <- validateConfig[F](configFile)
+      _ <- EitherT.liftF(
+             Logger[F].info(s"Parsed config file: ${configFile}")
+           )
       goodAttributes = outputAttributes(configFile.output.good)
       piiAttributes = configFile.output.pii.map(outputAttributes).getOrElse { _: EnrichedEvent => Map.empty[String, String] }
       client <- Client.parseDefault[F](igluJson).leftMap(x => show"Cannot decode Iglu Client. $x")

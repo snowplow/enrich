@@ -27,7 +27,7 @@ import pureconfig.ConfigSource
 import pureconfig.module.catseffect.syntax._
 import pureconfig.module.circe._
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Concurrency, Input, Monitoring, Outputs, Telemetry}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Concurrency, Input, Monitoring, Output, Outputs, Telemetry}
 
 /**
  * Parsed HOCON configuration file
@@ -57,6 +57,9 @@ object ConfigFile {
     deriveConfiguredDecoder[ConfigFile].emap {
       case ConfigFile(_, _, _, Some(aup), _, _) if aup._1 <= 0L =>
         "assetsUpdatePeriod in config file cannot be less than 0".asLeft // TODO: use newtype
+      // Remove pii output if streamName and region empty
+      case c @ ConfigFile(_, Outputs(good, Some(Output.Kinesis(s, r, _, _, _, _, _)), bad), _, _, _, _)
+        if(s.isEmpty && r.isEmpty) => c.copy(output = Outputs(good, None, bad)).asRight
       case other => other.asRight
     }
   implicit val configFileEncoder: Encoder[ConfigFile] =

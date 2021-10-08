@@ -147,7 +147,7 @@ object io {
   case class Outputs(good: Output, pii: Option[Output], bad: Output)
   object Outputs {
     implicit val outputsDecoder: Decoder[Outputs] = deriveConfiguredDecoder[Outputs]
-    implicit val kinesisEncoder: Encoder[Outputs] = deriveConfiguredEncoder[Outputs]
+    implicit val outputsEncoder: Encoder[Outputs] = deriveConfiguredEncoder[Outputs]
   }
 
   sealed trait Output
@@ -199,6 +199,8 @@ object io {
               case _ =>
                 s"Topic must conform projects/project-name/topics/topic-name format, $top given".asLeft
             }
+          case Kinesis(s, r, _, _, _, _, _) if(s.nonEmpty ^ r.nonEmpty) =>
+            "both streamName and region need to be set".asLeft
           case other => other.asRight
         }
         .emap {

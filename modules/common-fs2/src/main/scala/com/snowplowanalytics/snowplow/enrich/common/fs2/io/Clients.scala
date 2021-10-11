@@ -24,6 +24,8 @@ import org.http4s.client.blaze.BlazeClientBuilder
 
 import scala.concurrent.ExecutionContext
 
+import Clients._
+
 case class Clients[F[_]: ConcurrentEffect](clients: List[Client[F]]) {
   /** Download a URI as a stream of bytes, using the appropriate client */
   def download(uri: URI): Stream[F, Byte] =
@@ -59,9 +61,9 @@ object Clients {
   case class DownloadingFailure(uri: URI) extends Throwable {
     override def getMessage: String = s"Cannot download $uri"
   }
-}
 
-trait Client[F[_]] {
-  val prefixes: List[String]
-  def download(uri: URI): Stream[F, Byte]
+  trait Client[F[_]] {
+    val prefixes: List[String]
+    def download(uri: URI): Stream[F, Byte]
+  }
 }

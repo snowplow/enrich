@@ -23,7 +23,7 @@ import blobstore.Path
 
 import com.google.cloud.storage.StorageOptions
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Client
+import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.Client
 
 object GcsClient {
 

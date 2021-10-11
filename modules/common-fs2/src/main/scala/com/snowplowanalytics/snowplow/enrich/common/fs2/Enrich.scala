@@ -87,7 +87,7 @@ object Enrich {
     env.source
       .pauseWhen(env.pauseEnrich)
       .evalTap(_ => env.metrics.rawCount)
-      .map(a => (a, env.getPayload(a)))
+      .fproduct(env.getPayload)
       .through(enrichPipe)
       .through(sinkResult(sinkOne(env), env.metrics.enrichLatency, env.streamsSettings.concurrency.output))
       .through(env.checkpointer)
@@ -181,17 +181,18 @@ object Enrich {
         .SizeViolation(
           processor,
           Failure.SizeViolation(Instant.now(), maxRecordSize, size, msg),
-          BadRowPayload.RawPayload(asStr.take(maxRecordSize / 10))
+          BadRowPayload.RawPayload(asStr.take(maxRecordSize * 8 / 10))
         )
       Left(br)
     } else Right(asBytes)
   }
 
-  def sinkResult[F[_]: Concurrent: Parallel, A](
+  /** @tparam B can be anything, there is no constraint on this type */
+  def sinkResult[F[_]: Concurrent: Parallel, B](
     sink: Validated[BadRow, EnrichedEvent] => F[Unit],
     trackLatency: Option[Long] => F[Unit],
     concurrency: Int
-  ): Pipe[F, (A, Result), A] =
+  ): Pipe[F, (B, Result), B] =
     _.parEvalMap(concurrency){ case (orig, (events, collectorTstamp)) => events.parTraverse_(sink).as(orig) <* trackLatency(collectorTstamp) }
 
   def sinkOne[F[_]: Concurrent: Parallel, A](env: Environment[F, A])(result: Validated[BadRow, EnrichedEvent]): F[Unit] =

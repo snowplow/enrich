@@ -43,7 +43,8 @@ import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{ConfigFile, ParsedConfigs}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Concurrency
-import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{Client, Clients, Metrics}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{Clients, Metrics}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.Client
 
 import scala.concurrent.ExecutionContext
 
@@ -74,6 +75,8 @@ import scala.concurrent.ExecutionContext
  * @param piiAttributes       fields from a PII event to use as output message attributes
  * @param processor           identifies enrich asset in bad rows
  * @param streamsSettings     parameters used to configure the streams
+ * @tparam A                  type emitted by the source (e.g. `ConsumerRecord` for PubSub).
+ *                            getPayload must be defined for this type, as well as a checkpointer
  */
 final case class Environment[F[_], A](
   igluClient: IgluClient[F, Json],
@@ -150,9 +153,9 @@ object Environment {
         clts = Clients.init[F](http, clients)
         igluClient <- IgluClient.parseDefault[F](parsedConfigs.igluJson).resource
         metrics <- Resource.eval(metricsReporter[F](blocker, file))
-        assets = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
+        download = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
         pauseEnrich <- makePause[F]
-        assets <- Assets.State.make[F](blocker, pauseEnrich, assets, clts)
+        assets <- Assets.State.make[F](blocker, pauseEnrich, download, clts)
         enrichments <- Enrichments.make[F](parsedConfigs.enrichmentConfigs, BlockerF.ofBlocker(blocker))
         sentry <- file.monitoring.flatMap(_.sentry).map(_.dsn) match {
                     case Some(dsn) => Resource.eval[F, Option[SentryClient]](Sync[F].delay(Sentry.init(dsn.toString).some))

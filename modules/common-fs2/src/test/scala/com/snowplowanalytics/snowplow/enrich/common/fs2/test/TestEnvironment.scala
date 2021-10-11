@@ -147,7 +147,7 @@ object TestEnvironment extends CatsIO {
                       g => goodRef.update(_ :+ g),
                       Some(p => piiRef.update(_ :+ p)),
                       b => badRef.update(_ :+ b),
-                      _.flatMap(_ => Stream.eval(IO.unit)),
+                       _.map(_ => ()),
                       identity,
                       None,
                       metrics,

@@ -30,7 +30,8 @@ import com.snowplowanalytics.snowplow.badrows.Processor
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Authentication, Input, Output}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{CliConfig, ParsedConfigs}
-import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{Client, Sink, Source}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{Sink, Source}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.Client
 
 object Run {
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
@@ -56,7 +57,7 @@ object Run {
       case Right(cfg) =>
 
         ParsedConfigs.parse[F](cfg).fold (
-          err => Sync[F].delay(System.err.println(err)).as[ExitCode](ExitCode.Error),
+          err => Logger[F].error(s"CLI arguments valid but some of the configuration is not correct. Error: $err").as[ExitCode](ExitCode.Error),
           parsed => 
             Blocker[F].use { blocker =>
               for {
@@ -113,7 +114,7 @@ object Run {
             }
         ).flatten
       case Left(error) =>
-        Sync[F].delay(System.err.println(error)) >> Sync[F].pure(ExitCode.Error)
+        Logger[F].error(s"CLI arguments are invalid. Error: $error") >> Sync[F].pure(ExitCode.Error)
     }
 
   private def initAttributedSink[F[_]: Concurrent: ContextShift: Timer](

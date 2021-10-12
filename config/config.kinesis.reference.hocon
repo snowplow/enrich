@@ -9,7 +9,10 @@
     # Name of the Kinesis stream to read from
     "streamName": "collector-payloads"
 
-    # AWS region in which the Kinesis stream resides.
+    # Region where the Kinesis stream is located
+    # This field is optional if it can be resolved with AWS region provider chain.
+    # It checks places like env variables, system properties, AWS profile file.
+    # https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/regions/providers/DefaultAwsRegionProviderChain.html
     "region": "eu-central-1"
 
     # Either TRIM_HORIZON or LATEST
@@ -41,7 +44,10 @@
     # Name of the Kinesis stream to write to
     "streamName": "enriched"
 
-    # AWS region in which the Kinesis stream resides.
+    # Region where the Kinesis stream is located
+    # This field is optional if it can be resolved with AWS region provider chain.
+    # It checks places like env variables, system properties, AWS profile file.
+    # https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/regions/providers/DefaultAwsRegionProviderChain.html
     "region": "eu-central-1"
 
     # Optional. How the output stream/topic will be partitioned in Kinesis
@@ -80,7 +86,10 @@
     # Name of the Kinesis stream to write to
     "streamName": "pii"
 
-    # AWS region in which the Kinesis stream resides.
+    # Region where the Kinesis stream is located
+    # This field is optional if it can be resolved with AWS region provider chain.
+    # It checks places like env variables, system properties, AWS profile file.
+    # https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/regions/providers/DefaultAwsRegionProviderChain.html
     "region": "eu-central-1"
 
     # Optional. How the output stream/topic will be partitioned in Kinesis
@@ -119,7 +128,10 @@
     # Name of the Kinesis stream to write to
     "streamName": "bad"
 
-    # AWS region in which the Kinesis stream resides.
+    # Region where the Kinesis stream is located
+    # This field is optional if it can be resolved with AWS region provider chain.
+    # It checks places like env variables, system properties, AWS profile file.
+    # https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/regions/providers/DefaultAwsRegionProviderChain.html
     "region": "eu-central-1"
 
     # The delay threshold to use for batching

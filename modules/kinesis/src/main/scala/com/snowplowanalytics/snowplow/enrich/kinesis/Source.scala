@@ -43,19 +43,25 @@ object Source {
     blocker: Blocker,
     input: Input,
     monitoring: Option[Monitoring]
-  ): (Stream[F, CommittableRecord], Resource[F, Pipe[F, CommittableRecord, Unit]]) =
+  ): Resource[F, (Stream[F, CommittableRecord], Pipe[F, CommittableRecord, Unit])] =
     input match {
       case k: Input.Kinesis =>
-        kinesis(blocker, k, monitoring)
+        k.region.orElse(getRuntimeRegion) match {
+          case Some(region) =>
+            kinesis(blocker, k, region, monitoring)
+          case None =>
+            Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"Region not found in the config and in the runtime")))
+        }
       case i =>
-        throw new IllegalArgumentException(s"Input $i is not Kinesis")
+        Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"Input $i is not Kinesis")))
     }
 
   def kinesis[F[_]: ConcurrentEffect: ContextShift: Sync: Timer](
     blocker: Blocker,
     kinesisConfig: Input.Kinesis,
+    region: String,
     monitoring: Option[Monitoring]
-  ): (Stream[F, CommittableRecord], Resource[F, Pipe[F, CommittableRecord, Unit]]) = {
+  ): Resource[F, (Stream[F, CommittableRecord], Pipe[F, CommittableRecord, Unit])] = {
     val checkpointSettings =
       KinesisCheckpointSettings(kinesisConfig.checkpointSettings.maxBatchSize, kinesisConfig.checkpointSettings.maxBatchWait) match {
         case Left(err) => throw err
@@ -63,7 +69,7 @@ object Source {
       }
 
     val kinesis = for {
-      region <- Resource.eval(Sync[F].pure(Region.of(kinesisConfig.region)))
+      region <- Resource.eval(Sync[F].pure(Region.of(region)))
       kinesisClient <- makeKinesisClient[F](region)
       dynamoClient <- makeDynamoDbClient[F](region)
       cloudWatchClient <- makeCloudWatchClient[F](region)
@@ -73,9 +79,11 @@ object Source {
       k <- Stream.resource(kinesis)
       record <- k.readFromKinesisStream("THIS DOES NOTHING", "THIS DOES NOTHING")
     } yield record
-    val checkpointer = kinesis.map(_.checkpointRecords(checkpointSettings).andThen(_.as(())))
 
-    (stream, checkpointer)
+    for {
+      s <- Resource.pure[F, Stream[F, CommittableRecord]](stream)
+      checkpointer <- kinesis.map(_.checkpointRecords(checkpointSettings).andThen(_.as(())))
+    } yield (s, checkpointer)
   }
 
   private def scheduler[F[_]: Sync](

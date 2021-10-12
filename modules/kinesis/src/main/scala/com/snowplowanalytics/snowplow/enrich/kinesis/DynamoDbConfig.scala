@@ -22,7 +22,6 @@ import io.circe.Json
 
 import scala.collection.JavaConverters._
 
-import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
 import com.amazonaws.services.dynamodbv2.model.ScanRequest
 import com.amazonaws.services.dynamodbv2.document.DynamoDB
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder
@@ -106,7 +105,7 @@ object DynamoDbConfig {
     for {
       scanned <- blocker.blockOn(Sync[F].delay(dynamoDBClient.scan(scanRequest)))
       values = scanned.getItems().asScala.collect {
-                 case map if Option(map.get("id")).map(_.getS().startsWith(prefix)) == Some(true) && map.containsKey("json") =>
+                 case map if Option(map.get("id")).exists(_.getS.startsWith(prefix)) && map.containsKey("json") =>
                    map.get("json").getS()
                }
       sdj = SelfDescribingData[Json](enrichmentSchema, Json.arr(values.map(Json.fromString): _*))
@@ -117,12 +116,6 @@ object DynamoDbConfig {
   private def mkClient(region: String) =
     AmazonDynamoDBClientBuilder
       .standard()
-      .withEndpointConfiguration(new EndpointConfiguration(getDynamodbEndpoint(region), region))
+      .withRegion(region)
       .build()
-
-  private def getDynamodbEndpoint(region: String): String =
-    region match {
-      case cn @ "cn-north-1" => s"https://dynamodb.$cn.amazonaws.com.cn"
-      case _ => s"https://dynamodb.$region.amazonaws.com"
-    }
 }

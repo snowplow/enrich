@@ -44,7 +44,7 @@ object Run {
     description: String,
     ec: ExecutionContext,
     updateCliConfig: (Blocker, CliConfig) => F[CliConfig],
-    mkSource: (Blocker, Input, Option[Monitoring]) => (Stream[F, A], Resource[F, Pipe[F, A, Unit]]),
+    mkSource: (Blocker, Input, Option[Monitoring]) => Resource[F, (Stream[F, A], Pipe[F, A, Unit])],
     mkGoodSink: (Blocker, Output, Option[Monitoring]) => Resource[F, AttributedByteSink[F]],
     mkPiiSink: (Blocker, Output, Option[Monitoring]) => Resource[F, AttributedByteSink[F]],
     mkBadSink: (Blocker, Output, Option[Monitoring]) => Resource[F, ByteSink[F]],
@@ -77,41 +77,45 @@ object Run {
                     clients = mkClients.map(mk => mk(blocker))
                     exit <- file.input match {
                               case p: Input.FileSystem =>
-                                val (source, checkpointer) = Source.filesystem[F](blocker, p.dir)
-                                val env = Environment
-                                  .make[F, Array[Byte]](
-                                    blocker,
-                                    ec,
-                                    parsed,
-                                    source,
-                                    goodSink,
-                                    piiSink,
-                                    badSink,
-                                    clients,
-                                    checkpointer,
-                                    identity,
-                                    processor,
-                                    maxRecordSize
-                                  )
-                                runEnvironment[F, Array[Byte]](env, false)
+                                Source.filesystem[F](blocker, p.dir).use {
+                                  case (source, checkpointer) =>
+                                    val env = Environment
+                                      .make[F, Array[Byte]](
+                                        blocker,
+                                        ec,
+                                        parsed,
+                                        source,
+                                        goodSink,
+                                        piiSink,
+                                        badSink,
+                                        clients,
+                                        checkpointer,
+                                        identity,
+                                        processor,
+                                        maxRecordSize
+                                      )
+                                    runEnvironment[F, Array[Byte]](env, false)
+                                }
                               case _ =>
-                                val (source, checkpointer) = mkSource(blocker, file.input, file.monitoring)
-                                val env = Environment
-                                  .make[F, A](
-                                    blocker,
-                                    ec,
-                                    parsed,
-                                    source,
-                                    goodSink,
-                                    piiSink,
-                                    badSink,
-                                    clients,
-                                    checkpointer,
-                                    getPayload,
-                                    processor,
-                                    maxRecordSize
-                                  )
-                                runEnvironment[F, A](env, ordered)
+                                mkSource(blocker, file.input, file.monitoring).use {
+                                  case (source, checkpointer) =>
+                                    val env = Environment
+                                      .make[F, A](
+                                        blocker,
+                                        ec,
+                                        parsed,
+                                        source,
+                                        goodSink,
+                                        piiSink,
+                                        badSink,
+                                        clients,
+                                        checkpointer,
+                                        getPayload,
+                                        processor,
+                                        maxRecordSize
+                                      )
+                                    runEnvironment[F, A](env, ordered)
+                                }
                             }
                   } yield exit
               )

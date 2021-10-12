@@ -60,14 +60,14 @@ class ConfigFileSpec extends Specification with CatsIO {
         io.Input.Kinesis(
           "enrich-kinesis",
           "collector-payloads",
-          "eu-central-1",
+          Some("eu-central-1"),
           io.Input.Kinesis.InitPosition.TrimHorizon,
           io.Input.Kinesis.Retrieval.FanOut,
           io.Input.Kinesis.CheckpointSettings(1000, 10 seconds)
         ),
-        io.Output.Kinesis("enriched", "eu-central-1", None, 200.millis, 500, 5000000, io.Output.BackoffPolicy(100.millis, 10.seconds)),
-        Some(io.Output.Kinesis("pii", "eu-central-1", None, 200.millis, 500, 5000000, io.Output.BackoffPolicy(100.millis, 10.seconds))),
-        io.Output.Kinesis("bad", "eu-central-1", None, 200.millis, 500, 5000000, io.Output.BackoffPolicy(100.millis, 10.seconds)),
+        io.Output.Kinesis("enriched", Some("eu-central-1"), None, 200.millis, 500, 5000000, io.Output.BackoffPolicy(100.millis, 10.seconds)),
+        Some(io.Output.Kinesis("pii", Some("eu-central-1"), None, 200.millis, 500, 5000000, io.Output.BackoffPolicy(100.millis, 10.seconds))),
+        io.Output.Kinesis("bad", Some("eu-central-1"), None, 200.millis, 500, 5000000, io.Output.BackoffPolicy(100.millis, 10.seconds)),
         io.Concurrency(10000, 64),
         Some(7.days),
         Some(

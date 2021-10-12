@@ -26,16 +26,17 @@ object Source {
   def filesystem[F[_]: ContextShift: Sync](
     blocker: Blocker,
     path: Path
-  ): (Stream[F, Array[Byte]], Resource[F, Pipe[F, Array[Byte], Unit]]) = {
+  ): Resource[F, (Stream[F, Array[Byte]], Pipe[F, Array[Byte], Unit])] = {
     val stream = recursiveDirectoryStream(blocker, path)
       .evalMap { file =>
         readAll[F](file, blocker, 4096).compile
           .to(Array)
       }
 
-    val checkpointer = Resource.pure[F, Pipe[F, Array[Byte], Unit]](_.void)
-
-    (stream, checkpointer)
+    for {
+      s <- Resource.pure[F, Stream[F, Array[Byte]]](stream)
+      checkpointer <- Resource.pure[F, Pipe[F, Array[Byte], Unit]](_.void)
+    } yield (s, checkpointer)
   }
 
   private def recursiveDirectoryStream[F[_]: ContextShift: Sync](blocker: Blocker, path: Path): Stream[F, Path] =

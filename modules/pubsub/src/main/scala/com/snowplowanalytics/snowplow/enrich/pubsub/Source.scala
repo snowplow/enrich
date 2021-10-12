@@ -50,18 +50,18 @@ object Source {
   def init[F[_]: Concurrent: ContextShift](
     blocker: Blocker,
     input: Input
-  ): (Stream[F, ConsumerRecord[F, Array[Byte]]], Resource[F, Pipe[F, ConsumerRecord[F, Array[Byte]], Unit]]) =
+  ): Resource[F, (Stream[F, ConsumerRecord[F, Array[Byte]]], Pipe[F, ConsumerRecord[F, Array[Byte]], Unit])] =
     input match {
       case p: Input.PubSub =>
         pubSub(blocker, p)
       case i =>
-        throw new IllegalArgumentException(s"Input $i is not PubSub")
+        Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"Input $i is not PubSub")))
     }
 
   def pubSub[F[_]: Concurrent: ContextShift](
     blocker: Blocker,
     input: Input.PubSub
-  ): (Stream[F, ConsumerRecord[F, Array[Byte]]], Resource[F, Pipe[F, ConsumerRecord[F, Array[Byte]], Unit]]) = {
+  ): Resource[F, (Stream[F, ConsumerRecord[F, Array[Byte]]], Pipe[F, ConsumerRecord[F, Array[Byte]], Unit])] = {
     val onFailedTerminate: Throwable => F[Unit] =
       e => Sync[F].delay(System.err.println(s"Cannot terminate ${e.getMessage}"))
     val pubSubConfig =
@@ -78,8 +78,10 @@ object Source {
 
     val stream = PubsubGoogleConsumer
       .subscribe[F, Array[Byte]](blocker, projectId, subscriptionId, errorHandler, pubSubConfig)
-    val checkpointer = Resource.pure[F, Pipe[F, ConsumerRecord[F, Array[Byte]], Unit]](_.evalMap(_.ack))
 
-    (stream, checkpointer)
+    for {
+      s <- Resource.pure(stream)
+      checkpointer <- Resource.pure[F, Pipe[F, ConsumerRecord[F, Array[Byte]], Unit]](_.evalMap(_.ack))
+    } yield (s, checkpointer)
   }
 }

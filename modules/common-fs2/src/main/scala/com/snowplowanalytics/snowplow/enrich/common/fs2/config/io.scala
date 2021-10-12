@@ -54,7 +54,7 @@ object io {
     case class Kinesis private (
       appName: String,
       streamName: String,
-      region: String,
+      region: Option[String],
       initialPosition: Kinesis.InitPosition,
       retrievalMode: Kinesis.Retrieval,
       checkpointSettings: Kinesis.CheckpointSettings
@@ -103,7 +103,7 @@ object io {
             case "Polling" => "retrieval mode Polling must provide the maxRecords option".asLeft
             case other =>
               s"retrieval mode $other is unknown. Choose from FanOut and Polling. Polling must provide a MaxRecords option".asLeft
-          }
+          }.or(deriveConfiguredDecoder[Retrieval])
         implicit val retrievalEncoder: Encoder[Retrieval] = deriveConfiguredEncoder[Retrieval]
       }
 
@@ -165,7 +165,7 @@ object io {
     case class FileSystem(file: Path) extends Output
     case class Kinesis(
       streamName: String,
-      region: String,
+      region: Option[String],
       partitionKey: Option[String],
       delayThreshold: FiniteDuration,
       maxBatchSize: Long,

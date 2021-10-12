@@ -70,7 +70,7 @@ object Sink {
       case o: Output.PubSub =>
         pubsubSink[F, Array[Byte]](o).map(sink => bytes => sink(AttributedData(bytes, Map.empty)))
       case o =>
-        throw new IllegalArgumentException(s"Output $o is not PubSub")
+        Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"Output $o is not PubSub")))
     }
 
   def initAttributed[F[_]: Concurrent: ContextShift: Timer](
@@ -80,7 +80,7 @@ object Sink {
       case o: Output.PubSub =>
         pubsubSink[F, Array[Byte]](o)
       case o =>
-        throw new IllegalArgumentException(s"Output $o is not PubSub")
+        Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"Output $o is not PubSub")))
     }
 
   private def pubsubSink[F[_]: Concurrent, A: MessageEncoder](

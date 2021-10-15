@@ -71,7 +71,7 @@ object Telemetry {
     for {
       client <- BlazeClientBuilder[F](ExecutionContext.global).resource
       emitter <- Http4sEmitter.build(
-        EndpointParams(config.url, port = Some(config.port), https = config.secure),
+        EndpointParams(config.collectorUri, port = Some(config.collectorPort), https = config.secure),
         client,
         retryPolicy = RetryPolicy.MaxAttempts(10),
         callback = Some(emitterCallback[F] _)

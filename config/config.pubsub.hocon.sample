@@ -121,10 +121,10 @@
     "method": POST
 
     # URI of the collector receiving the heartbeat event
-    "url": collector-g.snowplowanalytics.com
+    "collectorUri": collector-g.snowplowanalytics.com
 
     # Port of the collector receiving the heartbeat event
-    "port": 443
+    "collectorPort": 443
 
     # Whether to use https or not
     "secure": true

@@ -236,6 +236,8 @@ lazy val commonFs2 = project
       Dependencies.Libraries.sentry,
       Dependencies.Libraries.log4cats,
       Dependencies.Libraries.catsRetry,
+      Dependencies.Libraries.igluClient,
+      Dependencies.Libraries.igluClientHttp4s,
       Dependencies.Libraries.http4sClient,
       Dependencies.Libraries.http4sCirce,
       Dependencies.Libraries.pureconfig.withRevision(Dependencies.V.pureconfig013),

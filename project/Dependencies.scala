@@ -57,7 +57,7 @@ object Dependencies {
     val gatlingJsonpath  = "0.6.14"
     val scalaUri         = "1.5.1"
     val badRows          = "2.1.1"
-    val igluClient       = "1.0.2"
+    val igluClient       = "1.1.1"
 
     val snowplowRawEvent = "0.1.0"
     val collectorPayload = "0.0.0"
@@ -132,6 +132,7 @@ object Dependencies {
     val scalaWeather     = "com.snowplowanalytics"      %% "scala-weather"                 % V.scalaWeather
     val badRows          = "com.snowplowanalytics"      %% "snowplow-badrows"              % V.badRows
     val igluClient       = "com.snowplowanalytics"      %% "iglu-scala-client"             % V.igluClient
+    val igluClientHttp4s = "com.snowplowanalytics"      %% "iglu-scala-client-http4s"      % V.igluClient
     val snowplowRawEvent = "com.snowplowanalytics"      %  "snowplow-thrift-raw-event"     % V.snowplowRawEvent
     val collectorPayload = "com.snowplowanalytics"      %  "collector-payload-1"           % V.collectorPayload
     val schemaSniffer    = "com.snowplowanalytics"      %  "schema-sniffer-1"              % V.schemaSniffer

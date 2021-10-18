@@ -69,8 +69,8 @@ object ConfigFile {
     in match {
       case Right(path) =>
         val result = Blocker[F].use { blocker =>
-          ConfigSource
-            .default(ConfigSource.file(path))
+          ConfigSource.file(path)
+            .withFallback(ConfigSource.default)
             .loadF[F, Json](blocker)
             .map(_.as[ConfigFile].leftMap(f => show"Couldn't parse the config $f"))
         }

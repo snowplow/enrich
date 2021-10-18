@@ -142,6 +142,7 @@ object TestEnvironment extends CatsIO {
                       enrichmentsRef,
                       pauseEnrich,
                       assets,
+                      http,
                       blocker,
                       source,
                       g => goodRef.update(_ :+ g),

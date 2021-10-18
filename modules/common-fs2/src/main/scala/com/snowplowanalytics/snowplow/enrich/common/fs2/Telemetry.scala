@@ -12,8 +12,6 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2
 
-import scala.concurrent.ExecutionContext
-
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
@@ -24,7 +22,7 @@ import cats.effect.{ConcurrentEffect, Resource, Sync, Timer}
 
 import fs2.Stream
 
-import org.http4s.client.blaze.BlazeClientBuilder
+import org.http4s.client.{Client => HttpClient}
 
 import _root_.io.circe.Json
 import _root_.io.circe.Encoder
@@ -56,7 +54,7 @@ object Telemetry {
           env.processor.artifact,
           env.processor.version
         )
-        val tracker = initTracker(env.telemetryConfig, env.processor.artifact)
+        val tracker = initTracker(env.telemetryConfig, env.processor.artifact, env.httpClient)
         Stream
           .fixedDelay[F](env.telemetryConfig.interval)
           .evalMap { _ =>
@@ -67,9 +65,8 @@ object Telemetry {
           }
     }
 
-  private def initTracker[F[_]: ConcurrentEffect: Timer](config: TelemetryConfig, appName: String): Resource[F, Tracker[F]] =
+  private def initTracker[F[_]: ConcurrentEffect: Timer](config: TelemetryConfig, appName: String, client: HttpClient[F]): Resource[F, Tracker[F]] =
     for {
-      client <- BlazeClientBuilder[F](ExecutionContext.global).resource
       emitter <- Http4sEmitter.build(
         EndpointParams(config.collectorUri, port = Some(config.collectorPort), https = config.secure),
         client,

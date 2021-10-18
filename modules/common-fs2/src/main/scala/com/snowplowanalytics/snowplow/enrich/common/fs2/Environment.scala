@@ -31,6 +31,8 @@ import _root_.io.sentry.{Sentry, SentryClient}
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
+import org.http4s.client.{Client => HttpClient}
+
 import com.snowplowanalytics.iglu.client.{Client => IgluClient}
 import com.snowplowanalytics.iglu.client.resolver.registries.{Http4sRegistryLookup, RegistryLookup}
 
@@ -62,6 +64,7 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input.Kinesis
  *                            should be used only by [[Assets]]
  * @param assetsState         a main entity from [[Assets]] stream, controlling when assets
  *                            have to be replaced with newer ones
+ * @param httpClient          client used to perform HTTP requests
  * @param blocker             thread pool for blocking operations and enrichments themselves
  * @param source              a stream of records
  * @param good                a sink for successfully enriched events
@@ -87,6 +90,7 @@ final case class Environment[F[_], A](
   enrichments: Ref[F, Environment.Enrichments[F]],
   pauseEnrich: SignallingRef[F, Boolean],
   assetsState: Assets.State[F],
+  httpClient: HttpClient[F],
   blocker: Blocker,
   source: Stream[F, A],
   good: AttributedByteSink[F],
@@ -176,6 +180,7 @@ object Environment {
       enrichments,
       pauseEnrich,
       assets,
+      http,
       blocker,
       source,
       good,

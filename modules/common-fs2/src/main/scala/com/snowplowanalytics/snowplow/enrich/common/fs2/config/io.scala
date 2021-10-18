@@ -199,8 +199,8 @@ object io {
               case _ =>
                 s"Topic must conform projects/project-name/topics/topic-name format, $top given".asLeft
             }
-          case Kinesis(s, r, _, _, _, _, _) if(s.nonEmpty ^ r.nonEmpty) =>
-            "both streamName and region need to be set".asLeft
+          case Kinesis(s, r, _, _, _, _, _) if(s.isEmpty && r.nonEmpty) =>
+            "streamName needs to be set".asLeft
           case other => other.asRight
         }
         .emap {

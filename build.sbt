@@ -316,6 +316,30 @@ lazy val kinesis = project
   .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
   .settings(excludeDependencies ++= Dependencies.Libraries.exclusions)
 
+lazy val kinesisIntegrationTests = project
+  .in(file("modules/kinesis-integration-tests"))
+  .dependsOn(commonFs2)
+  .settings(BuildSettings.basicSettings)
+  .settings(BuildSettings.sbtAssemblySettings)
+  .settings(
+    name := "snowplow-enrich-kinesis-integration-tests",
+    description := "App that generates collector payloads, sends them to Kinesis, and check the output of enrich-kinesis",
+    buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
+    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.kinesis.test.generated",
+  )
+  .settings(Test / parallelExecution := false)
+  .settings(
+    libraryDependencies ++= Seq(
+      Dependencies.Libraries.fs2Aws,
+      Dependencies.Libraries.scalacheck
+    ),
+    addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
+  )
+  .enablePlugins(BuildInfoPlugin)
+  .settings(BuildSettings.dockerSettings)
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging)
+  .settings(excludeDependencies ++= Dependencies.Libraries.exclusions)
+
 lazy val bench = project
   .in(file("modules/bench"))
   .dependsOn(pubsub % "test->test")

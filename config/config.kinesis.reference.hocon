@@ -15,15 +15,23 @@
     # https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/regions/providers/DefaultAwsRegionProviderChain.html
     "region": "eu-central-1"
 
-    # Either TRIM_HORIZON or LATEST
+    # Optional, set the initial position to consume the Kinesis stream
+    # Must be TRIM_HORIZON, LATEST or AT_TIMESTAMP object
+    # LATEST: most recent data.
+    # TRIM_HORIZON: oldest available data.
+    # AT_TIMESTAMP: start from the record at or after the specified timestamp
     "initialPosition": "TRIM_HORIZON"
-
-    # Optional, set the polling mode for retrieving records. Default is FanOut
-    "retrievalMode": "FanOut"
-    # "retrievalMode": {
-    #   "type": "Polling"
-    #   "maxRecords": 1000
+    # "initialPosition": {
+    #   "type": "AT_TIMESTAMP"
+    #   "timestamp": "2020-07-17T10:00:00Z"
     # }
+
+    # Optional, set the polling mode for retrieving records. Default is Polling with 10000
+    "retrievalMode": {
+      "type": "Polling"
+      "maxRecords": 10000
+    }
+    #"retrievalMode": "FanOut"
 
     # Optional, configure the checkpointer.
     "checkpointSettings": {
@@ -35,6 +43,14 @@
       # Default is 10 seconds.
       "maxBatchWait": 10 seconds
     }
+
+    # Optional, endpoint url configuration to override aws kinesis endpoints
+    # Can be used to specify local endpoint when using localstack
+    # customEndpoint = "http://localhost:4566"
+
+    # Optional, endpoint url configuration to override aws dyanomdb endpoint for Kinesis checkpoints lease table
+    # Can be used to specify local endpoint when using localstack
+    # dynamodbCustomEndpoint = "http://localhost:4569"
   }
 
   "output": {

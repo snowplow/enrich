@@ -14,12 +14,13 @@ package com.snowplowanalytics.snowplow.enrich.common.fs2.config
 
 import java.nio.file.{InvalidPathException, Path, Paths}
 import java.time.Instant
+import java.net.URI
 
 import cats.syntax.either._
 
 import scala.concurrent.duration.{Duration, FiniteDuration}
 
-import _root_.io.circe.{Decoder, Encoder}
+import _root_.io.circe.{Decoder, Encoder, Json}
 import _root_.io.circe.generic.extras.semiauto._
 import _root_.io.circe.config.syntax._
 
@@ -33,6 +34,14 @@ object io {
     }
   implicit val javaPathEncoder: Encoder[Path] =
     Encoder[String].contramap(_.toString)
+
+
+  implicit val javaUriDecoder: Decoder[URI] =
+    Decoder[String].emap { s =>
+      Either.catchOnly[IllegalArgumentException](URI.create(s)).leftMap(err => s"error while parsing URI $s: ${err.getMessage}")
+    }
+  implicit val javaUriEncoder: Encoder[URI] =
+    Encoder.encodeString.contramap[URI](_.toString)
 
   /** Source of raw collector data (only PubSub supported atm) */
   sealed trait Input
@@ -59,7 +68,9 @@ object io {
       region: Option[String],
       initialPosition: Kinesis.InitPosition,
       retrievalMode: Kinesis.Retrieval,
-      checkpointSettings: Kinesis.CheckpointSettings
+      checkpointSettings: Kinesis.CheckpointSettings,
+      customEndpoint: Option[URI],
+      dynamodbCustomEndpoint: Option[URI]
     ) extends Input
 
     object Kinesis {
@@ -75,20 +86,23 @@ object io {
               case Some("TRIM_HORIZON") => TrimHorizon.asRight
               case Some("LATEST") => Latest.asRight
               case Some(other) =>
-                s"Initial position $other is unknown. Choose from LATEST and TRIM_HORIZEON. AT_TIMESTAMP must provide the timestamp".asLeft
-              case None =>
-                val result = for {
-                  root <- json.asObject.map(_.toMap)
-                  atTimestamp <- root.get("AT_TIMESTAMP")
-                  atTimestampObj <- atTimestamp.asObject.map(_.toMap)
-                  timestampStr <- atTimestampObj.get("timestamp")
-                  timestamp <- timestampStr.as[Instant].toOption
-                } yield AtTimestamp(timestamp)
-                result match {
-                  case Some(atTimestamp) => atTimestamp.asRight
-                  case None =>
-                    "Initial position can be either LATEST or TRIM_HORIZON string or AT_TIMESTAMP object (e.g. 2020-06-03T00:00:00Z)".asLeft
-                }
+                s"Initial position $other is not supported. Possible string values are TRIM_HORIZON and LATEST. AT_TIMESTAMP must be provided as object".asLeft
+              case None => json.asObject match {
+                case Some(obj) =>
+                  val map = obj.toMap
+                  if(map.get("type") == Some(Json.fromString("AT_TIMESTAMP"))) {
+                    map.get("timestamp") match {
+                      case Some(timestampStr) =>
+                        timestampStr.as[Instant].map(instant => AtTimestamp(instant)).leftMap(err => s"couldn't not parse timestamp. Error: ${err.getMessage}")
+                      case None =>
+                        s"${json.toString} does not contain timestamp field".asLeft
+                    }
+                  } else {
+                    s"type is not AT_TIMESTAMP in ${json.toString}".asLeft
+                  }
+                case None =>
+                  s"${json.toString} is neither string nor object".asLeft
+              }
             }
           }
         implicit val initPositionEncoder: Encoder[InitPosition] = deriveConfiguredEncoder[InitPosition]
@@ -100,12 +114,29 @@ object io {
         case object FanOut extends Retrieval
 
         implicit val retrievalDecoder: Decoder[Retrieval] =
-          Decoder.decodeString.emap {
-            case "FanOut" => FanOut.asRight
-            case "Polling" => "retrieval mode Polling must provide the maxRecords option".asLeft
-            case other =>
-              s"retrieval mode $other is unknown. Choose from FanOut and Polling. Polling must provide a MaxRecords option".asLeft
-          }.or(deriveConfiguredDecoder[Retrieval])
+          Decoder.decodeJson.emap { json =>
+            json.asString match {
+              case Some("FanOut") => FanOut.asRight
+              case Some(other) =>
+                s"Retrieval mode $other is not supported. Only possible string value is FanOut. Polling must be provided as object".asLeft
+              case None => json.asObject match {
+                case Some(obj) =>
+                  val map = obj.toMap
+                  if(map.get("type") == Some(Json.fromString("Polling"))) {
+                    map.get("maxRecords") match {
+                      case Some(nb) =>
+                        nb.as[Int].map(max => Polling(max)).leftMap(_ => s"couldn't not parse $nb as Int")
+                      case None =>
+                        s"${json.toString} does not contain maxRecords".asLeft
+                    }
+                  } else {
+                    s"type is not Polling in ${json.toString}".asLeft
+                  }
+                case None =>
+                  s"${json.toString} is neither string nor object".asLeft
+              }
+            }
+          }
         implicit val retrievalEncoder: Encoder[Retrieval] = deriveConfiguredEncoder[Retrieval]
       }
 

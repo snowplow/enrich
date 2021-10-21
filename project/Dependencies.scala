@@ -144,11 +144,13 @@ object Dependencies {
     val slf4j            = "org.slf4j"                  % "slf4j-simple"                   % V.slf4j
     val sentry           = "io.sentry"                  %  "sentry"                        % V.sentry
 
-    val specs2           = "org.specs2"                 %% "specs2-core"                   % V.specs2                    % Test
-    val specs2Cats       = "org.specs2"                 %% "specs2-cats"                   % V.specs2                    % Test
-    val specs2Scalacheck = "org.specs2"                 %% "specs2-scalacheck"             % V.specs2                    % Test
-    val specs2Mock       = "org.specs2"                 %% "specs2-mock"                   % V.specs2                    % Test
-    val specs2CE         = "com.codecommit"             %% "cats-effect-testing-specs2"    % V.specs2CE                  % Test
+    val specs2             = "org.specs2"     %% "specs2-core"                 % V.specs2   % Test
+    val specs2Cats         = "org.specs2"     %% "specs2-cats"                 % V.specs2   % Test
+    val specs2Scalacheck   = "org.specs2"     %% "specs2-scalacheck"           % V.specs2   % Test
+    val specs2ScalacheckIt = "org.specs2"     %% "specs2-scalacheck"           % V.specs2   % IntegrationTest
+    val specs2Mock         = "org.specs2"     %% "specs2-mock"                 % V.specs2   % Test
+    val specs2CE           = "com.codecommit" %% "cats-effect-testing-specs2"  % V.specs2CE % Test
+    val specs2CEIt         = "com.codecommit" %% "cats-effect-testing-specs2"  % V.specs2CE % IntegrationTest
 
     // Stream
     val kinesisSdk       = "com.amazonaws"                    %  "aws-java-sdk-kinesis"              % V.awsSdk

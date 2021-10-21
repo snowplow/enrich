@@ -255,7 +255,9 @@ lazy val kinesis = project
       Dependencies.Libraries.dynamodbSdk,
       Dependencies.Libraries.fs2BlobS3,
       Dependencies.Libraries.fs2Aws,
-      Dependencies.Libraries.sts
+      Dependencies.Libraries.sts,
+      Dependencies.Libraries.specs2CEIt,
+      Dependencies.Libraries.specs2ScalacheckIt
     ),
     addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
   )
@@ -263,6 +265,8 @@ lazy val kinesis = project
   .settings(BuildSettings.dockerSettings)
   .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
   .settings(excludeDependencies ++= Dependencies.Libraries.exclusions)
+  .settings(Defaults.itSettings)
+  .configs(IntegrationTest)
 
 lazy val bench = project
   .in(file("modules/bench"))

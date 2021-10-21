@@ -1,0 +1,78 @@
+{
+  "input": {
+    "type": "Kinesis"
+    "appName": "it-enrich-kinesis"
+    "region": "eu-central-1"
+    "streamName": "it-enrich-kinesis-collector-payloads"
+    "initialPosition": {
+      "type": "TRIM_HORIZON"
+    }
+    "retrievalMode": {
+      "type": "Polling"
+      "maxRecords": 10000
+    }
+    "bufferSize": 3
+  }
+
+  "output": {
+    "good": {
+      "type": "Kinesis"
+      "streamName": "it-enrich-kinesis-enriched"
+      "region": "eu-central-1"
+      "backoffPolicy": {
+        "minBackoff": 100 milliseconds
+        "maxBackoff": 10 seconds
+      }
+      "maxBufferedTime": 100 milliseconds
+      "collection": {
+        "maxCount": 500
+        "maxSize": 5242880
+      }
+      "maxConnections": 24
+      "logLevel": "warning"
+    }
+
+    "bad": {
+      "type": "Kinesis"
+      "streamName": "it-enrich-kinesis-bad"
+      "region": "eu-central-1"
+      "backoffPolicy": {
+        "minBackoff": 100 milliseconds
+        "maxBackoff": 10 seconds
+      }
+      "maxBufferedTime": 100 milliseconds
+      "collection": {
+        "maxCount": 500
+        "maxSize": 5242880
+      }
+      "maxConnections": 24
+      "logLevel": "warning"
+    }
+  }
+
+  "concurrency" : {
+    "enrich": 256
+    "sink": 1
+  }
+
+  "monitoring": {
+    "metrics": {
+      "stdout": {
+        "period": "60 seconds"
+      }
+    }
+  }
+
+  "telemetry": {
+    "disable": true
+    "interval": 15 minutes
+    "method": POST
+    "collectorUri": collector-g.snowplowanalytics.com
+    "collectorPort": 443
+    "secure": true
+  }
+
+  "featureFlags" : {
+    "acceptInvalid": true
+  }
+}

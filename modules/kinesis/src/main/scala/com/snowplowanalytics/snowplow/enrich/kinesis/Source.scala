@@ -28,6 +28,9 @@ import eu.timepit.refined.api.Refined
 import eu.timepit.refined.auto._
 import eu.timepit.refined.numeric._
 
+import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
+
 import software.amazon.awssdk.regions.Region
 import software.amazon.kinesis.common.{ConfigsBuilder, InitialPositionInStream, InitialPositionInStreamExtended}
 import software.amazon.kinesis.coordinator.Scheduler
@@ -43,6 +46,9 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Input, Monito
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input.Kinesis.InitPosition
 
 object Source {
+
+  private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
+    Slf4jLogger.getLogger[F]
 
   def init[F[_]: ConcurrentEffect: ContextShift: Timer](
     blocker: Blocker,

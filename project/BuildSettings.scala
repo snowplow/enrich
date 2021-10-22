@@ -128,6 +128,7 @@ object BuildSettings {
 
   /** Docker settings, used by SE */
   lazy val dockerSettings = Seq(
+    Universal / javaOptions ++= Seq("-Dnashorn.args=--language=es6"),
     Docker / maintainer := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
     dockerBaseImage := "adoptopenjdk:11-jre-hotspot-focal",
     dockerRepository := Some("snowplow"),

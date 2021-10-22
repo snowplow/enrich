@@ -28,7 +28,7 @@ object Main extends IOApp {
     val nbBad = 0l
 
     Blocker[IO].use { blocker =>
-      val generate = CollectorPayloadGen.generate[IO](nbGood, 0)
+      val generate = CollectorPayloadGen.generate[IO](nbGood, nbBad)
         .through(KinesisSink.init[IO](blocker, region, collectorPayloadStream))
         .compile
         .drain

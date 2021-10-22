@@ -15,6 +15,7 @@ package com.snowplowanalytics.snowplow.enrich.kinesis.test
 import scala.concurrent.duration._
 
 import cats.effect.{Blocker, ExitCode, IO, IOApp}
+import cats.syntax.eq._
 
 object Main extends IOApp {
 
@@ -39,7 +40,7 @@ object Main extends IOApp {
           .scan(0l)((acc, _) => acc + 1l)
           .lastOr(0l)
           .evalMap { countGood =>
-            if (countGood == nbGood) IO(println(s"$countGood enriched events, awesomeness")) 
+            if (countGood === nbGood) IO(println(s"$countGood enriched events, awesomeness")) 
             else IO.raiseError(new RuntimeException(s"$countGood enriched events, should be $nbGood"))
           }
 
@@ -49,7 +50,7 @@ object Main extends IOApp {
           .scan(0l)((acc, _) => acc + 1l)
           .lastOr(0l)
           .evalMap { countBad =>
-            if (countBad == nbBad) IO(println(s"$countBad bad rows, awesomeness")) 
+            if (countBad === nbBad) IO(println(s"$countBad bad rows, awesomeness")) 
             else IO.raiseError(new RuntimeException(s"$countBad bad rows, should be $nbBad"))
           }
 

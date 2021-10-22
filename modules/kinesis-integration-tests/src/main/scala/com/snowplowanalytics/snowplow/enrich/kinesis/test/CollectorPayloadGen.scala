@@ -27,6 +27,8 @@ import org.joda.time.DateTime
 
 import org.apache.thrift.TSerializer
 
+import java.util.Base64
+
 import com.snowplowanalytics.iglu.core.{ SelfDescribingData, SchemaKey, SchemaVer }
 import com.snowplowanalytics.iglu.core.circe.CirceIgluCodecs._
 
@@ -35,6 +37,7 @@ import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 object CollectorPayloadGen {
 
   private val serializer =  new TSerializer()
+  private val base64Encoder = Base64.getEncoder()
 
   def generate[F[_]: Sync](nbGoodEvents: Long, nbBadRows: Long): Stream[F, Array[Byte]] =
     generateRaw(nbGoodEvents, nbBadRows).map(_.toThrift).map(serializer.serialize)
@@ -73,23 +76,24 @@ object CollectorPayloadGen {
       p <- Gen.oneOf("web", "mob", "app").withKey("p")
       aid <- Gen.const("enrich-kinesis-integration-tests").withKey("aid")
       e <- Gen.const("ue").withKey("e")
-      ue_px <-
+      tv <- Gen.oneOf("scala-tracker_1.0.0", "js_2.0.0", "go_1.2.3").withKey("tv")
+      uePx <-
         if(valid)
-          uePxGen.withKey("ue_px")
+          ueGen.map(_.toString).map(str => base64Encoder.encodeToString(str.getBytes)).withKey("ue_px")
         else
-          uePxGen.withKey("ue_px")
+          ueGen.map(_.toString).map(str => base64Encoder.encodeToString(str.getBytes)).withKey("ue_px")
     } yield SelfDescribingData(
       SchemaKey("com.snowplowanalytics.snowplow", "payload_data", "jsonschema", SchemaVer.Full(1,0,4)),
-      asObject(List(p, aid, e, ue_px))
+       List(asObject(List(p, aid, e, uePx, tv))).asJson
     ).asJson.toString
 
-  private def uePxGen =
+  private def ueGen =
     for {
       sdj <- Gen.oneOf(changeFormGen, clientSessionGen)
     } yield SelfDescribingData(
       SchemaKey("com.snowplowanalytics.snowplow", "unstruct_event", "jsonschema", SchemaVer.Full(1,0,0)),
       sdj.asJson
-    ).asJson.toString
+    ).asJson
 
 
   private def changeFormGen =

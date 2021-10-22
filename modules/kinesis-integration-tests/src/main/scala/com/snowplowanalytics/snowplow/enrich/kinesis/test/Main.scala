@@ -28,38 +28,36 @@ object Main extends IOApp {
     val nbBad = 0l
 
     Blocker[IO].use { blocker =>
+
       val generate = CollectorPayloadGen.generate[IO](nbGood, nbBad)
         .through(KinesisSink.init[IO](blocker, region, collectorPayloadStream))
-        .compile
-        .drain
 
       val aggregateGood =
         KinesisSource.init[IO](blocker, region, enrichedStream)
-          .interruptAfter(10.seconds)
+          .interruptAfter(40.seconds)
           .scan(0l)((acc, _) => acc + 1l)
-          .compile.last.flatMap {
-            _ match {
-              case Some(countGood) if countGood == nbGood => IO(println(s"$countGood enriched events, awesomeness")) 
-              case other => IO.raiseError(new RuntimeException(s"$other enriched events, should be $nbGood"))
-            }
+          .lastOr(0l)
+          .evalMap { countGood =>
+            if (countGood == nbGood) IO(println(s"$countGood enriched events, awesomeness")) 
+            else IO.raiseError(new RuntimeException(s"$countGood enriched events, should be $nbGood"))
           }
 
       val aggregateBad =
         KinesisSource.init[IO](blocker, region, badStream)
-          .interruptAfter(10.seconds)
+          .interruptAfter(40.seconds)
           .scan(0l)((acc, _) => acc + 1l)
-          .compile.last.flatMap {
-            _ match {
-              case Some(countBad) if countBad == nbBad => IO(println(s"$countBad bad rows, awesomeness")) 
-              case other => IO.raiseError(new RuntimeException(s"$other bad rows, should be $nbBad"))
-            }
+          .lastOr(0l)
+          .evalMap { countBad =>
+            if (countBad == nbBad) IO(println(s"$countBad bad rows, awesomeness")) 
+            else IO.raiseError(new RuntimeException(s"$countBad bad rows, should be $nbBad"))
           }
 
-      for {
-        _ <- generate
-        _ <- aggregateGood
-        _ <- aggregateBad
-      } yield ExitCode.Success
+      aggregateGood
+        .merge(aggregateBad)
+        .merge(generate)
+        .compile
+        .drain
+        .as(ExitCode.Success)
     }
   }
 }

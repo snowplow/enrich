@@ -22,29 +22,43 @@ object Main extends IOApp {
     val region = args(0)
     val collectorPayloadStream = args(1)
     val enrichedStream = args(2)
+    val badStream = args(3)
 
-    val nbGood = 1000l
+    val nbGood = 100l
+    val nbBad = 0l
 
     Blocker[IO].use { blocker =>
       val generate = CollectorPayloadGen.generate[IO](nbGood, 0)
         .through(KinesisSink.init[IO](blocker, region, collectorPayloadStream))
         .compile
         .drain
- 
-      val aggregate = 
+
+      val aggregateGood =
         KinesisSource.init[IO](blocker, region, enrichedStream)
-          .interruptAfter(30.seconds)
+          .interruptAfter(10.seconds)
           .scan(0l)((acc, _) => acc + 1l)
           .compile.last.flatMap {
             _ match {
               case Some(countGood) if countGood == nbGood => IO(println(s"$countGood enriched events, awesomeness")) 
-              case other => IO.raiseError(new RuntimeException(s"$other enriched events, sadness"))
+              case other => IO.raiseError(new RuntimeException(s"$other enriched events, should be $nbGood"))
+            }
+          }
+
+      val aggregateBad =
+        KinesisSource.init[IO](blocker, region, badStream)
+          .interruptAfter(10.seconds)
+          .scan(0l)((acc, _) => acc + 1l)
+          .compile.last.flatMap {
+            _ match {
+              case Some(countBad) if countBad == nbBad => IO(println(s"$countBad bad rows, awesomeness")) 
+              case other => IO.raiseError(new RuntimeException(s"$other bad rows, should be $nbBad"))
             }
           }
 
       for {
         _ <- generate
-        _ <- aggregate
+        _ <- aggregateGood
+        _ <- aggregateBad
       } yield ExitCode.Success
     }
   }

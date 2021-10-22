@@ -24,6 +24,7 @@ import com.typesafe.sbt.SbtNativePackager.autoImport._
 import com.typesafe.sbt.packager.linux.LinuxPlugin.autoImport._
 import com.typesafe.sbt.packager.docker.DockerPlugin.autoImport._
 import com.typesafe.sbt.packager.docker.{ DockerVersion, ExecCmd }
+import com.typesafe.sbt.packager.universal.UniversalPlugin.autoImport._
 
 import scoverage.ScoverageKeys._
 
@@ -127,6 +128,7 @@ object BuildSettings {
 
   /** Docker settings, used by SE */
   lazy val dockerSettings = Seq(
+    Universal / javaOptions ++= Seq("-Dnashorn.args=--language=es6"),
     Docker / maintainer := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
     dockerBaseImage := "adoptopenjdk:11-jre-hotspot-focal",
     dockerRepository := Some("snowplow"),

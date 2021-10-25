@@ -123,12 +123,12 @@ object BuildSettings {
   /** Docker settings, used by SE */
   lazy val dockerSettings = Seq(
     Docker / maintainer := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
-    dockerBaseImage := "snowplow/base-debian:0.2.1",
-    Docker / daemonUser := "snowplow",
-    dockerUpdateLatest := true,
-    dockerVersion := Some(DockerVersion(18, 9, 0, Some("ce"))),
+    dockerBaseImage := "adoptopenjdk:11-jre-hotspot-focal",
+    dockerRepository := Some("snowplow"),
+    Docker / daemonUser := "daemon",
     Docker / daemonUserUid := None,
-    Docker / defaultLinuxInstallLocation := "/home/snowplow" // must be home directory of daemonUser
+    Docker / defaultLinuxInstallLocation := "/opt/snowplow",
+    dockerUpdateLatest := true
   )
 
   /** Docker settings, used by BE */

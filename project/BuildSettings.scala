@@ -23,7 +23,8 @@ import sbtdynver.DynVerPlugin.autoImport._
 import com.typesafe.sbt.SbtNativePackager.autoImport._
 import com.typesafe.sbt.packager.linux.LinuxPlugin.autoImport._
 import com.typesafe.sbt.packager.docker.DockerPlugin.autoImport._
-import com.typesafe.sbt.packager.docker.{ DockerVersion, ExecCmd }
+import com.typesafe.sbt.packager.docker.{DockerVersion, ExecCmd}
+import com.typesafe.sbt.packager.universal.UniversalPlugin.autoImport._
 
 import scoverage.ScoverageKeys._
 
@@ -125,12 +126,11 @@ object BuildSettings {
   /** Docker settings, used by SE */
   lazy val dockerSettings = Seq(
     Docker / maintainer := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
-    dockerBaseImage := "snowplow/base-debian:0.2.1",
+    dockerBaseImage := "eclipse-temurin:11-jre-focal",
+    dockerRepository := Some("snowplow"),
     Docker / daemonUser := "snowplow",
-    dockerUpdateLatest := true,
-    dockerVersion := Some(DockerVersion(18, 9, 0, Some("ce"))),
-    Docker / daemonUserUid := None,
-    Docker / defaultLinuxInstallLocation := "/home/snowplow" // must be home directory of daemonUser
+    Docker / defaultLinuxInstallLocation := "/home/snowplow",
+    dockerUpdateLatest := true
   )
 
   /** Docker settings, used by BE */

@@ -73,7 +73,7 @@ lazy val common = project
   .settings(excludeDependencies ++= Dependencies.Libraries.exclusions)
 
 lazy val allStreamSettings = BuildSettings.basicSettings ++ BuildSettings.sbtAssemblySettings ++
-  BuildSettings.dockerSettings ++ BuildSettings.formatting ++
+  BuildSettings.formatting ++
   Seq(libraryDependencies ++= Seq(
     Dependencies.Libraries.config,
     Dependencies.Libraries.sentry,
@@ -107,7 +107,8 @@ lazy val streamKinesis = project
   .in(file("modules/stream/kinesis"))
   .settings(allStreamSettings)
   .settings(moduleName := "snowplow-stream-enrich-kinesis")
-  .settings(Docker / packageName := "snowplow/stream-enrich-kinesis")
+  .settings(BuildSettings.dockerSettings)
+  .settings(Docker / packageName := "stream-enrich-kinesis")
   .settings(libraryDependencies ++= Seq(
     Dependencies.Libraries.kinesisClient,
     Dependencies.Libraries.kinesisSdk,
@@ -122,9 +123,8 @@ lazy val streamKafka = project
   .in(file("modules/stream/kafka"))
   .settings(moduleName := "snowplow-stream-enrich-kafka")
   .settings(allStreamSettings)
-  .settings(
-    Docker / packageName := "snowplow/stream-enrich-kafka",
-  )
+  .settings(BuildSettings.dockerSettings)
+  .settings(Docker / packageName := "stream-enrich-kafka")
   .settings(libraryDependencies ++= Seq(
     Dependencies.Libraries.kafkaClients
   ))
@@ -136,9 +136,8 @@ lazy val streamNsq = project
   .in(file("modules/stream/nsq"))
   .settings(moduleName := "snowplow-stream-enrich-nsq")
   .settings(allStreamSettings)
-  .settings(
-    Docker / packageName := "snowplow/stream-enrich-nsq",
-  )
+  .settings(BuildSettings.dockerSettings)
+  .settings(Docker / packageName := "stream-enrich-nsq")
   .settings(libraryDependencies ++= Seq(
     Dependencies.Libraries.log4j,
     Dependencies.Libraries.log4jApi,
@@ -272,7 +271,7 @@ lazy val pubsub = project
     buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
     buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.pubsub.generated",
   )
-  .settings(Docker / packageName := "snowplow/snowplow-enrich-pubsub")
+  .settings(Docker / packageName := "snowplow-enrich-pubsub")
   .settings(Test / parallelExecution := false)
   .settings(
     libraryDependencies ++= Seq(
@@ -299,7 +298,7 @@ lazy val kinesis = project
     description := "High-performance app built on top of functional streams that enriches Snowplow events from Kinesis",
     buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
     buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.kinesis.generated",
-    Docker / packageName := "snowplow/snowplow-enrich-kinesis",
+    Docker / packageName := "snowplow-enrich-kinesis",
   )
   .settings(Test / parallelExecution := false)
   .settings(

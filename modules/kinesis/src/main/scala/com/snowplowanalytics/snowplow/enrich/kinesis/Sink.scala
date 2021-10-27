@@ -104,9 +104,8 @@ object Sink {
       .setThreadingModel(KinesisProducerConfiguration.ThreadingModel.POOLED)
       .setRegion(region)
       .setMetricsLevel(metricsLevel)
-      .setCollectionMaxCount(config.maxBatchSize)
-      .setCollectionMaxSize(config.maxBatchBytes)
       .setRecordMaxBufferedTime(config.delayThreshold.toMillis)
+      .setAggregationEnabled(false)
   }
 
   private def writeToKinesis[F[_]: Async: Timer](

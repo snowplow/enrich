@@ -139,7 +139,7 @@ object Sink {
             .error(s"Writing to Kinesis errored after ${retryDetails.retriesSoFar} retry. Error: ${exception.toString}") >>
             Async[F].raiseError(exception)
       )
-      .flatMap { case (_, before) => Timer[F].clock.realTime(TimeUnit.MILLISECONDS).map(after => after - before)}
+      .flatMap { case (_, before) => Timer[F].clock.realTime(TimeUnit.MILLISECONDS).map(after => after - before) }
       .flatMap(diff => Logger[F].info(s"It took $diff milliseconds to insert the record"))
   }
 

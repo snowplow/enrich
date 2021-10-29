@@ -33,6 +33,7 @@ import com.amazonaws.services.kinesis.producer.{KinesisProducerConfiguration, Us
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.{AttributedByteSink, AttributedData, ByteSink}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Monitoring, Output}
+import java.util.concurrent.TimeUnit
 
 object Sink {
 
@@ -123,21 +124,23 @@ object Sink {
     }
     val res = for {
       byteBuffer <- Async[F].delay(ByteBuffer.wrap(data.data))
+      before <- Timer[F].clock.realTime(TimeUnit.MILLISECONDS)
       cb <- producer.putData(config.streamName, partitionKey, byteBuffer)
       cbRes <- registerCallback(blocker, cb)
-    } yield cbRes
+    } yield (cbRes, before)
     res
       .retryingOnFailuresAndAllErrors(
-        wasSuccessful = _.isSuccessful,
+        wasSuccessful = _._1.isSuccessful,
         policy = retryPolicy,
         onFailure = (result, retryDetails) =>
-          Logger[F].warn(s"Writing to shard ${result.getShardId()} failed after ${retryDetails.retriesSoFar} retry"),
+          Logger[F].warn(s"Writing to shard ${result._1.getShardId()} failed after ${retryDetails.retriesSoFar} retry"),
         onError = (exception, retryDetails) =>
           Logger[F]
             .error(s"Writing to Kinesis errored after ${retryDetails.retriesSoFar} retry. Error: ${exception.toString}") >>
             Async[F].raiseError(exception)
       )
-      .void
+      .flatMap { case (_, before) => Timer[F].clock.realTime(TimeUnit.MILLISECONDS).map(after => after - before)}
+      .flatMap(diff => Logger[F].info(s"It took $diff milliseconds to insert the record"))
   }
 
   private def registerCallback[F[_]: Async](blocker: Blocker, f: ListenableFuture[UserRecordResult]): F[UserRecordResult] =

@@ -17,30 +17,18 @@ import java.util.UUID
 
 import cats.implicits._
 
-import cats.effect.{Async, Blocker, Concurrent, ContextShift, Resource, Sync, Timer}
-
-import org.typelevel.log4cats.Logger
-import org.typelevel.log4cats.slf4j.Slf4jLogger
+import cats.effect.{Async, Concurrent, ContextShift, Resource, Sync, Timer}
 
 import fs2.aws.internal.{KinesisProducerClient, KinesisProducerClientImpl}
 
-import retry.syntax.all._
-import retry.RetryPolicies._
-
-import com.google.common.util.concurrent.{FutureCallback, Futures, ListenableFuture}
-
-import com.amazonaws.services.kinesis.producer.{KinesisProducerConfiguration, UserRecordResult}
+import com.amazonaws.services.kinesis.producer.{KinesisProducerConfiguration}
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.{AttributedByteSink, AttributedData, ByteSink}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Monitoring, Output}
 
 object Sink {
 
-  private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
-    Slf4jLogger.getLogger[F]
-
   def init[F[_]: Concurrent: ContextShift: Timer](
-    blocker: Blocker,
     output: Output,
     monitoring: Option[Monitoring]
   ): Resource[F, ByteSink[F]] =
@@ -48,7 +36,7 @@ object Sink {
       case o: Output.Kinesis =>
         o.region.orElse(getRuntimeRegion) match {
           case Some(region) =>
-            kinesis[F](blocker, o, region, monitoring).map(sink => bytes => sink(AttributedData(bytes, Map.empty)))
+            kinesis[F](o, region, monitoring).map(sink => bytes => sink(AttributedData(bytes, Map.empty)))
           case None =>
             Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"Region not found in the config and in the runtime")))
         }
@@ -57,7 +45,6 @@ object Sink {
     }
 
   def initAttributed[F[_]: Concurrent: ContextShift: Timer](
-    blocker: Blocker,
     output: Output,
     monitoring: Option[Monitoring]
   ): Resource[F, AttributedByteSink[F]] =
@@ -65,7 +52,7 @@ object Sink {
       case o: Output.Kinesis =>
         o.region.orElse(getRuntimeRegion) match {
           case Some(region) =>
-            kinesis[F](blocker, o, region, monitoring)
+            kinesis[F](o, region, monitoring)
           case None =>
             Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"Region not found in the config and in the runtime")))
         }
@@ -74,12 +61,11 @@ object Sink {
     }
 
   private def kinesis[F[_]: Async: Timer](
-    blocker: Blocker,
     config: Output.Kinesis,
     region: String,
     monitoring: Option[Monitoring]
   ): Resource[F, AttributedData[Array[Byte]] => F[Unit]] =
-    mkProducer(config, region, monitoring).map(writeToKinesis(blocker, config))
+    mkProducer(config, region, monitoring).map(writeToKinesis(config))
 
   private def mkProducer[F[_]: Sync](
     config: Output.Kinesis,
@@ -109,14 +95,12 @@ object Sink {
   }
 
   private def writeToKinesis[F[_]: Async: Timer](
-    blocker: Blocker,
     config: Output.Kinesis
   )(
     producer: KinesisProducerClient[F]
   )(
     data: AttributedData[Array[Byte]]
   ): F[Unit] = {
-    val retryPolicy = capDelay[F](config.backoffPolicy.maxBackoff, exponentialBackoff[F](config.backoffPolicy.minBackoff))
     val partitionKey = data.attributes.toList match { // there can be only one attribute : the partition key
       case head :: Nil => head._2
       case _ => UUID.randomUUID().toString
@@ -124,31 +108,7 @@ object Sink {
     val res = for {
       byteBuffer <- Async[F].delay(ByteBuffer.wrap(data.data))
       cb <- producer.putData(config.streamName, partitionKey, byteBuffer)
-      cbRes <- registerCallback(blocker, cb)
-    } yield cbRes
-    res
-      .retryingOnFailuresAndAllErrors(
-        wasSuccessful = _.isSuccessful,
-        policy = retryPolicy,
-        onFailure = (result, retryDetails) =>
-          Logger[F].warn(s"Writing to shard ${result.getShardId()} failed after ${retryDetails.retriesSoFar} retry"),
-        onError = (exception, retryDetails) =>
-          Logger[F]
-            .error(s"Writing to Kinesis errored after ${retryDetails.retriesSoFar} retry. Error: ${exception.toString}") >>
-            Async[F].raiseError(exception)
-      )
-      .void
+    } yield cb
+    res.void
   }
-
-  private def registerCallback[F[_]: Async](blocker: Blocker, f: ListenableFuture[UserRecordResult]): F[UserRecordResult] =
-    Async[F].async[UserRecordResult] { cb =>
-      Futures.addCallback(
-        f,
-        new FutureCallback[UserRecordResult] {
-          override def onFailure(t: Throwable): Unit = cb(Left(t))
-          override def onSuccess(result: UserRecordResult): Unit = cb(Right(result))
-        },
-        (command: Runnable) => blocker.blockingContext.execute(command)
-      )
-    }
 }

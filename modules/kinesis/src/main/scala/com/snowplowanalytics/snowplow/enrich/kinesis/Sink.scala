@@ -73,7 +73,7 @@ object Sink {
         Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"Output $o is not Kinesis")))
     }
 
-  private def kinesis[F[_]: Async: Timer](
+  private def kinesis[F[_]: Async: ContextShift: Timer](
     blocker: Blocker,
     config: Output.Kinesis,
     region: String,
@@ -108,7 +108,7 @@ object Sink {
       .setAggregationEnabled(false)
   }
 
-  private def writeToKinesis[F[_]: Async: Timer](
+  private def writeToKinesis[F[_]: Async: ContextShift: Timer](
     blocker: Blocker,
     config: Output.Kinesis
   )(
@@ -125,6 +125,7 @@ object Sink {
       byteBuffer <- Async[F].delay(ByteBuffer.wrap(data.data))
       cb <- producer.putData(config.streamName, partitionKey, byteBuffer)
       cbRes <- registerCallback(blocker, cb)
+      _ <- ContextShift[F].shift
     } yield cbRes
     res
       .retryingOnFailuresAndAllErrors(

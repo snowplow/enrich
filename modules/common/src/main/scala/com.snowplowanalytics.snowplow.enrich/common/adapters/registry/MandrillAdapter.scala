@@ -15,7 +15,7 @@ package adapters
 package registry
 
 import cats.Monad
-import cats.data.{NonEmptyList, ValidatedNel}
+import cats.data.ValidatedNel
 import cats.effect.Clock
 import cats.syntax.either._
 import cats.syntax.option._
@@ -29,6 +29,7 @@ import io.circe._
 import loaders.CollectorPayload
 import utils.{HttpClient, JsonUtils}
 import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
+import Adapter.Adapted
 
 /**
  * Transforms a collector payload which conforms to a known version of the Mandrill Tracking webhook
@@ -69,9 +70,7 @@ object MandrillAdapter extends Adapter {
    * @param client The Iglu client used for schema lookup and validation
    * @return a Validation boxing either a NEL of RawEvents on Success, or a NEL of Failure Strings
    */
-  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](payload: CollectorPayload, client: Client[F, Json]): F[
-    ValidatedNel[FailureDetails.AdapterFailureOrTrackerProtocolViolation, NonEmptyList[RawEvent]]
-  ] =
+  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](payload: CollectorPayload, client: Client[F, Json]): F[Adapted] =
     (payload.body, payload.contentType) match {
       case (None, _) =>
         val failure = FailureDetails.AdapterFailure.InputData(

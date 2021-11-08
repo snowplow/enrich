@@ -15,21 +15,26 @@ package adapters
 package registry
 
 import cats.Monad
-import cats.data.{Kleisli, NonEmptyList, ValidatedNel}
-import cats.effect.Clock
+import cats.data.{Kleisli, ValidatedNel}
 import cats.instances.option._
 import cats.syntax.either._
 import cats.syntax.option._
 import cats.syntax.validated._
+
+import cats.effect.Clock
+
+import org.joda.time.DateTime
+
 import com.snowplowanalytics.iglu.client.Client
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 import com.snowplowanalytics.snowplow.badrows._
+
 import io.circe._
-import org.joda.time.DateTime
 
 import loaders.CollectorPayload
 import utils.{HttpClient, JsonUtils}
+import Adapter.Adapted
 
 /**
  * Transforms a collector payload which conforms to a known version of the HubSpot webhook
@@ -76,9 +81,7 @@ object HubSpotAdapter extends Adapter {
    * @param client The Iglu client used for schema lookup and validation
    * @return a Validation boxing either a NEL of RawEvents on Success, or a NEL of Failure Strings
    */
-  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](payload: CollectorPayload, client: Client[F, Json]): F[
-    ValidatedNel[FailureDetails.AdapterFailureOrTrackerProtocolViolation, NonEmptyList[RawEvent]]
-  ] =
+  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](payload: CollectorPayload, client: Client[F, Json]): F[Adapted] =
     (payload.body, payload.contentType) match {
       case (None, _) =>
         val failure = FailureDetails.AdapterFailure.InputData(

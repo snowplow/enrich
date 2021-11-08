@@ -19,23 +19,26 @@ import scala.util.Try
 import org.joda.time.DateTime
 
 import cats.Monad
-import cats.data.{NonEmptyList, ValidatedNel}
-import cats.effect.Clock
+import cats.data.NonEmptyList
 import cats.syntax.apply._
 import cats.syntax.either._
 import cats.syntax.option._
 import cats.syntax.validated._
 
-import com.snowplowanalytics.iglu.client.Client
-import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+import cats.effect.Clock
 
 import io.circe._
+
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+
+import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
 import loaders.CollectorPayload
 import utils.{ConversionUtils, HttpClient}
+import Adapter.Adapted
 
 /** Transforms a Cloudfront access log into raw events */
 object CloudfrontAccessLogAdapter extends Adapter {
@@ -79,9 +82,7 @@ object CloudfrontAccessLogAdapter extends Adapter {
    * @param client The Iglu client used for schema lookup and validation
    * @return a validation boxing either a NEL of raw events or a NEL of failure strings
    */
-  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](payload: CollectorPayload, client: Client[F, Json]): F[
-    ValidatedNel[FailureDetails.AdapterFailureOrTrackerProtocolViolation, NonEmptyList[RawEvent]]
-  ] =
+  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](payload: CollectorPayload, client: Client[F, Json]): F[Adapted] =
     payload.body match {
       case Some(p) =>
         val _ = client

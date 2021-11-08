@@ -34,6 +34,8 @@ import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.common.utils.{ConversionUtils, HttpClient, JsonUtils}
 
+import Adapter.Adapted
+
 /**
  * Transforms a collector payload which either:
  * 1. Provides a set of kv pairs on a GET querystring with a &schema={iglu schema uri} parameter.
@@ -64,9 +66,10 @@ object IgluAdapter extends Adapter {
    * @param client The Iglu client used for schema lookup and validation
    * @return a Validation boxing either a NEL of RawEvents on Success, or a NEL of Failure Strings
    */
-  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](payload: CollectorPayload, client: Client[F, Json]): F[
-    ValidatedNel[FailureDetails.AdapterFailureOrTrackerProtocolViolation, NonEmptyList[RawEvent]]
-  ] = {
+  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
+    payload: CollectorPayload,
+    client: Client[F, Json]
+  ): F[Adapted] = {
     val _ = client
     val params = toMap(payload.querystring)
     (params.get("schema").flatten, payload.body, payload.contentType) match {

@@ -19,8 +19,12 @@ import scala.annotation.tailrec
 
 import cats.{Applicative, Functor, Monad}
 import cats.data.{NonEmptyList, ValidatedNel}
-import cats.effect.Clock
 import cats.implicits._
+
+import cats.effect.Clock
+
+import io.circe._
+import io.circe.syntax._
 
 import com.snowplowanalytics.iglu.client.Client
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
@@ -28,12 +32,10 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData
 
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
-import io.circe._
-import io.circe.syntax._
-
 import loaders.CollectorPayload
 import utils.HttpClient
 import utils.ConversionUtils._
+import Adapter.Adapted
 
 /**
  * Transforms a collector payload which conforms to a known version of the Google Analytics
@@ -468,9 +470,10 @@ object GoogleAnalyticsAdapter extends Adapter {
    * @param client The Iglu client used for schema lookup and validation
    * @return a Validation boxing either a NEL of RawEvents on Success, or a NEL of Failure Strings
    */
-  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](payload: CollectorPayload, client: Client[F, Json]): F[
-    ValidatedNel[FailureDetails.AdapterFailureOrTrackerProtocolViolation, NonEmptyList[RawEvent]]
-  ] = {
+  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
+    payload: CollectorPayload,
+    client: Client[F, Json]
+  ): F[Adapted] = {
     val events: Option[NonEmptyList[ValidatedNel[FailureDetails.AdapterFailure, RawEvent]]] = for {
       body <- payload.body
       _ = client

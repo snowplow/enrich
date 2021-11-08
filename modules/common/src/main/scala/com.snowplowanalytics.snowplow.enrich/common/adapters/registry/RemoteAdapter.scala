@@ -15,7 +15,7 @@ package adapters
 package registry
 
 import cats.Monad
-import cats.data.{NonEmptyList, ValidatedNel}
+import cats.data.NonEmptyList
 import cats.effect.Clock
 import cats.syntax.either._
 import cats.syntax.functor._
@@ -29,6 +29,7 @@ import io.circe.syntax._
 
 import loaders.CollectorPayload
 import utils.{HttpClient, JsonUtils}
+import Adapter.Adapted
 
 /**
  * An adapter for an enrichment that is handled by a remote webservice.
@@ -48,9 +49,7 @@ final case class RemoteAdapter(
    * @param client The Iglu client used for schema lookup and validation
    * @return a Validation boxing either a NEL of RawEvents on Success, or a NEL of Failure Strings
    */
-  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](payload: CollectorPayload, client: Client[F, Json]): F[
-    ValidatedNel[FailureDetails.AdapterFailureOrTrackerProtocolViolation, NonEmptyList[RawEvent]]
-  ] =
+  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](payload: CollectorPayload, client: Client[F, Json]): F[Adapted] =
     payload.body match {
       case Some(body) if body.nonEmpty =>
         val _ = client

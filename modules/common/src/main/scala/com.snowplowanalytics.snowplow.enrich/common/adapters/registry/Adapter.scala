@@ -19,11 +19,6 @@ import cats.implicits._
 
 import cats.effect.Clock
 
-import com.snowplowanalytics.iglu.client.Client
-import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
-import com.snowplowanalytics.iglu.core.circe.CirceIgluCodecs._
-
 import io.circe._
 import io.circe.syntax._
 
@@ -31,7 +26,15 @@ import org.apache.http.NameValuePair
 
 import org.joda.time.{DateTime, DateTimeZone}
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
+
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
+import com.snowplowanalytics.iglu.core.circe.CirceIgluCodecs._
+
+import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
+
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
+
 import com.snowplowanalytics.snowplow.enrich.common.RawEventParameters
 import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
@@ -393,6 +396,8 @@ trait Adapter {
 }
 
 object Adapter {
+
+  type Adapted = ValidatedNel[FailureDetails.AdapterFailureOrTrackerProtocolViolation, NonEmptyList[RawEvent]]
 
   /** The Iglu schema URI for a Snowplow unstructured event */
   val UnstructEvent: SchemaKey = SchemaKey(

@@ -21,7 +21,7 @@ import scala.collection.JavaConverters._
 import scala.util.{Try, Success => TS, Failure => TF}
 
 import cats.Monad
-import cats.data.{NonEmptyList, ValidatedNel}
+import cats.data.NonEmptyList
 import cats.instances.either._
 import cats.syntax.either._
 import cats.syntax.option._
@@ -42,6 +42,7 @@ import org.joda.time.DateTime
 
 import loaders.CollectorPayload
 import utils.{HttpClient, JsonUtils => JU}
+import Adapter.Adapted
 
 /**
  * Transforms a collector payload which conforms to a known version of the Olark Tracking webhook
@@ -71,9 +72,7 @@ object OlarkAdapter extends Adapter {
    * @param client The Iglu client used for schema lookup and validation
    * @return a Validation boxing either a NEL of RawEvents on Success, or a NEL of Failure Strings
    */
-  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](payload: CollectorPayload, client: Client[F, Json]): F[
-    ValidatedNel[FailureDetails.AdapterFailureOrTrackerProtocolViolation, NonEmptyList[RawEvent]]
-  ] =
+  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](payload: CollectorPayload, client: Client[F, Json]): F[Adapted] =
     (payload.body, payload.contentType) match {
       case (None, _) =>
         val failure = FailureDetails.AdapterFailure.InputData(

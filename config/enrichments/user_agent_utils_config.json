@@ -5,7 +5,7 @@
 
 		"vendor": "com.snowplowanalytics.snowplow",
 		"name": "user_agent_utils_config",
-		"enabled": true,
+		"enabled": false,
 		"parameters": {}
 	}
 }

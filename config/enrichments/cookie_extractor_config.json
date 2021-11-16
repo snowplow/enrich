@@ -3,7 +3,7 @@
 		"data": {
 				"name": "cookie_extractor_config",
 				"vendor": "com.snowplowanalytics.snowplow",
-				"enabled": true,
+				"enabled": false,
 				"parameters": {
 						"cookies": ["sp"]
 				}

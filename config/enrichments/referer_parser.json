@@ -5,7 +5,7 @@
 
 		"name": "referer_parser",
 		"vendor": "com.snowplowanalytics.snowplow",
-		"enabled": true,
+		"enabled": false,
 		"parameters": {
 			"internalDomains": [],
 			"database": "referers-latest.json",

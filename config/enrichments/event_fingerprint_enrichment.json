@@ -5,7 +5,7 @@
 
 		"vendor": "com.snowplowanalytics.snowplow",
 		"name": "event_fingerprint_config",
-		"enabled": true,
+		"enabled": false,
 		"parameters": {
 			"excludeParameters": ["eid", "nuid", "stm", "cv"],
 			"hashAlgorithm": "MD5"

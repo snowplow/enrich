@@ -81,7 +81,7 @@ object Enrich {
             in.parEvalMap[F, (A, Result)](env.streamsSettings.concurrency.enrichment) _
           else
             in.parEvalMapUnordered[F, (A, Result)](env.streamsSettings.concurrency.enrichment) _
-        parallel { case (orig, bytes) => enrich(bytes).map((orig, _)) }
+        parallel { case (orig, bytes) => ContextShift[F].shift *> enrich(bytes).map((orig, _)) }
       }
 
     env.source

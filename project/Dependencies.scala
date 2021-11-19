@@ -73,7 +73,7 @@ object Dependencies {
     val decline          = "1.0.0"
     val fs2              = "2.5.5"
     val catsEffect       = "2.5.0"
-    val fs2PubSub        = "0.16.1"
+    val fs2PubSub        = "0.18.0.1-M2"
     val fs2BlobStorage   = "0.7.3"
     val http4s           = "0.21.22"
     val log4cats         = "1.3.0"
@@ -172,7 +172,7 @@ object Dependencies {
 
     // FS2
     val decline          = "com.monovore"                     %% "decline"                           % V.decline
-    val fs2PubSub        = "com.permutive"                    %% "fs2-google-pubsub-grpc"            % V.fs2PubSub
+    val fs2PubSub        = "com.snowplowanalytics"            %% "fs2-google-pubsub-grpc"            % V.fs2PubSub
     val fs2              = "co.fs2"                           %% "fs2-core"                          % V.fs2
     val fs2Io            = "co.fs2"                           %% "fs2-io"                            % V.fs2
     val http4sClient     = "org.http4s"                       %% "http4s-blaze-client"               % V.http4s

@@ -92,7 +92,7 @@ object Sink {
       batchSize = output.maxBatchSize.getOrElse(DefaultPubsubMaxBatchSize),
       requestByteThreshold = Some(output.maxBatchBytes.getOrElse(DefaultPubsubMaxBatchBytes)),
       delayThreshold = output.delayThreshold.getOrElse(DefaultDelayThreshold),
-      callbackExecutors = output.numCallbackExecutors.getOrElse(DefaultNumCallbackExecutors),
+      //callbackExecutors = output.numCallbackExecutors.getOrElse(DefaultNumCallbackExecutors),
       onFailedTerminate = err => Logger[F].error(err)("PubSub sink termination error")
     )
 

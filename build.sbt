@@ -16,7 +16,8 @@
 // scalafmt: {align.tokens = [":="]}
 // =======================================================
 
-lazy val root = project.in(file("."))
+lazy val root = project
+  .in(file("."))
   .settings(name := "enrich")
   .settings(BuildSettings.basicSettings)
   .aggregate(common, pubsub, kinesis, beam, streamCommon, streamKinesis, streamKafka, streamNsq, streamStdin)
@@ -24,7 +25,7 @@ lazy val root = project.in(file("."))
 lazy val common = project
   .in(file("modules/common"))
   .settings(
-    name := "snowplow-common-enrich",
+    name        := "snowplow-common-enrich",
     description := "Common functionality for enriching raw Snowplow events"
   )
   .settings(BuildSettings.formatting)
@@ -74,20 +75,22 @@ lazy val common = project
 
 lazy val allStreamSettings = BuildSettings.basicSettings ++ BuildSettings.sbtAssemblySettings ++
   BuildSettings.dockerSettings ++ BuildSettings.formatting ++
-  Seq(libraryDependencies ++= Seq(
-    Dependencies.Libraries.config,
-    Dependencies.Libraries.sentry,
-    Dependencies.Libraries.slf4j,
-    Dependencies.Libraries.log4jOverSlf4j,
-    Dependencies.Libraries.s3Sdk,
-    Dependencies.Libraries.gcs,
-    Dependencies.Libraries.scopt,
-    Dependencies.Libraries.pureconfig,
-    Dependencies.Libraries.snowplowTracker,
-    Dependencies.Libraries.jacksonCbor,
-    Dependencies.Libraries.specs2,
-    Dependencies.Libraries.scalacheck
-  ))
+  Seq(
+    libraryDependencies ++= Seq(
+      Dependencies.Libraries.config,
+      Dependencies.Libraries.sentry,
+      Dependencies.Libraries.slf4j,
+      Dependencies.Libraries.log4jOverSlf4j,
+      Dependencies.Libraries.s3Sdk,
+      Dependencies.Libraries.gcs,
+      Dependencies.Libraries.scopt,
+      Dependencies.Libraries.pureconfig,
+      Dependencies.Libraries.snowplowTracker,
+      Dependencies.Libraries.jacksonCbor,
+      Dependencies.Libraries.specs2,
+      Dependencies.Libraries.scalacheck
+    )
+  )
 
 lazy val streamCommon = project
   .in(file("modules/stream/common"))
@@ -97,7 +100,7 @@ lazy val streamCommon = project
   .settings(coverageMinimum := 20)
   .enablePlugins(BuildInfoPlugin)
   .settings(
-    buildInfoKeys := Seq[BuildInfoKey](organization, name, version, "commonEnrichVersion" -> version.value),
+    buildInfoKeys    := Seq[BuildInfoKey](organization, name, version, "commonEnrichVersion" -> version.value),
     buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.stream.generated"
   )
   .dependsOn(common)
@@ -108,12 +111,14 @@ lazy val streamKinesis = project
   .settings(allStreamSettings)
   .settings(moduleName := "snowplow-stream-enrich-kinesis")
   .settings(Docker / packageName := "snowplow/stream-enrich-kinesis")
-  .settings(libraryDependencies ++= Seq(
-    Dependencies.Libraries.kinesisClient,
-    Dependencies.Libraries.kinesisSdk,
-    Dependencies.Libraries.dynamodbSdk,
-    Dependencies.Libraries.sts
-  ))
+  .settings(
+    libraryDependencies ++= Seq(
+      Dependencies.Libraries.kinesisClient,
+      Dependencies.Libraries.kinesisSdk,
+      Dependencies.Libraries.dynamodbSdk,
+      Dependencies.Libraries.sts
+    )
+  )
   .enablePlugins(JavaAppPackaging, DockerPlugin)
   .dependsOn(streamCommon)
   .settings(excludeDependencies ++= Dependencies.Libraries.exclusions)
@@ -123,11 +128,13 @@ lazy val streamKafka = project
   .settings(moduleName := "snowplow-stream-enrich-kafka")
   .settings(allStreamSettings)
   .settings(
-    Docker / packageName := "snowplow/stream-enrich-kafka",
+    Docker / packageName := "snowplow/stream-enrich-kafka"
   )
-  .settings(libraryDependencies ++= Seq(
-    Dependencies.Libraries.kafkaClients
-  ))
+  .settings(
+    libraryDependencies ++= Seq(
+      Dependencies.Libraries.kafkaClients
+    )
+  )
   .enablePlugins(JavaAppPackaging, DockerPlugin)
   .dependsOn(streamCommon)
   .settings(excludeDependencies ++= Dependencies.Libraries.exclusions)
@@ -137,13 +144,15 @@ lazy val streamNsq = project
   .settings(moduleName := "snowplow-stream-enrich-nsq")
   .settings(allStreamSettings)
   .settings(
-    Docker / packageName := "snowplow/stream-enrich-nsq",
+    Docker / packageName := "snowplow/stream-enrich-nsq"
   )
-  .settings(libraryDependencies ++= Seq(
-    Dependencies.Libraries.log4j,
-    Dependencies.Libraries.log4jApi,
-    Dependencies.Libraries.nsqClient
-  ))
+  .settings(
+    libraryDependencies ++= Seq(
+      Dependencies.Libraries.log4j,
+      Dependencies.Libraries.log4jApi,
+      Dependencies.Libraries.nsqClient
+    )
+  )
   .enablePlugins(JavaAppPackaging, DockerPlugin)
   .dependsOn(streamCommon)
   .settings(excludeDependencies ++= Dependencies.Libraries.exclusions)
@@ -152,7 +161,7 @@ lazy val streamStdin = project
   .in(file("modules/stream/stdin"))
   .settings(allStreamSettings)
   .settings(
-    moduleName := "snowplow-stream-enrich-stdin",
+    moduleName := "snowplow-stream-enrich-stdin"
   )
   .dependsOn(streamCommon)
   .settings(excludeDependencies ++= Dependencies.Libraries.exclusions)
@@ -167,9 +176,9 @@ lazy val beam =
     .settings(BuildSettings.scoverageSettings)
     .settings(BuildSettings.sbtAssemblySettings)
     .settings(
-      name := "beam-enrich",
-      description := "Streaming enrich job written using SCIO",
-      buildInfoKeys := Seq[BuildInfoKey](organization, name, version, "sceVersion" -> version.value),
+      name             := "beam-enrich",
+      description      := "Streaming enrich job written using SCIO",
+      buildInfoKeys    := Seq[BuildInfoKey](organization, name, version, "sceVersion" -> version.value),
       buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.beam.generated",
       libraryDependencies ++= Seq(
         Dependencies.Libraries.scioCore,
@@ -180,7 +189,7 @@ lazy val beam =
         Dependencies.Libraries.slf4j,
         Dependencies.Libraries.scioTest,
         Dependencies.Libraries.scalaTest,
-        Dependencies.Libraries.circeLiteral % Test,
+        Dependencies.Libraries.circeLiteral % Test
       ),
       dependencyOverrides ++= Seq(
         "io.grpc" % "grpc-alts" % Dependencies.V.grpc,
@@ -193,7 +202,7 @@ lazy val beam =
         "io.grpc" % "grpc-api" % Dependencies.V.grpc,
         "io.grpc" % "grpc-stub" % Dependencies.V.grpc,
         "io.grpc" % "grpc-protobuf" % Dependencies.V.grpc,
-        "io.grpc" % "grpc-protobuf-lite" % Dependencies.V.grpc,
+        "io.grpc" % "grpc-protobuf-lite" % Dependencies.V.grpc
       ),
       Docker / packageName := "snowplow/beam-enrich"
     )
@@ -202,9 +211,9 @@ lazy val beam =
       addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.1" cross CrossVersion.full)
     )
     .settings(
-      publish := {},
-      publishLocal := {},
-      publishArtifact := false,
+      publish             := {},
+      publishLocal        := {},
+      publishArtifact     := false,
       Test / testGrouping := BuildSettings.oneJVMPerTest((Test / definedTests).value)
     )
     .enablePlugins(JavaAppPackaging, DockerPlugin, BuildInfoPlugin)
@@ -214,15 +223,15 @@ Global / onChangedBuildSource := ReloadOnSourceChanges
 
 lazy val commonFs2 = project
   .in(file("modules/common-fs2"))
-  .dependsOn(common)
+  .settings(
+    name        := "snowplow-enrich-common-fs2",
+    description := "Common functionality for fs2 enrich assets"
+  )
+  .dependsOn(common % "test->test;compile->compile")
   .settings(BuildSettings.basicSettings)
   .settings(BuildSettings.formatting)
   .settings(BuildSettings.scoverageSettings)
   .settings(BuildSettings.addExampleConfToTestCp)
-  .settings(
-    name := "snowplow-enrich-common-fs2",
-    description := "Common functionality for fs2 enrich assets",
-  )
   .settings(Test / parallelExecution := false)
   .settings(
     libraryDependencies ++= Seq(
@@ -248,10 +257,15 @@ lazy val commonFs2 = project
       Dependencies.Libraries.emitterHttps,
       Dependencies.Libraries.specs2,
       Dependencies.Libraries.specs2CE,
+      Dependencies.Libraries.specsDiff,
       Dependencies.Libraries.scalacheck,
       Dependencies.Libraries.specs2Scalacheck,
       Dependencies.Libraries.http4sDsl,
-      Dependencies.Libraries.http4sServer
+      Dependencies.Libraries.http4sServer,
+      Dependencies.Libraries.eventGen,
+      Dependencies.Libraries.circeCore % Test,
+      Dependencies.Libraries.circeGeneric % Test,
+      Dependencies.Libraries.circeParser % Test
     ),
     addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
   )
@@ -265,12 +279,12 @@ lazy val pubsub = project
   .settings(BuildSettings.scoverageSettings)
   .settings(BuildSettings.sbtAssemblySettings)
   .settings(
-    name := "snowplow-enrich-pubsub",
+    name        := "snowplow-enrich-pubsub",
     description := "High-performance streaming Snowplow Enrich job for PubSub built on top of functional streams"
   )
   .settings(
-    buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
-    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.pubsub.generated",
+    buildInfoKeys    := Seq[BuildInfoKey](organization, name, version, description),
+    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.pubsub.generated"
   )
   .settings(Docker / packageName := "snowplow/snowplow-enrich-pubsub")
   .settings(Test / parallelExecution := false)
@@ -278,7 +292,7 @@ lazy val pubsub = project
     libraryDependencies ++= Seq(
       Dependencies.Libraries.gcs,
       Dependencies.Libraries.fs2BlobGcs,
-      Dependencies.Libraries.fs2PubSub,
+      Dependencies.Libraries.fs2PubSub
     ),
     addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
   )
@@ -295,11 +309,11 @@ lazy val kinesis = project
   .settings(BuildSettings.scoverageSettings)
   .settings(BuildSettings.sbtAssemblySettings)
   .settings(
-    name := "snowplow-enrich-kinesis",
-    description := "High-performance app built on top of functional streams that enriches Snowplow events from Kinesis",
-    buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
-    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.kinesis.generated",
-    Docker / packageName := "snowplow/snowplow-enrich-kinesis",
+    name                 := "snowplow-enrich-kinesis",
+    description          := "High-performance app built on top of functional streams that enriches Snowplow events from Kinesis",
+    buildInfoKeys        := Seq[BuildInfoKey](organization, name, version, description),
+    buildInfoPackage     := "com.snowplowanalytics.snowplow.enrich.kinesis.generated",
+    Docker / packageName := "snowplow/snowplow-enrich-kinesis"
   )
   .settings(Test / parallelExecution := false)
   .settings(
@@ -322,10 +336,10 @@ lazy val kinesisIntegrationTests = project
   .settings(BuildSettings.basicSettings)
   .settings(BuildSettings.sbtAssemblySettings)
   .settings(
-    name := "snowplow-enrich-kinesis-integration-tests",
-    description := "App that generates collector payloads, sends them to Kinesis, and check the output of enrich-kinesis",
-    buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
-    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.kinesis.test.generated",
+    name             := "snowplow-enrich-kinesis-integration-tests",
+    description      := "App that generates collector payloads, sends them to Kinesis, and check the output of enrich-kinesis",
+    buildInfoKeys    := Seq[BuildInfoKey](organization, name, version, description),
+    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.kinesis.test.generated"
   )
   .settings(Test / parallelExecution := false)
   .settings(

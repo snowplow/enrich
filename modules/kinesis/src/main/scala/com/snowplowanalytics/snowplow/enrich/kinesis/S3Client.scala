@@ -23,7 +23,7 @@ import blobstore.s3.S3Store
 
 import software.amazon.awssdk.services.s3.S3AsyncClient
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.Client
+import com.snowplowanalytics.snowplow.enrich.common.fs2.inout.Clients.Client
 
 object S3Client {
 

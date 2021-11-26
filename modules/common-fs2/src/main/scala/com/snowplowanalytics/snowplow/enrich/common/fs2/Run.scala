@@ -30,8 +30,8 @@ import com.snowplowanalytics.snowplow.badrows.Processor
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Input, Monitoring, Output}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{CliConfig, ParsedConfigs}
-import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{Sink, Source}
-import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.Client
+import com.snowplowanalytics.snowplow.enrich.common.fs2.inout.{Sink, Source}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.inout.Clients.Client
 
 object Run {
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =

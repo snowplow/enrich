@@ -35,7 +35,7 @@ import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients
+import com.snowplowanalytics.snowplow.enrich.common.fs2.inout.Clients
 
 /**
  * Functions responsible for periodic assets (such as MaxMind/IAB DBs) updates

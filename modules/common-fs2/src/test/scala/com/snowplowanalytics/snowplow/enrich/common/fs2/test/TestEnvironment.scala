@@ -46,7 +46,7 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.{Assets, AttributedData,
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Environment.{Enrichments, StreamsSettings}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.SpecHelpers.{filesResource, ioClock}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Concurrency, Telemetry}
-import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients
+import com.snowplowanalytics.snowplow.enrich.common.fs2.inout.Clients
 
 case class TestEnvironment[A](
   env: Environment[IO, A],

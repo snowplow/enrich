@@ -249,6 +249,7 @@ class EnrichedEvent extends Serializable {
 }
 
 object EnrichedEvent {
+
   def toPartiallyEnrichedEvent(enrichedEvent: EnrichedEvent): PartiallyEnrichedEvent =
     PartiallyEnrichedEvent(
       app_id = Option(enrichedEvent.app_id),

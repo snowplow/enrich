@@ -20,10 +20,9 @@ package com.snowplowanalytics.snowplow.enrich.stream
 
 import java.io.File
 import java.net.URI
-
 import scala.sys.process._
-
 import cats.Id
+import cats.data.ReaderT
 import cats.implicits._
 import com.snowplowanalytics.iglu.client.Client
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
@@ -43,7 +42,6 @@ import org.slf4j.LoggerFactory
 import pureconfig._
 import pureconfig.generic.auto._
 import pureconfig.generic.{FieldCoproductHint, ProductHint}
-
 import config._
 import model._
 import utils._
@@ -118,7 +116,7 @@ trait Enrich {
     enrichmentRegistry: EnrichmentRegistry[Id],
     tracker: Option[Tracker[Id]],
     processor: Processor
-  ): Either[String, sources.Source]
+  ): ReaderT[Id, StreamsConfig, Either[String, sources.Source]]
 
   implicit def hint[T]: ProductHint[T] = ProductHint[T](ConfigFieldMapping(CamelCase, CamelCase))
   implicit val _ = new FieldCoproductHint[TargetPlatformConfig]("enabled")

@@ -45,8 +45,8 @@ import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{ConfigFile, ParsedConfigs}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Concurrency, Telemetry => TelemetryConfig}
-import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{Clients, Metrics}
-import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.Client
+import com.snowplowanalytics.snowplow.enrich.common.fs2.inout.{Clients, Metrics}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.inout.Clients.Client
 
 import scala.concurrent.ExecutionContext
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input.Kinesis

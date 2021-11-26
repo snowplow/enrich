@@ -25,7 +25,7 @@ import cats.implicits._
 import fs2.io.file.deleteIfExists
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test._
-import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients
+import com.snowplowanalytics.snowplow.enrich.common.fs2.inout.Clients
 
 import cats.effect.testing.specs2.CatsIO
 

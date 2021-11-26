@@ -22,7 +22,7 @@ import cats.effect.{Clock, Sync}
 
 import fs2.Stream
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Metrics
+import com.snowplowanalytics.snowplow.enrich.common.fs2.inout.Metrics
 
 /** Metrics container for testing */
 case class Counter(

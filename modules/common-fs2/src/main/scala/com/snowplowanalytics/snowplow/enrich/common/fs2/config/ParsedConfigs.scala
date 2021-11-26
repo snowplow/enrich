@@ -37,7 +37,7 @@ import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.{Parsed, ValidationResult}
-import com.snowplowanalytics.snowplow.enrich.common.fs2.io.FileSystem
+import com.snowplowanalytics.snowplow.enrich.common.fs2.inout.FileSystem
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Output => OutputConfig}
 
 final case class ParsedConfigs(

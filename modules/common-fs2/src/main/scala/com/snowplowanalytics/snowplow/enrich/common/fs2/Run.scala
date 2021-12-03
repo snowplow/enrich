@@ -97,7 +97,8 @@ object Run {
                                     processor,
                                     maxRecordSize,
                                     cloud,
-                                    getRegion
+                                    getRegion,
+                                    file.featureFlags.validateEnrichedEvents
                                   )
                                 runEnvironment[F, Array[Byte]](env)
                               case _ =>
@@ -116,7 +117,8 @@ object Run {
                                     processor,
                                     maxRecordSize,
                                     cloud,
-                                    getRegion
+                                    getRegion,
+                                    file.featureFlags.validateEnrichedEvents
                                   )
                                 runEnvironment[F, A](env)
                             }

@@ -64,6 +64,9 @@ class ConfigFileSpec extends Specification with CatsIO {
           Some("665bhft5u6udjf"),
           Some("enrich-kinesis-ce"),
           Some("1.0.0")
+        ),
+        io.FeatureFlags(
+          true
         )
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
@@ -159,6 +162,9 @@ class ConfigFileSpec extends Specification with CatsIO {
           Some("665bhft5u6udjf"),
           Some("enrich-kinesis-ce"),
           Some("1.0.0")
+        ),
+        io.FeatureFlags(
+          true
         )
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
@@ -209,6 +215,9 @@ class ConfigFileSpec extends Specification with CatsIO {
             "collectorUri": "collector-g.snowplowanalytics.com",
             "collectorPort": "443",
             "secure": true
+          },
+          "featureFlags" : {
+            "validateEnrichedEvents": true
           }
         }"""
 

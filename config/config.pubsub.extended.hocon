@@ -188,4 +188,11 @@
     # Version of the terraform module that deployed the app
     moduleVersion = 1.0.0
   }
+
+  # Optional. To activate/deactive enrich features
+  "featureFlags" : {
+    # If activated, enriched events will get validated against atomic schema.
+    # If not valid, a bad row will be emitted instead of the enriched event.
+    "validateEnrichedEvents": true
+  }
 }

@@ -20,6 +20,7 @@ import cats.data.NonEmptyList
 import io.circe.literal._
 import org.joda.time.DateTime
 import com.snowplowanalytics.snowplow.badrows._
+import com.snowplowanalytics.snowplow.badrows.FailureDetails.EnrichmentFailureMessage
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer}
 import loaders._
 import adapters.RawEvent
@@ -36,7 +37,6 @@ import enrichments.registry.{IabEnrichment, JavascriptScriptEnrichment, YauaaEnr
 import org.apache.commons.codec.digest.DigestUtils
 import org.specs2.mutable.Specification
 import org.specs2.matcher.EitherMatchers
-
 import SpecHelpers._
 
 class EnrichmentManagerSpec extends Specification with EitherMatchers {
@@ -64,12 +64,14 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         """
       ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
-      val enriched = EnrichmentManager.enrichEvent(
+      val enriched = EnrichmentManager.enrichEvent[Id](
         enrichmentReg,
         client,
         processor,
         timestamp,
-        rawEvent
+        rawEvent,
+        AcceptInvalid.acceptInvalid,
+        AcceptInvalid.countInvalid
       )
 
       enriched.value must beLeft.like {
@@ -97,12 +99,14 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
           }"""
       ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
-      val enriched = EnrichmentManager.enrichEvent(
+      val enriched = EnrichmentManager.enrichEvent[Id](
         enrichmentReg,
         client,
         processor,
         timestamp,
-        rawEvent
+        rawEvent,
+        AcceptInvalid.acceptInvalid,
+        AcceptInvalid.countInvalid
       )
       enriched.value must beLeft.like {
         case _: BadRow.SchemaViolations => ok
@@ -139,12 +143,14 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         "p" -> "web"
       ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
-      val enriched = EnrichmentManager.enrichEvent(
+      val enriched = EnrichmentManager.enrichEvent[Id](
         enrichmentReg,
         client,
         processor,
         timestamp,
-        rawEvent
+        rawEvent,
+        AcceptInvalid.acceptInvalid,
+        AcceptInvalid.countInvalid
       )
       enriched.value must beLeft.like {
         case BadRow.EnrichmentFailures(
@@ -202,12 +208,14 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         "p" -> "web"
       ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
-      val enriched = EnrichmentManager.enrichEvent(
+      val enriched = EnrichmentManager.enrichEvent[Id](
         enrichmentReg,
         client,
         processor,
         timestamp,
-        rawEvent
+        rawEvent,
+        AcceptInvalid.acceptInvalid,
+        AcceptInvalid.countInvalid
       )
       enriched.value must beLeft.like {
         case BadRow.EnrichmentFailures(
@@ -261,12 +269,14 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
           }"""
       ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
-      val enriched = EnrichmentManager.enrichEvent(
+      val enriched = EnrichmentManager.enrichEvent[Id](
         enrichmentReg,
         client,
         processor,
         timestamp,
-        rawEvent
+        rawEvent,
+        AcceptInvalid.acceptInvalid,
+        AcceptInvalid.countInvalid
       )
       enriched.value must beRight
     }
@@ -321,12 +331,14 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
           )
         ).some
       )
-      val enriched = EnrichmentManager.enrichEvent(
+      val enriched = EnrichmentManager.enrichEvent[Id](
         enrichmentReg,
         client,
         processor,
         timestamp,
-        rawEvent
+        rawEvent,
+        AcceptInvalid.acceptInvalid,
+        AcceptInvalid.countInvalid
       )
       enriched.value must beRight
     }
@@ -381,12 +393,14 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
           )
         ).some
       )
-      val enriched = EnrichmentManager.enrichEvent(
+      val enriched = EnrichmentManager.enrichEvent[Id](
         enrichmentReg,
         client,
         processor,
         timestamp,
-        rawEvent
+        rawEvent,
+        AcceptInvalid.acceptInvalid,
+        AcceptInvalid.countInvalid
       )
       enriched.value must beRight
     }
@@ -441,12 +455,14 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
           )
         ).some
       )
-      val enriched = EnrichmentManager.enrichEvent(
+      val enriched = EnrichmentManager.enrichEvent[Id](
         enrichmentReg,
         client,
         processor,
         timestamp,
-        rawEvent
+        rawEvent,
+        AcceptInvalid.acceptInvalid,
+        AcceptInvalid.countInvalid
       )
       enriched.value must beLeft
     }
@@ -501,14 +517,15 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
           )
         ).some
       )
-      def enriched =
-        EnrichmentManager.enrichEvent(
-          enrichmentReg,
-          client,
-          processor,
-          timestamp,
-          rawEvent
-        )
+      val enriched = EnrichmentManager.enrichEvent[Id](
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent,
+        AcceptInvalid.acceptInvalid,
+        AcceptInvalid.countInvalid
+      )
       enriched.value must beLeft
     }
 
@@ -568,14 +585,15 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
           )
         ).some
       )
-      def enriched =
-        EnrichmentManager.enrichEvent(
-          enrichmentReg,
-          client,
-          processor,
-          timestamp,
-          rawEvent
-        )
+      val enriched = EnrichmentManager.enrichEvent[Id](
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent,
+        AcceptInvalid.acceptInvalid,
+        AcceptInvalid.countInvalid
+      )
       enriched.value must beLeft
     }
 
@@ -589,12 +607,14 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       ).toOpt
       val contextWithUa = context.copy(useragent = Some("header-useragent"))
       val rawEvent = RawEvent(api, parameters, None, source, contextWithUa)
-      val enriched = EnrichmentManager.enrichEvent(
+      val enriched = EnrichmentManager.enrichEvent[Id](
         enrichmentReg,
         client,
         processor,
         timestamp,
-        rawEvent
+        rawEvent,
+        AcceptInvalid.acceptInvalid,
+        AcceptInvalid.countInvalid
       )
       enriched.value.map(_.useragent) must beRight(qs_ua)
       enriched.value.map(_.derived_contexts) must beRight((_: String).contains("\"agentName\":\"Firefox\""))
@@ -608,12 +628,14 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       ).toOpt
       val contextWithUa = context.copy(useragent = Some("header-useragent"))
       val rawEvent = RawEvent(api, parameters, None, source, contextWithUa)
-      val enriched = EnrichmentManager.enrichEvent(
+      val enriched = EnrichmentManager.enrichEvent[Id](
         enrichmentReg,
         client,
         processor,
         timestamp,
-        rawEvent
+        rawEvent,
+        AcceptInvalid.acceptInvalid,
+        AcceptInvalid.countInvalid
       )
       enriched.value.map(_.useragent) must beRight("header-useragent")
     }
@@ -686,6 +708,50 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       EnrichmentManager.getCollectorVersionSet(input) must beRight(())
     }
   }
+
+  "validateEnriched" should {
+    "create a bad row if a field is oversized" >> {
+      EnrichmentManager
+        .enrichEvent[Id](
+          enrichmentReg,
+          client,
+          processor,
+          timestamp,
+          RawEvent(api, fatBody, None, source, context),
+          false,
+          AcceptInvalid.countInvalid
+        )
+        .swap
+        .map {
+          case BadRow.EnrichmentFailures(_, failure, _) =>
+            failure.messages.map(_.message match {
+              case EnrichmentFailureMessage.Simple(error) => error
+              case EnrichmentFailureMessage.IgluError(schemaKey, _) => schemaKey
+              case _ => None
+            })
+          case _ => None
+        }
+        .getOrElse(None) === NonEmptyList(
+        s"Enriched event not valid against ${EnrichmentManager.atomicSchema.toSchemaUri}",
+        List(EnrichmentManager.atomicSchema)
+      )
+    }
+
+    "not create a bad row if a field is oversized and acceptInvalid is set to true" >> {
+      EnrichmentManager
+        .enrichEvent[Id](
+          enrichmentReg,
+          client,
+          processor,
+          timestamp,
+          RawEvent(api, fatBody, None, source, context),
+          true,
+          AcceptInvalid.countInvalid
+        )
+        .map(_ => true)
+        .getOrElse(false) must beTrue
+    }
+  }
 }
 
 object EnrichmentManagerSpec {
@@ -705,6 +771,18 @@ object EnrichmentManagerSpec {
     Nil,
     None
   )
+
+  val leanBody = Map(
+    "e" -> "pp",
+    "tv" -> "js-0.13.1",
+    "p" -> "web"
+  ).toOpt
+
+  val fatBody = Map(
+    "e" -> "pp",
+    "tv" -> s"${"s" * 500}",
+    "p" -> "web"
+  ).toOpt
 
   val iabEnrichment = IabEnrichment
     .parse(
@@ -739,4 +817,5 @@ object EnrichmentManagerSpec {
     .getOrElse(throw new RuntimeException("IAB enrichment couldn't be initialised")) // to make sure it's not none
     .enrichment[Id]
     .some
+
 }

@@ -135,9 +135,9 @@ object Environment {
     ec: ExecutionContext,
     parsedConfigs: ParsedConfigs,
     source: Stream[F, A],
-    goodSink: AttributedByteSink[F],
-    piiSink: Option[AttributedByteSink[F]],
-    badSink: ByteSink[F],
+    sinkGood: Resource[F, AttributedByteSink[F]],
+    sinkPii: Option[Resource[F, AttributedByteSink[F]]],
+    sinkBad: Resource[F, ByteSink[F]],
     clients: List[Client[F]],
     checkpoint: List[A] => F[Unit],
     getPayload: A => Array[Byte],
@@ -146,6 +146,9 @@ object Environment {
   ): Resource[F, Environment[F, A]] = {
     val file = parsedConfigs.configFile
     for {
+      good <- sinkGood
+      bad <- sinkBad
+      pii <- sinkPii.sequence
       http <- Clients.mkHttp(ec)
       clts = Clients.init[F](http, clients)
       igluClient <- IgluClient.parseDefault[F](parsedConfigs.igluJson).resource
@@ -167,9 +170,9 @@ object Environment {
       assets,
       blocker,
       source,
-      goodSink,
-      piiSink,
-      badSink,
+      good,
+      pii,
+      bad,
       checkpoint,
       getPayload,
       sentry,

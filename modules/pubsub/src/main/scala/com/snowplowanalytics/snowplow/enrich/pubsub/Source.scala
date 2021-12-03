@@ -43,7 +43,7 @@ object Source {
    * enough that it does not cause the sink to block whilst it is waiting for a batch to be
    * completed.
    */
-  val DefaultMaxQueueSize = 2000
+  val DefaultMaxQueueSize = 3000
 
   def init[F[_]: Concurrent: ContextShift](
     blocker: Blocker,

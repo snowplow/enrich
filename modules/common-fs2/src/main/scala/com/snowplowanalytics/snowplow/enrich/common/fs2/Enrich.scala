@@ -79,26 +79,27 @@ object Enrich {
     val enriched =
       env.source.chunks
         .prefetch
-        .evalTap(chunk => Logger[F].debug(s"${DateTime.now().toString()} - Starting to process chunk of size ${chunk.size}"))
+        .evalTap(chunk => Logger[F].debug(s"Starting to process chunk of size ${chunk.size}"))
         .pauseWhen(env.pauseEnrich)
         .evalTap(chunk => chunk.toList.map(_ => env.metrics.rawCount).sequence_)
         .map(chunk => chunk.map(a => (a, env.getPayload(a))))
-        .evalTap(chunk => Logger[F].debug(s"${DateTime.now().toString()} - Starting to enrich chunk of size ${chunk.size}"))
+        .evalTap(chunk => Logger[F].debug(s"Starting to enrich chunk of size ${chunk.size}"))
         .evalMap(chunk =>
           chunk.toList.map { case (orig, bytes) => enrich(bytes).map((orig, _)) }.parSequenceN(env.streamsSettings.concurrency.enrich)
         )
+      //  .evalMap(chunk => `env.pauser.withPermit(chunk.toList.map { case (orig, bytes) => enrich(bytes).map((orig, _)) }.parSequenceN(64))!!)
         .prefetch
 
     val sinkAndCheckpoint: Pipe[F, List[(A, Result)], Unit] =
       _
-        .evalTap(chunk => Logger[F].debug(s"${DateTime.now().toString()} - Starting to sink chunk of size ${chunk.size}"))
+        .evalTap(chunk => Logger[F].debug(s"Starting to sink chunk of size ${chunk.size}"))
         .parEvalMap(env.streamsSettings.concurrency.sink) { chunk =>
           val records = chunk.map(_._1)
           val results = chunk.map(_._2)
           sinkChunk(results, sinkOne(env), env.metrics.enrichLatency).as(records)
         }
         .prefetch
-        .evalTap(chunk => Logger[F].debug(s"${DateTime.now().toString()} - Starting to checkpoint chunk of size ${chunk.size}"))
+        .evalTap(chunk => Logger[F].debug(s"Starting to checkpoint chunk of size ${chunk.size}"))
         .evalMap(env.checkpoint)
 
     Stream.eval(runWithShutdown(enriched, sinkAndCheckpoint))

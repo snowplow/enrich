@@ -45,9 +45,9 @@ object Run {
     ec: ExecutionContext,
     updateCliConfig: (Blocker, CliConfig) => F[CliConfig],
     mkSource: (Blocker, Input, Option[Monitoring]) => Stream[F, A],
-    mkSinkGood: (Blocker, Output, Option[Monitoring]) => F[AttributedByteSink[F]],
-    mkSinkPii: (Blocker, Output, Option[Monitoring]) => F[AttributedByteSink[F]],
-    mkSinkBad: (Blocker, Output, Option[Monitoring]) => F[ByteSink[F]],
+    mkSinkGood: (Blocker, Output, Option[Monitoring]) => Resource[F, AttributedByteSink[F]],
+    mkSinkPii: (Blocker, Output, Option[Monitoring]) => Resource[F, AttributedByteSink[F]],
+    mkSinkBad: (Blocker, Output, Option[Monitoring]) => Resource[F, ByteSink[F]],
     checkpoint: List[A] => F[Unit],
     mkClients: List[Blocker => Client[F]],
     getPayload: A => Array[Byte],
@@ -69,14 +69,14 @@ object Run {
                     _ <- Logger[F].info(s"Initialising resources for $name $version")
                     processor = Processor(name, version)
                     file = parsed.configFile
-                    sinkGood <- initAttributedSink(blocker, file.good, file.monitoring, mkSinkGood)
-                    sinkPii <- file.pii.traverse(out => initAttributedSink(blocker, out, file.monitoring, mkSinkPii))
-                    sinkBad <- file.bad match {
-                                 case Output.FileSystem(path) =>
-                                   Sync[F].pure(Sink.fileSink[F](path, blocker))
-                                 case _ =>
-                                   mkSinkBad(blocker, file.bad, file.monitoring)
-                               }
+                    sinkGood = initAttributedSink(blocker, file.good, file.monitoring, mkSinkGood)
+                    sinkPii = file.pii.map(out => initAttributedSink(blocker, out, file.monitoring, mkSinkPii))
+                    sinkBad = file.bad match {
+                                case Output.FileSystem(path) =>
+                                  Sink.fileSink[F](path, blocker)
+                                case _ =>
+                                  mkSinkBad(blocker, file.bad, file.monitoring)
+                              }
                     clients = mkClients.map(mk => mk(blocker))
                     exit <- file.input match {
                               case p: Input.FileSystem =>
@@ -127,14 +127,13 @@ object Run {
     blocker: Blocker,
     output: Output,
     monitoring: Option[Monitoring],
-    mkGoodSink: (Blocker, Output, Option[Monitoring]) => F[AttributedByteSink[F]]
-  ): F[AttributedByteSink[F]] =
+    mkSinkGood: (Blocker, Output, Option[Monitoring]) => Resource[F, AttributedByteSink[F]]
+  ): Resource[F, AttributedByteSink[F]] =
     output match {
       case Output.FileSystem(path) =>
-        val sink = Sink.fileSink[F](path, blocker)
-        Sync[F].pure(row => sink(row.data))
+        Sink.fileSink[F](path, blocker).map(sink => row => sink(row.data))
       case _ =>
-        mkGoodSink(blocker, output, monitoring)
+        mkSinkGood(blocker, output, monitoring)
     }
 
   private def runEnvironment[F[_]: ConcurrentEffect: ContextShift: Parallel: Timer, A](

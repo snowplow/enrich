@@ -19,7 +19,7 @@ import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import cats.implicits._
 
-import cats.effect.{Concurrent, ContextShift, Sync, Timer}
+import cats.effect.{Concurrent, ContextShift, Resource, Sync, Timer}
 
 import com.permutive.pubsub.producer.Model.{ProjectId, Topic}
 import com.permutive.pubsub.producer.encoder.MessageEncoder
@@ -58,28 +58,27 @@ object Sink {
 
   def init[F[_]: Concurrent: ContextShift: Timer](
     output: Output
-  ): F[ByteSink[F]] =
+  ): Resource[F, ByteSink[F]] =
     output match {
       case o: Output.PubSub =>
-        val sink = pubsubSink[F, Array[Byte]](o)
-        Sync[F].pure(bytes => sink(AttributedData(bytes, Map.empty)))
+        pubsubSink[F, Array[Byte]](o).map(sink => bytes => sink(AttributedData(bytes, Map.empty)))
       case o =>
-        Sync[F].raiseError(new IllegalArgumentException(s"Output $o is not PubSub"))
+        Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"Output $o is not PubSub")))
     }
 
   def initAttributed[F[_]: Concurrent: ContextShift: Timer](
     output: Output
-  ): F[AttributedByteSink[F]] =
+  ): Resource[F, AttributedByteSink[F]] =
     output match {
       case o: Output.PubSub =>
-        Sync[F].pure(pubsubSink[F, Array[Byte]](o))
+        pubsubSink[F, Array[Byte]](o)
       case o =>
-        Sync[F].raiseError(new IllegalArgumentException(s"Output $o is not PubSub"))
+        Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"Output $o is not PubSub")))
     }
 
   private def pubsubSink[F[_]: Concurrent, A: MessageEncoder](
     output: Output.PubSub
-  ): AttributedData[A] => F[Unit] = {
+  ): Resource[F, AttributedData[A] => F[Unit]] = {
     val config = PubsubProducerConfig[F](
       batchSize = output.maxBatchSize.getOrElse(DefaultPubsubMaxBatchSize),
       requestByteThreshold = Some(output.maxBatchBytes.getOrElse(DefaultPubsubMaxBatchBytes)),
@@ -87,9 +86,10 @@ object Sink {
       onFailedTerminate = err => Logger[F].error(err)("PubSub sink termination error")
     )
 
-    val producer = GooglePubsubProducer
+    GooglePubsubProducer
       .of[F, A](ProjectId(output.project), Topic(output.name), config)
-
-    row => producer.use(_.produce(row.data, row.attributes).void)
+      .map { producer =>
+        row => producer.produce(row.data, row.attributes).void
+      }
   }
 }

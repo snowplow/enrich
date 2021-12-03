@@ -17,7 +17,7 @@ import java.util.UUID
 
 import cats.implicits._
 
-import cats.effect.{Async, Concurrent, ContextShift, Sync, Timer}
+import cats.effect.{Async, Concurrent, ContextShift, Resource, Sync, Timer}
 
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
@@ -42,44 +42,40 @@ object Sink {
   def init[F[_]: Concurrent: ContextShift: Timer](
     output: Output,
     monitoring: Option[Monitoring]
-  ): F[ByteSink[F]] =
+  ): Resource[F, ByteSink[F]] =
     output match {
       case o: Output.Kinesis =>
         o.region.orElse(getRuntimeRegion) match {
           case Some(region) =>
-            val sink = kinesis[F](o, region, monitoring)
-            Sync[F].pure(bytes => sink(AttributedData(bytes, Map.empty)))
+            val producer = mkProducer[F](o, region, monitoring)
+            Resource.pure[F, KinesisProducerClient[F]](producer).map { producer =>
+              bytes => writeToKinesis(o, producer, AttributedData(bytes, Map.empty))
+            }
           case None =>
-            Sync[F].raiseError(new IllegalArgumentException(s"Region not found in the config and in the runtime"))
+            Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"Region not found in the config and in the runtime")))
         }
       case o =>
-        Sync[F].raiseError(new IllegalArgumentException(s"Output $o is not Kinesis"))
+        Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"Output $o is not Kinesis")))
     }
 
   def initAttributed[F[_]: Concurrent: ContextShift: Timer](
     output: Output,
     monitoring: Option[Monitoring]
-  ): F[AttributedByteSink[F]] =
+  ): Resource[F, AttributedByteSink[F]] =
     output match {
       case o: Output.Kinesis =>
         o.region.orElse(getRuntimeRegion) match {
           case Some(region) =>
-            Sync[F].pure(kinesis[F](o, region, monitoring))
+            val producer = mkProducer[F](o, region, monitoring)
+            Resource.pure[F, KinesisProducerClient[F]](producer).map { producer =>
+              data => writeToKinesis(o, producer, data)
+            }
           case None =>
-            Sync[F].raiseError(new IllegalArgumentException(s"Region not found in the config and in the runtime"))
+            Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"Region not found in the config and in the runtime")))
         }
       case o =>
-        Sync[F].raiseError(new IllegalArgumentException(s"Output $o is not Kinesis"))
+        Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"Output $o is not Kinesis")))
     }
-
-  private def kinesis[F[_]: Async: ContextShift: Timer](
-    config: Output.Kinesis,
-    region: String,
-    monitoring: Option[Monitoring]
-  ): AttributedByteSink[F] = {
-    val producer = mkProducer[F](config, region, monitoring)
-    data => writeToKinesis[F](config, producer, data)
-  }
 
   private def mkProducer[F[_]](
     config: Output.Kinesis,

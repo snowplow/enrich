@@ -47,7 +47,7 @@ class CurrencyConversionEnrichmentTransactionItemSpec extends Specification with
         "ti_sku" -> "PBZ1001",
         "ti_quantity" -> "2",
         "ti_category" -> "APPAREL",
-        "ti_price" -> "2000",
+        "ti_price" -> "2000.0",
         "ti_price_base" -> "2240.45",
         "ti_name" -> "Blue t-shirt",
         "collector_tstamp" -> "2019-07-01 19:23:03.000"

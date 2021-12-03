@@ -37,7 +37,7 @@ trait Metrics[F[_]] {
   def enrichLatency(collectorTstamp: Option[Long]): F[Unit]
 
   /** Increment raw payload count */
-  def rawCount: F[Unit]
+  def rawCount(nb: Int): F[Unit]
 
   /** Increment good enriched events */
   def goodCount: F[Unit]
@@ -112,9 +112,9 @@ object Metrics {
             Sync[F].unit
         }
 
-      def rawCount: F[Unit] =
-        refsStatsd.rawCount.update(_ + 1) *>
-        refsStdout.rawCount.update(_ + 1)
+      def rawCount(nb: Int): F[Unit] =
+        refsStatsd.rawCount.update(_ + nb) *>
+        refsStdout.rawCount.update(_ + nb)
 
       def goodCount: F[Unit] =
         refsStatsd.goodCount.update(_ + 1) *>
@@ -185,7 +185,7 @@ object Metrics {
     new Metrics[F] {
       def report: Stream[F, Unit] = Stream.never[F]
       def enrichLatency(collectorTstamp: Option[Long]): F[Unit] = Applicative[F].unit
-      def rawCount: F[Unit] = Applicative[F].unit
+      def rawCount(nb: Int): F[Unit] = Applicative[F].unit
       def goodCount: F[Unit] = Applicative[F].unit
       def badCount: F[Unit] = Applicative[F].unit
     }

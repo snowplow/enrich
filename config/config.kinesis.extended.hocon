@@ -389,4 +389,20 @@
     # Version of the terraform module that deployed the app
     moduleVersion = 1.0.0
   }
+
+  # Optional. To activate/deactive enrich features that are still in beta
+  # or that are here for transition.
+  # This section might change in future versions
+  "featureFlags" : {
+
+    # Enrich 3.0.0 introduces the validation of the enriched events against atomic schema
+    # before emitting.
+    # If set to false, a bad row will be emitted instead of the enriched event
+    # if validation fails.
+    # If set to true, invalid enriched events will be emitted, as before.
+    # WARNING: this feature flag will be removed in a future version
+    # and it will become impossible to emit invalid enriched events.
+    # More details: https://github.com/snowplow/enrich/issues/517#issuecomment-1033910690
+    "acceptInvalid": false
+  }
 }

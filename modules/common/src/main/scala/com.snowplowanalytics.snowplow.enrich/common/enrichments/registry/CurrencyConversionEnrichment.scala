@@ -117,7 +117,7 @@ final case class CurrencyConversionEnrichment[F[_]: Monad](
     initialCurrency: Option[Either[FailureDetails.EnrichmentFailure, CurrencyUnit]],
     value: Option[Double],
     tstamp: ZonedDateTime
-  ): F[Either[FailureDetails.EnrichmentFailure, Option[String]]] =
+  ): F[Either[FailureDetails.EnrichmentFailure, Option[Double]]] =
     (initialCurrency, value) match {
       case (Some(ic), Some(v)) =>
         (for {
@@ -131,8 +131,14 @@ final case class CurrencyConversionEnrichment[F[_]: Monad](
                    money.map(
                      _.bimap(
                        l => mkEnrichmentFailure(Right(l)),
-                       r => (r.getAmount().toPlainString()).some
-                     )
+                       r =>
+                         Either.catchNonFatal(r.getAmount().doubleValue) match {
+                           case Left(e) =>
+                             Left(mkEnrichmentFailure(Left(e)))
+                           case Right(a) =>
+                             Right(a.some)
+                         }
+                     ).flatten
                    )
                  )
         } yield res).value
@@ -160,7 +166,7 @@ final case class CurrencyConversionEnrichment[F[_]: Monad](
     collectorTstamp: Option[DateTime]
   ): F[ValidatedNel[
     FailureDetails.EnrichmentFailure,
-    (Option[String], Option[String], Option[String], Option[String])
+    (Option[Double], Option[Double], Option[Double], Option[Double])
   ]] =
     collectorTstamp match {
       case Some(tstamp) =>

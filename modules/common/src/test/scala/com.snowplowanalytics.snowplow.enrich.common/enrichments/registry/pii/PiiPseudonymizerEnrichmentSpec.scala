@@ -174,7 +174,8 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
         client,
         Processor("spark", "0.0.0"),
         new DateTime(1500000000L),
-        input
+        input,
+        true
       )
   }
 

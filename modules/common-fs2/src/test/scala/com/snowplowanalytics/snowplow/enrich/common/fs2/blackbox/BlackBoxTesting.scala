@@ -48,7 +48,7 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.EnrichSpec
 object BlackBoxTesting extends Specification with CatsIO {
 
   val igluClient: Client[IO, Json] =
-    Client[IO, Json](Resolver(List(Registry.IgluCentral), None), CirceValidator)
+    Client[IO, Json](Resolver(List(Registry.EmbeddedRegistry), None), CirceValidator)
 
   private val serializer: TSerializer = new TSerializer()
 
@@ -90,7 +90,7 @@ object BlackBoxTesting extends Specification with CatsIO {
     enrichmentConfig: Option[Json] = None
   ) =
     Enrich
-      .enrichWith(getEnrichmentRegistry(enrichmentConfig), igluClient, None, EnrichSpec.processor)(
+      .enrichWith(getEnrichmentRegistry(enrichmentConfig), igluClient, None, EnrichSpec.processor, true)(
         input
       )
       .map {

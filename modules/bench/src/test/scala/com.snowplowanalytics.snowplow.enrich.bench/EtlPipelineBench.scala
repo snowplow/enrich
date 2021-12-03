@@ -49,13 +49,13 @@ class EtlPipelineBench {
 
   @Benchmark
   def measureProcessEventsIO(state: EtlPipelineBench.BenchState) = {
-    val payload = EnrichSpec.colllectorPayload
+    val payload = EnrichSpec.collectorPayload
     EtlPipeline.processEvents[IO](state.adapterRegistry, state.enrichmentRegistryIo, Client.IgluCentral, Enrich.processor, state.dateTime, Validated.Valid(Some(payload))).unsafeRunSync()
   }
 
   @Benchmark
   def measureProcessEventsId(state: EtlPipelineBench.BenchState) = {
-    val payload = EnrichSpec.colllectorPayload
+    val payload = EnrichSpec.collectorPayload
     EtlPipeline.processEvents[Id](state.adapterRegistry, state.enrichmentRegistryId, state.clientId, Enrich.processor, state.dateTime, Validated.Valid(Some(payload)))
   }
 }

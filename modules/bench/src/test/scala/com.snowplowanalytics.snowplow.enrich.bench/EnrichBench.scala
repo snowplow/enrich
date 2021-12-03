@@ -18,6 +18,8 @@ import java.util.concurrent.TimeUnit
 
 import cats.effect.{ContextShift, IO, Clock, Blocker}
 
+import io.circe.literal._
+
 import fs2.Stream
 
 import com.snowplowanalytics.iglu.client.Client
@@ -43,10 +45,41 @@ class EnrichBench {
 
   implicit val ioClock: Clock[IO] = Clock.create[IO]
 
+  val client = Client.parseDefault[IO](json"""
+      {
+        "schema": "iglu:com.snowplowanalytics.iglu/resolver-config/jsonschema/1-0-1",
+        "data": {
+          "cacheSize": 500,
+          "repositories": [
+            {
+              "name": "Iglu Central",
+              "priority": 0,
+              "vendorPrefixes": [ "com.snowplowanalytics" ],
+              "connection": {
+                "http": {
+                  "uri": "http://iglucentral.com"
+                }
+              }
+            },
+            {
+              "name": "Iglu Central - GCP Mirror",
+              "priority": 1,
+              "vendorPrefixes": [ "com.snowplowanalytics" ],
+              "connection": {
+                "http": {
+                  "uri": "http://mirror01.iglucentral.com"
+                }
+              }
+            }
+          ]
+        }
+      }
+      """).rethrowT.unsafeRunSync()
+
   @Benchmark
   def measureEnrichWithMinimalPayload(state: EnrichBench.BenchState) = {
     implicit val CS: ContextShift[IO] = state.contextShift
-    Enrich.enrichWith[IO](IO.pure(EnrichmentRegistry()), state.blocker, Client.IgluCentral, None, (_: Option[Long]) => IO.unit)(state.raw).unsafeRunSync()
+    Enrich.enrichWith[IO](IO.pure(EnrichmentRegistry()), client, None, (_: Option[Long]) => IO.unit)(state.raw).unsafeRunSync()
   }
 
   @Benchmark
@@ -83,19 +116,19 @@ object EnrichBench {
       raw = EnrichSpec.payload[IO]
 
       val input = Stream.emits(List(
-        EnrichSpec.colllectorPayload.copy(
+        EnrichSpec.collectorPayload.copy(
           querystring = new BasicNameValuePair("ip", "125.12.2.40") :: EnrichSpec.querystring
         ),
-        EnrichSpec.colllectorPayload.copy(
+        EnrichSpec.collectorPayload.copy(
           querystring = new BasicNameValuePair("ip", "125.12.2.41") :: EnrichSpec.querystring
         ),
-        EnrichSpec.colllectorPayload.copy(
+        EnrichSpec.collectorPayload.copy(
           querystring = new BasicNameValuePair("ip", "125.12.2.42") :: EnrichSpec.querystring
         ),
-        EnrichSpec.colllectorPayload.copy(
+        EnrichSpec.collectorPayload.copy(
           querystring = new BasicNameValuePair("ip", "125.12.2.43") :: EnrichSpec.querystring
         ),
-        EnrichSpec.colllectorPayload.copy(
+        EnrichSpec.collectorPayload.copy(
           querystring = new BasicNameValuePair("ip", "125.12.2.44") :: EnrichSpec.querystring
         ),
       )).repeatN(10).map(cp => Payload(cp.toRaw, IO.unit)).covary[IO]

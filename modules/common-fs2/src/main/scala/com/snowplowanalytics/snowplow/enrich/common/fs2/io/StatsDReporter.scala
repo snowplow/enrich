@@ -76,7 +76,8 @@ object StatsDReporter {
     List(
       Metrics.RawCounterName -> snapshot.rawCount.toString,
       Metrics.GoodCounterName -> snapshot.goodCount.toString,
-      Metrics.BadCounterName -> snapshot.badCount.toString
+      Metrics.BadCounterName -> snapshot.badCount.toString,
+      Metrics.InvalidCounterName -> snapshot.invalidCount.toString
     ) ++ snapshot.enrichLatency.map(l => Metrics.LatencyGaugeName -> l.toString)
 
   def sendMetric[F[_]: ContextShift: Sync](

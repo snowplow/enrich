@@ -88,7 +88,7 @@ object TransactionSpec {
     "",
     "order-123",
     "",
-    "8000",
+    "8000.0",
     "",
     "",
     "",

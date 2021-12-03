@@ -46,6 +46,10 @@ object EtlPipeline {
    * @param processor The ETL application (Spark/Beam/Stream enrich) and its version
    * @param etlTstamp The ETL timestamp
    * @param input The ValidatedMaybeCanonicalInput
+   * @param acceptInvalid Whether enriched events that are invalid against
+   *                      atomic schema should be emitted as enriched events.
+   *                      If not they will be emitted as bad rows
+   * @param invalidCount Function to increment the count of invalid events
    * @return the ValidatedMaybeCanonicalOutput. Thanks to flatMap, will include any validation
    * errors contained within the ValidatedMaybeCanonicalInput
    */
@@ -55,7 +59,9 @@ object EtlPipeline {
     client: Client[F, Json],
     processor: Processor,
     etlTstamp: DateTime,
-    input: ValidatedNel[BadRow, Option[CollectorPayload]]
+    input: ValidatedNel[BadRow, Option[CollectorPayload]],
+    acceptInvalid: Boolean,
+    invalidCount: F[Unit]
   ): F[List[Validated[BadRow, EnrichedEvent]]] =
     input match {
       case Validated.Valid(Some(payload)) =>
@@ -70,7 +76,9 @@ object EtlPipeline {
                     client,
                     processor,
                     etlTstamp,
-                    event
+                    event,
+                    acceptInvalid,
+                    invalidCount
                   )
                   .toValidated
               }

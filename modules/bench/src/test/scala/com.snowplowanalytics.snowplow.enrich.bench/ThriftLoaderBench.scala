@@ -30,7 +30,7 @@ class ThriftLoaderBench {
 
   @Benchmark
   def measureNormalize(state: ThriftLoaderBench.BenchState) = {
-    Enrich.encodeEvent(state.event)
+    Enrich.serializeEnriched(state.event)
   }
 }
 
@@ -42,7 +42,7 @@ object ThriftLoaderBench {
 
     @Setup(Level.Trial)
     def setup(): Unit = {
-      data = EnrichSpec.colllectorPayload.toRaw
+      data = EnrichSpec.collectorPayload.toRaw
 
       event = new EnrichedEvent()
       event.setApp_id("foo")

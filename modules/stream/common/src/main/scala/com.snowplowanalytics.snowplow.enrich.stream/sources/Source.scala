@@ -159,13 +159,15 @@ abstract class Source(
     val canonicalInput: ValidatedNel[BadRow, Option[CollectorPayload]] =
       ThriftLoader.toCollectorPayload(binaryData, processor)
     Either.catchNonFatal(
-      EtlPipeline.processEvents(
+      EtlPipeline.processEvents[Id](
         adapterRegistry,
         enrichmentRegistry,
         client,
         processor,
         new DateTime(System.currentTimeMillis),
-        canonicalInput
+        canonicalInput,
+        true, // See https://github.com/snowplow/enrich/issues/517#issuecomment-1033910690
+        () // See https://github.com/snowplow/enrich/issues/517#issuecomment-1033910690
       )
     ) match {
       case Left(throwable) =>

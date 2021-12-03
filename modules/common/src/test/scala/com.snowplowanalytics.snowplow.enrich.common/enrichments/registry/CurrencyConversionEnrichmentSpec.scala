@@ -28,21 +28,283 @@ import org.joda.money.CurrencyUnit
 import org.joda.time.DateTime
 
 import org.specs2.Specification
-import org.specs2.matcher.DataTables
 
-object CurrencyConversionEnrichmentSpec {
-  val OerApiKey = "OER_KEY"
-}
+class CurrencyConversionEnrichmentSpec extends Specification {
+  import CurrencyConversionEnrichmentSpec._
 
-/** Tests the convertCurrencies function */
-import CurrencyConversionEnrichmentSpec._
-class CurrencyConversionEnrichmentSpec extends Specification with DataTables {
   def is =
     skipAllIf(sys.env.get(OerApiKey).isEmpty) ^
       s2"""
-  Failure test for Currency Conversion $e1
-  Success test for Currency Conversion $e2
+  Failure for invalid transaction currency              $e1
+  Failure for invalid transaction item currency         $e2
+  Failure for invalid OER API key                       $e3
+  Success for all fields absent                         $e4
+  Success for all fields absent except currency         $e5
+  Success for no transaction currency, tax, or shipping $e6
+  Success for no transaction currency or total          $e7
+  Success for no transaction currency                   $e8
+  Success for transaction item null                     $e9
+  Success for valid app id and API key                  $e10
+  Success for both currencies null                      $e11
+  Success for converting to the same currency           $e12
+  Success for valid app id and API key                  $e13
   """
+
+  def e1 = {
+    val input =
+      Input(
+        Some("RUP"),
+        Some(11.00),
+        Some(1.17),
+        Some(0.00),
+        None,
+        Some(17.99),
+        Some(coTstamp)
+      )
+    val expected: Result = Validated.Invalid(
+      NonEmptyList.of(
+        ef(
+          FailureDetails.EnrichmentFailureMessage
+            .InputData("tr_currency", Some("RUP"), "Unknown currency 'RUP'")
+        ),
+        ef(
+          FailureDetails.EnrichmentFailureMessage
+            .InputData("tr_currency", Some("RUP"), "Unknown currency 'RUP'")
+        ),
+        ef(
+          FailureDetails.EnrichmentFailureMessage
+            .InputData("tr_currency", Some("RUP"), "Unknown currency 'RUP'")
+        )
+      )
+    )
+    val actual = runEnrichment(input)
+    actual must beEqualTo(expected)
+  }
+
+  def e2 = {
+    val input =
+      Input(
+        None,
+        Some(12.00),
+        Some(0.7),
+        Some(0.00),
+        Some("HUL"),
+        Some(1.99),
+        Some(coTstamp)
+      )
+    val expected: Result = ef(
+      FailureDetails.EnrichmentFailureMessage.InputData(
+        "ti_currency",
+        Some("HUL"),
+        "Unknown currency 'HUL'"
+      )
+    ).invalidNel
+    val actual = runEnrichment(input)
+    actual must beEqualTo(expected)
+  }
+
+  def e3 = {
+    val input =
+      Input(
+        None,
+        Some(13.00),
+        Some(3.67),
+        Some(0.00),
+        Some("GBP"),
+        Some(2.99),
+        Some(coTstamp)
+      )
+    val wrongKey = "8A8A8A8A8A8A8A8A8A8A8A8AA8A8A8A8"
+    val expected: Result = ef(
+      FailureDetails.EnrichmentFailureMessage.Simple(
+        "Open Exchange Rates error, type: [OtherErrors], message: [invalid_app_id]"
+      )
+    ).invalidNel
+    val actual = runEnrichment(input, wrongKey)
+    actual must beEqualTo(expected)
+  }
+
+  def e4 = {
+    val input =
+      Input(
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None
+      )
+    val expected: Result =
+      ef(
+        FailureDetails.EnrichmentFailureMessage.InputData(
+          "collector_tstamp",
+          None,
+          "missing"
+        )
+      ).invalidNel
+    val actual = runEnrichment(input)
+    actual must beEqualTo(expected)
+  }
+
+  def e5 = {
+    val input =
+      Input(
+        Some("GBP"),
+        None,
+        None,
+        None,
+        Some("GBP"),
+        None,
+        None
+      )
+    val expected: Result =
+      ef(
+        FailureDetails.EnrichmentFailureMessage
+          .InputData("collector_tstamp", None, "missing")
+      ).invalidNel
+    val actual = runEnrichment(input)
+    actual must beEqualTo(expected)
+  }
+
+  def e6 = {
+    val input =
+      Input(
+        Some("GBP"),
+        Some(11.00),
+        None,
+        None,
+        None,
+        None,
+        Some(coTstamp)
+      )
+    val expected: Result = (Some(12.75), None, None, None).valid
+    val actual = runEnrichment(input)
+    actual must beEqualTo(expected)
+  }
+
+  def e7 = {
+    val input =
+      Input(
+        Some("GBP"),
+        None,
+        Some(2.67),
+        Some(0.00),
+        None,
+        None,
+        Some(coTstamp)
+      )
+    val expected: Result = (None, Some(3.09), Some(0.00), None).valid
+    val actual = runEnrichment(input)
+    actual must beEqualTo(expected)
+  }
+
+  def e8 = {
+    val input =
+      Input(
+        None,
+        None,
+        None,
+        None,
+        Some("GBP"),
+        Some(12.99),
+        Some(coTstamp)
+      )
+    val expected: Result = (None, None, None, Some(15.05)).valid
+    val actual = runEnrichment(input)
+    actual must beEqualTo(expected)
+  }
+
+  def e9 = {
+    val input =
+      Input(
+        Some("GBP"),
+        Some(11.00),
+        Some(2.67),
+        Some(0.00),
+        None,
+        None,
+        Some(coTstamp)
+      )
+    val expected: Result = (Some(12.75), Some(3.09), Some(0.00), None).valid
+    val actual = runEnrichment(input)
+    actual must beEqualTo(expected)
+  }
+
+  def e10 = {
+    val input =
+      Input(
+        None,
+        Some(14.00),
+        Some(4.67),
+        Some(0.00),
+        Some("GBP"),
+        Some(10.99),
+        Some(coTstamp)
+      )
+    val expected: Result =
+      (None, None, None, Some(12.74)).valid
+    val actual = runEnrichment(input)
+    actual must beEqualTo(expected)
+  }
+
+  def e11 = {
+    val input =
+      Input(
+        None,
+        Some(11.00),
+        Some(2.67),
+        Some(0.00),
+        None,
+        Some(12.99),
+        Some(coTstamp)
+      )
+    val expected: Result = (None, None, None, None).valid
+    val actual = runEnrichment(input)
+    actual must beEqualTo(expected)
+  }
+
+  def e12 = {
+    val input =
+      Input(
+        Some("EUR"),
+        Some(11.00),
+        Some(2.67),
+        Some(0.00),
+        Some("EUR"),
+        Some(12.99),
+        Some(coTstamp)
+      )
+    val expected: Result =
+      (
+        Some(11.00),
+        Some(2.67),
+        Some(0.00),
+        Some(12.99)
+      ).valid
+    val actual = runEnrichment(input)
+    actual must beEqualTo(expected)
+  }
+
+  def e13 = {
+    val input =
+      Input(
+        Some("GBP"),
+        Some(16.00),
+        Some(2.67),
+        Some(0.00),
+        None,
+        Some(10.00),
+        Some(coTstamp)
+      )
+    val expected: Result = (Some(18.54), Some(3.09), Some(0.00), None).valid
+    val actual = runEnrichment(input)
+    actual must beEqualTo(expected)
+  }
+}
+
+object CurrencyConversionEnrichmentSpec {
+  val OerApiKey = "OER_KEY"
 
   lazy val validAppKey = sys.env
     .getOrElse(OerApiKey,
@@ -52,7 +314,7 @@ class CurrencyConversionEnrichmentSpec extends Specification with DataTables {
     )
   type Result = ValidatedNel[
     FailureDetails.EnrichmentFailure,
-    (Option[String], Option[String], Option[String], Option[String])
+    (Option[Double], Option[Double], Option[Double], Option[Double])
   ]
   val schemaKey = SchemaKey("vendor", "name", "format", SchemaVer.Full(1, 0, 0))
   val ef: FailureDetails.EnrichmentFailureMessage => FailureDetails.EnrichmentFailure = m =>
@@ -60,141 +322,33 @@ class CurrencyConversionEnrichmentSpec extends Specification with DataTables {
       FailureDetails.EnrichmentInformation(schemaKey, "currency-conversion").some,
       m
     )
-  val currencyInvalidRup: Result = Validated.Invalid(
-    NonEmptyList.of(
-      ef(
-        FailureDetails.EnrichmentFailureMessage
-          .InputData("tr_currency", Some("RUP"), "Unknown currency 'RUP'")
-      ),
-      ef(
-        FailureDetails.EnrichmentFailureMessage
-          .InputData("tr_currency", Some("RUP"), "Unknown currency 'RUP'")
-      ),
-      ef(
-        FailureDetails.EnrichmentFailureMessage
-          .InputData("tr_currency", Some("RUP"), "Unknown currency 'RUP'")
-      )
-    )
-  )
-  val currencyInvalidHul: Result = ef(
-    FailureDetails.EnrichmentFailureMessage.InputData(
-      "ti_currency",
-      Some("HUL"),
-      "Unknown currency 'HUL'"
-    )
-  ).invalidNel
-  val invalidAppKeyFailure: Result = ef(
-    FailureDetails.EnrichmentFailureMessage.Simple(
-      "Open Exchange Rates error, type: [OtherErrors], message: [invalid_app_id]"
-    )
-  ).invalidNel
   val coTstamp: DateTime = new DateTime(2011, 3, 13, 0, 0)
 
-  def e1 =
-    "SPEC NAME" || "TRANSACTION CURRENCY" | "API KEY" | "TOTAL AMOUNT" | "TOTAL TAX" | "SHIPPING" | "TRANSACTION ITEM CURRENCY" | "TRANSACTION ITEM PRICE" | "DATETIME" | "CONVERTED TUPLE" |
-      "Invalid transaction currency" !! Some("RUP") ! validAppKey ! Some(11.00) ! Some(1.17) ! Some(
-        0.00
-      ) ! None ! Some(17.99) ! Some(coTstamp) ! currencyInvalidRup |
-      "Invalid transaction item currency" !! None ! validAppKey ! Some(12.00) ! Some(0.7) ! Some(
-        0.00
-      ) ! Some("HUL") ! Some(1.99) ! Some(coTstamp) ! currencyInvalidHul |
-      "Invalid OER API key" !! None ! "8A8A8A8A8A8A8A8A8A8A8A8AA8A8A8A8" ! Some(13.00) ! Some(3.67) ! Some(
-        0.00
-      ) ! Some("GBP") ! Some(2.99) ! Some(coTstamp) ! invalidAppKeyFailure |> {
-      (
-        _,
-        trCurrency,
-        apiKey,
-        trAmountTotal,
-        trAmountTax,
-        trAmountShipping,
-        tiCurrency,
-        tiPrice,
-        dateTime,
-        expected
-      ) =>
-        (for {
-          e <- CurrencyConversionConf(schemaKey, DeveloperAccount, apiKey, CurrencyUnit.EUR)
-                 .enrichment[Id]
-          res <- e.convertCurrencies(
-                   trCurrency,
-                   trAmountTotal,
-                   trAmountTax,
-                   trAmountShipping,
-                   tiCurrency,
-                   tiPrice,
-                   dateTime
-                 )
-        } yield res) must_== expected
-    }
+  case class Input(
+    trCurrency: Option[String],
+    trTotal: Option[Double],
+    trTax: Option[Double],
+    trShipping: Option[Double],
+    tiCurrency: Option[String],
+    tiPrice: Option[Double],
+    collectorTstamp: Option[DateTime]
+  )
 
-  def e2 =
-    "SPEC NAME" || "TRANSACTION CURRENCY" | "API KEY" | "TOTAL AMOUNT" | "TOTAL TAX" | "SHIPPING" | "TRANSACTION ITEM CURRENCY" | "TRANSACTION ITEM PRICE" | "DATETIME" | "CONVERTED TUPLE" |
-      "All fields absent" !! None ! validAppKey ! None ! None ! None ! None ! None ! None ! ef(
-        FailureDetails.EnrichmentFailureMessage.InputData(
-          "collector_tstamp",
-          None,
-          "missing"
-        )
-      ).invalidNel |
-      "All fields absent except currency" !! Some("GBP") ! validAppKey ! None ! None ! None ! Some(
-        "GBP"
-      ) ! None ! None ! ef(
-        FailureDetails.EnrichmentFailureMessage
-          .InputData("collector_tstamp", None, "missing")
-      ).invalidNel |
-      "No transaction currency, tax, or shipping" !! Some("GBP") ! validAppKey ! Some(11.00) ! None ! None ! None ! None ! Some(
-        coTstamp
-      ) ! (Some("12.75"), None, None, None).valid |
-      "No transaction currency or total" !! Some("GBP") ! validAppKey ! None ! Some(2.67) ! Some(
-        0.00
-      ) ! None ! None ! Some(coTstamp) ! (None, Some("3.09"), Some("0.00"), None).valid |
-      "No transaction currency" !! None ! validAppKey ! None ! None ! None ! Some("GBP") ! Some(
-        12.99
-      ) ! Some(coTstamp) ! (None, None, None, Some("15.05")).valid |
-      "Transaction Item Null" !! Some("GBP") ! validAppKey ! Some(11.00) ! Some(2.67) ! Some(0.00) ! None ! None ! Some(
-        coTstamp
-      ) ! (Some("12.75"), Some("3.09"), Some("0.00"), None).valid |
-      "Valid APP ID and API key" !! None ! validAppKey ! Some(14.00) ! Some(4.67) ! Some(0.00) ! Some(
-        "GBP"
-      ) ! Some(10.99) ! Some(coTstamp) ! (None, None, None, Some("12.74")).valid |
-      "Both Currency Null" !! None ! validAppKey ! Some(11.00) ! Some(2.67) ! Some(0.00) ! None ! Some(
-        12.99
-      ) ! Some(coTstamp) ! (None, None, None, None).valid |
-      "Convert to the same currency" !! Some("EUR") ! validAppKey ! Some(11.00) ! Some(2.67) ! Some(
-        0.00
-      ) ! Some("EUR") ! Some(12.99) ! Some(coTstamp) ! (
-        Some("11.00"),
-        Some("2.67"),
-        Some("0.00"),
-        Some("12.99")
-      ).valid |
-      "Valid APP ID and API key" !! Some("GBP") ! validAppKey ! Some(16.00) ! Some(2.67) ! Some(
-        0.00
-      ) ! None ! Some(10.00) ! Some(coTstamp) ! (Some("18.54"), Some("3.09"), Some("0.00"), None).valid |> {
-      (
-        _,
-        trCurrency,
-        apiKey,
-        trAmountTotal,
-        trAmountTax,
-        trAmountShipping,
-        tiCurrency,
-        tiPrice,
-        dateTime,
-        expected
-      ) =>
-        (for {
-          e <- CurrencyConversionConf(schemaKey, DeveloperAccount, apiKey, CurrencyUnit.EUR).enrichment[Id]
-          res <- e.convertCurrencies(
-                   trCurrency,
-                   trAmountTotal,
-                   trAmountTax,
-                   trAmountShipping,
-                   tiCurrency,
-                   tiPrice,
-                   dateTime
-                 )
-        } yield res) must_== expected
-    }
+  def runEnrichment(
+    input: Input,
+    apiKey: String = validAppKey
+  ) =
+    for {
+      e <- CurrencyConversionConf(schemaKey, DeveloperAccount, apiKey, CurrencyUnit.EUR)
+             .enrichment[Id]
+      res <- e.convertCurrencies(
+               input.trCurrency,
+               input.trTotal,
+               input.trTax,
+               input.trShipping,
+               input.tiCurrency,
+               input.tiPrice,
+               input.collectorTstamp
+             )
+    } yield res
 }

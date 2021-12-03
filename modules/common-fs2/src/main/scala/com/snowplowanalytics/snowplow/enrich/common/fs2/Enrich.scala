@@ -153,7 +153,7 @@ object Enrich {
   ): BadRow.GenericError = {
     val base64 = new String(Base64.getEncoder.encode(row))
     val rawPayload = BadRowPayload.RawPayload(base64)
-    val failure = Failure.GenericFailure(time, NonEmptyList.one(error.toString))
+    val failure = Failure.GenericFailure(time, NonEmptyList.one(ConversionUtils.cleanStackTrace(error)))
     BadRow.GenericError(processor, failure, rawPayload)
   }
 

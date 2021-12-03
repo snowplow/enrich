@@ -13,13 +13,14 @@
 package com.snowplowanalytics.snowplow.enrich.common
 package utils
 
-import java.lang.{Byte => JByte, Integer => JInteger}
+import java.lang.{Byte => JByte, Float => JFloat, Integer => JInteger}
 import java.lang.reflect.Field
 import java.math.{BigDecimal => JBigDecimal}
 import java.net.{InetAddress, URI, URLDecoder, URLEncoder}
 import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets.UTF_8
 import java.util.UUID
+import java.io.{PrintWriter, StringWriter}
 
 import scala.collection.JavaConverters._
 import scala.util.Try
@@ -340,6 +341,25 @@ object ConversionUtils {
         FailureDetails.EnrichmentFailure(None, f)
       }
 
+  val stringToJFloat: String => Either[String, JFloat] = str =>
+    if (Option(str).isEmpty)
+      null.asInstanceOf[JFloat].asRight
+    else
+      Either
+        .catchNonFatal(JFloat.valueOf(str))
+        .leftMap(e => s"cannot be converted to java.lang.Float. Error : ${e.getMessage}")
+
+  val stringToJFloat2: (String, String) => Either[FailureDetails.EnrichmentFailure, JFloat] =
+    (field, str) =>
+      stringToJFloat(str).leftMap { e =>
+        val f = FailureDetails.EnrichmentFailureMessage.InputData(
+          field,
+          Option(str),
+          e
+        )
+        FailureDetails.EnrichmentFailure(None, f)
+      }
+
   /**
    * Convert a String to a String containing a Redshift-compatible Double.
    * Necessary because Redshift does not support all Java Double syntaxes e.g. "3.4028235E38"
@@ -394,6 +414,40 @@ object ConversionUtils {
             field,
             Option(str),
             "cannot be converted to Double"
+          )
+        )
+      )
+
+  /** Convert a java Float a Double */
+  def jFloatToDouble(field: String, f: JFloat): Either[FailureDetails.EnrichmentFailure, Option[Double]] =
+    Either
+      .catchNonFatal {
+        Option(f).map(_.toDouble)
+      }
+      .leftMap(_ =>
+        FailureDetails.EnrichmentFailure(
+          None,
+          FailureDetails.EnrichmentFailureMessage.InputData(
+            field,
+            Option(f).map(_.toString),
+            "cannot be converted to Double"
+          )
+        )
+      )
+
+  /** Convert a Double to a java Float */
+  def doubleToJFloat(field: String, d: Option[Double]): Either[FailureDetails.EnrichmentFailure, Option[JFloat]] =
+    Either
+      .catchNonFatal {
+        d.map(dd => JFloat.valueOf(dd.toFloat))
+      }
+      .leftMap(_ =>
+        FailureDetails.EnrichmentFailure(
+          None,
+          FailureDetails.EnrichmentFailureMessage.InputData(
+            field,
+            d.map(_.toString),
+            "cannot be converted to java Float"
           )
         )
       )
@@ -537,4 +591,9 @@ object ConversionUtils {
       }
       .mkString("\t")
 
+  def cleanStackTrace(t: Throwable): String = {
+    val sw = new StringWriter
+    t.printStackTrace(new PrintWriter(sw))
+    sw.toString
+  }
 }

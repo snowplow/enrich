@@ -64,7 +64,8 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers {
       client,
       processor,
       dateTime,
-      Some(collectorPayloadBatched).validNel
+      Some(collectorPayloadBatched).validNel,
+      true
     )
     output must be like {
       case a :: b :: c :: d :: Nil =>
@@ -84,7 +85,8 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers {
           client,
           processor,
           dateTime,
-          Some(collectorPayload).validNel
+          Some(collectorPayload).validNel,
+          true
         )
       ) must beValid.like {
       case Validated.Valid(_: EnrichedEvent) :: Nil => ok
@@ -100,7 +102,8 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers {
       client,
       processor,
       dateTime,
-      invalidCollectorPayload
+      invalidCollectorPayload,
+      true
     ) must be like {
       case Validated.Invalid(_: BadRow.CPFormatViolation) :: Nil => ok
       case other => ko(s"One invalid CPFormatViolation expected, got ${other}")
@@ -115,7 +118,8 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers {
       client,
       processor,
       dateTime,
-      collectorPayload.validNel[BadRow]
+      collectorPayload.validNel[BadRow],
+      true
     ) must beEqualTo(Nil)
   }
 }

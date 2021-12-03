@@ -65,6 +65,9 @@ class ParsedConfigsSpec extends Specification with CatsIO {
           Some("665bhft5u6udjf"),
           Some("enrich-kinesis-ce"),
           Some("1.0.0")
+        ),
+        io.FeatureFlags(
+          true
         )
       )
 

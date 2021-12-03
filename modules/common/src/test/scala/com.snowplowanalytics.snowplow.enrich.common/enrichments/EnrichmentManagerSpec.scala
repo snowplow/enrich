@@ -20,6 +20,7 @@ import cats.data.NonEmptyList
 import io.circe.literal._
 import org.joda.time.DateTime
 import com.snowplowanalytics.snowplow.badrows._
+import com.snowplowanalytics.snowplow.badrows.FailureDetails.EnrichmentFailureMessage
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer}
 import loaders._
 import adapters.RawEvent
@@ -36,7 +37,6 @@ import enrichments.registry.{IabEnrichment, JavascriptScriptEnrichment, YauaaEnr
 import org.apache.commons.codec.digest.DigestUtils
 import org.specs2.mutable.Specification
 import org.specs2.matcher.EitherMatchers
-
 import SpecHelpers._
 
 class EnrichmentManagerSpec extends Specification with EitherMatchers {
@@ -69,7 +69,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         client,
         processor,
         timestamp,
-        rawEvent
+        rawEvent,
+        true
       )
 
       enriched.value must beLeft.like {
@@ -102,7 +103,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         client,
         processor,
         timestamp,
-        rawEvent
+        rawEvent,
+        true
       )
       enriched.value must beLeft.like {
         case _: BadRow.SchemaViolations => ok
@@ -144,7 +146,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         client,
         processor,
         timestamp,
-        rawEvent
+        rawEvent,
+        true
       )
       enriched.value must beLeft.like {
         case BadRow.EnrichmentFailures(
@@ -207,7 +210,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         client,
         processor,
         timestamp,
-        rawEvent
+        rawEvent,
+        true
       )
       enriched.value must beLeft.like {
         case BadRow.EnrichmentFailures(
@@ -266,7 +270,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         client,
         processor,
         timestamp,
-        rawEvent
+        rawEvent,
+        true
       )
       enriched.value must beRight
     }
@@ -326,7 +331,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         client,
         processor,
         timestamp,
-        rawEvent
+        rawEvent,
+        true
       )
       enriched.value must beRight
     }
@@ -386,7 +392,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         client,
         processor,
         timestamp,
-        rawEvent
+        rawEvent,
+        true
       )
       enriched.value must beRight
     }
@@ -446,7 +453,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         client,
         processor,
         timestamp,
-        rawEvent
+        rawEvent,
+        true
       )
       enriched.value must beLeft
     }
@@ -507,7 +515,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
           client,
           processor,
           timestamp,
-          rawEvent
+          rawEvent,
+          true
         )
       enriched.value must beLeft
     }
@@ -574,7 +583,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
           client,
           processor,
           timestamp,
-          rawEvent
+          rawEvent,
+          true
         )
       enriched.value must beLeft
     }
@@ -594,7 +604,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         client,
         processor,
         timestamp,
-        rawEvent
+        rawEvent,
+        true
       )
       enriched.value.map(_.useragent) must beRight(qs_ua)
       enriched.value.map(_.derived_contexts) must beRight((_: String).contains("\"agentName\":\"Firefox\""))
@@ -613,7 +624,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         client,
         processor,
         timestamp,
-        rawEvent
+        rawEvent,
+        true
       )
       enriched.value.map(_.useragent) must beRight("header-useragent")
     }
@@ -686,6 +698,41 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       EnrichmentManager.getCollectorVersionSet(input) must beRight(())
     }
   }
+
+  "validateEnriched" should {
+    "create a bad row if a field is oversized (tv)" >> {
+      EnrichmentManager
+        .enrichEvent(
+          enrichmentReg,
+          client,
+          processor,
+          timestamp,
+          RawEvent(api, fatBody, None, source, context),
+          true
+        )
+        .swap
+        .map {
+          case BadRow.EnrichmentFailures(_, failure, _) =>
+            failure.messages.map(_.message match {
+              case EnrichmentFailureMessage.Simple(error) => error
+              case EnrichmentFailureMessage.IgluError(schemaKey, _) => schemaKey
+              case _ => None
+            })
+          case _ => None
+        }
+        .getOrElse(None) === NonEmptyList(
+        s"Enriched event not valid against ${EnrichmentManager.atomicSchema.toSchemaUri}",
+        List(EnrichmentManager.atomicSchema)
+      )
+    }
+
+    "allow normal raw events" >> {
+      EnrichmentManager
+        .enrichEvent(enrichmentReg, client, processor, timestamp, RawEvent(api, leanBody, None, source, context), true)
+        .map(_ => true)
+        .getOrElse(false) must beTrue
+    }
+  }
 }
 
 object EnrichmentManagerSpec {
@@ -705,6 +752,18 @@ object EnrichmentManagerSpec {
     Nil,
     None
   )
+
+  val leanBody = Map(
+    "e" -> "pp",
+    "tv" -> "js-0.13.1",
+    "p" -> "web"
+  ).toOpt
+
+  val fatBody = Map(
+    "e" -> "pp",
+    "tv" -> s"${"s" * 500}",
+    "p" -> "web"
+  ).toOpt
 
   val iabEnrichment = IabEnrichment
     .parse(
@@ -739,4 +798,5 @@ object EnrichmentManagerSpec {
     .getOrElse(throw new RuntimeException("IAB enrichment couldn't be initialised")) // to make sure it's not none
     .enrichment[Id]
     .some
+
 }

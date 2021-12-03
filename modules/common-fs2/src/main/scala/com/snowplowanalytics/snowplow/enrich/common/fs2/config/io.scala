@@ -353,4 +353,15 @@ object io {
     implicit val telemetryEncoder: Encoder[Telemetry] =
       deriveConfiguredEncoder[Telemetry]
   }
+
+  case class FeatureFlags(
+    validateEnrichedEvents: Boolean
+  )
+
+  object FeatureFlags {
+    implicit val telemetryDecoder: Decoder[FeatureFlags] =
+      deriveConfiguredDecoder[FeatureFlags]
+    implicit val telemetryEncoder: Encoder[FeatureFlags] =
+      deriveConfiguredEncoder[FeatureFlags]
+  }
 }

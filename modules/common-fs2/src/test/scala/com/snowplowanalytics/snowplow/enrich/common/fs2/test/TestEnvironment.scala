@@ -109,19 +109,8 @@ object TestEnvironment extends CatsIO {
 
   val ioBlocker: Resource[IO, Blocker] = Blocker[IO]
 
-  val embeddedRegistry =
-    Registry.InMemory(
-      Registry.Config("snowplow-enrich-pubsub embedded test registry", 1, List("com.acme")),
-      List(
-        SchemaRegistry.unstructEvent,
-        SchemaRegistry.contexts,
-        SchemaRegistry.geolocationContext,
-        SchemaRegistry.iabAbdRobots,
-        SchemaRegistry.yauaaContext,
-        SchemaRegistry.acmeTest,
-        SchemaRegistry.acmeOutput
-      )
-    )
+  val embeddedRegistry = Registry.EmbeddedRegistry
+
   val igluClient: Client[IO, Json] =
     Client[IO, Json](Resolver(List(embeddedRegistry), None), CirceValidator)
 
@@ -166,15 +155,20 @@ object TestEnvironment extends CatsIO {
                       EnrichSpec.processor,
                       StreamsSettings(Concurrency(10000, 64), 1024 * 1024),
                       None,
-                      None
+                      None,
+                      true
                     )
       _ <- Resource.eval(logger.info("TestEnvironment initialized"))
     } yield TestEnvironment(environment, counter, goodRef.get, piiRef.get, badRef.get)
 
-  def parseBad(bytes: Array[Byte]): BadRow =
-    parser
-      .parse(new String(bytes, UTF_8))
-      .getOrElse(throw new RuntimeException("Error parsing bad row json"))
+  def parseBad(bytes: Array[Byte]): BadRow = {
+    val badRowStr = new String(bytes, UTF_8)
+    val parsed =
+      parser
+        .parse(badRowStr)
+        .getOrElse(throw new RuntimeException(s"Error parsing bad row json: $badRowStr"))
+    parsed
       .as[BadRow]
-      .getOrElse(throw new RuntimeException("Error decoding bad row"))
+      .getOrElse(throw new RuntimeException(s"Error decoding bad row: $parsed"))
+  }
 }

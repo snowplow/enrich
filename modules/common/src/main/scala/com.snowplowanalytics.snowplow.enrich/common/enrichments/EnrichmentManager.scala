@@ -16,26 +16,24 @@ package enrichments
 import java.nio.charset.Charset
 import java.net.URI
 import java.time.Instant
-
 import org.joda.time.DateTime
-
 import io.circe.Json
-
 import cats.Monad
 import cats.data.{EitherT, NonEmptyList, OptionT, ValidatedNel}
 import cats.effect.Clock
 import cats.implicits._
 
+import com.snowplowanalytics.refererparser._
+
 import com.snowplowanalytics.iglu.client.Client
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 
-import com.snowplowanalytics.iglu.core.SelfDescribingData
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
 import com.snowplowanalytics.snowplow.badrows._
 import com.snowplowanalytics.snowplow.badrows.{FailureDetails, Payload, Processor}
-
-import com.snowplowanalytics.refererparser._
+import com.snowplowanalytics.snowplow.badrows.FailureDetails.EnrichmentFailure
 
 import adapters.RawEvent
 import enrichments.{EventEnrichments => EE}
@@ -50,12 +48,16 @@ import utils.{IgluUtils, ConversionUtils => CU}
 
 object EnrichmentManager {
 
+  val atomicSchema: SchemaKey = SchemaKey("com.snowplowanalytics.snowplow", "atomic", "jsonschema", SchemaVer.Full(1, 0, 0))
+
   /**
    * Run the enrichment workflow
    * @param registry Contain configuration for all enrichments to apply
    * @param client Iglu Client, for schema lookups and validation
    * @param processor Meta information about processing asset, for bad rows
    * @param etlTstamp ETL timestamp
+   * @param validateEnrichedEvent Whether enriched event should be validated according
+   *                              to atomic schema
    * @param raw Canonical input event to enrich
    * @return Enriched event or bad row if a problem occured
    */
@@ -64,7 +66,8 @@ object EnrichmentManager {
     client: Client[F, Json],
     processor: Processor,
     etlTstamp: DateTime,
-    raw: RawEvent
+    raw: RawEvent,
+    validateEnrichedEvent: Boolean = false // backward-compatibility
   ): EitherT[F, BadRow, EnrichedEvent] =
     for {
       enriched <- EitherT.fromEither[F](setupEnrichedEvent(raw, etlTstamp, processor))
@@ -92,6 +95,10 @@ object EnrichmentManager {
                enriched.pii = pii.asString
              }
            }
+      _ <- if (validateEnrichedEvent)
+             validateEnriched(enriched, raw, processor, client)
+           else
+             EitherT.rightT[F, BadRow](Monad[F].unit)
     } yield enriched
 
   /**
@@ -497,14 +504,13 @@ object EnrichmentManager {
     currencyConversion match {
       case Some(currency) =>
         event.base_currency = currency.baseCurrency.getCode
-        // Note that stringToMaybeDouble is applied to either-valid-or-null event POJO
+        // Note that jFloatToDouble is applied to either-valid-or-null event POJO
         // properties, so we don't expect any of these four vals to be a Failure
-        val trTax = CU.stringToMaybeDouble("tr_tx", event.tr_tax).toValidatedNel
-        val tiPrice = CU.stringToMaybeDouble("ti_pr", event.ti_price).toValidatedNel
-        val trTotal = CU.stringToMaybeDouble("tr_tt", event.tr_total).toValidatedNel
-        val trShipping = CU.stringToMaybeDouble("tr_sh", event.tr_shipping).toValidatedNel
+        val trTax = CU.jFloatToDouble("tr_tx", event.tr_tax).toValidatedNel
+        val tiPrice = CU.jFloatToDouble("ti_pr", event.ti_price).toValidatedNel
+        val trTotal = CU.jFloatToDouble("tr_tt", event.tr_total).toValidatedNel
+        val trShipping = CU.jFloatToDouble("tr_sh", event.tr_shipping).toValidatedNel
         (for {
-          // better-monadic-for
           convertedCu <- EitherT(
                            (trTotal, trTax, trShipping, tiPrice)
                              .mapN {
@@ -522,12 +528,14 @@ object EnrichmentManager {
                              .sequence
                              .map(_.flatMap(_.toEither))
                          )
-          _ = {
-            event.tr_total_base = convertedCu._1.orNull
-            event.tr_tax_base = convertedCu._2.orNull
-            event.tr_shipping_base = convertedCu._3.orNull
-            event.ti_price_base = convertedCu._4.orNull
-          }
+          trTotalBase <- EitherT.fromEither[F](CU.doubleToJFloat("tr_total_base ", convertedCu._1).leftMap(e => NonEmptyList.one(e)))
+          _ = trTotalBase.map(t => event.tr_total_base = t)
+          trTaxBase <- EitherT.fromEither[F](CU.doubleToJFloat("tr_tax_base ", convertedCu._2).leftMap(e => NonEmptyList.one(e)))
+          _ = trTaxBase.map(t => event.tr_tax_base = t)
+          trShippingBase <- EitherT.fromEither[F](CU.doubleToJFloat("tr_shipping_base ", convertedCu._3).leftMap(e => NonEmptyList.one(e)))
+          _ = trShippingBase.map(t => event.tr_shipping_base = t)
+          tiPriceBase <- EitherT.fromEither[F](CU.doubleToJFloat("ti_price_base ", convertedCu._4).leftMap(e => NonEmptyList.one(e)))
+          _ = tiPriceBase.map(t => event.ti_price_base = t)
         } yield ()).value
       case None => Monad[F].pure(().asRight)
     }
@@ -746,4 +754,50 @@ object EnrichmentManager {
       Failure.EnrichmentFailures(Instant.now(), fs),
       Payload.EnrichmentPayload(pee, re)
     )
+
+  private def validateEnriched[F[_]: Clock: Monad: RegistryLookup](
+    enriched: EnrichedEvent,
+    raw: RawEvent,
+    processor: Processor,
+    client: Client[F, Json]
+  ): EitherT[F, BadRow, Unit] =
+    EnrichedEvent
+      .toAtomic(enriched)
+      .leftMap(err =>
+        EnrichmentManager.buildEnrichmentFailuresBadRow(
+          NonEmptyList(
+            EnrichmentFailure(
+              None,
+              FailureDetails.EnrichmentFailureMessage.Simple(
+                "Error during conversion of enriched event to the atomic format"
+              )
+            ),
+            List(EnrichmentFailure(None, FailureDetails.EnrichmentFailureMessage.Simple(s"${CU.cleanStackTrace(err)}")))
+          ),
+          EnrichedEvent.toPartiallyEnrichedEvent(enriched),
+          RawEvent.toRawEvent(raw),
+          processor
+        )
+      )
+      .toEitherT[F]
+      .flatMap(atomic =>
+        client
+          .check(SelfDescribingData(atomicSchema, atomic))
+          .leftMap(err =>
+            EnrichmentManager.buildEnrichmentFailuresBadRow(
+              NonEmptyList(
+                EnrichmentFailure(
+                  None,
+                  FailureDetails.EnrichmentFailureMessage.Simple(
+                    s"Enriched event not valid against ${atomicSchema.toSchemaUri}"
+                  )
+                ),
+                List(EnrichmentFailure(None, FailureDetails.EnrichmentFailureMessage.IgluError(atomicSchema, err)))
+              ),
+              EnrichedEvent.toPartiallyEnrichedEvent(enriched),
+              RawEvent.toRawEvent(raw),
+              processor
+            )
+          )
+      )
 }

@@ -72,7 +72,7 @@ object Enrich {
     val registry: F[EnrichmentRegistry[F]] = env.enrichments.get.map(_.registry)
     val enrich: Enrich[F] = {
       implicit val rl: RegistryLookup[F] = env.registryLookup
-      enrichWith[F](registry, env.igluClient, env.sentry, env.processor)
+      enrichWith[F](registry, env.igluClient, env.sentry, env.processor, env.validateEnriched)
     }
 
     val enriched =
@@ -101,7 +101,8 @@ object Enrich {
     enrichRegistry: F[EnrichmentRegistry[F]],
     igluClient: Client[F, Json],
     sentry: Option[SentryClient],
-    processor: Processor
+    processor: Processor,
+    validateEnriched: Boolean
   )(
     row: Array[Byte]
   ): F[Result] = {
@@ -113,7 +114,7 @@ object Enrich {
         _ <- Logger[F].debug(payloadToString(payload))
         etlTstamp <- Clock[F].realTime(TimeUnit.MILLISECONDS).map(millis => new DateTime(millis))
         registry <- enrichRegistry
-        enriched <- EtlPipeline.processEvents[F](adapterRegistry, registry, igluClient, processor, etlTstamp, payload)
+        enriched <- EtlPipeline.processEvents[F](adapterRegistry, registry, igluClient, processor, etlTstamp, payload, validateEnriched)
       } yield (enriched, collectorTstamp)
 
     result.handleErrorWith(sendToSentry[F](row, sentry, processor, collectorTstamp))
@@ -153,7 +154,7 @@ object Enrich {
   ): BadRow.GenericError = {
     val base64 = new String(Base64.getEncoder.encode(row))
     val rawPayload = BadRowPayload.RawPayload(base64)
-    val failure = Failure.GenericFailure(time, NonEmptyList.one(error.toString))
+    val failure = Failure.GenericFailure(time, NonEmptyList.one(ConversionUtils.cleanStackTrace(error)))
     BadRow.GenericError(processor, failure, rawPayload)
   }
 

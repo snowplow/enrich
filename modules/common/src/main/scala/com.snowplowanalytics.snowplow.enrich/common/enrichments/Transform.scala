@@ -51,7 +51,7 @@ object Transform {
       ("ip", (ME.extractIp, "user_ipaddress")),
       ("aid", (ME.toTsvSafe, "app_id")),
       ("p", (ME.extractPlatform, "platform")),
-      ("tid", (CU.validateInteger, "txn_id")),
+      ("tid", (CU.stringToJInteger2, "txn_id")),
       ("uid", (ME.toTsvSafe, "user_id")),
       ("duid", (ME.toTsvSafe, "domain_userid")),
       ("nuid", (ME.toTsvSafe, "network_userid")),
@@ -94,21 +94,21 @@ object Transform {
       ("ev_ac", (ME.toTsvSafe, "se_action")), // LEGACY tracker var. Leave for backwards compat
       ("ev_la", (ME.toTsvSafe, "se_label")), // LEGACY tracker var. Leave for backwards compat
       ("ev_pr", (ME.toTsvSafe, "se_property")), // LEGACY tracker var. Leave for backwards compat
-      ("ev_va", (CU.stringToDoubleLike, "se_value")), // LEGACY tracker var. Leave for backwards compat
+      ("ev_va", (CU.stringToJFloat2, "se_value")), // LEGACY tracker var. Leave for backwards compat
       ("se_ca", (ME.toTsvSafe, "se_category")),
       ("se_ac", (ME.toTsvSafe, "se_action")),
       ("se_la", (ME.toTsvSafe, "se_label")),
       ("se_pr", (ME.toTsvSafe, "se_property")),
-      ("se_va", (CU.stringToDoubleLike, "se_value")),
+      ("se_va", (CU.stringToJFloat2, "se_value")),
       // Custom unstructured events
       ("ue_pr", (JU.extractUnencJson, "unstruct_event")),
       ("ue_px", (JU.extractBase64EncJson, "unstruct_event")),
       // Ecommerce transactions
       ("tr_id", (ME.toTsvSafe, "tr_orderid")),
       ("tr_af", (ME.toTsvSafe, "tr_affiliation")),
-      ("tr_tt", (CU.stringToDoubleLike, "tr_total")),
-      ("tr_tx", (CU.stringToDoubleLike, "tr_tax")),
-      ("tr_sh", (CU.stringToDoubleLike, "tr_shipping")),
+      ("tr_tt", (CU.stringToJFloat2, "tr_total")),
+      ("tr_tx", (CU.stringToJFloat2, "tr_tax")),
+      ("tr_sh", (CU.stringToJFloat2, "tr_shipping")),
       ("tr_ci", (ME.toTsvSafe, "tr_city")),
       ("tr_st", (ME.toTsvSafe, "tr_state")),
       ("tr_co", (ME.toTsvSafe, "tr_country")),
@@ -118,7 +118,7 @@ object Transform {
       ("ti_na", (ME.toTsvSafe, "ti_name")), // ERROR in Tracker Protocol
       ("ti_nm", (ME.toTsvSafe, "ti_name")),
       ("ti_ca", (ME.toTsvSafe, "ti_category")),
-      ("ti_pr", (CU.stringToDoubleLike, "ti_price")),
+      ("ti_pr", (CU.stringToJFloat2, "ti_price")),
       ("ti_qu", (CU.stringToJInteger2, "ti_quantity")),
       // Page pings
       ("pp_mix", (CU.stringToJInteger2, "pp_xoffset_min")),

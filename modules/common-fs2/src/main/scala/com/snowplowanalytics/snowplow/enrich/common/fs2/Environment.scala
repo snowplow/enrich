@@ -77,6 +77,8 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input.Kinesis
  * @param streamsSettings     parameters used to configure the streams
  * @param region              region in the cloud where enrich runs
  * @param cloud               cloud where enrich runs (AWS or GCP)
+ * @param validateEnriched    Whether enriched event should be validated according
+ *                            to atomic schema
  * @tparam A                  type emitted by the source (e.g. `ConsumerRecord` for PubSub).
  *                            getPayload must be defined for this type, as well as checkpointing
  */
@@ -103,7 +105,8 @@ final case class Environment[F[_], A](
   processor: Processor,
   streamsSettings: Environment.StreamsSettings,
   region: Option[String],
-  cloud: Option[Telemetry.Cloud]
+  cloud: Option[Telemetry.Cloud],
+  validateEnriched: Boolean
 )
 
 object Environment {
@@ -147,7 +150,8 @@ object Environment {
     processor: Processor,
     maxRecordSize: Int,
     cloud: Option[Telemetry.Cloud],
-    getRegion: => Option[String]
+    getRegion: => Option[String],
+    validateEnriched: Boolean
   ): Resource[F, Environment[F, A]] = {
     val file = parsedConfigs.configFile
     for {
@@ -189,7 +193,8 @@ object Environment {
       processor,
       StreamsSettings(file.concurrency, maxRecordSize),
       getRegionFromConfig(file).orElse(getRegion),
-      cloud
+      cloud,
+      validateEnriched
     )
   }
 

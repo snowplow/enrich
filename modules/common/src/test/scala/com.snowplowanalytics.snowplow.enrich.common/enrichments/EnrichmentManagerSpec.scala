@@ -20,6 +20,7 @@ import cats.data.NonEmptyList
 import io.circe.literal._
 import org.joda.time.DateTime
 import com.snowplowanalytics.snowplow.badrows._
+import com.snowplowanalytics.snowplow.badrows.FailureDetails.EnrichmentFailureMessage
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer}
 import loaders._
 import adapters.RawEvent
@@ -36,7 +37,6 @@ import enrichments.registry.{IabEnrichment, JavascriptScriptEnrichment, YauaaEnr
 import org.apache.commons.codec.digest.DigestUtils
 import org.specs2.mutable.Specification
 import org.specs2.matcher.EitherMatchers
-
 import SpecHelpers._
 
 class EnrichmentManagerSpec extends Specification with EitherMatchers {
@@ -686,6 +686,40 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       EnrichmentManager.getCollectorVersionSet(input) must beRight(())
     }
   }
+
+  "validateEnriched" should {
+    "create a bad row if a field is oversized (tv)" >> {
+      EnrichmentManager
+        .enrichEvent(
+          enrichmentReg,
+          client,
+          processor,
+          timestamp,
+          RawEvent(api, fatBody, None, source, context)
+        )
+        .swap
+        .map {
+          case BadRow.EnrichmentFailures(_, failure, _) =>
+            failure.messages.map(_.message match {
+              case EnrichmentFailureMessage.Simple(error) => error
+              case EnrichmentFailureMessage.IgluError(schemaKey, _) => schemaKey
+              case _ => None
+            })
+          case _ => None
+        }
+        .getOrElse(None) === NonEmptyList(
+        s"Enriched event not valid against ${EnrichmentManager.atomicSchema.toSchemaUri}",
+        List(EnrichmentManager.atomicSchema)
+      )
+    }
+
+    "allow normal raw events" >> {
+      EnrichmentManager
+        .enrichEvent(enrichmentReg, client, processor, timestamp, RawEvent(api, leanBody, None, source, context))
+        .map(_ => true)
+        .getOrElse(false) must beTrue
+    }
+  }
 }
 
 object EnrichmentManagerSpec {
@@ -705,6 +739,18 @@ object EnrichmentManagerSpec {
     Nil,
     None
   )
+
+  val leanBody = Map(
+    "e" -> "pp",
+    "tv" -> "js-0.13.1",
+    "p" -> "web"
+  ).toOpt
+
+  val fatBody = Map(
+    "e" -> "pp",
+    "tv" -> s"${"s" * 500}",
+    "p" -> "web"
+  ).toOpt
 
   val iabEnrichment = IabEnrichment
     .parse(
@@ -739,4 +785,5 @@ object EnrichmentManagerSpec {
     .getOrElse(throw new RuntimeException("IAB enrichment couldn't be initialised")) // to make sure it's not none
     .enrichment[Id]
     .some
+
 }

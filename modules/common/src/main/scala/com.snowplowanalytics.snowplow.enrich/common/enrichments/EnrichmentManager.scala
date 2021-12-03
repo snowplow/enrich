@@ -16,26 +16,25 @@ package enrichments
 import java.nio.charset.Charset
 import java.net.URI
 import java.time.Instant
-
+import java.io.{PrintWriter, StringWriter}
 import org.joda.time.DateTime
-
 import io.circe.Json
-
 import cats.Monad
 import cats.data.{EitherT, NonEmptyList, OptionT, ValidatedNel}
 import cats.effect.Clock
 import cats.implicits._
 
+import com.snowplowanalytics.refererparser._
+
 import com.snowplowanalytics.iglu.client.Client
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 
-import com.snowplowanalytics.iglu.core.SelfDescribingData
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
 import com.snowplowanalytics.snowplow.badrows._
 import com.snowplowanalytics.snowplow.badrows.{FailureDetails, Payload, Processor}
-
-import com.snowplowanalytics.refererparser._
+import com.snowplowanalytics.snowplow.badrows.FailureDetails.EnrichmentFailure
 
 import adapters.RawEvent
 import enrichments.{EventEnrichments => EE}
@@ -49,6 +48,8 @@ import outputs.EnrichedEvent
 import utils.{IgluUtils, ConversionUtils => CU}
 
 object EnrichmentManager {
+
+  val atomicSchema: SchemaKey = SchemaKey("com.snowplowanalytics.snowplow", "atomic", "jsonschema", SchemaVer.Full(1, 0, 0))
 
   /**
    * Run the enrichment workflow
@@ -92,6 +93,7 @@ object EnrichmentManager {
                enriched.pii = pii.asString
              }
            }
+      _ <- validateEnriched(enriched, raw, processor, client)
     } yield enriched
 
   /**
@@ -746,4 +748,55 @@ object EnrichmentManager {
       Failure.EnrichmentFailures(Instant.now(), fs),
       Payload.EnrichmentPayload(pee, re)
     )
+
+  private def validateEnriched[F[_]: Clock: Monad: RegistryLookup](
+    enriched: EnrichedEvent,
+    raw: RawEvent,
+    processor: Processor,
+    client: Client[F, Json]
+  ): EitherT[F, BadRow, Unit] =
+    enriched.toAtomicEvent
+      .leftMap(err =>
+        EnrichmentManager.buildEnrichmentFailuresBadRow(
+          NonEmptyList(
+            EnrichmentFailure(
+              None,
+              FailureDetails.EnrichmentFailureMessage.Simple(
+                "Error during conversion of enriched event to the atomic format"
+              )
+            ),
+            List(EnrichmentFailure(None, FailureDetails.EnrichmentFailureMessage.Simple(s"${cleanStackTrace(err)}")))
+          ),
+          EnrichedEvent.toPartiallyEnrichedEvent(enriched),
+          RawEvent.toRawEvent(raw),
+          processor
+        )
+      )
+      .toEitherT[F]
+      .flatMap(atomic =>
+        client
+          .check(SelfDescribingData(atomicSchema, atomic))
+          .leftMap(err =>
+            EnrichmentManager.buildEnrichmentFailuresBadRow(
+              NonEmptyList(
+                EnrichmentFailure(
+                  None,
+                  FailureDetails.EnrichmentFailureMessage.Simple(
+                    s"Enriched event not valid against ${atomicSchema.toSchemaUri}"
+                  )
+                ),
+                List(EnrichmentFailure(None, FailureDetails.EnrichmentFailureMessage.IgluError(atomicSchema, err)))
+              ),
+              EnrichedEvent.toPartiallyEnrichedEvent(enriched),
+              RawEvent.toRawEvent(raw),
+              processor
+            )
+          )
+      )
+
+  private def cleanStackTrace(t: Throwable): String = {
+    val sw = new StringWriter
+    t.printStackTrace(new PrintWriter(sw))
+    sw.toString
+  }
 }

@@ -142,7 +142,7 @@ object Run {
     environment.use { env =>
       val log = Logger[F].info("Running enrichment stream")
       val enrich = Enrich.run[F, A](env)
-      val updates = Assets.run[F, A](env)
+      val updates = Assets.run[F, A](env.blocker, env.semaphore, env.assetsUpdatePeriod, env.assetsState, env.enrichments)
       val reporting = env.metrics.report
       val flow = enrich.merge(updates).merge(reporting)
       log >> flow.compile.drain.as(ExitCode.Success).recoverWith {

@@ -62,7 +62,6 @@ object Enrich {
   /**
    * Run a primary enrichment stream, reading from [[Environment]] source, enriching
    * via [[enrichWith]] and sinking into the Good, Bad, and Pii sinks.
-   * Can be stopped via _stop signal_ from [[Environment]]
    *
    * The stream won't download any enrichment DBs, it is responsibility of [[Assets]]
    * [[Assets.State.make]] downloads assets for the first time unconditionally during
@@ -80,13 +79,13 @@ object Enrich {
       env.source.chunks
         // .prefetch TODO
         .evalTap(chunk => Logger[F].debug(s"Starting to process chunk of size ${chunk.size}"))
-        .pauseWhen(env.pauseEnrich)
         .evalTap(chunk => env.metrics.rawCount(chunk.size))
         .map(chunk => chunk.map(a => (a, env.getPayload(a))))
         .evalMap(chunk =>
-          chunk.toList.map { case (orig, bytes) => enrich(bytes).map((orig, _)) }.parSequenceN(env.streamsSettings.concurrency.enrich)
+          env.semaphore.withPermit(
+            chunk.toList.map { case (orig, bytes) => enrich(bytes).map((orig, _)) }.parSequenceN(env.streamsSettings.concurrency.enrich)
+          )
         )
-      //  .evalMap(chunk => `env.pauser.withPermit(chunk.toList.map { case (orig, bytes) => enrich(bytes).map((orig, _)) }.parSequenceN(64))!!)
         .prefetch
 
     val sinkAndCheckpoint: Pipe[F, List[(A, Result)], Unit] =

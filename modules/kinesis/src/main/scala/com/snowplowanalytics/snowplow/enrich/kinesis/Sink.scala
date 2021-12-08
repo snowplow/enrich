@@ -48,8 +48,8 @@ object Sink {
         o.region.orElse(getRuntimeRegion) match {
           case Some(region) =>
             val producer = mkProducer[F](o, region, monitoring)
-            Resource.pure[F, KinesisProducerClient[F]](producer).map { producer =>
-              bytes => writeToKinesis(o, producer, AttributedData(bytes, Map.empty))
+            Resource.pure[F, KinesisProducerClient[F]](producer).map { producer => bytes =>
+              writeToKinesis(o, producer, AttributedData(bytes, Map.empty))
             }
           case None =>
             Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"Region not found in the config and in the runtime")))
@@ -67,9 +67,7 @@ object Sink {
         o.region.orElse(getRuntimeRegion) match {
           case Some(region) =>
             val producer = mkProducer[F](o, region, monitoring)
-            Resource.pure[F, KinesisProducerClient[F]](producer).map { producer =>
-              data => writeToKinesis(o, producer, data)
-            }
+            Resource.pure[F, KinesisProducerClient[F]](producer).map(producer => data => writeToKinesis(o, producer, data))
           case None =>
             Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"Region not found in the config and in the runtime")))
         }

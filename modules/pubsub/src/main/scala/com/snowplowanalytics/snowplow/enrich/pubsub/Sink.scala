@@ -88,8 +88,6 @@ object Sink {
 
     GooglePubsubProducer
       .of[F, A](ProjectId(output.project), Topic(output.name), config)
-      .map { producer =>
-        row => producer.produce(row.data, row.attributes).void
-      }
+      .map(producer => row => producer.produce(row.data, row.attributes).void)
   }
 }

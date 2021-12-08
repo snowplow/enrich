@@ -18,18 +18,14 @@ import cats.Show
 import cats.data.EitherT
 import cats.implicits._
 
-import cats.effect.{Async, Blocker, Clock, Concurrent, ConcurrentEffect, ContextShift, Resource, Sync, Timer}
-import cats.effect.concurrent.Ref
+import cats.effect.{Async, Blocker, Clock, ConcurrentEffect, ContextShift, Resource, Sync, Timer}
+import cats.effect.concurrent.{Ref, Semaphore}
 
-import fs2.concurrent.SignallingRef
 import fs2.Stream
 
 import _root_.io.circe.Json
 
 import _root_.io.sentry.{Sentry, SentryClient}
-
-import org.typelevel.log4cats.Logger
-import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import com.snowplowanalytics.iglu.client.{Client => IgluClient}
 import com.snowplowanalytics.iglu.client.resolver.registries.{Http4sRegistryLookup, RegistryLookup}
@@ -57,8 +53,7 @@ import scala.concurrent.ExecutionContext
  * @param enrichments         enrichment registry with all clients and parsed configuration files
  *                            it's wrapped in mutable variable because all resources need to be
  *                            reinitialized after DB assets are updated via [[Assets]] stream
- * @param pauseEnrich         a signalling reference that can pause a raw stream and enrichment,
- *                            should be used only by [[Assets]]
+ * @param semaphore           its permit is shared between enriching the events and updating the assets
  * @param assetsState         a main entity from [[Assets]] stream, controlling when assets
  *                            have to be replaced with newer ones
  * @param blocker             thread pool for blocking operations and enrichments themselves
@@ -82,7 +77,7 @@ final case class Environment[F[_], A](
   igluClient: IgluClient[F, Json],
   registryLookup: RegistryLookup[F],
   enrichments: Ref[F, Environment.Enrichments[F]],
-  pauseEnrich: SignallingRef[F, Boolean],
+  semaphore: Semaphore[F],
   assetsState: Assets.State[F],
   blocker: Blocker,
   source: Stream[F, A],
@@ -101,9 +96,6 @@ final case class Environment[F[_], A](
 )
 
 object Environment {
-
-  private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
-    Slf4jLogger.getLogger[F]
 
   /** Registry with all allocated clients (MaxMind, IAB etc) and their original configs */
   final case class Enrichments[F[_]](registry: EnrichmentRegistry[F], configs: List[EnrichmentConf]) {
@@ -153,21 +145,20 @@ object Environment {
       clts = Clients.init[F](http, clients)
       igluClient <- IgluClient.parseDefault[F](parsedConfigs.igluJson).resource
       metrics <- Resource.eval(metricsReporter[F](blocker, file))
-      download = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
-      pauseEnrich <- makePause[F]
-      assets <- Assets.State.make[F](blocker, pauseEnrich, download, clts)
+      assets = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
+      sem <- Resource.eval(Semaphore(1L))
+      assetsState <- Resource.eval(Assets.State.make[F](blocker, sem, clts, assets))
       enrichments <- Enrichments.make[F](parsedConfigs.enrichmentConfigs, BlockerF.ofBlocker(blocker))
       sentry <- file.monitoring.flatMap(_.sentry).map(_.dsn) match {
                   case Some(dsn) => Resource.eval[F, Option[SentryClient]](Sync[F].delay(Sentry.init(dsn.toString).some))
                   case None => Resource.pure[F, Option[SentryClient]](none[SentryClient])
                 }
-      _ <- Resource.eval(pauseEnrich.set(false) *> Logger[F].info("Enrich environment initialized"))
     } yield Environment[F, A](
       igluClient,
       Http4sRegistryLookup(http),
       enrichments,
-      pauseEnrich,
-      assets,
+      sem,
+      assetsState,
       blocker,
       source,
       good,
@@ -184,14 +175,6 @@ object Environment {
       StreamsSettings(file.concurrency, maxRecordSize)
     )
   }
-
-  /**
-   * Make sure `enrichPause` gets into paused state before destroying pipes
-   * Initialised into `true` because enrich stream should not start until
-   * [[Assets.State]] is constructed - it will download all assets
-   */
-  def makePause[F[_]: Concurrent]: Resource[F, SignallingRef[F, Boolean]] =
-    Resource.make(SignallingRef(true))(_.set(true))
 
   private def metricsReporter[F[_]: ConcurrentEffect: ContextShift: Timer](blocker: Blocker, config: ConfigFile): F[Metrics[F]] =
     config.monitoring.flatMap(_.metrics).map(Metrics.build[F](blocker, _)).getOrElse(Metrics.noop[F].pure[F])

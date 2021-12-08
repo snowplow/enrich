@@ -56,15 +56,6 @@ object HttpServer extends CatsIO {
   def routes(counter: Ref[IO, Int]): HttpRoutes[IO] =
     HttpRoutes
       .of[IO] {
-        case r @ GET -> Root / "asset" =>
-          logger.debug(r.pathInfo) *> Ok("data")
-        case r @ GET -> Root / "slow" =>
-          val action = for {
-            i <- counter.updateAndGet(_ + 1)
-            _ <- if (i == 1) IO.sleep(100.milliseconds) else IO.sleep(10.seconds)
-            res <- Ok(s"slow data $i")
-          } yield res
-          logger.debug(r.pathInfo) *> action
         case r @ GET -> Root / "counter" =>
           logger.debug(r.pathInfo) *> counter.updateAndGet(_ + 1).flatMap { i =>
             Ok(s"counter $i")

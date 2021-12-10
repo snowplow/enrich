@@ -275,7 +275,7 @@ object Enrich {
             // Runtime exception in the stream of enriched events.
             // We wait for the enriched events already in the queue to get sunk and checkpointed.
             // We then raise the original exception
-            terminateStream(queue, fiber) *> Sync[F].raiseError(e)
+            terminateStream(queue, fiber).attempt *> Sync[F].raiseError(e)
         }
     }
 

@@ -39,7 +39,7 @@ object Dependencies {
     val yauaa            = "5.23"
     val guava            = "28.1-jre"
     val slf4j            = "1.7.26"
-    val log4j            = "2.13.3"
+    val log4j            = "2.15.0"
 
     val refererParser    = "1.1.0"
     val maxmindIplookups = "0.7.1"

@@ -90,11 +90,7 @@ object Enrich {
 
     val sinkAndCheckpoint: Pipe[F, List[(A, Result)], Unit] =
       _
-        .parEvalMap(env.streamsSettings.concurrency.sink) { chunk =>
-          val records = chunk.map(_._1)
-          val results = chunk.map(_._2)
-          sinkChunk(results, sinkOne(env), env.metrics.enrichLatency).as(records)
-        }
+        .parEvalMap(env.streamsSettings.concurrency.sink)(sinkChunk(_, sinkOne(env), env.metrics.enrichLatency))
         .prefetch
         .evalMap(env.checkpoint)
 
@@ -166,13 +162,13 @@ object Enrich {
   }
 
   def sinkChunk[F[_]: Concurrent: Parallel, B](
-    results: List[Result],
+    chunk: List[(B, Result)],
     sinkOne: Validated[BadRow, EnrichedEvent] => F[Unit],
     trackLatency: Option[Long] => F[Unit]
-  ): F[Unit] =
-    results.parTraverse_ {
-      case (events, collectorTstamp) =>
-        events.parTraverse_(one => sinkOne(one)) <* trackLatency(collectorTstamp)
+  ): F[List[B]] =
+    chunk.parTraverse { case (record, result) =>
+      val (events, collectorTstamp) = result
+      events.parTraverse_(one => sinkOne(one)).as(record) <* trackLatency(collectorTstamp)
     }
 
   def sinkOne[F[_]: Concurrent: Parallel, A](env: Environment[F, A])(result: Validated[BadRow, EnrichedEvent]): F[Unit] =

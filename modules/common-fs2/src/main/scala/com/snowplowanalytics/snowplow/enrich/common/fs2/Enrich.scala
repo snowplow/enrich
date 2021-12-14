@@ -77,7 +77,6 @@ object Enrich {
 
     val enriched =
       env.source.chunks
-        // .prefetch TODO
         .evalTap(chunk => Logger[F].debug(s"Starting to process chunk of size ${chunk.size}"))
         .evalTap(chunk => env.metrics.rawCount(chunk.size))
         .map(chunk => chunk.map(a => (a, env.getPayload(a))))
@@ -86,12 +85,10 @@ object Enrich {
             chunk.toList.map { case (orig, bytes) => enrich(bytes).map((orig, _)) }.parSequenceN(env.streamsSettings.concurrency.enrich)
           )
         )
-        .prefetch
 
     val sinkAndCheckpoint: Pipe[F, List[(A, Result)], Unit] =
       _
         .parEvalMap(env.streamsSettings.concurrency.sink)(sinkChunk(_, sinkOne(env), env.metrics.enrichLatency))
-        .prefetch
         .evalMap(env.checkpoint)
 
     Stream.eval(runWithShutdown(enriched, sinkAndCheckpoint))

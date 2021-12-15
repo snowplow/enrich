@@ -18,9 +18,9 @@ import sbt._
 object Dependencies {
 
   val resolutionRepos = Seq(
-     // For some Twitter libs and uaParser utils
+    // For some Twitter libs and uaParser utils
     "Concurrent Maven Repo"          at "https://conjars.org/repo",
-     // For Twitter's util functions
+    // For Twitter's util functions
     "Twitter Maven Repo"             at "https://maven.twttr.com/",
     // For legacy Snowplow libs
     ("Snowplow Analytics Maven repo" at "http://maven.snplow.com/releases/").withAllowInsecureProtocol(true)
@@ -39,7 +39,7 @@ object Dependencies {
     val yauaa            = "5.23"
     val guava            = "28.1-jre"
     val slf4j            = "1.7.26"
-    val log4j            = "2.13.3"
+    val log4j            = "2.16.0" // CVE-2021-44228
 
     val refererParser    = "1.1.0"
     val maxmindIplookups = "0.7.1"

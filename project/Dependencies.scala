@@ -38,7 +38,7 @@ object Dependencies {
     val iabClient        = "0.2.0"
     val yauaa            = "5.23"
     val guava            = "28.1-jre"
-    val slf4j            = "1.7.26"
+    val slf4j            = "1.7.32"
     val log4j            = "2.16.0" // CVE-2021-44228
 
     val refererParser    = "1.1.0"

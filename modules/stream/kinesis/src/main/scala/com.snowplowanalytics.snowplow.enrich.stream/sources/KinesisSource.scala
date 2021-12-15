@@ -148,6 +148,8 @@ class KinesisSource private (
     log.info("Using workerId: " + workerId)
 
     val kinesisClientLibConfiguration = {
+      // https://github.com/awslabs/amazon-kinesis-client/issues/737
+      @annotation.nowarn("msg=constructor KinesisClientLibConfiguration in class KinesisClientLibConfiguration is deprecated")
       val kclc = new KinesisClientLibConfiguration(
         config.appName,
         config.in.raw,

@@ -401,7 +401,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
              |"data":{"promotionAction":"action"}
            |},{
              |"schema":"iglu:com.google.analytics.measurement-protocol/promotion/jsonschema/1-0-0",
-             |"data":{"index":12,"id":"id"}
+             |"data":{"id":"id","index":12}
            |}]
          |}""".stripMargin.replaceAll("[\n\r]", "")
     val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO).toOpt

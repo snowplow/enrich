@@ -201,7 +201,12 @@ lazy val commonFs2 = project
       Dependencies.Libraries.scalacheck,
       Dependencies.Libraries.specs2Scalacheck,
       Dependencies.Libraries.http4sDsl,
-      Dependencies.Libraries.http4sServer
+      Dependencies.Libraries.http4sServer,
+      Dependencies.Libraries.eventGen,
+      Dependencies.Libraries.specsDiff,
+      Dependencies.Libraries.circeCore % Test,
+      Dependencies.Libraries.circeGeneric % Test,
+      Dependencies.Libraries.circeParser % Test
     ),
     addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
   )

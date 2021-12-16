@@ -1,3 +1,12 @@
+Version 2.0.4 (2021-12-16)
+--------------------------
+Bump log4j-core to 2.16.0 (#524)
+Bump slf4j to 1.7.32 (#525)
+Bump scio to 0.11.1 (#526)
+Bump sbt to 1.5.6 (#527)
+Bump scala version to 2.12.15 (#532)
+Bump amazon-kinesis-client to 0.14.5 (#533)
+
 Version 2.0.3 (2021-10-27)
 --------------------------
 PubSub: check size of plain bad rows before sinking (#510)

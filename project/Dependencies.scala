@@ -85,6 +85,8 @@ object Dependencies {
     val http4s           = "0.21.22"
     val log4cats         = "1.3.0"
     val catsRetry        = "2.1.0"
+    val specsDiff        = "0.6.0"
+    val eventGen         = "0.2.0"
 
     val scopt            = "3.7.1"
     val pureconfig       = "0.11.0"
@@ -149,13 +151,15 @@ object Dependencies {
     val protobuf         = "com.google.protobuf"        %  "protobuf-java"                 % V.protobuf
     val googleAuth       = "com.google.oauth-client"    %  "google-oauth-client"           % V.googleAuth
 
-    val specs2             = "org.specs2"     %% "specs2-core"                 % V.specs2   % Test
-    val specs2Cats         = "org.specs2"     %% "specs2-cats"                 % V.specs2   % Test
-    val specs2Scalacheck   = "org.specs2"     %% "specs2-scalacheck"           % V.specs2   % Test
-    val specs2ScalacheckIt = "org.specs2"     %% "specs2-scalacheck"           % V.specs2   % IntegrationTest
-    val specs2Mock         = "org.specs2"     %% "specs2-mock"                 % V.specs2   % Test
-    val specs2CE           = "com.codecommit" %% "cats-effect-testing-specs2"  % V.specs2CE % Test
-    val specs2CEIt         = "com.codecommit" %% "cats-effect-testing-specs2"  % V.specs2CE % IntegrationTest
+    val specs2             = "org.specs2"             %% "specs2-core"                   % V.specs2    % Test
+    val specs2Cats         = "org.specs2"             %% "specs2-cats"                   % V.specs2    % Test
+    val specs2Scalacheck   = "org.specs2"             %% "specs2-scalacheck"             % V.specs2    % Test
+    val specs2ScalacheckIt = "org.specs2"             %% "specs2-scalacheck"             % V.specs2    % IntegrationTest
+    val specs2Mock         = "org.specs2"             %% "specs2-mock"                   % V.specs2    % Test
+    val specs2CE           = "com.codecommit"         %% "cats-effect-testing-specs2"    % V.specs2CE  % Test
+    val specs2CEIt         = "com.codecommit"         %% "cats-effect-testing-specs2"    % V.specs2CE  % IntegrationTest
+    val specsDiff          = "com.softwaremill.diffx" %% "diffx-specs2"                  % V.specsDiff % Test
+    val eventGen           = "com.snowplowanalytics"  %% "snowplow-event-generator-core" % V.eventGen  % Test
 
     // Stream
     val kinesisSdk       = "com.amazonaws"                    %  "aws-java-sdk-kinesis"              % V.awsSdk

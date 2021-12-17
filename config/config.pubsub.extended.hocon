@@ -1,0 +1,191 @@
+{
+  # Collector input
+  "input": {
+    "type": "PubSub"
+
+    # Name of the PubSub subscription with the collector payloads
+    "subscription": "projects/test-project/subscriptions/collector-payloads-sub"
+
+    # Optional. Number of threads used internally by permutive library to handle incoming messages.
+    # These threads do very little "work" apart from writing the message to a concurrent Queue.
+    "parallelPullCount": 1
+
+    # Optional. Configures the "max outstanding element count" of pubSub.
+    # This is the principal way we control concurrency in the app; it puts an upper bound on the number
+    # of events in memory at once. An event counts towards this limit starting from when it received
+    # by the permutive library, until we ack it (after publishing to output). The value must be large
+    # enough that it does not cause the sink to block whilst it is waiting for a batch to be
+    # completed.
+    "maxQueueSize": 3000
+  }
+
+  "output": {
+    # Enriched events output
+    "good": {
+      "type": "PubSub"
+
+      # Name of the PubSub topic that will receive the enriched events
+      "topic": "projects/test-project/topics/enriched"
+
+      # Optional. Enriched event fields to add as PubSub message attributes.
+      "attributes": [ "app_id" ]
+
+      # Optional. Delay threshold to use for batching.
+      # After this amount of time has elapsed,
+      # before maxBatchSize and maxBatchBytes have been reached,
+      # messages from the buffer will be sent.
+      "delayThreshold": 200 milliseconds
+
+      # Optional. Maximum number of messages sent within a batch.
+      # When the buffer reaches this number of messages they are sent.
+      # PubSub maximum : 1000
+      "maxBatchSize": 1000
+
+      # Optional. Maximum number of bytes sent within a batch.
+      # When the buffer reaches this size messages are sent.
+      # PubSub maximum : 10MB
+      "maxBatchBytes": 10000000
+    }
+
+    # Pii events output
+    "pii": {
+      "type": "PubSub"
+
+      # Name of the PubSub topic that will receive the pii events
+      "topic": "projects/test-project/topics/pii"
+
+      # Optional. Pii event fields to add as PubSub message attributes.
+      # "attributes": [ "app_id" ]
+
+      # Optional. Delay threshold to use for batching.
+      # After this amount of time has elapsed,
+      # before maxBatchSize and maxBatchBytes have been reached,
+      # messages from the buffer will be sent.
+      "delayThreshold": 200 milliseconds
+
+      # Optional. Maximum number of messages sent within a batch.
+      # When the buffer reaches this number of messages they are sent.
+      # PubSub maximum : 1000
+      "maxBatchSize": 1000
+
+      # Optional. Maximum number of bytes sent within a batch.
+      # When the buffer reaches this size messages are sent.
+      # PubSub maximum : 10MB
+      "maxBatchBytes": 10000000
+    }
+
+    # Bad rows output
+    "bad": {
+      "type": "PubSub"
+
+      # Name of the PubSub topic that will receive the bad rows
+      "topic": "projects/test-project/topics/bad"
+
+      # Optional. Delay threshold to use for batching.
+      # After this amount of time has elapsed,
+      # before maxBatchSize and maxBatchBytes have been reached,
+      # messages from the buffer will be sent.
+      "delayThreshold": 200 milliseconds
+
+      # Optional. Maximum number of messages sent within a batch.
+      # When the buffer reaches this number of messages they are sent.
+      # PubSub maximum : 1000
+      "maxBatchSize": 1000
+
+      # Optional. Maximum number of bytes sent within a batch.
+      # When the buffer reaches this size messages are sent.
+      # PubSub maximum : 10MB
+      "maxBatchBytes": 10000000
+    }
+  }
+
+  # Optional. Concurrency of the app
+  "concurrency" : {
+    # Number of events that can get enriched at the same time within a chunk
+    "enrich": 256
+    # Number of chunks that can get sunk at the same time
+    "sink": 3
+  }
+
+  # Optional. period after which enrich assets should be checked for updates
+  # no assets will be updated if the key is absent
+  "assetsUpdatePeriod": "7 days"
+
+  "monitoring": {
+
+    # Optional, for tracking runtime exceptions
+    "sentry": {
+      "dsn": "http://sentry.acme.com"
+    }
+
+    # Optional, configure how metrics are reported
+    "metrics": {
+
+      # Optional. Send metrics to a StatsD server
+      "statsd": {
+        "hostname": "localhost"
+        "port": 8125
+
+        # Required, how frequently to report metrics
+        "period": "10 seconds"
+
+        # Any key-value pairs to be tagged on every StatsD metric
+        "tags": {
+          "app": enrich
+        }
+
+        # Optional, override the default metric prefix
+        # "prefix": "snowplow.enrich."
+      }
+
+      # Optional. Log to stdout using Slf4j
+      "stdout": {
+        "period": "10 seconds"
+
+        # Optional, override the default metric prefix
+        # "prefix": "snowplow.enrich."
+      }
+    }
+  }
+
+  # Optional, configure telemetry
+  # All the fields are optional
+  "telemetry": {
+
+    # Set to true to disable telemetry
+    "disable": false
+
+    # Interval for the heartbeat event
+    "interval": 15 minutes
+
+    # HTTP method used to send the heartbeat event
+    "method": POST
+
+    # URI of the collector receiving the heartbeat event
+    "collectorUri": collector-g.snowplowanalytics.com
+
+    # Port of the collector receiving the heartbeat event
+    "collectorPort": 443
+
+    # Whether to use https or not
+    "secure": true
+
+    # Identifier intended to tie events together across modules,
+    # infrastructure and apps when used consistently
+    "userProvidedId": my_pipeline
+
+    # ID automatically generated upon running a modules deployment script
+    # Intended to identify each independent module, and the infrastructure it controls
+    "autoGeneratedId": hfy67e5ydhtrd
+
+    # Unique identifier for the VM instance
+    # Unique for each instance of the app running within a module
+    "instanceId": 665bhft5u6udjf
+
+    # Name of the terraform module that deployed the app
+    "moduleName": enrich-kinesis-ce
+
+    # Version of the terraform module that deployed the app
+    "moduleVersion": 1.0.0
+  }
+}

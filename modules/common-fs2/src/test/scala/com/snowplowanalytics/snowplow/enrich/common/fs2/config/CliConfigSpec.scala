@@ -20,9 +20,9 @@ class CliConfigSpec extends Specification with CatsIO {
   "parseHocon" should {
     "parse valid HOCON" in {
       val string = """
-           input = {
-             type = "PubSub"
-             subscription = "inputSub"
+           "input": {
+             "type": "PubSub"
+              "subscription": "projects/test-project/subscriptions/collector-payloads-sub"
            }
           """.stripMargin
       Base64Hocon.parseHocon(string) must beRight

@@ -1,52 +1,35 @@
-{
-  # Collector input
-  "input": {
-    "type": "PubSub"
-    "subscription": "projects/test-project/subscriptions/inputSub"
+# For testing purposes only
+# Can be used with either enrich-pubsub or enrich-kinesis
 
-    # Local FS supported for testing purposes
-    # "type": "FileSystem"
-    # "dir": "/var/collector"
+{
+  "input": {
+    "type": "FileSystem"
+
+    # Directory containing collector payloads that are Thrift encoded
+    "dir": "/var/collector-payloads"
   }
 
   "output": {
     # Enriched events output
     "good": {
-      "type": "PubSub"
-      "topic": "projects/test-project/topics/good-topic"
-
-      # Enriched event fields to add as PubSub message attributes.
-      "attributes": [ "app_id" ]
-
-      # Local FS supported for testing purposes
-      # "type": "FileSystem"
-      # "file": "/var/enriched"
-      # "maxBytes": 1000000
+      "type": "FileSystem"
+      "file": "/var/enriched"
+      "maxBytes": 1000000
     }
 
     # Pii events output
     "pii": {
-      "type": "PubSub"
-      "topic": "projects/test-project/topics/pii-topic"
-
-      # Enriched event fields to add as PubSub message attributes.
-      # "attributes": [ "app_id" ]
-
-      # Local FS supported for testing purposes
-      # "type": "FileSystem"
-      # "file": "/var/pii"
-      # "maxBytes": 1000000
+      "type": "FileSystem"
+      "file": "/var/pii"
+      "maxBytes": 1000000
     }
 
     # Bad rows output
     "bad": {
-      "type": "PubSub"
-      "topic": "projects/test-project/topics/bad-topic"
-
       # Local FS supported for testing purposes
-      # "type": "FileSystem"
-      # "file": "/var/bad"
-      # "maxBytes": 1000000
+      "type": "FileSystem"
+      "file": "/var/bad"
+      "maxBytes": 1000000
     }
   }
 
@@ -58,7 +41,7 @@
     "sink": 3
   }
 
-  # Optional, period after which enrich assets should be checked for updates
+  # Optional. period after which enrich assets should be checked for updates
   # no assets will be updated if the key is absent
   "assetsUpdatePeriod": "7 days"
 
@@ -72,9 +55,8 @@
     # Optional, configure how metrics are reported
     "metrics": {
 
-      # Send metrics to a StatsD server on localhost
+      # Optional. Send metrics to a StatsD server
       "statsd": {
-
         "hostname": "localhost"
         "port": 8125
 
@@ -90,7 +72,7 @@
         # "prefix": "snowplow.enrich."
       }
 
-      # Log to stdout using Slf4j
+      # Optional. Log to stdout using Slf4j
       "stdout": {
         "period": "10 seconds"
 
@@ -98,8 +80,9 @@
         # "prefix": "snowplow.enrich."
       }
 
+      # Optional. Cloudwatch metrics for KPL
+      "cloudwatch": true
     }
-
   }
 
   # Optional, configure telemetry
@@ -141,5 +124,5 @@
 
     # Version of the terraform module that deployed the app
     moduleVersion = 1.0.0
-   }
+  }
 }

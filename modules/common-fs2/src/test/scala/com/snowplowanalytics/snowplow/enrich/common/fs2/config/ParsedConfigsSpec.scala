@@ -31,11 +31,13 @@ class ParsedConfigsSpec extends Specification with CatsIO {
       val invalidAttr2 = "invalidAttr2"
 
       val configFile = ConfigFile(
-        io.Input.PubSub("projects/test-project/subscriptions/inputSub", None, None),
+        io.Input.PubSub("projects/test-project/subscriptions/inputSub", 1, 3000),
         io.Outputs(
-          io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id", invalidAttr1)), None, None, None, None),
-          Some(io.Output.PubSub("projects/test-project/topics/pii-topic", Some(Set("app_id", invalidAttr2)), None, None, None, None)),
-          io.Output.PubSub("projects/test-project/topics/bad-topic", None, None, None, None, None)
+          io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id", invalidAttr1)), 200.milliseconds, 1000, 10000000),
+          Some(
+            io.Output.PubSub("projects/test-project/topics/pii-topic", Some(Set("app_id", invalidAttr2)), 200.milliseconds, 1000, 10000000)
+          ),
+          io.Output.PubSub("projects/test-project/topics/bad-topic", None, 200.milliseconds, 1000, 10000000)
         ),
         io.Concurrency(10000, 64),
         Some(7.days),
@@ -72,7 +74,7 @@ class ParsedConfigsSpec extends Specification with CatsIO {
 
   "outputAttributes" should {
     "fetch attribute values" in {
-      val output = io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id")), None, None, None, None)
+      val output = io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id")), 200.milliseconds, 1000, 10000000)
       val ee = new EnrichedEvent()
       ee.app_id = "test_app"
 

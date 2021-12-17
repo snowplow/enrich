@@ -27,24 +27,6 @@ import cats.effect.{Blocker, ContextShift, Sync}
 
 object Source {
 
-  /**
-   * Number of threads used internally by permutive library to handle incoming messages.
-   * These threads do very little "work" apart from writing the message to a concurrent Queue.
-   * Overrides the permutive library default of `3`.
-   */
-  val DefaultParallelPullCount = 1
-
-  /**
-   * Configures the "max outstanding element count" of pubSub.
-   *
-   * This is the principal way we control concurrency in the app; it puts an upper bound on the number
-   * of events in memory at once. An event counts towards this limit starting from when it received
-   * by the permutive library, until we ack it (after publishing to output). The value must be large
-   * enough that it does not cause the sink to block whilst it is waiting for a batch to be
-   * completed.
-   */
-  val DefaultMaxQueueSize = 3000
-
   def init[F[_]: Concurrent: ContextShift](
     blocker: Blocker,
     input: Input
@@ -65,8 +47,8 @@ object Source {
     val pubSubConfig =
       PubsubGoogleConsumerConfig(
         onFailedTerminate = onFailedTerminate,
-        parallelPullCount = input.parallelPullCount.getOrElse(DefaultParallelPullCount),
-        maxQueueSize = input.maxQueueSize.getOrElse(DefaultMaxQueueSize)
+        parallelPullCount = input.parallelPullCount,
+        maxQueueSize = input.maxQueueSize
       )
     val projectId = Model.ProjectId(input.project)
     val subscriptionId = Model.Subscription(input.name)

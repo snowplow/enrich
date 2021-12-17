@@ -58,8 +58,11 @@ object ConfigFile {
       case ConfigFile(_, _, _, Some(aup), _, _) if aup._1 <= 0L =>
         "assetsUpdatePeriod in config file cannot be less than 0".asLeft // TODO: use newtype
       // Remove pii output if streamName and region empty
-      case c @ ConfigFile(_, Outputs(good, Some(Output.Kinesis(s, r, _, _, _, _, _, _, _, _, _, _, _)), bad), _, _, _)
-        if(s.isEmpty && r.isEmpty) => c.copy(output = Outputs(good, None, bad)).asRight
+      case c @ ConfigFile(_, Outputs(good, Some(Output.Kinesis(s, _, _, _, _, _, _, _, _, _, _, _, _)), bad), _, _, _, _) if s.isEmpty =>
+        c.copy(output = Outputs(good, None, bad)).asRight
+      // Remove pii output if topic empty
+      case c @ ConfigFile(_, Outputs(good, Some(Output.PubSub(t, _, _, _, _)), bad), _, _, _, _) if t.isEmpty =>
+        c.copy(output = Outputs(good, None, bad)).asRight
       case other => other.asRight
     }
   implicit val configFileEncoder: Encoder[ConfigFile] =

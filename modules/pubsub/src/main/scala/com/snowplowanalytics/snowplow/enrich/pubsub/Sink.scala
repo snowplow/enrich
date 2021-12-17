@@ -12,8 +12,6 @@
  */
 package com.snowplowanalytics.snowplow.enrich.pubsub
 
-import scala.concurrent.duration._
-
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
@@ -32,29 +30,6 @@ object Sink {
 
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
     Slf4jLogger.getLogger[F]
-
-  /**
-   * Set the delay threshold to use for batching. After this amount of time has elapsed (counting
-   * from the first element added), the elements will be wrapped up in a batch and sent.
-   *
-   * If the source MaxQueueSize is small, then the queue could block the app by waiting between
-   * batches if DelayThreshold is too large.  If the source MaxQueueSize is sufficiently large,
-   * then the DelayThreshold should not ever cause blocking.
-   */
-  val DefaultDelayThreshold: FiniteDuration = 200.milliseconds
-
-  /**
-   * A batch of messages will be emitted to PubSub when the batch reaches 1000 messages.
-   * We use 1000 because it is the maximum batch size allowed by PubSub.
-   * This overrides the permutive library default of `5`
-   */
-  val DefaultPubsubMaxBatchSize = 1000L
-
-  /**
-   * A batch of messages will be emitted to PubSub when the batch reaches 10 MB.
-   * We use 10MB because it is the maximum batch size allowed by PubSub.
-   */
-  val DefaultPubsubMaxBatchBytes = 10000000L
 
   def init[F[_]: Concurrent: ContextShift: Timer](
     output: Output
@@ -80,9 +55,9 @@ object Sink {
     output: Output.PubSub
   ): Resource[F, AttributedData[A] => F[Unit]] = {
     val config = PubsubProducerConfig[F](
-      batchSize = output.maxBatchSize.getOrElse(DefaultPubsubMaxBatchSize),
-      requestByteThreshold = Some(output.maxBatchBytes.getOrElse(DefaultPubsubMaxBatchBytes)),
-      delayThreshold = output.delayThreshold.getOrElse(DefaultDelayThreshold),
+      batchSize = output.maxBatchSize,
+      requestByteThreshold = Some(output.maxBatchBytes),
+      delayThreshold = output.delayThreshold,
       onFailedTerminate = err => Logger[F].error(err)("PubSub sink termination error")
     )
 

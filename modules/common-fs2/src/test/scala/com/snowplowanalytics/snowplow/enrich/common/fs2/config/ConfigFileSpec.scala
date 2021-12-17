@@ -30,13 +30,13 @@ import org.specs2.mutable.Specification
 class ConfigFileSpec extends Specification with CatsIO {
   "parse" should {
     "parse reference example for PubSub" in {
-      val configPath = Paths.get(getClass.getResource("/config.pubsub.hocon.sample").toURI)
+      val configPath = Paths.get(getClass.getResource("/config.pubsub.extended.hocon").toURI)
       val expected = ConfigFile(
-        io.Input.PubSub("projects/test-project/subscriptions/inputSub", None, None),
+        io.Input.PubSub("projects/test-project/subscriptions/collector-payloads-sub", 1, 3000),
         io.Outputs(
-          io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id")), None, None, None, None),
-          Some(io.Output.PubSub("projects/test-project/topics/pii-topic", None, None, None, None, None)),
-          io.Output.PubSub("projects/test-project/topics/bad-topic", None, None, None, None, None)
+          io.Output.PubSub("projects/test-project/topics/enriched", Some(Set("app_id")), 200.milliseconds, 1000, 10000000),
+          Some(io.Output.PubSub("projects/test-project/topics/pii", None, 200.milliseconds, 1000, 10000000)),
+          io.Output.PubSub("projects/test-project/topics/bad", None, 200.milliseconds, 1000, 10000000)
         ),
         io.Concurrency(256, 3),
         Some(7.days),
@@ -70,7 +70,7 @@ class ConfigFileSpec extends Specification with CatsIO {
     }
 
     "parse reference example for Kinesis" in {
-      val configPath = Paths.get(getClass.getResource("/config.kinesis.reference.hocon").toURI)
+      val configPath = Paths.get(getClass.getResource("/config.kinesis.extended.hocon").toURI)
       val expected = ConfigFile(
         io.Input.Kinesis(
           "snowplow-enrich-kinesis",
@@ -148,20 +148,31 @@ class ConfigFileSpec extends Specification with CatsIO {
         json"""{
           "input": {
             "type": "PubSub",
-            "subscription": "projects/test-project/subscriptions/inputSub"
+            "subscription": "projects/test-project/subscriptions/inputSub",
+            "parallelPullCount": 1,
+            "maxQueueSize": 3000
           },
           "output": {
             "good": {
               "type": "PubSub",
-              "topic": "projects/test-project/topics/good-topic"
+              "topic": "projects/test-project/topics/good-topic",
+              "delayThreshold": "200 milliseconds",
+              "maxBatchSize": 1000,
+              "maxBatchBytes": 10000000
             },
             "pii": {
               "type": "PubSub",
-              "topic": "projects/test-project/topics/pii-topic"
+              "topic": "projects/test-project/topics/pii-topic",
+              "delayThreshold": "200 milliseconds",
+              "maxBatchSize": 1000,
+              "maxBatchBytes": 10000000
             },
             "bad": {
               "type": "PubSub",
-              "topic": "projects/test-project/topics/bad-topic"
+              "topic": "projects/test-project/topics/bad-topic",
+              "delayThreshold": "200 milliseconds",
+              "maxBatchSize": 1000,
+              "maxBatchBytes": 10000000
             }
           },
           "concurrency": {

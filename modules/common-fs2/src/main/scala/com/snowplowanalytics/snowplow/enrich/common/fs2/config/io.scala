@@ -52,15 +52,15 @@ object io {
 
     case class PubSub private (
       subscription: String,
-      parallelPullCount: Option[Int],
-      maxQueueSize: Option[Int]
+      parallelPullCount: Int,
+      maxQueueSize: Int
     ) extends Input {
       val (project, name) =
         subscription.split("/").toList match {
           case List("projects", project, "subscriptions", name) =>
             (project, name)
           case _ =>
-            throw new IllegalArgumentException(s"Cannot construct Input.PubSub from $subscription")
+            throw new IllegalArgumentException(s"Subscription format $subscription invalid")
         }
     }
     case class FileSystem(dir: Path) extends Input
@@ -161,9 +161,9 @@ object io {
           case other => other.asRight
         }
         .emap {
-          case PubSub(_, Some(p), _) if p < 0 =>
+          case PubSub(_, p, _) if p < 0 =>
             "PubSub parallelPullCount must be > 0".asLeft
-          case PubSub(_, _, Some(m)) if m < 0 =>
+          case PubSub(_, _, m) if m < 0 =>
             "PubSub maxQueueSize must be > 0".asLeft
           case other =>
             other.asRight
@@ -184,17 +184,18 @@ object io {
     case class PubSub private (
       topic: String,
       attributes: Option[Set[String]],
-      delayThreshold: Option[FiniteDuration],
-      maxBatchSize: Option[Long],
-      maxBatchBytes: Option[Long],
-      numCallbackExecutors: Option[Int]
+      delayThreshold: FiniteDuration,
+      maxBatchSize: Long,
+      maxBatchBytes: Long,
     ) extends Output {
       val (project, name) =
         topic.split("/").toList match {
+          case _ if topic.isEmpty =>
+            ("", "")
           case List("projects", project, "topics", name) =>
             (project, name)
           case _ =>
-            throw new IllegalArgumentException(s"Cannot construct Output.PubSub from $topic")
+            throw new IllegalArgumentException(s"Topic format $topic invalid")
         }
     }
     case class FileSystem(file: Path, maxBytes: Option[Long]) extends Output
@@ -235,7 +236,7 @@ object io {
     implicit val outputDecoder: Decoder[Output] =
       deriveConfiguredDecoder[Output]
         .emap {
-          case s @ PubSub(top, _, _, _, _, _) =>
+          case s @ PubSub(top, _, _, _, _) if top.nonEmpty =>
             top.split("/").toList match {
               case List("projects", _, "topics", _) =>
                 s.asRight
@@ -247,14 +248,12 @@ object io {
           case other => other.asRight
         }
         .emap {
-          case PubSub(_, _, Some(d), _, _, _) if d < Duration.Zero =>
+          case PubSub(_, _, d, _, _) if d < Duration.Zero =>
             "PubSub delay threshold cannot be less than 0".asLeft
-          case PubSub(_, _, _, Some(m), _, _) if m < 0 =>
+          case PubSub(_, _, _, m, _) if m < 0 =>
             "PubSub max batch size cannot be less than 0".asLeft
-          case PubSub(_, _, _, _, Some(m), _) if m < 0 =>
+          case PubSub(_, _, _, _, m) if m < 0 =>
             "PubSub max batch bytes cannot be less than 0".asLeft
-          case PubSub(_, _, _, _, _, Some(m)) if m < 0 =>
-            "PubSub callback executors cannot be less than 0".asLeft
           case other =>
             other.asRight
         }

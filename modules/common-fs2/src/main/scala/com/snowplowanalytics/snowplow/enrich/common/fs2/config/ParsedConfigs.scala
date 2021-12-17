@@ -117,7 +117,7 @@ object ParsedConfigs {
 
   private[config] def outputAttributes(output: OutputConfig): EnrichedEvent => Map[String, String] =
     output match {
-      case OutputConfig.PubSub(_, Some(attributes), _, _, _, _) =>
+      case OutputConfig.PubSub(_, Some(attributes), _, _, _) =>
         val fields = ParsedConfigs.enrichedFieldsMap.filter {
           case (s, _) =>
             attributes.contains(s)

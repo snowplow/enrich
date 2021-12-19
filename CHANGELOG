@@ -1,3 +1,10 @@
+Version 2.0.5 (2021-12-20)
+--------------------------
+Bump aws sdks to 1.12.129 (#540)
+Bump libthrift to 0.15.0 (#539)
+Bump jackson to 2.10.5.1 (#538)
+Bump log4j-core to 2.17.0 (#537)
+
 Version 2.0.4 (2021-12-16)
 --------------------------
 Bump log4j-core to 2.16.0 (#524)

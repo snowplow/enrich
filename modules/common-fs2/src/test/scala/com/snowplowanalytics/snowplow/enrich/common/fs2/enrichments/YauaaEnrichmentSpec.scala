@@ -53,7 +53,7 @@ class YauaaEnrichmentSpec extends Specification with CatsIO {
       val expected = Contexts(
         List(
           SelfDescribingData(
-            SchemaKey("nl.basjes", "yauaa_context", "jsonschema", SchemaVer.Full(1, 0, 2)),
+            SchemaKey("nl.basjes", "yauaa_context", "jsonschema", SchemaVer.Full(1, 0, 3)),
             json"""{
           "deviceBrand" : "Apple",
           "deviceName" : "Apple Macintosh",

@@ -272,7 +272,7 @@ lazy val pubsub = project
     buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
     buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.pubsub.generated",
   )
-  .settings(Docker / packageName := "snowplow/snowplow-enrich-pubsub")
+  .settings(Docker / packageName := "snowplow-enrich-pubsub")
   .settings(Test / parallelExecution := false)
   .settings(
     libraryDependencies ++= Seq(
@@ -298,7 +298,7 @@ lazy val kinesis = project
     description := "High-performance app built on top of functional streams that enriches Snowplow events from Kinesis",
     buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
     buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.kinesis.generated",
-    Docker / packageName := "snowplow/snowplow-enrich-kinesis",
+    Docker / packageName := "snowplow-enrich-kinesis",
   )
   .settings(Test / parallelExecution := false)
   .settings(

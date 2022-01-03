@@ -159,7 +159,7 @@ object SchemaRegistry {
           "vendor": "nl.basjes",
           "name": "yauaa_context",
           "format": "jsonschema",
-          "version": "1-0-2"
+          "version": "1-0-3"
       },
       "type": "object",
       "properties": {
@@ -185,7 +185,7 @@ object SchemaRegistry {
           "agentClass":                      {"enum":["Browser", "Browser Webview", "Mobile App", "Robot", "Robot Mobile", "Cloud Application", "Email Client", "Voice", "Special", "Testclient", "Hacker", "Unknown"] },
           "agentName":                       {"type":"string","maxLength": 100 },
           "agentVersion":                    {"type":"string","maxLength": 100 },
-          "agentVersionMajor":               {"type":"string","maxLength": 20 },
+          "agentVersionMajor":               {"type":"string","maxLength": 100 },
           "agentNameVersion":                {"type":"string","maxLength": 200 },
           "agentNameVersionMajor":           {"type":"string","maxLength": 120 },
           "agentBuild":                      {"type":"string","maxLength": 100 },

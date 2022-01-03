@@ -41,7 +41,7 @@ object YauaaEnrichment extends ParseableEnrichment {
   val DefaultDeviceClass = "Unknown"
   val DefaultResult = Map(decapitalize(UserAgent.DEVICE_CLASS) -> DefaultDeviceClass)
 
-  val outputSchema: SchemaKey = SchemaKey("nl.basjes", "yauaa_context", "jsonschema", SchemaVer.Full(1, 0, 2))
+  val outputSchema: SchemaKey = SchemaKey("nl.basjes", "yauaa_context", "jsonschema", SchemaVer.Full(1, 0, 3))
 
   /**
    * Creates a YauaaConf instance from a JValue containing the configuration of the enrichment.

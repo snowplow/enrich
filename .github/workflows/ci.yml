@@ -145,7 +145,7 @@ jobs:
         images: ${{ steps.packageName.outputs.package_name }}
         tags: |
           type=raw,value=latest,enable=${{ !contains(steps.ver.outputs.tag, 'rc') }}
-          type=raw,value=${{ steps.ver.outputs.project_version }}
+          type=raw,value=${{ steps.ver.outputs.tag }}
         flavor: |
           latest=false
     - name: Set up QEMU

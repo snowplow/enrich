@@ -10,7 +10,6 @@ It consists of following modules:
 
 * Snowplow Common Enrich - a core library, containing all validation and transformation logic. Published on Maven Central
 * Snowplow Stream Enrich - a set of applications working with Kinesis, Kafka and NSQ. Each asset published as Docker image on DockerHub
-* Snowplow Beam Enrich - a Google Dataflow job. Published as Docker image on DockerHub
 * Snowplow Enrich PubSub - an application for a GCP pipeline that does not require a distributed computing framework. Published as Docker image on DockerHub
 
 Snowplow Enrich provides record-level enrichment only: feeding in 1 raw Snowplow event will yield exactly 1 record out, where a record may be an enriched Snowplow event or a reported bad record.

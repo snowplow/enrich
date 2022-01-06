@@ -19,7 +19,7 @@
 lazy val root = project.in(file("."))
   .settings(name := "enrich")
   .settings(BuildSettings.basicSettings)
-  .aggregate(common, pubsub, kinesis, beam, streamCommon, streamKinesis, streamKafka, streamNsq, streamStdin)
+  .aggregate(common, commonFs2, pubsub, kinesis, streamCommon, streamKinesis, streamKafka, streamNsq, streamStdin)
 
 lazy val common = project
   .in(file("modules/common"))
@@ -156,59 +156,6 @@ lazy val streamStdin = project
   )
   .dependsOn(streamCommon)
   .settings(excludeDependencies ++= Dependencies.Libraries.exclusions)
-
-lazy val beam =
-  project
-    .in(file("modules/beam"))
-    .dependsOn(common)
-    .settings(BuildSettings.basicSettings)
-    .settings(BuildSettings.dataflowDockerSettings)
-    .settings(BuildSettings.formatting)
-    .settings(BuildSettings.scoverageSettings)
-    .settings(BuildSettings.sbtAssemblySettings)
-    .settings(
-      name := "beam-enrich",
-      description := "Streaming enrich job written using SCIO",
-      buildInfoKeys := Seq[BuildInfoKey](organization, name, version, "sceVersion" -> version.value),
-      buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.beam.generated",
-      libraryDependencies ++= Seq(
-        Dependencies.Libraries.scioCore,
-        Dependencies.Libraries.scioGCP,
-        Dependencies.Libraries.beam,
-        Dependencies.Libraries.grpc,
-        Dependencies.Libraries.sentry,
-        Dependencies.Libraries.slf4j,
-        Dependencies.Libraries.scioTest,
-        Dependencies.Libraries.scalaTest,
-        Dependencies.Libraries.circeLiteral % Test,
-      ),
-      dependencyOverrides ++= Seq(
-        "io.grpc" % "grpc-alts" % Dependencies.V.grpc,
-        "io.grpc" % "grpc-auth" % Dependencies.V.grpc,
-        "io.grpc" % "grpc-core" % Dependencies.V.grpc,
-        "io.grpc" % "grpc-context" % Dependencies.V.grpc,
-        "io.grpc" % "grpc-grpclb" % Dependencies.V.grpc,
-        "io.grpc" % "grpc-netty" % Dependencies.V.grpc,
-        "io.grpc" % "grpc-netty-shaded" % Dependencies.V.grpc,
-        "io.grpc" % "grpc-api" % Dependencies.V.grpc,
-        "io.grpc" % "grpc-stub" % Dependencies.V.grpc,
-        "io.grpc" % "grpc-protobuf" % Dependencies.V.grpc,
-        "io.grpc" % "grpc-protobuf-lite" % Dependencies.V.grpc,
-      ),
-      Docker / packageName := "snowplow/beam-enrich"
-    )
-    .settings(
-      libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value,
-      addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.1" cross CrossVersion.full)
-    )
-    .settings(
-      publish := {},
-      publishLocal := {},
-      publishArtifact := false,
-      Test / testGrouping := BuildSettings.oneJVMPerTest((Test / definedTests).value)
-    )
-    .enablePlugins(JavaAppPackaging, DockerPlugin, BuildInfoPlugin)
-    .settings(excludeDependencies ++= Dependencies.Libraries.exclusions)
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
 

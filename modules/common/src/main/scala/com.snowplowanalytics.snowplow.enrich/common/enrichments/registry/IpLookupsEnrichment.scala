@@ -69,8 +69,10 @@ object IpLookupsEnrichment extends ParseableEnrichment {
 
   private def file(db: Option[IpLookupsDatabase], localMode: Boolean): Option[(URI, String)] =
     db.map { d =>
-      if (localMode) (d.uri, getClass.getResource(d.db).toURI.getPath)
-      else (d.uri, s"./ip_${d.name}")
+      if (localMode)
+        (d.uri, Option(getClass.getResource(d.db)).getOrElse(getClass.getResource("/" + d.db)).toURI.getPath)
+      else
+        (d.uri, s"./ip_${d.name}")
     }
 
   /**

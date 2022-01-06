@@ -81,7 +81,7 @@ object BuildSettings {
   )
 
   lazy val scoverageSettings = Seq(
-    coverageMinimum := 50,
+    coverageMinimumStmtTotal := 50,
     coverageFailOnMinimum := false,
     (Test / test) := {
       (coverageReport dependsOn (Test / test)).value
@@ -135,19 +135,5 @@ object BuildSettings {
     Docker / daemonUser := "snowplow",
     Docker / defaultLinuxInstallLocation := "/home/snowplow",
     dockerUpdateLatest := true
-  )
-
-  /** Docker settings, used by BE */
-  lazy val dataflowDockerSettings = Seq(
-    Docker / maintainer := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
-    dockerBaseImage := "snowplow/k8s-dataflow:0.2.0",
-    dockerEnvVars := Map("HOME" -> "/tmp", "JAVA_OPTS" -> "-Duser.home=$HOME"),
-    Docker / daemonUser := "snowplow",
-    dockerUpdateLatest := true,
-    dockerVersion := Some(DockerVersion(18, 9, 0, Some("ce"))),
-    dockerCommands := dockerCommands.value.map {
-      case ExecCmd("ENTRYPOINT", args) => ExecCmd("ENTRYPOINT", "docker-entrypoint.sh", args)
-      case e => e
-    }
   )
 }

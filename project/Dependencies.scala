@@ -92,11 +92,8 @@ object Dependencies {
     val jinJava          = "2.5.0"
 
     val sentry           = "1.7.30"
-    val scio             = "0.11.1"
-    val beam             = "2.33.0"
     val grpc             = "1.32.2"
     val macros           = "2.1.1"
-    val scalaTest        = "3.0.8"
   }
 
   object Libraries {
@@ -140,22 +137,14 @@ object Dependencies {
     val sprayJson        = "io.spray"                   %% "spray-json"                    % V.sprayJson
     val nettyAll         = "io.netty"                   % "netty-all"                      % V.netty
     val nettyCodec       = "io.netty"                   % "netty-codec"                    % V.netty
+    val slf4j            = "org.slf4j"                  % "slf4j-simple"                   % V.slf4j
+    val sentry           = "io.sentry"                  %  "sentry"                        % V.sentry
 
     val specs2           = "org.specs2"                 %% "specs2-core"                   % V.specs2                    % Test
     val specs2Cats       = "org.specs2"                 %% "specs2-cats"                   % V.specs2                    % Test
     val specs2Scalacheck = "org.specs2"                 %% "specs2-scalacheck"             % V.specs2                    % Test
     val specs2Mock       = "org.specs2"                 %% "specs2-mock"                   % V.specs2                    % Test
     val specs2CE         = "com.codecommit"             %% "cats-effect-testing-specs2"    % V.specs2CE                  % Test
-
-    // Beam
-    val sentry           = "io.sentry"                  %  "sentry"                                   % V.sentry
-    val scioCore         = "com.spotify"                %% "scio-core"                                % V.scio
-    val scioGCP          = "com.spotify"                %% "scio-google-cloud-platform"               % V.scio
-    val beam             = "org.apache.beam"            % "beam-runners-google-cloud-dataflow-java"   % V.beam
-    val grpc             = "io.grpc"                    % "grpc-bom"                                  % V.grpc pomOnly()
-    val slf4j            = "org.slf4j"                  % "slf4j-simple"                              % V.slf4j
-    val scioTest         = "com.spotify"                %% "scio-test"                                % V.scio            % Test
-    val scalaTest        = "org.scalatest"              %% "scalatest"                                % V.scalaTest       % Test
 
     // Stream
     val kinesisSdk       = "com.amazonaws"                    %  "aws-java-sdk-kinesis"              % V.awsSdk

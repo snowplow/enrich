@@ -66,10 +66,3 @@ jobs:
           LW_ACCOUNT_NAME: ${{ secrets.LW_ACCOUNT_NAME }}
           LW_SCANNER_SAVE_RESULTS: ${{ !contains(steps.version.outputs.tag, 'rc') }}
         run: ./lw-scanner image evaluate snowplow/stream-enrich-nsq ${{ steps.ver.outputs.tag }} --build-id ${{ github.run_id }} --no-pull
-
-      - name: Scan Beam Enrich
-        env:
-          LW_ACCESS_TOKEN: ${{ secrets.LW_ACCESS_TOKEN }}
-          LW_ACCOUNT_NAME: ${{ secrets.LW_ACCOUNT_NAME }}
-          LW_SCANNER_SAVE_RESULTS: ${{ !contains(steps.version.outputs.tag, 'rc') }}
-        run: ./lw-scanner image evaluate snowplow/beam-enrich ${{ steps.ver.outputs.tag }} --build-id ${{ github.run_id }} --no-pull

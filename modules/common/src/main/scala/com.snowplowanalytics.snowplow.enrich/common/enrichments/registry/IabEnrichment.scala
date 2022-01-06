@@ -76,8 +76,10 @@ object IabEnrichment extends ParseableEnrichment {
       .toValidated
 
   private def file(db: IabDatabase, localMode: Boolean): (URI, String) =
-    if (localMode) (db.uri, getClass.getResource(db.db).toURI.getPath)
-    else (db.uri, s"./iab_${db.name}")
+    if (localMode)
+      (db.uri, Option(getClass.getResource(db.db)).getOrElse(getClass.getResource("/" + db.db)).toURI.getPath)
+    else
+      (db.uri, s"./iab_${db.name}")
 
   /**
    * Creates an IabEnrichment from a IabConf

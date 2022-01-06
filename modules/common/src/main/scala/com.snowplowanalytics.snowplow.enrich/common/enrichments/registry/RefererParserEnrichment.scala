@@ -64,8 +64,10 @@ object RefererParserEnrichment extends ParseableEnrichment {
     localFile: String,
     localMode: Boolean
   ): (URI, String) =
-    if (localMode) (uri, getClass.getResource(db).toURI.getPath)
-    else (uri, localFile)
+    if (localMode)
+      (uri, Option(getClass.getResource(db)).getOrElse(getClass.getResource("/" + db)).toURI.getPath)
+    else
+      (uri, localFile)
 
   /**
    * Creates a RefererParserEnrichment from a RefererParserConf

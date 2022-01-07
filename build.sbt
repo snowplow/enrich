@@ -119,7 +119,8 @@ lazy val streamKafka = project
     Docker / packageName := "snowplow/stream-enrich-kafka",
   )
   .settings(libraryDependencies ++= Seq(
-    Dependencies.Libraries.kafkaClients
+    Dependencies.Libraries.kafkaClients,
+    Dependencies.Libraries.mskAuth
   ))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
   .dependsOn(streamCommon)

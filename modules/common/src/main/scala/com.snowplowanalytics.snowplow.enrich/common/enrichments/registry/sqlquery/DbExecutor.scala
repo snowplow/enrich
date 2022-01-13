@@ -83,24 +83,20 @@ object DbExecutor {
     new DbExecutor[F] {
       def getConnection(rdbms: Rdbms, connectionRef: ConnectionRef[F])(implicit M: Monad[F]): F[Either[Throwable, Connection]] =
         for {
-          cachedConnection <- connectionRef.get(()).map(flattenCached)
-          connection <- cachedConnection match {
-                          case Right(conn) =>
-                            for {
-                              closed <- Sync[F].delay(conn.isClosed)
-                              result <- if (!closed) conn.asRight[Throwable].pure[F]
-                                        else
-                                          for {
-                                            newConn <- Sync[F].delay(
-                                                         Either.catchNonFatal(DriverManager.getConnection(rdbms.connectionString))
-                                                       )
-                                            _ <- connectionRef.put((), newConn)
-                                          } yield newConn
-                            } yield result
-                          case Left(error) =>
-                            error.asLeft[Connection].pure[F]
-                        }
-        } yield connection
+          existingConn <- connectionRef.get(())
+          conn <- flattenCached(existingConn) match {
+                    case Right(conn) if !conn.isClosed =>
+                      Sync[F].pure(conn.asRight)
+                    // Connection closed or unitialized
+                    case Right(_) | Left(Unitialized) =>
+                      for {
+                        newConn <- Sync[F].delay(Either.catchNonFatal(DriverManager.getConnection(rdbms.connectionString)))
+                        _ <- Sync[F].delay(connectionRef.put((), newConn))
+                      } yield newConn
+                    case Left(other) =>
+                      Sync[F].pure(other.asLeft)
+                  }
+        } yield conn
 
       def execute(query: PreparedStatement): EitherT[F, Throwable, ResultSet] =
         Sync[F].delay(query.executeQuery()).attemptT

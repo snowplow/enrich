@@ -12,7 +12,8 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery
 
-import java.sql.{Connection, DriverManager, PreparedStatement, ResultSet, ResultSetMetaData}
+import java.sql.{Connection, PreparedStatement, ResultSet, ResultSetMetaData}
+import javax.sql.DataSource
 
 import scala.collection.mutable.ListBuffer
 import scala.util.control.NonFatal
@@ -32,8 +33,8 @@ import scala.collection.immutable.IntMap
 /** Side-effecting ability to connect to database */
 trait DbExecutor[F[_]] {
 
-  /** Lookup a connection from mutable reference or initialize and put into the cache */
-  def getConnection(db: Rdbms, connRef: ConnectionRef[F])(implicit M: Monad[F]): F[Either[Throwable, Connection]]
+  /** Get a connection from the Hikari data source */
+  def getConnection(dataSource: DataSource): F[Either[Throwable, Connection]]
 
   /** Execute a SQL query */
   def execute(query: PreparedStatement): EitherT[F, Throwable, ResultSet]
@@ -81,26 +82,8 @@ object DbExecutor {
 
   implicit def syncDbExecutor[F[_]: Sync]: DbExecutor[F] =
     new DbExecutor[F] {
-      def getConnection(rdbms: Rdbms, connectionRef: ConnectionRef[F])(implicit M: Monad[F]): F[Either[Throwable, Connection]] =
-        for {
-          cachedConnection <- connectionRef.get(()).map(flattenCached)
-          connection <- cachedConnection match {
-                          case Right(conn) =>
-                            for {
-                              closed <- Sync[F].delay(conn.isClosed)
-                              result <- if (!closed) conn.asRight[Throwable].pure[F]
-                                        else
-                                          for {
-                                            newConn <- Sync[F].delay(
-                                                         Either.catchNonFatal(DriverManager.getConnection(rdbms.connectionString))
-                                                       )
-                                            _ <- connectionRef.put((), newConn)
-                                          } yield newConn
-                            } yield result
-                          case Left(error) =>
-                            error.asLeft[Connection].pure[F]
-                        }
-        } yield connection
+      def getConnection(dataSource: DataSource): F[Either[Throwable, Connection]] =
+        Sync[F].delay(Either.catchNonFatal(dataSource.getConnection()))
 
       def execute(query: PreparedStatement): EitherT[F, Throwable, ResultSet] =
         Sync[F].delay(query.executeQuery()).attemptT
@@ -144,17 +127,8 @@ object DbExecutor {
 
   implicit def idDbExecutor: DbExecutor[Id] =
     new DbExecutor[Id] {
-      def getConnection(rdbms: Rdbms, connectionRef: ConnectionRef[Id])(implicit M: Monad[Id]): Id[Either[Throwable, Connection]] =
-        flattenCached(connectionRef.get(())) match {
-          case Right(conn) if !conn.isClosed =>
-            conn.asRight
-          case Right(_) | Left(Unitialized) =>
-            val newConn = Either.catchNonFatal(DriverManager.getConnection(rdbms.connectionString))
-            connectionRef.put((), newConn)
-            newConn
-          case Left(other) =>
-            other.asLeft
-        }
+      def getConnection(dataSource: DataSource): Either[Throwable, Connection] =
+        Either.catchNonFatal(dataSource.getConnection())
 
       def execute(query: PreparedStatement): EitherT[Id, Throwable, ResultSet] =
         EitherT[Id, Throwable, ResultSet](Either.catchNonFatal(query.executeQuery()))
@@ -217,16 +191,12 @@ object DbExecutor {
     } yield Json.obj(keyValues: _*)
 
   /** Get amount of placeholders (?-signs) in Prepared Statement */
-  def getPlaceholderCount[F[_]: Monad: DbExecutor](
-    rdbms: Rdbms,
-    connectionRef: ConnectionRef[F],
+  def getPlaceholderCount(
+    connection: Connection,
     sql: String
-  ): F[Either[Throwable, Int]] =
-    createEmptyStatement(rdbms, connectionRef, sql).map {
-      case Right(statement) =>
-        Either.catchNonFatal(statement.getParameterMetaData.getParameterCount)
-      case Left(error) => error.asLeft
-    }
+  ): Either[Throwable, Int] =
+    createEmptyStatement(connection, sql)
+      .flatMap(statement => Either.catchNonFatal(statement.getParameterMetaData.getParameterCount))
 
   /**
    * Create PreparedStatement and fill all its placeholders. This function expects `placeholderMap`
@@ -236,13 +206,12 @@ object DbExecutor {
    * @param placeholderMap IntMap with input values
    * @return filled placeholder or error (unlikely)
    */
-  def createStatement[F[_]: Monad: DbExecutor](
-    realDb: Rdbms,
-    connectionRef: ConnectionRef[F],
+  def createStatement(
+    connection: Connection,
     sql: String,
     placeholderMap: IntMap[ExtractedValue]
-  ): EitherT[F, Throwable, PreparedStatement] =
-    EitherT(createEmptyStatement(realDb, connectionRef, sql)).map { preparedStatement =>
+  ): Either[Throwable, PreparedStatement] =
+    createEmptyStatement(connection, sql).map { preparedStatement =>
       placeholderMap.foreach {
         case (index, value) =>
           value.set(preparedStatement, index)
@@ -251,29 +220,11 @@ object DbExecutor {
     }
 
   /** Transform SQL-string with placeholders (?-signs) into PreparedStatement */
-  private def createEmptyStatement[F[_]: Monad: DbExecutor](
-    rdbms: Rdbms,
-    connectionRef: ConnectionRef[F],
+  private def createEmptyStatement(
+    connection: Connection,
     sql: String
-  ): F[Either[Throwable, PreparedStatement]] =
-    for {
-      connection <- DbExecutor[F].getConnection(rdbms, connectionRef)
-      statement = connection.flatMap { c =>
-                    Either.catchNonFatal(c.prepareStatement(sql))
-                  }
-    } yield statement
-
-  private val Unitialized: Throwable = InvalidStateException(
-    "getConnection: connection is unitialized"
-  )
-
-  private def flattenCached(fromCache: Option[Either[Throwable, Connection]]): Either[Throwable, Connection] =
-    fromCache match {
-      case Some(connOrErr) =>
-        connOrErr
-      case None =>
-        Unitialized.asLeft[Connection]
-    }
+  ): Either[Throwable, PreparedStatement] =
+    Either.catchNonFatal(connection.prepareStatement(sql))
 
   /**
    * Transform [[Input.PlaceholderMap]] to None if not enough input values were extracted
@@ -282,20 +233,18 @@ object DbExecutor {
    * all values were extracted
    * @return Some unchanged value if all placeholders were filled, None otherwise
    */
-  def allPlaceholdersFilled[F[_]: Monad: DbExecutor](
-    rdbms: Rdbms,
-    connectionRef: ConnectionRef[F],
+  def allPlaceholdersFilled(
+    connection: Connection,
     sql: String,
     placeholderMap: Input.PlaceholderMap
-  ): F[Either[String, Input.PlaceholderMap]] =
-    getPlaceholderCount(rdbms, connectionRef, sql).map {
-      case Right(placeholderCount) =>
-        placeholderMap match {
-          case Some(intMap) if intMap.keys.size == placeholderCount => placeholderMap.asRight
-          case _ => None.asRight
-        }
-      case Left(error) =>
-        error.getMessage.asLeft
+  ): Either[Throwable, Input.PlaceholderMap] =
+    getPlaceholderCount(connection, sql).map { placeholderCount =>
+      placeholderMap match {
+        case Some(intMap) if intMap.keys.size == placeholderCount => placeholderMap
+        case _ => None
+      }
     }
 
+  def getConnection[F[_]: Monad: DbExecutor](dataSource: DataSource): F[Either[Throwable, Connection]] =
+    DbExecutor[F].getConnection(dataSource)
 }

@@ -12,8 +12,6 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
-import java.sql.Connection
-
 import scala.collection.immutable.IntMap
 
 import com.snowplowanalytics.iglu.core.SelfDescribingData
@@ -28,9 +26,4 @@ package object sqlquery {
 
   type SqlCache[F[_]] =
     LruMap[F, IntMap[Input.ExtractedValue], (Either[Throwable, List[SelfDescribingData[Json]]], Long)]
-
-  type ConnectionRefInit[F[_]] = CreateLruMap[F, Unit, Either[Throwable, Connection]]
-
-  type ConnectionRef[F[_]] = LruMap[F, Unit, Either[Throwable, Connection]]
-
 }

@@ -25,6 +25,7 @@ import org.specs2.Specification
 
 import outputs.EnrichedEvent
 import utils.BlockerF
+import cats.data.NonEmptyList
 
 object SqlQueryEnrichmentIntegrationTest {
   def continuousIntegration: Boolean =
@@ -41,6 +42,7 @@ class SqlQueryEnrichmentIntegrationTest extends Specification {
   Basic case        $e1
   All-features test $e2
   Null test case    $e3
+  Invalid creds     $e4
   """
 
   val SCHEMA_KEY =
@@ -411,4 +413,53 @@ class SqlQueryEnrichmentIntegrationTest extends Specification {
     context must beRight(Nil)
   }
 
+  def e4 = {
+    val configuration = json"""
+      {
+        "vendor": "com.snowplowanalytics.snowplow.enrichments",
+        "name": "sql_query_enrichment_config",
+        "enabled": true,
+        "parameters": {
+          "inputs": [],
+          "database": {
+            "postgresql": {
+              "host": "localhost",
+              "port": 5432,
+              "sslMode": false,
+              "username": "foo",
+              "password": "bar",
+              "database": "sql_enrichment_test"
+            }
+          },
+          "query": {
+            "sql": "SELECT 42 AS \"singleColumn\""
+          },
+          "output": {
+            "expectedRows": "AT_MOST_ONE",
+            "json": {
+              "schema": "iglu:com.acme/singleColumn/jsonschema/1-0-0",
+              "describes": "ALL_ROWS",
+              "propertyNames": "AS_IS"
+            }
+          },
+          "cache": {
+            "size": 3000,
+            "ttl": 60
+          }
+        }
+      }
+      """
+
+    val event = new EnrichedEvent
+    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[Id](BlockerF.noop))
+    val context = config.toEither.flatMap(_.lookup(event, Nil, Nil, None).toEither)
+
+    context must beLeft.like {
+      case NonEmptyList(one, two :: Nil)
+          if one.toString.contains("Error while getting the connection from the data source") &&
+            two.toString.contains("FATAL: password authentication failed for user") =>
+        ok
+      case left => ko(s"error(s) don't contain the expected error messages: $left")
+    }
+  }
 }

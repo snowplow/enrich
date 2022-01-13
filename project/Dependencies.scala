@@ -36,6 +36,7 @@ object Dependencies {
     val uaParser         = "1.4.3"
     val postgresDriver   = "42.2.25"
     val mysqlConnector   = "8.0.16"
+    val hikariCP         = "5.0.1"
     val jaywayJsonpath   = "2.7.0"
     val iabClient        = "0.2.0"
     val yauaa            = "5.23"
@@ -104,6 +105,8 @@ object Dependencies {
     val uaParser         = "com.github.ua-parser"       %  "uap-java"                      % V.uaParser
     val postgresDriver   = "org.postgresql"             %  "postgresql"                    % V.postgresDriver
     val mysqlConnector   = "mysql"                      %  "mysql-connector-java"          % V.mysqlConnector
+    val hikariCP         = ("com.zaxxer"                %  "HikariCP"                      % V.hikariCP)
+                             .exclude("org.slf4j", "slf4j-api")
     val jaywayJsonpath   = "com.jayway.jsonpath"        %  "json-path"                     % V.jaywayJsonpath
     val yauaa            = "nl.basjes.parse.useragent"  %  "yauaa"                         % V.yauaa
     val guava            = "com.google.guava"           %  "guava"                         % V.guava

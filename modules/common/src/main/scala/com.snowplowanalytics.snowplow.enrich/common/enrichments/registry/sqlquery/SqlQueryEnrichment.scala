@@ -14,6 +14,10 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlque
 
 import scala.collection.immutable.IntMap
 
+import java.sql.Connection
+
+import org.slf4j.LoggerFactory
+
 import cats.Monad
 import cats.data.{EitherT, NonEmptyList, ValidatedNel}
 import cats.implicits._
@@ -21,12 +25,14 @@ import cats.implicits._
 import io.circe._
 import io.circe.generic.semiauto._
 
+import com.zaxxer.hikari.HikariDataSource
+
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SelfDescribingData}
 
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, CirceUtils}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, CirceUtils, ResourceF}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.SqlQueryConf
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{Enrichment, ParseableEnrichment}
 
@@ -101,10 +107,9 @@ object SqlQueryEnrichment extends ParseableEnrichment {
  * @param output configuration of output context
  * @param ttl cache TTL in milliseconds
  * @param cache actual mutable LRU cache
- * @param connection initialized DB connection (a mutable single-value cache)
  * @param blocker Allows running blocking enrichments on a dedicated thread pool
  */
-final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor](
+final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor: ResourceF](
   schemaKey: SchemaKey,
   inputs: List[Input],
   db: Rdbms,
@@ -112,11 +117,14 @@ final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor](
   output: Output,
   ttl: Int,
   cache: SqlCache[F],
-  connection: ConnectionRef[F],
   blocker: BlockerF[F]
 ) extends Enrichment {
   private val enrichmentInfo =
     FailureDetails.EnrichmentInformation(schemaKey, "sql-query").some
+
+  private val logger = LoggerFactory.getLogger(getClass)
+
+  private val dataSource = getDataSource(db)
 
   /**
    * Primary function of the enrichment. Failure means connection failure, failed unexpected
@@ -134,18 +142,35 @@ final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor](
     customContexts: List[SelfDescribingData[Json]],
     unstructEvent: Option[SelfDescribingData[Json]]
   ): F[ValidatedNel[FailureDetails.EnrichmentFailure, List[SelfDescribingData[Json]]]] = {
+    def useConnection(connection: Connection): F[Either[NonEmptyList[String], List[SelfDescribingData[Json]]]] =
+      (for {
+        placeholders <- Input
+                          .buildPlaceholderMap(inputs, event, derivedContexts, customContexts, unstructEvent)
+                          .toEitherT[F]
+                          .leftMap { t =>
+                            NonEmptyList.of("Error while building the map of placeholders", t.toString)
+                          }
+        verifiedPlaceholders <-
+          EitherT(blocker.blockOn(Monad[F].pure(DbExecutor.allPlaceholdersFilled(connection, query.sql, placeholders))))
+            .leftMap { t =>
+              NonEmptyList.of("Error while filling the placeholders", t.toString)
+            }
+        result <- verifiedPlaceholders match {
+                    case Some(m) =>
+                      EitherT(get(connection, m))
+                        .leftMap { t =>
+                          NonEmptyList.of("Error while executing the query/getting the results", t.toString)
+                        }
+                    case None =>
+                      EitherT.rightT[F, NonEmptyList[String]](List.empty[SelfDescribingData[Json]])
+                  }
+
+      } yield result).value
+
     val contexts = for {
-      placeholders <- Input
-                        .buildPlaceholderMap(inputs, event, derivedContexts, customContexts, unstructEvent)
-                        .toEitherT[F]
-      verifiedPlaceholders <- EitherT(blocker.blockOn(DbExecutor.allPlaceholdersFilled(db, connection, query.sql, placeholders)))
-                                .leftMap(NonEmptyList.one)
-      result <- verifiedPlaceholders match {
-                  case Some(m) =>
-                    EitherT(get(m)).leftMap(NonEmptyList.one)
-                  case None =>
-                    EitherT.rightT[F, NonEmptyList[String]](List.empty[SelfDescribingData[Json]])
-                }
+      connection <- EitherT(DbExecutor.getConnection[F](dataSource))
+                      .leftMap(t => NonEmptyList.of("Error while getting the connection from the data source", t.toString))
+      result <- EitherT(ResourceF[F].use(connection)(closeConnection)(useConnection))
     } yield result
 
     contexts.leftMap(failureDetails).value.map(_.toValidated)
@@ -156,20 +181,24 @@ final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor](
    * @param intMap IntMap of extracted values
    * @return validated list of Self-describing contexts
    */
-  def get(intMap: IntMap[Input.ExtractedValue]): F[Either[String, List[SelfDescribingData[Json]]]] =
+  def get(connection: Connection, intMap: IntMap[Input.ExtractedValue]): F[Either[Throwable, List[SelfDescribingData[Json]]]] =
     for {
       gotten <- cache.get(intMap)
       res <- gotten match {
                case Some(response) =>
                  if (System.currentTimeMillis() / 1000 - response._2 < ttl) Monad[F].pure(response._1)
-                 else put(blocker, intMap)
-               case None => put(blocker, intMap)
+                 else put(connection, blocker, intMap)
+               case None => put(connection, blocker, intMap)
              }
-    } yield res.leftMap(_.getMessage)
+    } yield res
 
-  private def put(blocker: BlockerF[F], intMap: IntMap[Input.ExtractedValue]): F[Either[Throwable, List[SelfDescribingData[Json]]]] =
+  private def put(
+    connection: Connection,
+    blocker: BlockerF[F],
+    intMap: IntMap[Input.ExtractedValue]
+  ): F[Either[Throwable, List[SelfDescribingData[Json]]]] =
     for {
-      res <- blocker.blockOn(query(intMap).value)
+      res <- blocker.blockOn(query(connection, intMap).value)
       _ <- cache.put(intMap, (res, System.currentTimeMillis() / 1000))
     } yield res
 
@@ -179,9 +208,9 @@ final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor](
    * prepared statement
    * @return validated list of Self-describing contexts
    */
-  def query(intMap: IntMap[Input.ExtractedValue]): EitherT[F, Throwable, List[SelfDescribingData[Json]]] =
+  def query(connection: Connection, intMap: IntMap[Input.ExtractedValue]): EitherT[F, Throwable, List[SelfDescribingData[Json]]] =
     for {
-      sqlQuery <- DbExecutor.createStatement(db, connection, query.sql, intMap)
+      sqlQuery <- DbExecutor.createStatement(connection, query.sql, intMap).toEitherT[F]
       resultSet <- DbExecutor[F].execute(sqlQuery)
       context <- DbExecutor[F].convert(resultSet, output.json.propertyNames)
       result <- output.envelope(context).toEitherT[F]
@@ -191,5 +220,20 @@ final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor](
     errors.map { error =>
       val message = FailureDetails.EnrichmentFailureMessage.Simple(error)
       FailureDetails.EnrichmentFailure(enrichmentInfo, message)
+    }
+
+  private def getDataSource(rdbms: Rdbms): HikariDataSource = {
+    val source = new HikariDataSource()
+    source.setJdbcUrl(rdbms.connectionString)
+    source.setMaximumPoolSize(1) // see https://github.com/snowplow/enrich/issues/549
+    source
+  }
+
+  private def closeConnection(connection: Connection): Unit =
+    Either.catchNonFatal(connection.close()) match {
+      case Left(err) =>
+        logger.error("Can't close the connection", err)
+      case _ =>
+        ()
     }
 }

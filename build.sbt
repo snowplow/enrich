@@ -42,6 +42,7 @@ lazy val common = project
       Dependencies.Libraries.uaParser,
       Dependencies.Libraries.postgresDriver,
       Dependencies.Libraries.mysqlConnector,
+      Dependencies.Libraries.hikariCP,
       Dependencies.Libraries.jaywayJsonpath,
       Dependencies.Libraries.iabClient,
       Dependencies.Libraries.yauaa,

@@ -13,6 +13,7 @@
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.time.ZonedDateTime
+import java.io.{PrintWriter, StringWriter}
 
 import cats.Monad
 import cats.data.{EitherT, NonEmptyList, ValidatedNel}
@@ -22,6 +23,7 @@ import io.circe._
 
 import com.snowplowanalytics.forex.{CreateForex, Forex}
 import com.snowplowanalytics.forex.model._
+import com.snowplowanalytics.forex.errors.OerResponseError
 
 import org.joda.money.CurrencyUnit
 import org.joda.time.DateTime
@@ -120,25 +122,18 @@ final case class CurrencyConversionEnrichment[F[_]: Monad](
       case (Some(ic), Some(v)) =>
         (for {
           cu <- EitherT.fromEither[F](ic)
+          money <- EitherT.fromEither[F](
+                     Either
+                       .catchNonFatal(forex.convert(v, cu).to(baseCurrency).at(tstamp))
+                       .leftMap(t => mkEnrichmentFailure(Left(t)))
+                   )
           res <- EitherT(
-                   forex
-                     .convert(v, cu)
-                     .to(baseCurrency)
-                     .at(tstamp)
-                     .map(
-                       _.bimap(
-                         l => {
-                           val errorType = l.errorType.getClass.getSimpleName.replace("$", "")
-                           val msg =
-                             s"Open Exchange Rates error, type: [$errorType], message: [${l.errorMessage}]"
-                           val f =
-                             FailureDetails.EnrichmentFailureMessage.Simple(msg)
-                           FailureDetails
-                             .EnrichmentFailure(enrichmentInfo, f)
-                         },
-                         r => (r.getAmount().toPlainString()).some
-                       )
+                   money.map(
+                     _.bimap(
+                       l => mkEnrichmentFailure(Right(l)),
+                       r => (r.getAmount().toPlainString()).some
                      )
+                   )
                  )
         } yield res).value
       case _ => Monad[F].pure(None.asRight)
@@ -216,4 +211,21 @@ final case class CurrencyConversionEnrichment[F[_]: Monad](
         )
         Monad[F].pure(FailureDetails.EnrichmentFailure(enrichmentInfo, f).invalidNel)
     }
+
+  // The original error is either a Throwable or an OER error
+  private def mkEnrichmentFailure(error: Either[Throwable, OerResponseError]): FailureDetails.EnrichmentFailure = {
+    val msg = error match {
+      case Left(t) =>
+        val sw = new StringWriter
+        t.printStackTrace(new PrintWriter(sw))
+        s"an error happened while converting the currency: ${t.getMessage}\n${sw.toString}"
+      case Right(e) =>
+        val errorType = e.errorType.getClass.getSimpleName.replace("$", "")
+        s"Open Exchange Rates error, type: [$errorType], message: [${e.errorMessage}]"
+    }
+    val f =
+      FailureDetails.EnrichmentFailureMessage.Simple(msg)
+    FailureDetails
+      .EnrichmentFailure(enrichmentInfo, f)
+  }
 }

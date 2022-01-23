@@ -159,7 +159,7 @@ object Dependencies {
     val kinesisClient    = "com.amazonaws"                    %  "amazon-kinesis-client"             % V.kinesisClient
     val gsSdk            = "com.google.cloud"                 %  "google-cloud-storage"              % V.gcpSdk
     val kafkaClients     = "org.apache.kafka"                 %  "kafka-clients"                     % V.kafka
-    val mskAuth          = "software.amazon.msk"              %  "aws-msk-iam-auth"                  % V.mskAuth
+    val mskAuth          = "software.amazon.msk"              %  "aws-msk-iam-auth"                  % V.mskAuth         % Runtime
     val jacksonCbor      = "com.fasterxml.jackson.dataformat" %  "jackson-dataformat-cbor"           % V.jacksonCbor
     val config           = "com.typesafe"                     %  "config"                            % V.config
     val log4jOverSlf4j   = "org.slf4j"                        %  "log4j-over-slf4j"                  % V.slf4j

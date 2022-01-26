@@ -12,22 +12,31 @@
  */
 package com.snowplowanalytics.snowplow.enrich.pubsub
 
-import cats.syntax.flatMap._
-import cats.effect.{ExitCode, IO, IOApp, Resource, SyncIO}
+import cats.Parallel
+import cats.implicits._
 
-import _root_.io.sentry.SentryClient
-
-import _root_.io.chrisdavenport.log4cats.Logger
-import _root_.io.chrisdavenport.log4cats.slf4j.Slf4jLogger
+import cats.effect.{ExitCode, IO, IOApp, Resource, Sync, SyncIO}
 
 import java.util.concurrent.{Executors, TimeUnit}
 
 import scala.concurrent.ExecutionContext
 
+import com.permutive.pubsub.consumer.ConsumerRecord
+
+import com.snowplowanalytics.snowplow.enrich.common.fs2.Run
+import com.snowplowanalytics.snowplow.enrich.common.fs2.Telemetry
+
+import com.snowplowanalytics.snowplow.enrich.pubsub.generated.BuildInfo
+
 object Main extends IOApp.WithContext {
 
-  private implicit val logger: Logger[IO] =
-    Slf4jLogger.getLogger[IO]
+  /**
+   * The maximum size of a serialized payload that can be written to pubsub.
+   *
+   *  Equal to 6.9 MB. The message will be base64 encoded by the underlying library, which brings the
+   *  encoded message size to near 10 MB, which is the maximum allowed for PubSub.
+   */
+  private val MaxRecordSize = 6900000
 
   /**
    * An execution context matching the cats effect IOApp default. We create it explicitly so we can
@@ -47,42 +56,25 @@ object Main extends IOApp.WithContext {
   }
 
   def run(args: List[String]): IO[ExitCode] =
-    config.CliConfig.command.parse(args) match {
-      case Right(cfg) =>
-        for {
-          _ <- logger.info("Initialising resources for Enrich job")
-          environment <- Environment.make[IO](cfg, executionContext).value
-          exit <- environment match {
-                    case Right(e) =>
-                      e.use { env =>
-                        val log = logger.info("Running enrichment stream")
-                        val enrich = Enrich.run[IO](env)
-                        val updates = Assets.run[IO](env)
-                        val reporting = env.metrics.report
-                        val flow = enrich.merge(updates).merge(reporting)
-                        log >> flow.compile.drain.attempt.flatMap {
-                          case Left(exception) =>
-                            unsafeSendSentry(exception, env.sentry)
-                            IO.raiseError[ExitCode](exception).as(ExitCode.Error)
-                          case Right(_) =>
-                            IO.pure(ExitCode.Success)
-                        }
-                      }
-                    case Left(error) =>
-                      logger.error(s"Cannot initialise enrichment resources\n$error").as(ExitCode.Error)
-                  }
-        } yield exit
-      case Left(error) =>
-        IO(System.err.println(error)).as(ExitCode.Error)
-    }
+    Run.run[IO, ConsumerRecord[IO, Array[Byte]]](
+      args,
+      BuildInfo.name,
+      BuildInfo.version,
+      BuildInfo.description,
+      executionContext,
+      (_, cliConfig) => IO(cliConfig),
+      (blocker, input, _) => Source.init(blocker, input),
+      (_, out, _) => Sink.initAttributed(out),
+      (_, out, _) => Sink.initAttributed(out),
+      (_, out, _) => Sink.init(out),
+      checkpoint,
+      List(GcsClient.mk[IO]),
+      _.value,
+      MaxRecordSize,
+      Some(Telemetry.Cloud.Gcp),
+      None
+    )
 
-  /** Last attempt to notify about an exception (possibly just interruption) */
-  private def unsafeSendSentry(error: Throwable, sentry: Option[SentryClient]): Unit = {
-    sentry match {
-      case Some(client) =>
-        client.sendException(error)
-      case None => ()
-    }
-    logger.error(s"The Enrich job has stopped ${sentry.fold("")(_ => "Sentry report has been sent")}").unsafeRunSync()
-  }
+  private def checkpoint[F[_]: Parallel: Sync](records: List[ConsumerRecord[F, Array[Byte]]]): F[Unit] =
+    records.parTraverse_(_.ack)
 }

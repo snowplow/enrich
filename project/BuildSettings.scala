@@ -24,6 +24,7 @@ import com.typesafe.sbt.SbtNativePackager.autoImport._
 import com.typesafe.sbt.packager.linux.LinuxPlugin.autoImport._
 import com.typesafe.sbt.packager.docker.DockerPlugin.autoImport._
 import com.typesafe.sbt.packager.docker.{ DockerVersion, ExecCmd }
+import com.typesafe.sbt.packager.universal.UniversalPlugin.autoImport._
 
 import scoverage.ScoverageKeys._
 
@@ -80,7 +81,7 @@ object BuildSettings {
   )
 
   lazy val scoverageSettings = Seq(
-    coverageMinimum := 50,
+    coverageMinimumStmtTotal := 50,
     coverageFailOnMinimum := false,
     (Test / test) := {
       (coverageReport dependsOn (Test / test)).value
@@ -96,8 +97,7 @@ object BuildSettings {
   lazy val sbtAssemblySettings = Seq(
     assembly / assemblyJarName := { s"${moduleName.value}-${version.value}.jar" },
     assembly / assemblyMergeStrategy := {
-      case x if x.endsWith("native-image.properties") => MergeStrategy.first
-      case x if x.endsWith("io.netty.versions.properties") => MergeStrategy.first
+      case x if x.endsWith(".properties") => MergeStrategy.first
       case x if x.endsWith("public-suffix-list.txt") => MergeStrategy.first
       case x if x.endsWith("ProjectSettings$.class") => MergeStrategy.first
       case x if x.endsWith("module-info.class") => MergeStrategy.first
@@ -108,6 +108,11 @@ object BuildSettings {
       case x if x.endsWith("reflection-config.json") => MergeStrategy.first
       case x if x.endsWith("config.fmpp") => MergeStrategy.first
       case x if x.endsWith("git.properties") => MergeStrategy.discard
+      case x if x.endsWith(".json") => MergeStrategy.first
+      case x if x.endsWith("AUTHORS") => MergeStrategy.first
+      case x if x.endsWith(".config") => MergeStrategy.first
+      case x if x.endsWith(".types") => MergeStrategy.first
+      case x if x.contains("netty") => MergeStrategy.first
       case x =>
         val oldStrategy = (assembly / assemblyMergeStrategy).value
         oldStrategy(x)
@@ -123,26 +128,13 @@ object BuildSettings {
 
   /** Docker settings, used by SE */
   lazy val dockerSettings = Seq(
+    Universal / javaOptions ++= Seq("-Dnashorn.args=--language=es6"),
     Docker / maintainer := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
-    dockerBaseImage := "snowplow/base-debian:0.2.1",
-    Docker / daemonUser := "snowplow",
-    dockerUpdateLatest := true,
-    dockerVersion := Some(DockerVersion(18, 9, 0, Some("ce"))),
+    dockerBaseImage := "adoptopenjdk:11-jre-hotspot-focal",
+    dockerRepository := Some("snowplow"),
+    Docker / daemonUser := "daemon",
     Docker / daemonUserUid := None,
-    Docker / defaultLinuxInstallLocation := "/home/snowplow" // must be home directory of daemonUser
-  )
-
-  /** Docker settings, used by BE */
-  lazy val dataflowDockerSettings = Seq(
-    Docker / maintainer := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
-    dockerBaseImage := "snowplow/k8s-dataflow:0.2.0",
-    dockerEnvVars := Map("HOME" -> "/tmp", "JAVA_OPTS" -> "-Duser.home=$HOME"),
-    Docker / daemonUser := "snowplow",
-    dockerUpdateLatest := true,
-    dockerVersion := Some(DockerVersion(18, 9, 0, Some("ce"))),
-    dockerCommands := dockerCommands.value.map {
-      case ExecCmd("ENTRYPOINT", args) => ExecCmd("ENTRYPOINT", "docker-entrypoint.sh", args)
-      case e => e
-    }
+    Docker / defaultLinuxInstallLocation := "/opt/snowplow",
+    dockerUpdateLatest := true
   )
 }

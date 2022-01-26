@@ -12,25 +12,22 @@
  */
 package com.snowplowanalytics.snowplow.enrich
 
-import cats.data.Validated
+import cats.syntax.either._
 
-import _root_.fs2.Stream
-
-import com.snowplowanalytics.snowplow.badrows.BadRow
-
-import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.permutive.pubsub.consumer.decoder.MessageDecoder
+import com.permutive.pubsub.producer.encoder.MessageEncoder
 
 package object pubsub {
 
-  /** Raw Thrift payloads coming from a collector */
-  type RawSource[F[_]] = Stream[F, Payload[F, Array[Byte]]]
+  implicit val byteArrayEncoder: MessageEncoder[Array[Byte]] =
+    new MessageEncoder[Array[Byte]] {
+      def encode(a: Array[Byte]): Either[Throwable, Array[Byte]] =
+        a.asRight
+    }
 
-  type ByteSink[F[_]] = Array[Byte] => F[Unit]
-  type AttributedByteSink[F[_]] = AttributedData[Array[Byte]] => F[Unit]
-
-  /** Enrichment result, containing list of (valid and invalid) results */
-  type Result[F[_]] = Payload[F, List[Validated[BadRow, EnrichedEvent]]]
-
-  /** Function to transform an origin raw payload into good and/or bad rows */
-  type Enrich[F[_]] = Payload[F, Array[Byte]] => F[Result[F]]
+  implicit val byteArrayMessageDecoder: MessageDecoder[Array[Byte]] =
+    new MessageDecoder[Array[Byte]] {
+      def decode(message: Array[Byte]): Either[Throwable, Array[Byte]] =
+        message.asRight
+    }
 }

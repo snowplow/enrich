@@ -32,22 +32,20 @@ jobs:
       uses: actions/setup-java@v1
       with:
         java-version: 11
-    - name: Prepare Mock server for SCE ApiRequestEnrichmentIntegrationTest (launch in background)
-      run: python integration-tests/sce-api-lookup-test.py 8001 &
-    - name: Prepare Mock server for BE ApiRequestEnrichmentIntegrationTest (launch in background)
-      run: python integration-tests/beam-api-lookup-test.py &
-    - name: Prepare Postgres for SCE SqlLookupEnrichmentIntegrationTest (create entities)
+    - name: Start HTTP server to test API enrichment in Common Enrich
+      run: python integration-tests/sce-api-enrichment-test.py 8001 &
+    - name: Start HTTP server to test API enrichment in Common Fs2
+      run: python integration-tests/common-fs2-api-enrichment-test.py 8000 &
+    - name: Prepare data in Postgres to test SQL enrichment in Common Enrich
       run: psql -h localhost -p 5432 -U enricher -d sql_enrichment_test < integration-tests/sce-sql-enrichment-test.sql
       env:
         PGPASSWORD: supersecret1
-    - name: Prepare Mock server for BE ApiRequestEnrichmentIntegrationTest (launch in background)
-      run: python integration-tests/beam-api-lookup-test.py &
-    - name: Prepare Postgres for BE SqlLookupEnrichmentIntegrationTest (create entities)
-      run: psql -h localhost -p 5432 -U enricher -d sql_enrichment_test < integration-tests/beam-sql-enrichment-test.sql
+    - name: Prepare data in Postgres to test SQL enrichment in Common Fs2
+      run: psql -h localhost -p 5432 -U enricher -d sql_enrichment_test < integration-tests/common-fs2-sql-enrichment-test.sql
       env:
         PGPASSWORD: supersecret1
     - name: Run tests
-      run: sbt +test
+      run: sbt coverage +test
       env:
         OER_KEY: ${{ secrets.OER_KEY }}
     - name: Check Scala formatting
@@ -56,6 +54,14 @@ jobs:
     - name: Check assets can be published
       if: ${{ always() }}
       run: sbt publishLocal
+    - name: Generate coverage report
+      run: sbt coverageReport
+    - name: Aggregate coverage data
+      run: sbt coverageAggregate
+    - name: Submit coveralls data
+      run: sbt coveralls
+      env:
+        COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
 
   github_release:
     needs: test
@@ -76,8 +82,8 @@ jobs:
         sbt "project streamKinesis; set assembly / test := {}; assembly" \
             "project streamKafka; set assembly / test := {}; assembly" \
             "project streamNsq; set assembly / test := {}; assembly" \
-            "project beam; set assembly / test := {}; assembly" \
-            "project pubsub; set assembly / test := {}; assembly"
+            "project pubsub; set assembly / test := {}; assembly" \
+            "project kinesis; set assembly / test := {}; assembly"
     - name: Create GitHub release and attach artifacts
       uses: softprops/action-gh-release@v1
       with:
@@ -89,15 +95,23 @@ jobs:
           modules/stream/kinesis/target/scala-2.12/snowplow-stream-enrich-kinesis-${{ steps.ver.outputs.tag }}.jar
           modules/stream/kafka/target/scala-2.12/snowplow-stream-enrich-kafka-${{ steps.ver.outputs.tag }}.jar
           modules/stream/nsq/target/scala-2.12/snowplow-stream-enrich-nsq-${{ steps.ver.outputs.tag }}.jar
-          modules/beam/target/scala-2.12/beam-enrich-${{ steps.ver.outputs.tag }}.jar
           modules/pubsub/target/scala-2.12/snowplow-enrich-pubsub-${{ steps.ver.outputs.tag }}.jar
+          modules/kinesis/target/scala-2.12/snowplow-enrich-kinesis-${{ steps.ver.outputs.tag }}.jar
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  publish_stream:
+  publish_docker:
     needs: test
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app:
+          - streamKinesis
+          - streamKafka
+          - streamNsq
+          - pubsub
+          - kinesis
     steps:
     - uses: actions/checkout@v2
     - uses: coursier/cache-action@v6
@@ -110,65 +124,43 @@ jobs:
       env:
         DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-    - name: Build and publish Stream Kinesis Docker image
-      run: sbt "project streamKinesis" docker:publish
-    - name: Build and publish Stream Kafka Docker image
-      if: ${{ always() }}
-      run: sbt "project streamKafka" docker:publish
-    - name: Build and publish Stream NSQ Docker image
-      if: ${{ always() }}
-      run: sbt "project streamNsq" docker:publish
-
-  publish_pubsub:
-    needs: test
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-    - uses: coursier/cache-action@v6
-    - name: Set up JDK 11
-      uses: actions/setup-java@v1
+    - name: Get current version
+      id: ver
+      run: echo "::set-output name=tag::${GITHUB_REF#refs/tags/}"
+    - name: Get app package name
+      id: packageName
+      run: |
+        export PACKAGE_NAME=$(sbt "project ${{ matrix.app }}" dockerAlias -Dsbt.log.noformat=true | sed -n '/\[info\]/ s/\[info\] //p' | tail -1 | tr -d '\n' | cut -d":" -f1)
+        echo "::set-output name=package_name::$PACKAGE_NAME"
+    - name: Get app base directory
+      id: baseDirectory
+      run: |
+        export BASE_DIRECTORY=$(sbt "project ${{ matrix.app }}" baseDirectory -Dsbt.log.noformat=true | sed -n '/\[info\]/ s/\[info\] //p' | tail -1 | tr -d '\n')
+        echo "::set-output name=directory::$BASE_DIRECTORY"
+    - name: Stage the Docker build
+      run: sbt "project ${{ matrix.app}}" docker:stage
+    - name: Docker metadata
+      id: meta
+      uses: docker/metadata-action@v3
       with:
-        java-version: 11
-    - name: Docker login
-      run: docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
-      env:
-        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-    - name: Build and publish Enrich PubSub Docker image
-      run: sbt "project pubsub" docker:publish
-
-  publish_beam:
-    needs: test
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres
-        ports:
-          - 5432:5432
-        env:
-          POSTGRES_USER: enricher
-          POSTGRES_PASSWORD: supersecret1
-          POSTGRES_DB: sql_enrichment_test
-          POSTGRES_PORT: 5432
-        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
-
-    steps:
-    - uses: actions/checkout@v2
-    - uses: coursier/cache-action@v6
-    - name: Set up JDK 11
-      uses: actions/setup-java@v1
+        images: ${{ steps.packageName.outputs.package_name }}
+        tags: |
+          type=raw,value=latest,enable=${{ !contains(steps.ver.outputs.tag, 'rc') }}
+          type=raw,value=${{ steps.ver.outputs.tag }}
+        flavor: |
+          latest=false
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v1
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v1
+    - name: Push image
+      uses: docker/build-push-action@v2
       with:
-        java-version: 11
-    - name: Docker login
-      run: docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
-      env:
-        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-    - name: Build and publish Beam Docker images
-      run: sbt "project beam" docker:publish
+        context: ${{ steps.baseDirectory.outputs.directory }}/target/docker/stage
+        file: ${{ steps.baseDirectory.outputs.directory }}/target/docker/stage/Dockerfile
+        platforms: linux/amd64,linux/arm64/v8
+        tags: ${{ steps.meta.outputs.tags }}
+        push: true
 
   publish_sce:
     needs: test
@@ -189,52 +181,3 @@ jobs:
         SONATYPE_USERNAME: ${{ secrets.SONA_USER }}
         SONATYPE_PASSWORD: ${{ secrets.SONA_PASS }}
 
-  coverage:
-    needs: test
-    runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres
-        ports:
-          - 5432:5432
-        env:
-          POSTGRES_USER: enricher
-          POSTGRES_PASSWORD: supersecret1
-          POSTGRES_DB: sql_enrichment_test
-          POSTGRES_PORT: 5432
-        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
-
-    steps:
-    - uses: actions/checkout@v2
-    - uses: coursier/cache-action@v6
-    - name: Set up JDK 11
-      uses: actions/setup-java@v1
-      with:
-        java-version: 11
-
-    - name: Prepare Mock server for BE ApiRequestEnrichmentIntegrationTest (launch in background)
-      run: python integration-tests/beam-api-lookup-test.py &
-    - name: Prepare Postgres for BE SqlLookupEnrichmentIntegrationTest (create entities)
-      run: psql -h localhost -p 5432 -U enricher -d sql_enrichment_test < integration-tests/beam-sql-enrichment-test.sql
-      env:
-        PGPASSWORD: supersecret1
-    - name: Prepare Mock server for SCE ApiRequestEnrichmentIntegrationTest (launch in background)
-      run: python integration-tests/sce-api-lookup-test.py 8001 &
-    - name: Prepare Postgres for SCE SqlLookupEnrichmentIntegrationTest (create entities)
-      run: psql -h localhost -p 5432 -U enricher -d sql_enrichment_test < integration-tests/sce-sql-enrichment-test.sql
-      env:
-        PGPASSWORD: supersecret1
-
-    - name: Run tests
-      run: sbt coverage +test coverageReport
-      env:
-        OER_KEY: ${{ secrets.OER_KEY }}
-    - name: Aggregate coverage data
-      if: ${{ always() }}
-      run: sbt coverageAggregate
-    - name: Submit coveralls data
-      if: ${{ always() }}
-      run: sbt coveralls
-      env:
-        COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}

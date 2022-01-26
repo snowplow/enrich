@@ -68,6 +68,7 @@ object Dependencies {
     val gcpSdk           = "1.118.1"
     val kinesisClient    = "1.14.5"
     val kafka            = "2.2.1"
+    val mskAuth          = "1.1.1"
     val nsqClient        = "1.2.0"
     val jackson          = "2.11.4"
     val config           = "1.3.4"
@@ -157,6 +158,7 @@ object Dependencies {
     val sts              = "com.amazonaws"                    %  "aws-java-sdk-sts"                  % V.awsSdk           % Runtime
     val gcs              = "com.google.cloud"                 %  "google-cloud-storage"              % V.gcpSdk
     val kafkaClients     = "org.apache.kafka"                 %  "kafka-clients"                     % V.kafka
+    val mskAuth          = "software.amazon.msk"              %  "aws-msk-iam-auth"                  % V.mskAuth          % Runtime
     val jacksonCbor      = "com.fasterxml.jackson.dataformat" %  "jackson-dataformat-cbor"           % V.jackson
     val config           = "com.typesafe"                     %  "config"                            % V.config
     val log4jOverSlf4j   = "org.slf4j"                        %  "log4j-over-slf4j"                  % V.slf4j

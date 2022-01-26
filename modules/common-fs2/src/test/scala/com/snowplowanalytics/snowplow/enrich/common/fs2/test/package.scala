@@ -30,7 +30,7 @@ package object test {
   implicit class StreamIoOps[A](s: Stream[IO, A]) {
 
     /** Run test [[HttpServer]] in parallel with the stream */
-    def withHttp(implicit C: Concurrent[IO]): Stream[IO, A] =
-      s.concurrently(HttpServer.run)
+    def withHttp: Stream[IO, A] =
+      Stream.resource(HttpServer.resource).flatMap(_ => s)
   }
 }

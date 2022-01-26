@@ -154,8 +154,7 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
       val two = one.copy(geo_city = Some("Baishan"))
       // Third one is Fuyu
 
-      val assetsServer = HttpServer.resource(6.seconds)
-      (assetsServer *> TestEnvironment.make(input, List(ipLookupsConf))).use { test =>
+      (HttpServer.resource *> TestEnvironment.make(input, List(ipLookupsConf))).use { test =>
         test
           .run(_.copy(assetsUpdatePeriod = Some(1800.millis)))
           .map {

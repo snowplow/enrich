@@ -25,6 +25,9 @@ import org.joda.time.DateTime
 
 import org.apache.commons.codec.digest.DigestUtils
 
+import org.specs2.Specification
+import org.specs2.matcher.ValidatedMatchers
+
 import com.snowplowanalytics.iglu.core._
 
 import com.snowplowanalytics.iglu.client.Client
@@ -43,9 +46,7 @@ import com.snowplowanalytics.snowplow.enrich.common.loaders._
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 import com.snowplowanalytics.snowplow.enrich.common.utils.Clock._
-
-import org.specs2.Specification
-import org.specs2.matcher.ValidatedMatchers
+import com.snowplowanalytics.snowplow.enrich.common.AcceptInvalid
 
 class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatchers {
   def is = s2"""
@@ -175,7 +176,8 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
         Processor("spark", "0.0.0"),
         new DateTime(1500000000L),
         input,
-        true
+        AcceptInvalid.acceptInvalid,
+        AcceptInvalid.countInvalid
       )
   }
 

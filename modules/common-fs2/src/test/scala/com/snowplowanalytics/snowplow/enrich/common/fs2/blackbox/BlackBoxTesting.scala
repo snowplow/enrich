@@ -90,7 +90,7 @@ object BlackBoxTesting extends Specification with CatsIO {
     enrichmentConfig: Option[Json] = None
   ) =
     Enrich
-      .enrichWith(getEnrichmentRegistry(enrichmentConfig), igluClient, None, EnrichSpec.processor, true)(
+      .enrichWith(getEnrichmentRegistry(enrichmentConfig), igluClient, None, EnrichSpec.processor, false, IO.unit)(
         input
       )
       .map {

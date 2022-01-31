@@ -66,7 +66,7 @@ class ConfigFileSpec extends Specification with CatsIO {
           Some("1.0.0")
         ),
         io.FeatureFlags(
-          true
+          false
         )
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
@@ -163,7 +163,7 @@ class ConfigFileSpec extends Specification with CatsIO {
           Some("1.0.0")
         ),
         io.FeatureFlags(
-          true
+          false
         )
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
@@ -216,7 +216,7 @@ class ConfigFileSpec extends Specification with CatsIO {
             "secure": true
           },
           "featureFlags" : {
-            "validateEnrichedEvents": true
+            "acceptInvalid": false
           }
         }"""
 

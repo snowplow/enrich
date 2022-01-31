@@ -44,6 +44,9 @@ trait Metrics[F[_]] {
 
   /** Increment bad events */
   def badCount: F[Unit]
+
+  /** Increment invalid enriched events count */
+  def invalidCount: F[Unit]
 }
 
 object Metrics {
@@ -53,12 +56,14 @@ object Metrics {
   val RawCounterName = "raw"
   val GoodCounterName = "good"
   val BadCounterName = "bad"
+  val InvalidCounterName = "invalid_enriched"
 
   final case class MetricSnapshot(
     enrichLatency: Option[Long], // milliseconds
     rawCount: Int,
     goodCount: Int,
-    badCount: Int
+    badCount: Int,
+    invalidCount: Int
   )
 
   trait Reporter[F[_]] {
@@ -123,13 +128,18 @@ object Metrics {
       def badCount: F[Unit] =
         refsStatsd.badCount.update(_ + 1) *>
           refsStdout.badCount.update(_ + 1)
+
+      def invalidCount: F[Unit] =
+        refsStatsd.invalidCount.update(_ + 1) *>
+          refsStdout.invalidCount.update(_ + 1)
     }
 
   private final case class MetricRefs[F[_]](
     latency: Ref[F, Option[Long]], // milliseconds
     rawCount: Ref[F, Int],
     goodCount: Ref[F, Int],
-    badCount: Ref[F, Int]
+    badCount: Ref[F, Int],
+    invalidCount: Ref[F, Int]
   )
 
   private object MetricRefs {
@@ -139,7 +149,8 @@ object Metrics {
         rawCounter <- Ref.of[F, Int](0)
         goodCounter <- Ref.of[F, Int](0)
         badCounter <- Ref.of[F, Int](0)
-      } yield MetricRefs(latency, rawCounter, goodCounter, badCounter)
+        invalidCounter <- Ref.of[F, Int](0)
+      } yield MetricRefs(latency, rawCounter, goodCounter, badCounter, invalidCounter)
 
     def snapshot[F[_]: Monad](refs: MetricRefs[F]): F[MetricSnapshot] =
       for {
@@ -147,7 +158,8 @@ object Metrics {
         rawCount <- refs.rawCount.getAndSet(0)
         goodCount <- refs.goodCount.getAndSet(0)
         badCount <- refs.badCount.getAndSet(0)
-      } yield MetricSnapshot(latency, rawCount, goodCount, badCount)
+        invalidCount <- refs.invalidCount.getAndSet(0)
+      } yield MetricSnapshot(latency, rawCount, goodCount, badCount, invalidCount)
   }
 
   def reporterStream[F[_]: Sync: Timer: ContextShift](
@@ -173,6 +185,7 @@ object Metrics {
           _ <- logger.info(s"${MetricsReporters.normalizeMetric(config.prefix, RawCounterName)} = ${snapshot.rawCount}")
           _ <- logger.info(s"${MetricsReporters.normalizeMetric(config.prefix, GoodCounterName)} = ${snapshot.goodCount}")
           _ <- logger.info(s"${MetricsReporters.normalizeMetric(config.prefix, BadCounterName)} = ${snapshot.badCount}")
+          _ <- logger.info(s"${MetricsReporters.normalizeMetric(config.prefix, InvalidCounterName)} = ${snapshot.invalidCount}")
           _ <- snapshot.enrichLatency
                  .map(latency => logger.info(s"${MetricsReporters.normalizeMetric(config.prefix, LatencyGaugeName)} = $latency"))
                  .getOrElse(Sync[F].unit)
@@ -186,6 +199,7 @@ object Metrics {
       def rawCount(nb: Int): F[Unit] = Applicative[F].unit
       def goodCount: F[Unit] = Applicative[F].unit
       def badCount: F[Unit] = Applicative[F].unit
+      def invalidCount: F[Unit] = Applicative[F].unit
     }
 
 }

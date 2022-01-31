@@ -355,7 +355,7 @@ object io {
   }
 
   case class FeatureFlags(
-    validateEnrichedEvents: Boolean
+    acceptInvalid: Boolean
   )
 
   object FeatureFlags {

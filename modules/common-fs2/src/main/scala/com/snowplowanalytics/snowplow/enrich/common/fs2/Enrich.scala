@@ -72,7 +72,7 @@ object Enrich {
     val registry: F[EnrichmentRegistry[F]] = env.enrichments.get.map(_.registry)
     val enrich: Enrich[F] = {
       implicit val rl: RegistryLookup[F] = env.registryLookup
-      enrichWith[F](registry, env.igluClient, env.sentry, env.processor, env.validateEnriched)
+      enrichWith[F](registry, env.igluClient, env.sentry, env.processor, env.acceptInvalid, env.metrics.invalidCount)
     }
 
     val enriched =
@@ -102,7 +102,8 @@ object Enrich {
     igluClient: Client[F, Json],
     sentry: Option[SentryClient],
     processor: Processor,
-    validateEnriched: Boolean
+    acceptInvalid: Boolean,
+    invalidCount: F[Unit]
   )(
     row: Array[Byte]
   ): F[Result] = {
@@ -114,7 +115,16 @@ object Enrich {
         _ <- Logger[F].debug(payloadToString(payload))
         etlTstamp <- Clock[F].realTime(TimeUnit.MILLISECONDS).map(millis => new DateTime(millis))
         registry <- enrichRegistry
-        enriched <- EtlPipeline.processEvents[F](adapterRegistry, registry, igluClient, processor, etlTstamp, payload, validateEnriched)
+        enriched <- EtlPipeline.processEvents[F](
+                      adapterRegistry,
+                      registry,
+                      igluClient,
+                      processor,
+                      etlTstamp,
+                      payload,
+                      acceptInvalid,
+                      invalidCount
+                    )
       } yield (enriched, collectorTstamp)
 
     result.handleErrorWith(sendToSentry[F](row, sentry, processor, collectorTstamp))

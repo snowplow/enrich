@@ -63,7 +63,6 @@ class ConfigFileSpec extends Specification with CatsIO {
           Some("eu-central-1"),
           io.Input.Kinesis.InitPosition.TrimHorizon,
           io.Input.Kinesis.Retrieval.Polling(10000),
-          100,
           3,
           None,
           None,

@@ -267,14 +267,15 @@ object Enrich {
             // Runtime exception in the stream of enriched events.
             // We wait for the enriched events already in the queue to get sunk and checkpointed.
             // We then raise the original exception
-            terminateStream(queue, fiber).attempt *> Sync[F].raiseError(e)
+            terminateStream(queue, fiber).attempt *> Logger[F].error(e)("Unexpected error in enrich") *> Sync[F].raiseError(e)
         }
     }
 
   private def terminateStream[F[_]: Concurrent: Sync: Timer, A](queue: NoneTerminatedQueue[F, A], fiber: Fiber[F, Unit]): F[Unit] =
     for {
-      _ <- Sync[F].delay(println("Terminating enrich stream")) // can't use logger here because it might have been shut down already
+      timeout <- Sync[F].pure(5.minutes)
+      _ <- Logger[F].warn(s"Terminating enrich stream. Waiting $timeout for it to complete")
       _ <- queue.enqueue1(None)
-      _ <- fiber.join.timeoutTo(10.seconds, fiber.cancel)
+      _ <- fiber.join.timeoutTo(timeout, Logger[F].warn(s"Stream not complete after $timeout, canceling") *> fiber.cancel)
     } yield ()
 }

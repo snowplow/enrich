@@ -69,7 +69,6 @@ object io {
       region: Option[String],
       initialPosition: Kinesis.InitPosition,
       retrievalMode: Kinesis.Retrieval,
-      maxConcurrency: Int,
       bufferSize: Int,
       customEndpoint: Option[URI],
       dynamodbCustomEndpoint: Option[URI],

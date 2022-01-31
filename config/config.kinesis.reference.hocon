@@ -28,17 +28,19 @@
     #   "timestamp": "2020-07-17T10:00:00Z" # Required for AT_TIMESTAMP
     # }
 
-    # Optional, set the polling mode for retrieving records
+    # Optional, set the mode for retrieving records.
     "retrievalMode": {
       "type": "Polling"
+
+      # Maximum size of a batch returned by a call to getRecords.
+      # Records are checkpointed after a batch has been fully processed,
+      # thus the smaller maxRecords, the more often records can be checkpointed
+      # into DynamoDb, but possibly reducing the throughput.
       "maxRecords": 10000
     }
     # "retrievalMode": {
     #   "type": "FanOut"
     # }
-
-    # Optional. Max size of the KinesisAsyncClient HTTP thread pool
-    "maxConcurrency": 100
 
     # Optional. Size of the internal buffer used when reading messages from Kinesis,
     # each buffer holding up to maxRecords from above
@@ -297,6 +299,7 @@
     # Number of events that can get enriched at the same time within a chunk
     "enrich": 256
     # Number of chunks that can get sunk at the same time
+    # WARNING: if greater than 1, records can get checkpointed before they are sunk
     "sink": 1
   }
 

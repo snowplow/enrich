@@ -82,12 +82,10 @@ object Main extends IOApp.WithContext {
       .groupBy(_.shardId)
       .foldLeft(List.empty[CommittableRecord]) { (acc, shardRecords) =>
         shardRecords._2
-          .reduceLeft[CommittableRecord] { (biggest, record) =>
-            if (record.sequenceNumber > biggest.sequenceNumber)
-              record
-            else
-              biggest
-          } :: acc
+          .reduceLeftOption[CommittableRecord] { (biggest, record) =>
+            if (record.sequenceNumber > biggest.sequenceNumber) record else biggest
+          }
+          .toList ::: acc
       }
       .parTraverse_(record => Sync[F].delay(record.checkpointer.checkpoint))
 }

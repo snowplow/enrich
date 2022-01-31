@@ -70,15 +70,6 @@ object Source {
     val resources =
       for {
         region <- Resource.pure[F, Region](Region.of(region))
-        maxConcurrency <- Resource.eval[F, Int Refined Positive] {
-                            refineV[Positive](kinesisConfig.maxConcurrency) match {
-                              case Right(mc) => Sync[F].pure(mc)
-                              case Left(e) =>
-                                Sync[F].raiseError(
-                                  new IllegalArgumentException(s"${kinesisConfig.maxConcurrency} can't be refined as positive: $e")
-                                )
-                            }
-                          }
         bufferSize <- Resource.eval[F, Int Refined Positive](
                         refineV[Positive](kinesisConfig.bufferSize) match {
                           case Right(mc) => Sync[F].pure(mc)
@@ -92,7 +83,6 @@ object Source {
                               KinesisConsumerSettings(
                                 kinesisConfig.streamName,
                                 kinesisConfig.appName,
-                                maxConcurrency = maxConcurrency,
                                 bufferSize = bufferSize
                               )
                             )

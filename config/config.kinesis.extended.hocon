@@ -390,10 +390,16 @@
     moduleVersion = 1.0.0
   }
 
-  # Optional. To activate/deactive enrich features
+  # Optional. To activate/deactive enrich features that are still in beta
+  # or that are here for transition.
+  # This section might change in future versions
   "featureFlags" : {
-    # If activated, enriched events will get validated against atomic schema.
+
+    # Before enrich 3.0.0, it was never checked that the enriched events emitted
+    # are valid against atomic schema.
+    # Setting this flag to true adds this check.
     # If not valid, a bad row will be emitted instead of the enriched event.
+    # See https://github.com/snowplow/enrich/issues/517
     "validateEnrichedEvents": true
   }
 }

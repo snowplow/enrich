@@ -772,7 +772,7 @@ object EnrichmentManager {
                 "Error during conversion of enriched event to the atomic format"
               )
             ),
-            List(EnrichmentFailure(None, FailureDetails.EnrichmentFailureMessage.Simple(s"${CU.cleanStackTrace(err)}")))
+            List(EnrichmentFailure(None, FailureDetails.EnrichmentFailureMessage.Simple(err.toString)))
           ),
           EnrichedEvent.toPartiallyEnrichedEvent(enriched),
           RawEvent.toRawEvent(raw),

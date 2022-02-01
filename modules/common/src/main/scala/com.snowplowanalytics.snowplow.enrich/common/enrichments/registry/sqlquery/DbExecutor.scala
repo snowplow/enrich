@@ -88,7 +88,7 @@ object DbExecutor {
                     case Right(conn) if !conn.isClosed =>
                       Sync[F].pure(conn.asRight)
                     // Connection closed or unitialized
-                    case Right(_) | Left(Unitialized) =>
+                    case Right(_) | Left(Uninitialized) =>
                       for {
                         newConn <- Sync[F].delay(Either.catchNonFatal(DriverManager.getConnection(rdbms.connectionString)))
                         _ <- Sync[F].delay(connectionRef.put((), newConn))
@@ -144,7 +144,7 @@ object DbExecutor {
         flattenCached(connectionRef.get(())) match {
           case Right(conn) if !conn.isClosed =>
             conn.asRight
-          case Right(_) | Left(Unitialized) =>
+          case Right(_) | Left(Uninitialized) =>
             val newConn = Either.catchNonFatal(DriverManager.getConnection(rdbms.connectionString))
             connectionRef.put((), newConn)
             newConn
@@ -259,7 +259,7 @@ object DbExecutor {
                   }
     } yield statement
 
-  private val Unitialized: Throwable = InvalidStateException(
+  private val Uninitialized: Throwable = InvalidStateException(
     "getConnection: connection is unitialized"
   )
 
@@ -268,7 +268,7 @@ object DbExecutor {
       case Some(connOrErr) =>
         connOrErr
       case None =>
-        Unitialized.asLeft[Connection]
+        Uninitialized.asLeft[Connection]
     }
 
   /**

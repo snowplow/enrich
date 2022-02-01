@@ -218,7 +218,7 @@ final case class CurrencyConversionEnrichment[F[_]: Monad](
       case Left(t) =>
         val sw = new StringWriter
         t.printStackTrace(new PrintWriter(sw))
-        s"an error happened while converting the currency: ${t.getMessage}\n${sw.toString}"
+        s"an error happened while converting the currency: ${t.getMessage}\n${sw.toString}".substring(0, 511)
       case Right(e) =>
         val errorType = e.errorType.getClass.getSimpleName.replace("$", "")
         s"Open Exchange Rates error, type: [$errorType], message: [${e.errorMessage}]"

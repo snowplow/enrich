@@ -21,6 +21,8 @@ import cats.implicits._
 import io.circe._
 import io.circe.generic.semiauto._
 
+import com.zaxxer.hikari.HikariDataSource
+
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SelfDescribingData}
 
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
@@ -101,7 +103,6 @@ object SqlQueryEnrichment extends ParseableEnrichment {
  * @param output configuration of output context
  * @param ttl cache TTL in milliseconds
  * @param cache actual mutable LRU cache
- * @param connection initialized DB connection (a mutable single-value cache)
  * @param blocker Allows running blocking enrichments on a dedicated thread pool
  */
 final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor](
@@ -112,11 +113,12 @@ final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor](
   output: Output,
   ttl: Int,
   cache: SqlCache[F],
-  connection: ConnectionRef[F],
   blocker: BlockerF[F]
 ) extends Enrichment {
   private val enrichmentInfo =
     FailureDetails.EnrichmentInformation(schemaKey, "sql-query").some
+
+  val dataSource = getDataSource(db)
 
   /**
    * Primary function of the enrichment. Failure means connection failure, failed unexpected
@@ -138,7 +140,7 @@ final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor](
       placeholders <- Input
                         .buildPlaceholderMap(inputs, event, derivedContexts, customContexts, unstructEvent)
                         .toEitherT[F]
-      verifiedPlaceholders <- EitherT(blocker.blockOn(DbExecutor.allPlaceholdersFilled(db, connection, query.sql, placeholders)))
+      verifiedPlaceholders <- EitherT(blocker.blockOn(DbExecutor.allPlaceholdersFilled[F](dataSource, query.sql, placeholders)))
                                 .leftMap(NonEmptyList.one)
       result <- verifiedPlaceholders match {
                   case Some(m) =>
@@ -181,7 +183,7 @@ final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor](
    */
   def query(intMap: IntMap[Input.ExtractedValue]): EitherT[F, Throwable, List[SelfDescribingData[Json]]] =
     for {
-      sqlQuery <- DbExecutor.createStatement(db, connection, query.sql, intMap)
+      sqlQuery <- DbExecutor.createStatement[F](dataSource, query.sql, intMap)
       resultSet <- DbExecutor[F].execute(sqlQuery)
       context <- DbExecutor[F].convert(resultSet, output.json.propertyNames)
       result <- output.envelope(context).toEitherT[F]
@@ -192,4 +194,11 @@ final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor](
       val message = FailureDetails.EnrichmentFailureMessage.Simple(error)
       FailureDetails.EnrichmentFailure(enrichmentInfo, message)
     }
+
+  private def getDataSource(rdbms: Rdbms): HikariDataSource = {
+    val source = new HikariDataSource()
+    source.setJdbcUrl(rdbms.connectionString)
+    source.setMaximumPoolSize(1) // see https://github.com/snowplow/enrich/issues/549
+    source
+  }
 }

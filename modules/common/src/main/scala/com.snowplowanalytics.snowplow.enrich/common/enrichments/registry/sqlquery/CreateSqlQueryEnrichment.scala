@@ -16,7 +16,6 @@ import cats.Id
 
 import cats.effect.Sync
 import cats.syntax.functor._
-import cats.syntax.flatMap._
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.SqlQueryConf
 import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
@@ -31,14 +30,12 @@ object CreateSqlQueryEnrichment {
   def apply[F[_]](implicit ev: CreateSqlQueryEnrichment[F]): CreateSqlQueryEnrichment[F] = ev
 
   implicit def syncCreateSqlQueryEnrichment[F[_]: Sync: DbExecutor](
-    implicit CLM: SqlCacheInit[F],
-    CN: ConnectionRefInit[F]
+    implicit CLM: SqlCacheInit[F]
   ): CreateSqlQueryEnrichment[F] =
     new CreateSqlQueryEnrichment[F] {
       def create(conf: SqlQueryConf, blocker: BlockerF[F]): F[SqlQueryEnrichment[F]] =
         for {
           cache <- CLM.create(conf.cache.size)
-          connection <- CN.create(1)
         } yield SqlQueryEnrichment(
           conf.schemaKey,
           conf.inputs,
@@ -47,30 +44,24 @@ object CreateSqlQueryEnrichment {
           conf.output,
           conf.cache.ttl,
           cache,
-          connection,
           blocker
         )
     }
 
   implicit def idCreateSqlQueryEnrichment(
     implicit CLM: SqlCacheInit[Id],
-    CN: ConnectionRefInit[Id],
     DB: DbExecutor[Id]
   ): CreateSqlQueryEnrichment[Id] =
     new CreateSqlQueryEnrichment[Id] {
       def create(conf: SqlQueryConf, blocker: BlockerF[Id]): Id[SqlQueryEnrichment[Id]] =
-        for {
-          cache <- CLM.create(conf.cache.size)
-          connection <- CN.create(1)
-        } yield SqlQueryEnrichment(
+        SqlQueryEnrichment(
           conf.schemaKey,
           conf.inputs,
           conf.db,
           conf.query,
           conf.output,
           conf.cache.ttl,
-          cache,
-          connection,
+          CLM.create(conf.cache.size),
           blocker
         )
     }

@@ -30,7 +30,7 @@ object SqlQueryEnrichmentIntegrationTest {
   def continuousIntegration: Boolean =
     sys.env.get("CI") match {
       case Some("true") => true
-      case _ => false
+      case _ => true // TODO false
     }
 }
 

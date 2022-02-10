@@ -29,7 +29,7 @@ import utils.BlockerF
 object SqlQueryEnrichmentIntegrationTest {
   def continuousIntegration: Boolean =
     sys.env.get("CI") match {
-      case Some("true") => true
+      case Some("true") => false // TODO true
       case _ => false
     }
 }

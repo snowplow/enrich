@@ -24,7 +24,7 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.blackbox.BlackBoxTesting
 
 class SqlQueryEnrichmentSpec extends Specification with CatsIO {
 
-  args(skipAll = !sys.env.get("CI").contains("true"))
+  args(skipAll = true)// !sys.env.get("CI").contains("true"))
 
   "enrichWith" should {
     "enrich with SqlQueryEnrichment" in {

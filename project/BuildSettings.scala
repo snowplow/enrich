@@ -107,6 +107,7 @@ object BuildSettings {
       case x if x.endsWith(".proto") => MergeStrategy.first
       case x if x.endsWith("reflection-config.json") => MergeStrategy.first
       case x if x.endsWith("config.fmpp") => MergeStrategy.first
+      case x if x.contains("simulacrum") => MergeStrategy.first
       case x if x.endsWith("git.properties") => MergeStrategy.discard
       case x =>
         val oldStrategy = (assembly / assemblyMergeStrategy).value

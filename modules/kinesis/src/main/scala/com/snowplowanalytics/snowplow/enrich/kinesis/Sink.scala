@@ -122,7 +122,7 @@ object Sink {
     producer: KinesisProducerClient[F],
     data: AttributedData[Array[Byte]]
   ): F[Unit] = {
-    val retryPolicy = capDelay[F](config.backoffPolicy.maxBackoff, exponentialBackoff[F](config.backoffPolicy.minBackoff))
+    val retryPolicy = capDelay[F](config.backoffPolicy.maxBackoff, fullJitter[F](config.backoffPolicy.minBackoff))
     val partitionKey = data.attributes.toList match { // there can be only one attribute : the partition key
       case head :: Nil => head._2
       case _ => UUID.randomUUID().toString
@@ -142,8 +142,7 @@ object Sink {
           Logger[F].warn(s"Writing to shard ${result.getShardId()} failed after ${retryDetails.retriesSoFar} retry"),
         onError = (exception, retryDetails) =>
           Logger[F]
-            .error(s"Writing to Kinesis errored after ${retryDetails.retriesSoFar} retry. Error: ${exception.toString}") >>
-            Async[F].raiseError(exception)
+            .error(s"Writing to Kinesis errored after ${retryDetails.retriesSoFar} retry. Error: ${exception.toString}")
       )
       .void
   }

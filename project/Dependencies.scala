@@ -53,7 +53,7 @@ object Dependencies {
     val scalaForex       = "1.0.0"
     val scalaWeather     = "1.0.0"
     val gatlingJsonpath  = "0.6.14"
-    val scalaUri         = "1.4.5"
+    val scalaUri         = "1.5.1"
     val badRows          = "2.1.0"
     val igluClient       = "1.0.2"
 

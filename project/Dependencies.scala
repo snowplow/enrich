@@ -65,7 +65,7 @@ object Dependencies {
     val gcpSdk           = "1.106.0"
     val kinesisClient    = "1.14.5"
     val kafka            = "2.2.1"
-    val nsqClient        = "1.2.0"
+    val nsqClient        = "1.3.0"
     val jackson          = "2.10.5.1"
     val jacksonCbor      = "2.11.4"
     val config           = "1.3.4"

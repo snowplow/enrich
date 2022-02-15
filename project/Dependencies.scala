@@ -36,7 +36,7 @@ object Dependencies {
     val uaParser         = "1.4.3"
     val postgresDriver   = "42.2.25"
     val mysqlConnector   = "8.0.16"
-    val jaywayJsonpath   = "2.4.0"
+    val jaywayJsonpath   = "2.7.0"
     val iabClient        = "0.2.0"
     val yauaa            = "5.23"
     val guava            = "28.1-jre"

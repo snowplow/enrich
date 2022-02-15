@@ -34,7 +34,7 @@ object Dependencies {
     val jodaTime         = "2.10.1"
     val useragent        = "1.21"
     val uaParser         = "1.4.3"
-    val postgresDriver   = "42.2.16"
+    val postgresDriver   = "42.2.25"
     val mysqlConnector   = "8.0.16"
     val jaywayJsonpath   = "2.4.0"
     val iabClient        = "0.2.0"

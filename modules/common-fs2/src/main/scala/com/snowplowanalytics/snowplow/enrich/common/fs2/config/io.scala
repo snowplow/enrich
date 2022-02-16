@@ -15,6 +15,7 @@ package com.snowplowanalytics.snowplow.enrich.common.fs2.config
 import java.nio.file.{InvalidPathException, Path, Paths}
 import java.time.Instant
 import java.net.URI
+import java.util.UUID
 
 import cats.syntax.either._
 
@@ -24,6 +25,7 @@ import _root_.io.circe.{Decoder, DecodingFailure, Encoder}
 import _root_.io.circe.generic.extras.semiauto._
 import _root_.io.circe.config.syntax._
 import _root_.io.circe.DecodingFailure
+import org.http4s.{ParseFailure, Uri}
 
 object io {
 
@@ -43,6 +45,12 @@ object io {
 
   implicit val javaUriEncoder: Encoder[URI] =
     Encoder.encodeString.contramap[URI](_.toString)
+
+  implicit val http4sUriDecoder: Decoder[Uri] =
+    Decoder[String].emap(s => Either.catchOnly[ParseFailure](Uri.unsafeFromString(s)).leftMap(_.toString))
+
+  implicit val http4sUriEncoder: Encoder[Uri] =
+    Encoder[String].contramap(_.toString)
 
   import ConfigFile.finiteDurationEncoder
 
@@ -352,6 +360,27 @@ object io {
       deriveConfiguredDecoder[Telemetry]
     implicit val telemetryEncoder: Encoder[Telemetry] =
       deriveConfiguredEncoder[Telemetry]
+  }
+
+  case class Metadata(
+    endpoint: Uri,
+    interval: FiniteDuration,
+    organizationId: UUID,
+    pipelineId: UUID
+  )
+  object Metadata {
+    implicit val metadataDecoder: Decoder[Metadata] =
+      deriveConfiguredDecoder[Metadata]
+    implicit val metadataEncoder: Encoder[Metadata] =
+      deriveConfiguredEncoder[Metadata]
+  }
+
+  case class Experimental(metadata: Option[Metadata])
+  object Experimental {
+    implicit val experimentalDecoder: Decoder[Experimental] =
+      deriveConfiguredDecoder[Experimental]
+    implicit val experimentalEncoder: Encoder[Experimental] =
+      deriveConfiguredEncoder[Experimental]
   }
 
   case class FeatureFlags(

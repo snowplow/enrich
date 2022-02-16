@@ -90,7 +90,7 @@ object Enrich {
       _.parEvalMap(env.streamsSettings.concurrency.sink)(sinkChunk(_, sinkOne(env), env.metrics.enrichLatency))
         .evalMap(env.checkpoint)
 
-    Stream.eval(runWithShutdown(enriched, sinkAndCheckpoint))
+    Stream.eval(runWithShutdown(enriched, sinkAndCheckpoint, env.preShutdown.getOrElse(() => Sync[F].unit)))
   }
 
   /**
@@ -189,7 +189,11 @@ object Enrich {
     serializeEnriched(enriched, env.processor, env.streamsSettings.maxRecordSize) match {
       case Left(br) => sinkBad(env, br)
       case Right(bytes) =>
-        List(env.metrics.goodCount, env.sinkGood(AttributedData(bytes, env.goodAttributes(enriched))), sinkPii(env, enriched)).parSequence_
+        List(env.metrics.goodCount,
+             env.metadata.observe(enriched),
+             env.sinkGood(AttributedData(bytes, env.goodAttributes(enriched))),
+             sinkPii(env, enriched)
+        ).parSequence_
     }
 
   def sinkPii[F[_]: Monad, A](env: Environment[F, A], enriched: EnrichedEvent): F[Unit] =
@@ -252,13 +256,14 @@ object Enrich {
    * We use a queue as a level of indirection between the stream of enriched events and the sink + checkpointing.
    * When we receive a SIGINT or exception then we terminate the fiber by pushing a `None` to the queue.
    *
-   * The stream is only cancelled after the sink + checkpointing have been allowed to finish cleanly.
+   * The stream is only canc rrelled after the sink + checkpointing have been allowed to finish cleanly.
    * We must not terminate the source any earlier, because this would shutdown the kinesis scheduler too early,
    * and then we would not be able to checkpoint the outstanding records.
    */
   private def runWithShutdown[F[_]: Concurrent: Sync: Timer, A](
     enriched: Stream[F, List[(A, Result)]],
-    sinkAndCheckpoint: Pipe[F, List[(A, Result)], Unit]
+    sinkAndCheckpoint: Pipe[F, List[(A, Result)], Unit],
+    preShutdown: () => F[Unit]
   ): F[Unit] =
     Queue.synchronousNoneTerminated[F, List[(A, Result)]].flatMap { queue =>
       queue.dequeue
@@ -270,18 +275,18 @@ object Enrich {
         .bracketCase(_.join) {
           case (_, ExitCase.Completed) =>
             // The source has completed "naturally", e.g. processed all input files in the directory
-            Sync[F].unit
+            preShutdown()
           case (fiber, ExitCase.Canceled) =>
             // SIGINT received. We wait for the enriched events already in the queue to get sunk and checkpointed
-            terminateStream(queue, fiber)
+            preShutdown() *> terminateStream(queue, fiber)
           case (fiber, ExitCase.Error(e)) =>
             // Runtime exception in the stream of enriched events.
             // We wait for the enriched events already in the queue to get sunk and checkpointed.
             // We then raise the original exception
             Logger[F].error(e)("Unexpected error in enrich") *>
-              terminateStream(queue, fiber).handleErrorWith { e2 =>
-                Logger[F].error(e2)("Error when terminating the stream")
-              } *> Sync[F].raiseError(e)
+              preShutdown() *> terminateStream(queue, fiber).handleErrorWith { e2 =>
+              Logger[F].error(e2)("Error when terminating the stream")
+            } *> Sync[F].raiseError(e)
         }
     }
 

@@ -13,6 +13,7 @@
 package com.snowplowanalytics.snowplow.enrich.common.fs2.config
 
 import java.net.URI
+import java.util.UUID
 import java.nio.file.Paths
 
 import scala.concurrent.duration._
@@ -24,6 +25,8 @@ import cats.effect.IO
 import cats.effect.testing.specs2.CatsIO
 
 import _root_.io.circe.literal._
+
+import org.http4s.Uri
 
 import org.specs2.mutable.Specification
 
@@ -67,6 +70,18 @@ class ConfigFileSpec extends Specification with CatsIO {
         ),
         io.FeatureFlags(
           false
+        ),
+        Some(
+          io.Experimental(
+            Some(
+              io.Metadata(
+                Uri.uri("https://my_pipeline.my_domain.com/iglu"),
+                5.minutes,
+                UUID.fromString("c5f3a09f-75f8-4309-bec5-fea560f78455"),
+                UUID.fromString("75a13583-5c99-40e3-81fc-541084dfc784")
+              )
+            )
+          )
         )
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
@@ -164,6 +179,18 @@ class ConfigFileSpec extends Specification with CatsIO {
         ),
         io.FeatureFlags(
           false
+        ),
+        Some(
+          io.Experimental(
+            Some(
+              io.Metadata(
+                Uri.uri("https://my_pipeline.my_domain.com/iglu"),
+                5.minutes,
+                UUID.fromString("c5f3a09f-75f8-4309-bec5-fea560f78455"),
+                UUID.fromString("75a13583-5c99-40e3-81fc-541084dfc784")
+              )
+            )
+          )
         )
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
@@ -217,6 +244,14 @@ class ConfigFileSpec extends Specification with CatsIO {
           },
           "featureFlags" : {
             "acceptInvalid": false
+          },
+          "experimental": {
+            "metadata": {
+               "endpoint": "https://my_pipeline.my_domain.com/iglu",
+               "interval": "15 minutes",
+               "organizationId": "c5f3a09f-75f8-4309-bec5-fea560f78455",
+               "pipelineId": "75a13583-5c99-40e3-81fc-541084dfc784"
+            }
           }
         }"""
 

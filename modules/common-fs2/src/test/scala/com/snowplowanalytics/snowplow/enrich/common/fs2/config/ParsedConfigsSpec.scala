@@ -13,11 +13,14 @@
 package com.snowplowanalytics.snowplow.enrich.common.fs2.config
 
 import java.net.URI
+import java.util.UUID
 import scala.concurrent.duration._
 
 import cats.effect.IO
 
 import cats.effect.testing.specs2.CatsIO
+
+import org.http4s.Uri
 
 import org.specs2.mutable.Specification
 
@@ -68,6 +71,18 @@ class ParsedConfigsSpec extends Specification with CatsIO {
         ),
         io.FeatureFlags(
           false
+        ),
+        Some(
+          io.Experimental(
+            Some(
+              io.Metadata(
+                Uri.uri("https://collector-g.snowplowanalytics.com"),
+                5.minutes,
+                UUID.fromString("c5f3a09f-75f8-4309-bec5-fea560f78455"),
+                UUID.fromString("75a13583-5c99-40e3-81fc-541084dfc784")
+              )
+            )
+          )
         )
       )
 

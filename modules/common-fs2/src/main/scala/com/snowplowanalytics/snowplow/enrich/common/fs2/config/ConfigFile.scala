@@ -27,7 +27,16 @@ import pureconfig.ConfigSource
 import pureconfig.module.catseffect.syntax._
 import pureconfig.module.circe._
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Concurrency, FeatureFlags, Input, Monitoring, Output, Outputs, Telemetry}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{
+  Concurrency,
+  Experimental,
+  FeatureFlags,
+  Input,
+  Monitoring,
+  Output,
+  Outputs,
+  Telemetry
+}
 
 /**
  * Parsed HOCON configuration file
@@ -38,6 +47,7 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Concurrency, 
  * @param monitoring configuration for sentry and metrics
  * @param telemetry configuration for telemetry
  * @param featureFlags to activate/deactivate enrich features
+ * @param experimental configuration for experimental features
  */
 final case class ConfigFile(
   input: Input,
@@ -46,7 +56,8 @@ final case class ConfigFile(
   assetsUpdatePeriod: Option[FiniteDuration],
   monitoring: Option[Monitoring],
   telemetry: Telemetry,
-  featureFlags: FeatureFlags
+  featureFlags: FeatureFlags,
+  experimental: Option[Experimental]
 )
 
 object ConfigFile {
@@ -57,13 +68,14 @@ object ConfigFile {
 
   implicit val configFileDecoder: Decoder[ConfigFile] =
     deriveConfiguredDecoder[ConfigFile].emap {
-      case ConfigFile(_, _, _, Some(aup), _, _, _) if aup._1 <= 0L =>
+      case ConfigFile(_, _, _, Some(aup), _, _, _, _) if aup._1 <= 0L =>
         "assetsUpdatePeriod in config file cannot be less than 0".asLeft // TODO: use newtype
       // Remove pii output if streamName and region empty
-      case c @ ConfigFile(_, Outputs(good, Some(Output.Kinesis(s, _, _, _, _, _, _, _, _, _, _, _, _)), bad), _, _, _, _, _) if s.isEmpty =>
+      case c @ ConfigFile(_, Outputs(good, Some(Output.Kinesis(s, _, _, _, _, _, _, _, _, _, _, _, _)), bad), _, _, _, _, _, _)
+          if s.isEmpty =>
         c.copy(output = Outputs(good, None, bad)).asRight
       // Remove pii output if topic empty
-      case c @ ConfigFile(_, Outputs(good, Some(Output.PubSub(t, _, _, _, _)), bad), _, _, _, _, _) if t.isEmpty =>
+      case c @ ConfigFile(_, Outputs(good, Some(Output.PubSub(t, _, _, _, _)), bad), _, _, _, _, _, _) if t.isEmpty =>
         c.copy(output = Outputs(good, None, bad)).asRight
       case other => other.asRight
     }

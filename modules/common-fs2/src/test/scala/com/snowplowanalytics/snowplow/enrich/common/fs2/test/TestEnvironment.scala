@@ -125,6 +125,8 @@ object TestEnvironment extends CatsIO {
       _ <- filesResource(blocker, enrichments.flatMap(_.filesToCache).map(p => Paths.get(p._2)))
       counter <- Resource.eval(Counter.make[IO])
       metrics = Counter.mkCounterMetrics[IO](counter)(Monad[IO], ioClock)
+      aggregates <- Resource.eval(Aggregates.init[IO])
+      metadata = Aggregates.metadata[IO](aggregates)
       clients = Clients.init[IO](http, Nil)
       sem <- Resource.eval(Semaphore[IO](1L))
       assetsState <- Resource.eval(Assets.State.make(blocker, sem, clients, enrichments.flatMap(_.filesToCache)))
@@ -148,6 +150,7 @@ object TestEnvironment extends CatsIO {
                       identity,
                       None,
                       metrics,
+                      metadata,
                       None,
                       _ => Map.empty,
                       _ => Map.empty,
@@ -156,7 +159,8 @@ object TestEnvironment extends CatsIO {
                       StreamsSettings(Concurrency(10000, 64), 1024 * 1024),
                       None,
                       None,
-                      true
+                      true,
+                      None
                     )
       _ <- Resource.eval(logger.info("TestEnvironment initialized"))
     } yield TestEnvironment(environment, counter, goodRef.get, piiRef.get, badRef.get)

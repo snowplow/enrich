@@ -151,7 +151,8 @@ object Run {
       val updates = Assets.run[F, A](env.blocker, env.semaphore, env.assetsUpdatePeriod, env.assetsState, env.enrichments)
       val telemetry = Telemetry.run[F, A](env)
       val reporting = env.metrics.report
-      val flow = enrich.merge(updates).merge(reporting).merge(telemetry)
+      val metadata = env.metadata.report
+      val flow = enrich.merge(updates).merge(reporting).merge(telemetry).merge(metadata)
       log >> flow.compile.drain.as(ExitCode.Success).recoverWith {
         case exception: Throwable =>
           Logger[F].error(s"The Enrich job has stopped") >>

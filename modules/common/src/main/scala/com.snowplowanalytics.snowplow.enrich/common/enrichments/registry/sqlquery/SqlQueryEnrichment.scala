@@ -32,7 +32,7 @@ import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SelfDescribi
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, CirceUtils}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, CirceUtils, ResourceF}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.SqlQueryConf
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{Enrichment, ParseableEnrichment}
 
@@ -109,7 +109,7 @@ object SqlQueryEnrichment extends ParseableEnrichment {
  * @param cache actual mutable LRU cache
  * @param blocker Allows running blocking enrichments on a dedicated thread pool
  */
-final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor](
+final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor: ResourceF](
   schemaKey: SchemaKey,
   inputs: List[Input],
   db: Rdbms,
@@ -142,32 +142,35 @@ final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor](
     customContexts: List[SelfDescribingData[Json]],
     unstructEvent: Option[SelfDescribingData[Json]]
   ): F[ValidatedNel[FailureDetails.EnrichmentFailure, List[SelfDescribingData[Json]]]] = {
+    def useConnection(connection: Connection): F[Either[NonEmptyList[String], List[SelfDescribingData[Json]]]] =
+      (for {
+        placeholders <- Input
+                          .buildPlaceholderMap(inputs, event, derivedContexts, customContexts, unstructEvent)
+                          .toEitherT[F]
+                          .leftMap { t =>
+                            NonEmptyList.of("Error while building the map of placeholders", t.toString)
+                          }
+        verifiedPlaceholders <-
+          EitherT(blocker.blockOn(Monad[F].pure(DbExecutor.allPlaceholdersFilled(connection, query.sql, placeholders))))
+            .leftMap { t =>
+              NonEmptyList.of("Error while filling the placeholders", t.toString)
+            }
+        result <- verifiedPlaceholders match {
+                    case Some(m) =>
+                      EitherT(get(connection, m))
+                        .leftMap { t =>
+                          NonEmptyList.of("Error while executing the query/getting the results", t.toString)
+                        }
+                    case None =>
+                      EitherT.rightT[F, NonEmptyList[String]](List.empty[SelfDescribingData[Json]])
+                  }
+
+      } yield result).value
+
     val contexts = for {
       connection <- EitherT(DbExecutor.getConnection[F](dataSource))
                       .leftMap(t => NonEmptyList.of("Error while getting the connection from the data source", t.toString))
-      placeholders <- Input
-                        .buildPlaceholderMap(inputs, event, derivedContexts, customContexts, unstructEvent)
-                        .toEitherT[F]
-                        .leftMap { t =>
-                          closeConnection(connection)
-                          NonEmptyList.of("Error while building the map of placeholders", t.toString)
-                        }
-      verifiedPlaceholders <- EitherT(blocker.blockOn(Monad[F].pure(DbExecutor.allPlaceholdersFilled(connection, query.sql, placeholders))))
-                                .leftMap { t =>
-                                  closeConnection(connection)
-                                  NonEmptyList.of("Error while filling the placeholders", t.toString)
-                                }
-      result <- verifiedPlaceholders match {
-                  case Some(m) =>
-                    EitherT(get(connection, m))
-                      .leftMap { t =>
-                        closeConnection(connection)
-                        NonEmptyList.of("Error while executing the query/getting the results", t.toString)
-                      }
-                  case None =>
-                    EitherT.rightT[F, NonEmptyList[String]](List.empty[SelfDescribingData[Json]])
-                }
-      _ = closeConnection(connection)
+      result <- EitherT(ResourceF[F].use(connection)(closeConnection)(useConnection))
     } yield result
 
     contexts.leftMap(failureDetails).value.map(_.toValidated)

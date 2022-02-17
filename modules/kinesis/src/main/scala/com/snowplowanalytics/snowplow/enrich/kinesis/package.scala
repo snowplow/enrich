@@ -14,7 +14,29 @@ package com.snowplowanalytics.snowplow.enrich
 
 import com.amazonaws.regions.DefaultAwsRegionProviderChain
 
+import software.amazon.awssdk.regions.Region
+import software.amazon.awssdk.services.kinesis.KinesisClient
+import software.amazon.awssdk.services.kinesis.model.DescribeStreamRequest
+
+import cats.implicits._
+
+import cats.effect.{ContextShift, Resource, Sync}
+
 package object kinesis {
   def getRuntimeRegion: Option[String] =
     Option((new DefaultAwsRegionProviderChain).getRegion)
+
+  def streamExists[F[_]: Sync: ContextShift](region: String, streamName: String): F[Unit] =
+    Resource
+      .fromAutoCloseable(
+        Sync[F].delay(KinesisClient.builder().region(Region.of(region)).build)
+      )
+      .use { client =>
+        val describeStreamRequest = DescribeStreamRequest
+          .builder()
+          .streamName(streamName)
+          .build()
+        // throws ResourceNotFoundException if stream doesn't exist
+        Sync[F].delay(client.describeStream(describeStreamRequest)).void
+      }
 }

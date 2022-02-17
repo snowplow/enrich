@@ -14,6 +14,7 @@ package com.snowplowanalytics.snowplow.enrich.kinesis
 
 import java.nio.ByteBuffer
 import java.util.UUID
+import scala.collection.JavaConverters._
 
 import cats.implicits._
 
@@ -31,6 +32,8 @@ import com.google.common.util.concurrent.{FutureCallback, Futures, ListenableFut
 
 import com.amazonaws.services.kinesis.producer.{KinesisProducerConfiguration, UserRecordResult}
 
+import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
+
 import com.snowplowanalytics.snowplow.enrich.common.fs2.{AttributedByteSink, AttributedData, ByteSink}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Monitoring, Output}
 
@@ -47,12 +50,12 @@ object Sink {
       case o: Output.Kinesis =>
         o.region.orElse(getRuntimeRegion) match {
           case Some(region) =>
-            val producer = mkProducer[F](o, region, monitoring)
-            Resource.pure[F, KinesisProducerClient[F]](producer).map { producer => bytes =>
-              writeToKinesis(o, producer, AttributedData(bytes, Map.empty))
-            }
+            for {
+              _ <- Resource.eval(streamExists(region, o.streamName))
+              producer <- Resource.pure[F, KinesisProducerClient[F]](mkProducer[F](o, region, monitoring))
+            } yield bytes => writeToKinesis(o, producer, AttributedData(bytes, Map.empty))
           case None =>
-            Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"Region not found in the config and in the runtime")))
+            Resource.eval(Sync[F].raiseError(new RuntimeException(s"Region not found in the config and in the runtime")))
         }
       case o =>
         Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"Output $o is not Kinesis")))
@@ -66,10 +69,12 @@ object Sink {
       case o: Output.Kinesis =>
         o.region.orElse(getRuntimeRegion) match {
           case Some(region) =>
-            val producer = mkProducer[F](o, region, monitoring)
-            Resource.pure[F, KinesisProducerClient[F]](producer).map(producer => data => writeToKinesis(o, producer, data))
+            for {
+              _ <- Resource.eval(streamExists(region, o.streamName))
+              producer <- Resource.pure[F, KinesisProducerClient[F]](mkProducer[F](o, region, monitoring))
+            } yield data => writeToKinesis(o, producer, data)
           case None =>
-            Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"Region not found in the config and in the runtime")))
+            Resource.eval(Sync[F].raiseError(new RuntimeException(s"Region not found in the config and in the runtime")))
         }
       case o =>
         Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"Output $o is not Kinesis")))
@@ -92,6 +97,7 @@ object Sink {
       .setCollectionMaxSize(config.collection.maxSize)
       .setMaxConnections(config.maxConnections)
       .setLogLevel(config.logLevel)
+      .setRecordTtl(Long.MaxValue) // retry records forever
 
     // See https://docs.aws.amazon.com/streams/latest/dev/kinesis-kpl-concepts.html
     val withAggregation = config.aggregation match {
@@ -139,10 +145,15 @@ object Sink {
         wasSuccessful = _.isSuccessful,
         policy = retryPolicy,
         onFailure = (result, retryDetails) =>
-          Logger[F].warn(s"Writing to shard ${result.getShardId()} failed after ${retryDetails.retriesSoFar} retry"),
+          Logger[F]
+            .warn(
+              s"Writing to shard ${result.getShardId()} failed after ${retryDetails.retriesSoFar} retries. Errors : [${getErrorMessages(result)}]"
+            ),
         onError = (exception, retryDetails) =>
           Logger[F]
-            .error(s"Writing to Kinesis errored after ${retryDetails.retriesSoFar} retry. Error: ${exception.toString}")
+            .error(
+              s"Writing to Kinesis errored after ${retryDetails.retriesSoFar} retries. Error:\n${ConversionUtils.cleanStackTrace(exception)}"
+            )
       )
       .void
   }
@@ -158,4 +169,11 @@ object Sink {
         MoreExecutors.directExecutor
       )
     }
+
+  private def getErrorMessages(result: UserRecordResult): String =
+    result.getAttempts.asScala
+      .map(_.getErrorMessage)
+      .distinct // because of unlimited retry
+      .toList
+      .toString
 }

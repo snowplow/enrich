@@ -53,9 +53,9 @@ object Source {
       case k: Input.Kinesis =>
         k.region.orElse(getRuntimeRegion) match {
           case Some(region) =>
-            kinesis(blocker, k, region, monitoring)
+            Stream.eval[F, Unit](streamExists(region, k.streamName)) *> kinesis(blocker, k, region, monitoring)
           case None =>
-            Stream.raiseError[F](new IllegalArgumentException(s"Region not found in the config and in the runtime"))
+            Stream.raiseError[F](new RuntimeException(s"Region not found in the config and in the runtime"))
         }
       case i =>
         Stream.raiseError[F](new IllegalArgumentException(s"Input $i is not Kinesis"))
@@ -92,7 +92,6 @@ object Source {
         kinesis <- Resource.pure[F, Kinesis[F]](
                      Kinesis.create(blocker, scheduler(kinesisClient, dynamoClient, cloudWatchClient, kinesisConfig, monitoring, _))
                    )
-        _ <- Resource.make(Sync[F].unit)(_ => Sync[F].delay(println("Destroying Kinesis client")))
       } yield (consumerSettings, kinesis)
 
     Stream

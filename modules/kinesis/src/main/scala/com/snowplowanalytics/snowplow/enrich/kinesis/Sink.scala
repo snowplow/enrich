@@ -147,12 +147,19 @@ object Sink {
         onFailure = (result, retryDetails) =>
           Logger[F]
             .warn(
-              s"Writing to shard ${result.getShardId()} failed after ${retryDetails.retriesSoFar} retries. Errors : [${getErrorMessages(result)}]"
+              List(
+                s"Writing to shard ${result.getShardId()} failed.",
+                s"${result.getAttempts().size()} KPL attempts (${retryDetails.retriesSoFar} retries from cats-retry).",
+                s"Errors : [${getErrorMessages(result)}]"
+              ).mkString(" ")
             ),
         onError = (exception, retryDetails) =>
           Logger[F]
             .error(
-              s"Writing to Kinesis errored after ${retryDetails.retriesSoFar} retries. Error:\n${ConversionUtils.cleanStackTrace(exception)}"
+              List(
+                s"Writing to Kinesis errored (${retryDetails.retriesSoFar} retries from cats-retry).",
+                s"Error:\n${ConversionUtils.cleanStackTrace(exception)}"
+              ).mkString(" ")
             )
       )
       .void

@@ -46,6 +46,7 @@ object Dependencies {
     val thrift           = "0.15.0" // override transitive dependency to mitigate security vulnerabilities
     val sprayJson        = "1.3.6" // override transitive dependency to mitigate security vulnerabilities
     val netty            = "4.1.68.Final" // override transitive dependency to mitigate security vulnerabilities
+    val protobuf         = "3.19.4" // override transitive dependency to mitigate security vulnerabilities
 
     val refererParser    = "1.1.0"
     val maxmindIplookups = "0.7.1"
@@ -139,10 +140,11 @@ object Dependencies {
     val iabClient        = "com.snowplowanalytics"      %  "iab-spiders-and-robots-client" % V.iabClient
     val thrift           = "org.apache.thrift"          %  "libthrift"                     % V.thrift
     val sprayJson        = "io.spray"                   %% "spray-json"                    % V.sprayJson
-    val nettyAll         = "io.netty"                   % "netty-all"                      % V.netty
-    val nettyCodec       = "io.netty"                   % "netty-codec"                    % V.netty
-    val slf4j            = "org.slf4j"                  % "slf4j-simple"                   % V.slf4j
+    val nettyAll         = "io.netty"                   %  "netty-all"                     % V.netty
+    val nettyCodec       = "io.netty"                   %  "netty-codec"                   % V.netty
+    val slf4j            = "org.slf4j"                  %  "slf4j-simple"                  % V.slf4j
     val sentry           = "io.sentry"                  %  "sentry"                        % V.sentry
+    val protobuf         = "com.google.protobuf"        %  "protobuf-java"                 % V.protobuf
 
     val specs2             = "org.specs2"     %% "specs2-core"                 % V.specs2   % Test
     val specs2Cats         = "org.specs2"     %% "specs2-cats"                 % V.specs2   % Test

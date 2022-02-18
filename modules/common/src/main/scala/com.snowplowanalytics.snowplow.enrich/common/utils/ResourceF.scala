@@ -33,9 +33,8 @@ object ResourceF {
   implicit def idResource: ResourceF[Id] =
     new ResourceF[Id] {
       def use[A, B](acquire: A)(release: A => Unit)(use: A => B): B = {
-        val a = acquire
-        try use(a)
-        finally release(a)
+        try use(acquire)
+        finally release(acquire)
       }
     }
 }

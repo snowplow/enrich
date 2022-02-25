@@ -69,6 +69,7 @@ object Dependencies {
     val jackson          = "2.10.5.1"
     val jacksonCbor      = "2.11.4"
     val config           = "1.3.4"
+    val gson             = "2.9.0" // override transitive dependency of gcpSdk
 
     val decline          = "1.0.0"
     val fs2              = "2.5.5"
@@ -157,6 +158,7 @@ object Dependencies {
     val s3Sdk            = "com.amazonaws"                    %  "aws-java-sdk-s3"                   % V.awsSdk
     val kinesisClient    = "com.amazonaws"                    %  "amazon-kinesis-client"             % V.kinesisClient
     val gcs              = "com.google.cloud"                 %  "google-cloud-storage"              % V.gcpSdk
+    val gson             = "com.google.code.gson"             %  "gson"                              % V.gson
     val kafkaClients     = "org.apache.kafka"                 %  "kafka-clients"                     % V.kafka
     val jacksonCbor      = "com.fasterxml.jackson.dataformat" %  "jackson-dataformat-cbor"           % V.jacksonCbor
     val config           = "com.typesafe"                     %  "config"                            % V.config

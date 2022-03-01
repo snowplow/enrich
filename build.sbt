@@ -228,7 +228,8 @@ lazy val pubsub = project
     libraryDependencies ++= Seq(
       Dependencies.Libraries.fs2BlobGcs,
       Dependencies.Libraries.fs2PubSub,
-      Dependencies.Libraries.gson
+      Dependencies.Libraries.gson,
+      Dependencies.Libraries.googleAuth
     ),
     addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
   )

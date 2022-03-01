@@ -47,6 +47,7 @@ object Dependencies {
     val sprayJson        = "1.3.6" // override transitive dependency to mitigate security vulnerabilities
     val netty            = "4.1.68.Final" // override transitive dependency to mitigate security vulnerabilities
     val protobuf         = "3.19.4" // override transitive dependency to mitigate security vulnerabilities
+    val googleAuth       = "1.33.1" // override transitive dependency to mitigate security vulnerabilities
 
     val refererParser    = "1.1.0"
     val maxmindIplookups = "0.7.1"
@@ -146,6 +147,7 @@ object Dependencies {
     val slf4j            = "org.slf4j"                  %  "slf4j-simple"                  % V.slf4j
     val sentry           = "io.sentry"                  %  "sentry"                        % V.sentry
     val protobuf         = "com.google.protobuf"        %  "protobuf-java"                 % V.protobuf
+    val googleAuth       = "com.google.oauth-client"    %  "google-oauth-client"           % V.googleAuth
 
     val specs2             = "org.specs2"     %% "specs2-core"                 % V.specs2   % Test
     val specs2Cats         = "org.specs2"     %% "specs2-cats"                 % V.specs2   % Test

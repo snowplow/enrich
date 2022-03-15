@@ -91,7 +91,7 @@ class PingdomAdapterSpec extends Specification with DataTables with ValidatedMat
       Shared.cljSource,
       Shared.context
     )
-    PingdomAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(
+    PingdomAdapter.toRawEvents(payload, SpecHelpers.client, SpecHelpers.blocker) must beValid(
       NonEmptyList.one(expected)
     )
   }
@@ -104,7 +104,7 @@ class PingdomAdapterSpec extends Specification with DataTables with ValidatedMat
         None,
         "empty querystring: no events to process"
       )
-    PingdomAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
+    PingdomAdapter.toRawEvents(payload, SpecHelpers.client, SpecHelpers.blocker) must beInvalid(
       NonEmptyList.one(expected)
     )
   }
@@ -119,7 +119,7 @@ class PingdomAdapterSpec extends Specification with DataTables with ValidatedMat
         "p=apps".some,
         "no `message` parameter provided"
       )
-    PingdomAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
+    PingdomAdapter.toRawEvents(payload, SpecHelpers.client, SpecHelpers.blocker) must beInvalid(
       NonEmptyList.one(expected)
     )
   }

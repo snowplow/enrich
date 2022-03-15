@@ -30,7 +30,7 @@ import org.joda.time.DateTimeZone
 import org.joda.time.format.DateTimeFormat
 
 import loaders.CollectorPayload
-import utils.{HttpClient, JsonUtils => JU}
+import utils.{BlockerF, HttpClient, JsonUtils => JU}
 import Adapter.Adapted
 
 /**
@@ -72,7 +72,11 @@ object MarketoAdapter extends Adapter {
    * @param client The Iglu client used for schema lookup and validation
    * @return a Validation boxing either a NEL of RawEvents on Success, or a NEL of Failure Strings
    */
-  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](payload: CollectorPayload, client: Client[F, Json]): F[Adapted] =
+  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
+    payload: CollectorPayload,
+    client: Client[F, Json],
+    blocker: BlockerF[F]
+  ): F[Adapted] =
     (payload.body, payload.contentType) match {
       case (None, _) =>
         val failure = FailureDetails.AdapterFailure.InputData(

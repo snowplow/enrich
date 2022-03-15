@@ -114,6 +114,8 @@ object TestEnvironment extends CatsIO {
 
   val adapterRegistry = new AdapterRegistry()
 
+  val blocker = BlockerF.noop[IO]
+
   val igluClient: Client[IO, Json] =
     Client[IO, Json](Resolver(List(embeddedRegistry), None), CirceValidator)
 

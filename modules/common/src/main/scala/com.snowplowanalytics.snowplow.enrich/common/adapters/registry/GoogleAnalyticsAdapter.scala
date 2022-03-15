@@ -33,7 +33,7 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
 import loaders.CollectorPayload
-import utils.HttpClient
+import utils.{BlockerF, HttpClient}
 import utils.ConversionUtils._
 import Adapter.Adapted
 
@@ -472,7 +472,8 @@ object GoogleAnalyticsAdapter extends Adapter {
    */
   override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
     payload: CollectorPayload,
-    client: Client[F, Json]
+    client: Client[F, Json],
+    blocker: BlockerF[F]
   ): F[Adapted] = {
     val events: Option[NonEmptyList[ValidatedNel[FailureDetails.AdapterFailure, RawEvent]]] = for {
       body <- payload.body

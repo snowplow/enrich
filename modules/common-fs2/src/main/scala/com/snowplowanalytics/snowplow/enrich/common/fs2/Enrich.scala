@@ -41,15 +41,13 @@ import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import com.snowplowanalytics.iglu.client.Client
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-
-import com.snowplowanalytics.snowplow.badrows.{Processor, BadRow, Failure, Payload => BadRowPayload}
-
+import com.snowplowanalytics.snowplow.badrows.{BadRow, Failure, Processor, Payload => BadRowPayload}
 import com.snowplowanalytics.snowplow.enrich.common.EtlPipeline
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.loaders.{CollectorPayload, ThriftLoader}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
-import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, ConversionUtils}
 
 object Enrich {
 
@@ -75,7 +73,8 @@ object Enrich {
                     env.sentry,
                     env.processor,
                     env.acceptInvalid,
-                    env.metrics.invalidCount
+                    env.metrics.invalidCount,
+                    BlockerF.ofBlocker(env.blocker)
       )
     }
 
@@ -108,7 +107,8 @@ object Enrich {
     sentry: Option[SentryClient],
     processor: Processor,
     acceptInvalid: Boolean,
-    invalidCount: F[Unit]
+    invalidCount: F[Unit],
+    blocker: BlockerF[F]
   )(
     row: Array[Byte]
   ): F[Result] = {
@@ -128,7 +128,8 @@ object Enrich {
                       etlTstamp,
                       payload,
                       acceptInvalid,
-                      invalidCount
+                      invalidCount,
+                      blocker
                     )
       } yield (enriched, collectorTstamp)
 

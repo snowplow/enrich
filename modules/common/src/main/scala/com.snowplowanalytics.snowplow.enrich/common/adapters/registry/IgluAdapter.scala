@@ -32,8 +32,7 @@ import io.circe.syntax._
 
 import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
-import com.snowplowanalytics.snowplow.enrich.common.utils.{ConversionUtils, HttpClient, JsonUtils}
-
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, ConversionUtils, HttpClient, JsonUtils}
 import Adapter.Adapted
 
 /**
@@ -68,7 +67,8 @@ object IgluAdapter extends Adapter {
    */
   override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
     payload: CollectorPayload,
-    client: Client[F, Json]
+    client: Client[F, Json],
+    blocker: BlockerF[F]
   ): F[Adapted] = {
     val _ = client
     val params = toMap(payload.querystring)

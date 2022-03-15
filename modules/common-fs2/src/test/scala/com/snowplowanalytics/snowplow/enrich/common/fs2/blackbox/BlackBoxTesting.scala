@@ -97,7 +97,8 @@ object BlackBoxTesting extends Specification with CatsIO {
                   None,
                   EnrichSpec.processor,
                   false,
-                  IO.unit
+                  IO.unit,
+                  TestEnvironment.blocker
       )(
         input
       )

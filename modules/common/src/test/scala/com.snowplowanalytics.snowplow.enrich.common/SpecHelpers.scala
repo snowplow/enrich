@@ -27,7 +27,7 @@ import io.circe.literal._
 import org.apache.http.NameValuePair
 import org.apache.http.message.BasicNameValuePair
 
-import com.snowplowanalytics.snowplow.enrich.common.utils.JsonUtils
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, JsonUtils}
 
 object SpecHelpers {
 
@@ -66,6 +66,8 @@ object SpecHelpers {
     .parseDefault[Id](igluConfig)
     .value
     .getOrElse(throw new RuntimeException("invalid resolver configuration"))
+
+  val blocker: BlockerF[Id] = BlockerF.noop
 
   private type NvPair = (String, String)
 

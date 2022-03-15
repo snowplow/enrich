@@ -18,8 +18,7 @@ import java.net.URI
 import java.nio.charset.StandardCharsets.UTF_8
 
 import scala.collection.JavaConverters._
-import scala.util.{Try, Success => TS, Failure => TF}
-
+import scala.util.{Try, Failure => TF, Success => TS}
 import cats.Monad
 import cats.data.NonEmptyList
 import cats.effect.Clock
@@ -34,7 +33,7 @@ import io.circe.syntax._
 import org.apache.http.client.utils.URLEncodedUtils
 
 import loaders.CollectorPayload
-import utils.{HttpClient, JsonUtils => JU}
+import utils.{BlockerF, HttpClient, JsonUtils => JU}
 import Adapter.Adapted
 
 /**
@@ -59,7 +58,11 @@ object StatusGatorAdapter extends Adapter {
    * @param client The Iglu client used for schema lookup and validation
    * @return a Validation boxing either a NEL of RawEvents on Success, or a NEL of Failure Strings
    */
-  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](payload: CollectorPayload, client: Client[F, Json]): F[Adapted] =
+  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
+    payload: CollectorPayload,
+    client: Client[F, Json],
+    blocker: BlockerF[F]
+  ): F[Adapted] =
     (payload.body, payload.contentType) match {
       case (None, _) =>
         val failure = FailureDetails.AdapterFailure.InputData(

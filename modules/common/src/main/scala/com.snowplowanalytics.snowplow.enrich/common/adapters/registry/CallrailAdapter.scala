@@ -76,7 +76,8 @@ object CallrailAdapter extends Adapter {
    */
   override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
     payload: CollectorPayload,
-    client: Client[F, Json]
+    client: Client[F, Json],
+    blocker: BlockerF[F]
   ): F[Adapted] = {
     val _ = client
     val params = toMap(payload.querystring)

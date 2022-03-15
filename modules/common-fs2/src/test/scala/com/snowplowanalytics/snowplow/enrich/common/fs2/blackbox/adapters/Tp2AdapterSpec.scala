@@ -35,13 +35,15 @@ class Tp2AdapterSpec extends Specification with CatsIO {
         contentType = "application/json".some
       )
       Enrich
-        .enrichWith(TestEnvironment.enrichmentReg.pure[IO],
-                    TestEnvironment.adapterRegistry,
-                    BlackBoxTesting.igluClient,
-                    None,
-                    EnrichSpec.processor,
-                    false,
-                    IO.unit
+        .enrichWith(
+          TestEnvironment.enrichmentReg.pure[IO],
+          TestEnvironment.adapterRegistry,
+          BlackBoxTesting.igluClient,
+          None,
+          EnrichSpec.processor,
+          false,
+          IO.unit,
+          TestEnvironment.blocker
         )(
           input
         )

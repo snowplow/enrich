@@ -38,7 +38,7 @@ import com.snowplowanalytics.snowplow.badrows.FailureDetails
 import com.snowplowanalytics.snowplow.enrich.common.RawEventParameters
 import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
-import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, JsonUtils => JU}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, HttpClient, JsonUtils => JU}
 
 trait Adapter {
 
@@ -115,7 +115,11 @@ trait Adapter {
    * @param client The Iglu client used for schema lookup and validation
    * @return a Validation boxing either a NEL of RawEvents on Success, or a NEL of Failure Strings
    */
-  def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](payload: CollectorPayload, client: Client[F, Json]): F[
+  def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
+    payload: CollectorPayload,
+    client: Client[F, Json],
+    blocker: BlockerF[F]
+  ): F[
     ValidatedNel[FailureDetails.AdapterFailureOrTrackerProtocolViolation, NonEmptyList[RawEvent]]
   ]
 

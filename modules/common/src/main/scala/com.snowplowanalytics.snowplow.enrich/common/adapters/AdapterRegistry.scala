@@ -30,7 +30,7 @@ import com.snowplowanalytics.snowplow.badrows._
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry._
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.snowplow.{RedirectAdapter, Tp1Adapter, Tp2Adapter}
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
-import com.snowplowanalytics.snowplow.enrich.common.utils.HttpClient
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, HttpClient}
 
 /**
  * The AdapterRegistry lets us convert a CollectorPayload into one or more RawEvents, using a given
@@ -94,10 +94,11 @@ class AdapterRegistry(remoteAdapters: Map[(String, String), RemoteAdapter] = Map
   def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
     payload: CollectorPayload,
     client: Client[F, Json],
-    processor: Processor
+    processor: Processor,
+    blocker: BlockerF[F]
   ): F[Validated[BadRow, NonEmptyList[RawEvent]]] =
     (adapters.get((payload.api.vendor, payload.api.version)) match {
-      case Some(adapter) => adapter.toRawEvents(payload, client)
+      case Some(adapter) => adapter.toRawEvents(payload, client, blocker)
       case None =>
         val f = FailureDetails.AdapterFailure.InputData(
           "vendor/version",

@@ -30,7 +30,7 @@ import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.{EnrichmentManager, EnrichmentRegistry}
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.HttpClient
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, HttpClient}
 
 /** Expresses the end-to-end event pipeline supported by the Scala Common Enrich project. */
 object EtlPipeline {
@@ -61,12 +61,13 @@ object EtlPipeline {
     etlTstamp: DateTime,
     input: ValidatedNel[BadRow, Option[CollectorPayload]],
     acceptInvalid: Boolean,
-    invalidCount: F[Unit]
+    invalidCount: F[Unit],
+    blocker: BlockerF[F]
   ): F[List[Validated[BadRow, EnrichedEvent]]] =
     input match {
       case Validated.Valid(Some(payload)) =>
         adapterRegistry
-          .toRawEvents(payload, client, processor)
+          .toRawEvents(payload, client, processor, blocker)
           .flatMap {
             case Validated.Valid(rawEvents) =>
               rawEvents.toList.traverse { event =>

@@ -28,7 +28,7 @@ import io.circe.Json
 import io.circe.syntax._
 
 import loaders.CollectorPayload
-import utils.{HttpClient, JsonUtils}
+import utils.{BlockerF, HttpClient, JsonUtils}
 import Adapter.Adapted
 
 /**
@@ -49,7 +49,11 @@ final case class RemoteAdapter(
    * @param client The Iglu client used for schema lookup and validation
    * @return a Validation boxing either a NEL of RawEvents on Success, or a NEL of Failure Strings
    */
-  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](payload: CollectorPayload, client: Client[F, Json]): F[Adapted] =
+  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
+    payload: CollectorPayload,
+    client: Client[F, Json],
+    blocker: BlockerF[F]
+  ): F[Adapted] =
     payload.body match {
       case Some(body) if body.nonEmpty =>
         val _ = client
@@ -68,9 +72,11 @@ final case class RemoteAdapter(
           connectionTimeout,
           readTimeout
         )
-        HttpClient[F]
-          .getResponse(request)
-          .map(processResponse(payload, _).toValidatedNel)
+        blocker.blockOn(
+          HttpClient[F]
+            .getResponse(request)
+            .map(processResponse(payload, _).toValidatedNel)
+        )
       case _ =>
         val msg = s"empty body: not a valid remote adapter $remoteUrl payload"
         Monad[F].pure(

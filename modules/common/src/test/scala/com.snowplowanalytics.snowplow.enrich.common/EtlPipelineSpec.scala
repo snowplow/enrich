@@ -40,6 +40,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegist
 import com.snowplowanalytics.snowplow.enrich.common.loaders._
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.Clock._
+import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 
 class EtlPipelineSpec extends Specification with ValidatedMatchers {
   def is = s2"""
@@ -55,6 +56,7 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers {
   val client = Client[Id, Json](Resolver(List(igluCentral), None), CirceValidator)
   val processor = Processor("sce-test-suite", "1.0.0")
   val dateTime = DateTime.now()
+  val blocker = BlockerF.noop[Id]
 
   def e1 = {
     val collectorPayloadBatched = EtlPipelineSpec.buildBatchedPayload()
@@ -66,7 +68,8 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers {
       dateTime,
       Some(collectorPayloadBatched).validNel,
       AcceptInvalid.acceptInvalid,
-      AcceptInvalid.countInvalid
+      AcceptInvalid.countInvalid,
+      blocker
     )
     output must be like {
       case a :: b :: c :: d :: Nil =>
@@ -88,7 +91,8 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers {
           dateTime,
           Some(collectorPayload).validNel,
           AcceptInvalid.acceptInvalid,
-          AcceptInvalid.countInvalid
+          AcceptInvalid.countInvalid,
+          blocker
         )
       ) must beValid.like {
       case Validated.Valid(_: EnrichedEvent) :: Nil => ok
@@ -106,7 +110,8 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers {
       dateTime,
       invalidCollectorPayload,
       AcceptInvalid.acceptInvalid,
-      AcceptInvalid.countInvalid
+      AcceptInvalid.countInvalid,
+      blocker
     ) must be like {
       case Validated.Invalid(_: BadRow.CPFormatViolation) :: Nil => ok
       case other => ko(s"One invalid CPFormatViolation expected, got ${other}")
@@ -123,7 +128,8 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers {
       dateTime,
       collectorPayload.validNel[BadRow],
       AcceptInvalid.acceptInvalid,
-      AcceptInvalid.countInvalid
+      AcceptInvalid.countInvalid,
+      blocker
     ) must beEqualTo(Nil)
   }
 }

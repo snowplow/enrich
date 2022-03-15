@@ -37,7 +37,7 @@ import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.loaders.{CollectorPayload, ThriftLoader}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, ConversionUtils}
 import com.snowplowanalytics.snowplow.enrich.stream.model.SentryConfig
 import io.circe.Json
 import org.joda.time.DateTime
@@ -167,7 +167,8 @@ abstract class Source(
         new DateTime(System.currentTimeMillis),
         canonicalInput,
         true, // See https://github.com/snowplow/enrich/issues/517#issuecomment-1033910690
-        () // See https://github.com/snowplow/enrich/issues/517#issuecomment-1033910690
+        (), // See https://github.com/snowplow/enrich/issues/517#issuecomment-1033910690
+        BlockerF.noop
       )
     ) match {
       case Left(throwable) =>

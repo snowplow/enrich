@@ -97,7 +97,7 @@ class CallrailAdapterSpec extends Specification with DataTables with ValidatedMa
       "nuid" -> "-"
     )
     val payload = CollectorPayload(Shared.api, params, None, None, Shared.source, Shared.context)
-    val actual = CallrailAdapter.toRawEvents[Id](payload, SpecHelpers.client)
+    val actual = CallrailAdapter.toRawEvents[Id](payload, SpecHelpers.client, SpecHelpers.blocker)
 
     val expectedJson =
       """|{
@@ -160,7 +160,7 @@ class CallrailAdapterSpec extends Specification with DataTables with ValidatedMa
   def e2 = {
     val params = toNameValuePairs()
     val payload = CollectorPayload(Shared.api, params, None, None, Shared.source, Shared.context)
-    val actual = CallrailAdapter.toRawEvents[Id](payload, SpecHelpers.client)
+    val actual = CallrailAdapter.toRawEvents[Id](payload, SpecHelpers.client, SpecHelpers.blocker)
 
     actual must beInvalid(
       NonEmptyList.one(

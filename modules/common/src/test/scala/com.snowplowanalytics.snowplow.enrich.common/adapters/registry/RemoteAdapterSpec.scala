@@ -198,7 +198,7 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers {
         )
       }
 
-    val they = testAdapter.toRawEvents(payload, SpecHelpers.client)
+    val they = testAdapter.toRawEvents(payload, SpecHelpers.client, SpecHelpers.blocker)
     they must beValid(expected)
   }
 
@@ -212,7 +212,7 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers {
         "empty body: not a valid remote adapter http://localhost:8091/myEnrichment payload"
       )
     )
-    testAdapter.toRawEvents(emptyListPayload, SpecHelpers.client) must beInvalid(expected)
+    testAdapter.toRawEvents(emptyListPayload, SpecHelpers.client, SpecHelpers.blocker) must beInvalid(expected)
   }
 
   def e3 = {
@@ -225,7 +225,7 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers {
         "empty body: not a valid remote adapter http://localhost:8091/myEnrichment payload"
       )
     )
-    testAdapter.toRawEvents(bodylessPayload, SpecHelpers.client) must beInvalid(expected)
+    testAdapter.toRawEvents(bodylessPayload, SpecHelpers.client, SpecHelpers.blocker) must beInvalid(expected)
   }
 
   def e4 = {

@@ -29,7 +29,7 @@ import io.circe.{DecodingFailure, Json}
 import org.joda.time.{DateTime, DateTimeZone}
 
 import loaders.CollectorPayload
-import utils.{HttpClient, JsonUtils}
+import utils.{BlockerF, HttpClient, JsonUtils}
 import Adapter.Adapted
 
 /**
@@ -75,7 +75,11 @@ object UrbanAirshipAdapter extends Adapter {
    * @param client The Iglu client used for schema lookup and validation
    * @return a Validation boxing either a NEL of RawEvents on Success, or a NEL of Failure Strings
    */
-  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](payload: CollectorPayload, client: Client[F, Json]): F[Adapted] =
+  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
+    payload: CollectorPayload,
+    client: Client[F, Json],
+    blocker: BlockerF[F]
+  ): F[Adapted] =
     (payload.body, payload.contentType) match {
       case (None, _) =>
         val failure = FailureDetails.AdapterFailure.InputData(

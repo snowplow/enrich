@@ -168,6 +168,7 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
     )
     val reg = Registry.Embedded(regConf, path = "/iglu-schemas")
     val client = Client[Id, Json](Resolver(List(reg), None), CirceValidator)
+    val blocker = BlockerF.noop[Id]
     EtlPipeline
       .processEvents[Id](
         new AdapterRegistry(),
@@ -177,7 +178,8 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
         new DateTime(1500000000L),
         input,
         AcceptInvalid.acceptInvalid,
-        AcceptInvalid.countInvalid
+        AcceptInvalid.countInvalid,
+        blocker
       )
   }
 

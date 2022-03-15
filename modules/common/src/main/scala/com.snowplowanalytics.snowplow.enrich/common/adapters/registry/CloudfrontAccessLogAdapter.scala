@@ -37,7 +37,7 @@ import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
 import loaders.CollectorPayload
-import utils.{ConversionUtils, HttpClient}
+import utils.{BlockerF, ConversionUtils, HttpClient}
 import Adapter.Adapted
 
 /** Transforms a Cloudfront access log into raw events */
@@ -82,7 +82,11 @@ object CloudfrontAccessLogAdapter extends Adapter {
    * @param client The Iglu client used for schema lookup and validation
    * @return a validation boxing either a NEL of raw events or a NEL of failure strings
    */
-  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](payload: CollectorPayload, client: Client[F, Json]): F[Adapted] =
+  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
+    payload: CollectorPayload,
+    client: Client[F, Json],
+    blocker: BlockerF[F]
+  ): F[Adapted] =
     payload.body match {
       case Some(p) =>
         val _ = client

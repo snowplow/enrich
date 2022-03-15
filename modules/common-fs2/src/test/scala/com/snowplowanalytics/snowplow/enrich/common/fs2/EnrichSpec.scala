@@ -70,13 +70,15 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
         )
 
       Enrich
-        .enrichWith(TestEnvironment.enrichmentReg.pure[IO],
-                    TestEnvironment.adapterRegistry,
-                    TestEnvironment.igluClient,
-                    None,
-                    EnrichSpec.processor,
-                    false,
-                    IO.unit
+        .enrichWith(
+          TestEnvironment.enrichmentReg.pure[IO],
+          TestEnvironment.adapterRegistry,
+          TestEnvironment.igluClient,
+          None,
+          EnrichSpec.processor,
+          false,
+          IO.unit,
+          TestEnvironment.blocker
         )(
           EnrichSpec.payload
         )
@@ -92,13 +94,15 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
       prop { (collectorPayload: CollectorPayload) =>
         val payload = collectorPayload.toRaw
         Enrich
-          .enrichWith(TestEnvironment.enrichmentReg.pure[IO],
-                      TestEnvironment.adapterRegistry,
-                      TestEnvironment.igluClient,
-                      None,
-                      EnrichSpec.processor,
-                      false,
-                      IO.unit
+          .enrichWith(
+            TestEnvironment.enrichmentReg.pure[IO],
+            TestEnvironment.adapterRegistry,
+            TestEnvironment.igluClient,
+            None,
+            EnrichSpec.processor,
+            false,
+            IO.unit,
+            TestEnvironment.blocker
           )(
             payload
           )

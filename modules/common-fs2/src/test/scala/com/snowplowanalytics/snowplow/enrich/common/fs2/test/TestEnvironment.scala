@@ -38,6 +38,7 @@ import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 
 import com.snowplowanalytics.snowplow.badrows.BadRow
 
+import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
@@ -111,6 +112,8 @@ object TestEnvironment extends CatsIO {
 
   val embeddedRegistry = Registry.EmbeddedRegistry
 
+  val adapterRegistry = new AdapterRegistry()
+
   val igluClient: Client[IO, Json] =
     Client[IO, Json](Resolver(List(embeddedRegistry), None), CirceValidator)
 
@@ -141,6 +144,7 @@ object TestEnvironment extends CatsIO {
                       http,
                       blocker,
                       source,
+                      adapterRegistry,
                       g => goodRef.update(_ :+ g),
                       Some(p => piiRef.update(_ :+ p)),
                       b => badRef.update(_ :+ b),

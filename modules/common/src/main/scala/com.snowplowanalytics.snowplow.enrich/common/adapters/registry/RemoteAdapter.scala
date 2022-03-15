@@ -122,3 +122,32 @@ final case class RemoteAdapter(
                   }
     } yield rawEvents
 }
+
+object RemoteAdapter {
+  final case class RemoteAdapterConfig(
+    vendor: String,
+    version: String,
+    connectionTimeout: Option[Long],
+    readTimeout: Option[Long],
+    url: String
+  )
+
+  /**
+   * Sets up the Remote adapters for the ETL
+   * @param remoteAdaptersConfig List of configuration per remote adapter
+   * @return Mapping of vendor-version and the adapter assigned for it
+   */
+  def prepareRemoteAdapters(remoteAdaptersConfig: Option[List[RemoteAdapterConfig]]): Map[(String, String), RemoteAdapter] =
+    remoteAdaptersConfig match {
+      case Some(configList) =>
+        configList.map { config =>
+          val adapter = new RemoteAdapter(
+            config.url,
+            config.connectionTimeout,
+            config.readTimeout
+          )
+          (config.vendor, config.version) -> adapter
+        }.toMap
+      case None => Map.empty[(String, String), RemoteAdapter]
+    }
+}

@@ -33,7 +33,8 @@ import com.snowplowanalytics.iglu.client.{Client => IgluClient}
 import com.snowplowanalytics.iglu.client.resolver.registries.{Http4sRegistryLookup, RegistryLookup}
 
 import com.snowplowanalytics.snowplow.badrows.Processor
-
+import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
+import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter.prepareRemoteAdapters
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
@@ -91,6 +92,7 @@ final case class Environment[F[_], A](
   httpClient: HttpClient[F],
   blocker: Blocker,
   source: Stream[F, A],
+  adapterRegistry: AdapterRegistry,
   sinkGood: AttributedByteSink[F],
   sinkPii: Option[AttributedByteSink[F]],
   sinkBad: ByteSink[F],
@@ -163,6 +165,7 @@ object Environment {
       igluClient <- IgluClient.parseDefault[F](parsedConfigs.igluJson).resource
       metrics <- Resource.eval(metricsReporter[F](blocker, file))
       assets = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
+      adapterRegistry = new AdapterRegistry(prepareRemoteAdapters(file.remoteAdapters))
       sem <- Resource.eval(Semaphore(1L))
       assetsState <- Resource.eval(Assets.State.make[F](blocker, sem, clts, assets))
       enrichments <- Enrichments.make[F](parsedConfigs.enrichmentConfigs, BlockerF.ofBlocker(blocker))
@@ -179,6 +182,7 @@ object Environment {
       http,
       blocker,
       source,
+      adapterRegistry,
       good,
       pii,
       bad,

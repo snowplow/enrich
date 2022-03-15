@@ -30,7 +30,7 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData
 import com.snowplowanalytics.iglu.core.circe.CirceIgluCodecs._
 import com.snowplowanalytics.snowplow.badrows.Processor
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
-import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
+import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter.prepareRemoteAdapters
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, JsonUtils}
@@ -312,23 +312,4 @@ trait Enrich {
           }
       }
       .sequence_
-
-  /**
-   *  Sets up the Remote adapters for the ETL
-   * @param remoteAdaptersConfig List of configuration per remote adapter
-   * @return Mapping of vender-version and the adapter assigned for it
-   */
-  def prepareRemoteAdapters(remoteAdaptersConfig: Option[List[RemoteAdapterConfig]]) =
-    remoteAdaptersConfig match {
-      case Some(configList) =>
-        configList.map { config =>
-          val adapter = new RemoteAdapter(
-            config.url,
-            config.connectionTimeout,
-            config.readTimeout
-          )
-          (config.vendor, config.version) -> adapter
-        }.toMap
-      case None => Map.empty[(String, String), RemoteAdapter]
-    }
 }

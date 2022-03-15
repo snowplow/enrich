@@ -44,6 +44,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegist
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Enrich
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.EnrichSpec
+import com.snowplowanalytics.snowplow.enrich.common.fs2.test.TestEnvironment
 
 object BlackBoxTesting extends Specification with CatsIO {
 
@@ -90,7 +91,14 @@ object BlackBoxTesting extends Specification with CatsIO {
     enrichmentConfig: Option[Json] = None
   ) =
     Enrich
-      .enrichWith(getEnrichmentRegistry(enrichmentConfig), igluClient, None, EnrichSpec.processor, false, IO.unit)(
+      .enrichWith(getEnrichmentRegistry(enrichmentConfig),
+                  TestEnvironment.adapterRegistry,
+                  igluClient,
+                  None,
+                  EnrichSpec.processor,
+                  false,
+                  IO.unit
+      )(
         input
       )
       .map {

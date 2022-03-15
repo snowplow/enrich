@@ -24,6 +24,7 @@ import _root_.io.circe.{Decoder, DecodingFailure, Encoder}
 import _root_.io.circe.generic.extras.semiauto._
 import _root_.io.circe.config.syntax._
 import _root_.io.circe.DecodingFailure
+import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter.RemoteAdapterConfig
 
 object io {
 
@@ -322,6 +323,14 @@ object io {
       s"${prefix.getOrElse(DefaultPrefix).stripSuffix(".")}.$metric".stripPrefix(".")
 
     val DefaultPrefix = "snowplow.enrich"
+  }
+
+  object RemoteAdapterConfigCodec {
+    implicit val remoteAdapterConfigEncoder: Encoder[RemoteAdapterConfig] =
+      deriveConfiguredEncoder[RemoteAdapterConfig]
+
+    implicit val remoteAdapterConfigDecoder: Decoder[RemoteAdapterConfig] =
+      deriveConfiguredDecoder[RemoteAdapterConfig]
   }
 
   case class Monitoring(sentry: Option[Sentry], metrics: Option[MetricsReporters])

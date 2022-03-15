@@ -40,6 +40,7 @@ class ConfigFileSpec extends Specification with CatsIO {
         ),
         io.Concurrency(256, 3),
         Some(7.days),
+        None,
         Some(
           io.Monitoring(
             Some(Sentry(URI.create("http://sentry.acme.com"))),
@@ -137,6 +138,7 @@ class ConfigFileSpec extends Specification with CatsIO {
         ),
         io.Concurrency(256, 1),
         Some(7.days),
+        None,
         Some(
           io.Monitoring(
             Some(Sentry(URI.create("http://sentry.acme.com"))),
@@ -224,6 +226,68 @@ class ConfigFileSpec extends Specification with CatsIO {
         case Left(message) => message must contain("assetsUpdatePeriod in config file cannot be less than 0")
         case _ => ko("Decoding should have failed")
       }
+    }
+
+    "parse valid adapter registries" in {
+      val input =
+        json"""{
+          "input": {
+            "type": "PubSub",
+            "subscription": "projects/test-project/subscriptions/inputSub",
+            "parallelPullCount": 1,
+            "maxQueueSize": 3000
+          },
+          "output": {
+            "good": {
+              "type": "PubSub",
+              "topic": "projects/test-project/topics/good-topic",
+              "delayThreshold": "200 milliseconds",
+              "maxBatchSize": 1000,
+              "maxBatchBytes": 10000000
+            },
+            "pii": {
+              "type": "PubSub",
+              "topic": "projects/test-project/topics/pii-topic",
+              "delayThreshold": "200 milliseconds",
+              "maxBatchSize": 1000,
+              "maxBatchBytes": 10000000
+            },
+            "bad": {
+              "type": "PubSub",
+              "topic": "projects/test-project/topics/bad-topic",
+              "delayThreshold": "200 milliseconds",
+              "maxBatchSize": 1000,
+              "maxBatchBytes": 10000000
+            }
+          },
+          "concurrency": {
+            "enrich": 256,
+            "sink": 3
+          },
+          "assetsUpdatePeriod": "1 minutes",
+          "metricsReportPeriod": "10 second",
+          "remoteAdapters": [
+            {
+                "vendor": "com.example",
+                "version": "v1",
+                "url": "http://127.0.0.1:8995/sampleRemoteAdapter",
+                "connectionTimeout": 1000
+            }
+          ],
+          "telemetry": {
+            "disable": false,
+            "interval": "15 minutes",
+            "method": "POST",
+            "collectorUri": "collector-g.snowplowanalytics.com",
+            "collectorPort": "443",
+            "secure": true
+          },
+          "featureFlags" : {
+            "acceptInvalid": false
+          }
+        }"""
+
+      ConfigFile.parse[IO](Base64Hocon(input).asLeft).value.map(result => result must beRight)
     }
 
     "not throw an exception if file not found" in {

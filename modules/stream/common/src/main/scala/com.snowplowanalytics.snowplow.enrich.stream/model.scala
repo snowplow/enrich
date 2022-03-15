@@ -23,6 +23,8 @@ import java.net.URI
 
 import cats.syntax.either._
 
+import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter.RemoteAdapterConfig
+
 object model {
 
   sealed trait Credentials
@@ -159,13 +161,6 @@ object model {
     collectorPort: Int,
     appId: String,
     method: String
-  )
-  final case class RemoteAdapterConfig(
-    vendor: String,
-    version: String,
-    connectionTimeout: Option[Long],
-    readTimeout: Option[Long],
-    url: String
   )
   final case class SentryConfig(dsn: URI)
   final case class EnrichConfig(

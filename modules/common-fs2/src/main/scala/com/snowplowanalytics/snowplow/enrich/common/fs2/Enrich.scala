@@ -53,9 +53,6 @@ import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
 
 object Enrich {
 
-  /** Default adapter registry, can be constructed dynamically in future */
-  val adapterRegistry = new AdapterRegistry()
-
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
     Slf4jLogger.getLogger[F]
 
@@ -69,10 +66,17 @@ object Enrich {
    * they'll be refreshed periodically by [[Assets.updateStream]]
    */
   def run[F[_]: Concurrent: ContextShift: Clock: Parallel: Timer, A](env: Environment[F, A]): Stream[F, Unit] = {
-    val registry: F[EnrichmentRegistry[F]] = env.enrichments.get.map(_.registry)
+    val enrichRegistry: F[EnrichmentRegistry[F]] = env.enrichments.get.map(_.registry)
     val enrich: Enrich[F] = {
       implicit val rl: RegistryLookup[F] = env.registryLookup
-      enrichWith[F](registry, env.igluClient, env.sentry, env.processor, env.acceptInvalid, env.metrics.invalidCount)
+      enrichWith[F](enrichRegistry,
+                    env.adapterRegistry,
+                    env.igluClient,
+                    env.sentry,
+                    env.processor,
+                    env.acceptInvalid,
+                    env.metrics.invalidCount
+      )
     }
 
     val enriched =
@@ -99,6 +103,7 @@ object Enrich {
    */
   def enrichWith[F[_]: Clock: ContextShift: RegistryLookup: Sync](
     enrichRegistry: F[EnrichmentRegistry[F]],
+    adapterRegistry: AdapterRegistry,
     igluClient: Client[F, Json],
     sentry: Option[SentryClient],
     processor: Processor,

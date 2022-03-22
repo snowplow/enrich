@@ -144,7 +144,7 @@ object Environment {
     sinkGood: Resource[F, AttributedByteSink[F]],
     sinkPii: Option[Resource[F, AttributedByteSink[F]]],
     sinkBad: Resource[F, ByteSink[F]],
-    clients: List[Client[F]],
+    clients: Resource[F, List[Client[F]]],
     checkpoint: List[A] => F[Unit],
     getPayload: A => Array[Byte],
     processor: Processor,
@@ -159,7 +159,7 @@ object Environment {
       bad <- sinkBad
       pii <- sinkPii.sequence
       http <- Clients.mkHttp(ec)
-      clts = Clients.init[F](http, clients)
+      clts <- clients.map(Clients.init(http, _))
       igluClient <- IgluClient.parseDefault[F](parsedConfigs.igluJson).resource
       metrics <- Resource.eval(metricsReporter[F](blocker, file))
       assets = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)

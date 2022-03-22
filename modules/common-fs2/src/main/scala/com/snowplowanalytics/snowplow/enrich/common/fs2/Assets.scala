@@ -258,7 +258,7 @@ object Assets {
 
   def worthRetrying(e: Throwable): Boolean =
     e match {
-      case _: Clients.DownloadingFailure => true
+      case _: Clients.RetryableFailure => true
       case _: IllegalArgumentException => false
       case NonFatal(_) => false
     }

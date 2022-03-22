@@ -14,6 +14,7 @@ package com.snowplowanalytics.snowplow.enrich.pubsub
 
 import java.net.URI
 
+import cats.implicits._
 import cats.effect.{Blocker, ConcurrentEffect, ContextShift}
 
 import fs2.Stream
@@ -22,19 +23,33 @@ import blobstore.gcs.GcsStore
 import blobstore.Path
 
 import com.google.cloud.storage.StorageOptions
+import com.google.cloud.BaseServiceException
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.Client
+import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.{Client, RetryableFailure}
 
 object GcsClient {
 
-  def mk[F[_]: ConcurrentEffect: ContextShift](blocker: Blocker): Client[F] =
-    new Client[F] {
-      val prefixes = List("gs")
+  def mk[F[_]: ConcurrentEffect: ContextShift](blocker: Blocker): F[Client[F]] =
+    ConcurrentEffect[F].delay(StorageOptions.getDefaultInstance.getService).map { service =>
+      new Client[F] {
+        val prefixes = List("gs")
 
-      val service = StorageOptions.getDefaultInstance.getService
-      val store = GcsStore(service, blocker, List.empty)
+        val store = GcsStore(service, blocker, List.empty)
 
-      def download(uri: URI): Stream[F, Byte] =
-        store.get(Path(uri.toString), 16 * 1024)
+        def download(uri: URI): Stream[F, Byte] =
+          store
+            .get(Path(uri.toString), 16 * 1024)
+            .handleErrorWith { e =>
+              val e2 = e match {
+                case bse: BaseServiceException if bse.isRetryable =>
+                  new RetryableFailure {
+                    override def getMessage: String = bse.getMessage
+                    override def getCause: Throwable = bse
+                  }
+                case e => e
+              }
+              Stream.raiseError[F](e2)
+            }
+      }
     }
 }

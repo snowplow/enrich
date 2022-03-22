@@ -49,7 +49,7 @@ object Run {
     mkSinkPii: (Blocker, Output, Option[Monitoring]) => Resource[F, AttributedByteSink[F]],
     mkSinkBad: (Blocker, Output, Option[Monitoring]) => Resource[F, ByteSink[F]],
     checkpoint: List[A] => F[Unit],
-    mkClients: List[Blocker => Client[F]],
+    mkClients: List[Blocker => Resource[F, Client[F]]],
     getPayload: A => Array[Byte],
     maxRecordSize: Int,
     cloud: Option[Telemetry.Cloud],
@@ -79,7 +79,7 @@ object Run {
                                 case _ =>
                                   mkSinkBad(blocker, file.output.bad, file.monitoring)
                               }
-                    clients = mkClients.map(mk => mk(blocker))
+                    clients = mkClients.map(mk => mk(blocker)).sequence
                     exit <- file.input match {
                               case p: Input.FileSystem =>
                                 val env = Environment

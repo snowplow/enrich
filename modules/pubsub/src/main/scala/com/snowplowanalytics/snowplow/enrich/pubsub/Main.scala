@@ -68,7 +68,7 @@ object Main extends IOApp.WithContext {
       (_, out, _) => Sink.initAttributed(out),
       (_, out, _) => Sink.init(out),
       checkpoint,
-      List(GcsClient.mk[IO]),
+      List(b => Resource.eval(GcsClient.mk[IO](b))),
       _.value,
       MaxRecordSize,
       Some(Telemetry.Cloud.Gcp),

@@ -51,7 +51,7 @@ object Clients {
         for {
           response <- client.stream(request)
           body <- if (response.status.isSuccess) response.body
-                  else Stream.raiseError[F](DownloadingFailure(uri))
+                  else Stream.raiseError[F](HttpDownloadFailure(uri))
         } yield body
       }
     }
@@ -59,7 +59,9 @@ object Clients {
   def mkHttp[F[_]: ConcurrentEffect](ec: ExecutionContext): Resource[F, HttpClient[F]] =
     BlazeClientBuilder[F](ec).resource
 
-  case class DownloadingFailure(uri: URI) extends Throwable {
+  trait RetryableFailure extends Throwable
+
+  case class HttpDownloadFailure(uri: URI) extends RetryableFailure {
     override def getMessage: String = s"Cannot download $uri"
   }
 

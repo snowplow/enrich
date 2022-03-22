@@ -15,8 +15,6 @@ package com.snowplowanalytics.snowplow.enrich.common.fs2
 import cats.Parallel
 import cats.implicits._
 
-import _root_.io.sentry.SentryClient
-
 import fs2.Stream
 
 import scala.concurrent.ExecutionContext
@@ -156,17 +154,8 @@ object Run {
       val flow = enrich.merge(updates).merge(reporting).merge(telemetry)
       log >> flow.compile.drain.as(ExitCode.Success).recoverWith {
         case exception: Throwable =>
-          sendToSentry(exception, env.sentry) >>
-            Logger[F].error(s"The Enrich job has stopped") >>
+          Logger[F].error(s"The Enrich job has stopped") >>
             Sync[F].raiseError[ExitCode](exception)
       }
-    }
-
-  private def sendToSentry[F[_]: Sync](error: Throwable, sentry: Option[SentryClient]): F[Unit] =
-    sentry match {
-      case Some(client) =>
-        Sync[F].delay(client.sendException(error)) >> Logger[F].info("Sentry report has been sent")
-      case None =>
-        Sync[F].unit
     }
 }

@@ -18,7 +18,7 @@ import cats.Show
 import cats.data.EitherT
 import cats.implicits._
 
-import cats.effect.{Async, Blocker, Clock, ConcurrentEffect, ContextShift, Resource, Sync, Timer}
+import cats.effect.{Async, Blocker, Clock, ConcurrentEffect, ContextShift, ExitCase, Resource, Sync, Timer}
 import cats.effect.concurrent.{Ref, Semaphore}
 
 import fs2.Stream
@@ -28,6 +28,9 @@ import _root_.io.circe.Json
 import _root_.io.sentry.{Sentry, SentryClient}
 
 import org.http4s.client.{Client => HttpClient}
+
+import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import com.snowplowanalytics.iglu.client.{Client => IgluClient}
 import com.snowplowanalytics.iglu.client.resolver.registries.{Http4sRegistryLookup, RegistryLookup}
@@ -111,6 +114,9 @@ final case class Environment[F[_], A](
 
 object Environment {
 
+  private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
+    Slf4jLogger.getLogger[F]
+
   /** Registry with all allocated clients (MaxMind, IAB etc) and their original configs */
   final case class Enrichments[F[_]](registry: EnrichmentRegistry[F], configs: List[EnrichmentConf]) {
 
@@ -155,6 +161,7 @@ object Environment {
   ): Resource[F, Environment[F, A]] = {
     val file = parsedConfigs.configFile
     for {
+      sentry <- mkSentry[F](file)
       good <- sinkGood
       bad <- sinkBad
       pii <- sinkPii.sequence
@@ -166,10 +173,6 @@ object Environment {
       sem <- Resource.eval(Semaphore(1L))
       assetsState <- Resource.eval(Assets.State.make[F](blocker, sem, clts, assets))
       enrichments <- Enrichments.make[F](parsedConfigs.enrichmentConfigs, BlockerF.ofBlocker(blocker))
-      sentry <- file.monitoring.flatMap(_.sentry).map(_.dsn) match {
-                  case Some(dsn) => Resource.eval[F, Option[SentryClient]](Sync[F].delay(Sentry.init(dsn.toString).some))
-                  case None => Resource.pure[F, Option[SentryClient]](none[SentryClient])
-                }
     } yield Environment[F, A](
       igluClient,
       Http4sRegistryLookup(http),
@@ -197,6 +200,21 @@ object Environment {
       acceptInvalid
     )
   }
+
+  private def mkSentry[F[_]: Sync](config: ConfigFile): Resource[F, Option[SentryClient]] =
+    config.monitoring.flatMap(_.sentry).map(_.dsn) match {
+      case Some(dsn) =>
+        Resource
+          .makeCase(Sync[F].delay(Sentry.init(dsn.toString))) {
+            case (sentry, ExitCase.Error(e)) =>
+              Sync[F].delay(sentry.sendException(e)) >>
+                Logger[F].info("Sentry report has been sent")
+            case _ => Sync[F].unit
+          }
+          .map(Some(_))
+      case None =>
+        Resource.pure[F, Option[SentryClient]](none[SentryClient])
+    }
 
   private def metricsReporter[F[_]: ConcurrentEffect: ContextShift: Timer](blocker: Blocker, config: ConfigFile): F[Metrics[F]] =
     config.monitoring.flatMap(_.metrics).map(Metrics.build[F](blocker, _)).getOrElse(Metrics.noop[F].pure[F])

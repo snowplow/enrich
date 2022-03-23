@@ -1,4 +1,10 @@
-Version 3.0.1 (2022-03-24)
+Version 3.1.0 (2022-03-23)
+--------------------------
+common-fs2: Add experimental metadata aggregation sink (#569)
+Enable publishing snapshot images (#568)
+Add an event generator test for ETL pipeline (#535)
+
+Version 3.0.1 (2022-03-23)
 --------------------------
 common: Recover from corrupt asset downloads (#573)
 common: Sentry should report exceptions in initialising environment (#572)

@@ -1,3 +1,9 @@
+Version 3.0.1 (2022-03-24)
+--------------------------
+common: Recover from corrupt asset downloads (#573)
+common: Sentry should report exceptions in initialising environment (#572)
+common: Retry downloading assets from S3 and GCS (#574)
+
 Version 3.0.0 (2022-03-24)
 --------------------------
 enrich-pubsub: split into common module and PubSub module (#473)
@@ -36,17 +42,17 @@ enrich-pubsub: set google-oauth-client transitive dependency to 1.33.1 (#566)
 
 Version 2.0.7 (2022-02-25)
 --------------------------
-Stream: Bump gson to 2.9.0 (close #563)
-Stream: Set google-cloud-storage transitive dependency to 1.118.1 (close #503)
+Stream: Bump gson to 2.9.0 (#563)
+Stream: Set google-cloud-storage transitive dependency to 1.118.1 (#503)
 
 Version 2.0.6 (2022-02-16)
 --------------------------
-Bump postgresql to 42.2.25 (close #554)
-Bump jayway jsonpath to 2.7.0 (close #555)
-Bump lemonlabs scala-uri to 1.5.1 (close #556)
-Bump nsq-java-client to 1.3.0 (close #557)
-Update copyright notices to 2022 (close #558)
-Change docker base image to eclipse/temurin:11-jre-focal (close #512)
+Bump postgresql to 42.2.25 (#554)
+Bump jayway jsonpath to 2.7.0 (#555)
+Bump lemonlabs scala-uri to 1.5.1 (#556)
+Bump nsq-java-client to 1.3.0 (#557)
+Update copyright notices to 2022 (#558)
+Change docker base image to eclipse/temurin:11-jre-focal (#512)
 
 Version 2.0.5 (2021-12-20)
 --------------------------

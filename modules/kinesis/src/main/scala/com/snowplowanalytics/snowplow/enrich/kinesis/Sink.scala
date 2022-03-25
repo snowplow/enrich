@@ -92,7 +92,7 @@ object Sink {
       .setCollectionMaxSize(config.collection.maxSize)
       .setMaxConnections(config.maxConnections)
       .setLogLevel(config.logLevel)
-      .setRecordTtl(Long.MaxValue) // retry records forever
+      .setRecordTtl(config.recordTtl.toMillis)
 
     // See https://docs.aws.amazon.com/streams/latest/dev/kinesis-kpl-concepts.html
     val withAggregation = config.aggregation match {
@@ -124,6 +124,7 @@ object Sink {
     data: AttributedData[Array[Byte]]
   ): F[Unit] = {
     val retryPolicy = capDelay[F](config.backoffPolicy.maxBackoff, fullJitter[F](config.backoffPolicy.minBackoff))
+      .join(limitRetries(config.backoffPolicy.maxRetries))
     val partitionKey = data.attributes.toList match { // there can be only one attribute : the partition key
       case head :: Nil => head._2
       case _ => UUID.randomUUID().toString

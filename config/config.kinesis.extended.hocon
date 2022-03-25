@@ -81,14 +81,19 @@
       # Otherwise, the partition key will be a random UUID.
       # "partitionKey": "user_id"
 
-      # Optional. Minimum and maximum backoff periods
+      # Optional. Policy for cats-retry to retry after failures writing to kinesis
       "backoffPolicy": {
         "minBackoff": 100 milliseconds
         "maxBackoff": 10 seconds
+        "maxRetries": 10
       }
 
       # Optional. Maximum amount of time an enriched event may spend being buffered before it gets sent
       "maxBufferedTime": 100 millis
+
+      # Optional. The KPL will consider a record failed if it cannot be sent within this deadline.
+      # The KPL then yields back to the JVM, which will log the error, and might retry sending.
+      "recordTtl": 20 seconds
 
       # Optional. See https://docs.aws.amazon.com/streams/latest/dev/kinesis-kpl-concepts.html
       "collection": {
@@ -162,14 +167,19 @@
       # Otherwise, the partition key will be a random UUID.
       # "partitionKey": "user_id"
 
-      # Optional. Minimum and maximum backoff periods
+      # Optional. Policy for cats-retry to retry after failures writing to kinesis
       "backoffPolicy": {
         "minBackoff": 100 milliseconds
         "maxBackoff": 10 seconds
+        "maxRetries": 10
       }
 
       # Optional. Maximum amount of time an enriched event may spend being buffered before it gets sent
       "maxBufferedTime": 100 millis
+
+      # Optional. The KPL will consider a record failed if it cannot be sent within this deadline.
+      # The KPL then yields back to the JVM, which will log the error, and might retry sending.
+      "recordTtl": 20 seconds
 
       # Optional. See https://docs.aws.amazon.com/streams/latest/dev/kinesis-kpl-concepts.html
       "collection": {
@@ -235,14 +245,19 @@
       # https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/regions/providers/DefaultAwsRegionProviderChain.html
       "region": "eu-central-1"
 
-      # Optional. Minimum and maximum backoff periods
+      # Optional. Policy for cats-retry to retry after failures writing to kinesis
       "backoffPolicy": {
         "minBackoff": 100 milliseconds
         "maxBackoff": 10 seconds
+        "maxRetries": 10
       }
 
       # Optional. Maximum amount of time an enriched event may spend being buffered before it gets sent
       "maxBufferedTime": 100 millis
+
+      # Optional. The KPL will consider a record failed if it cannot be sent within this deadline.
+      # The KPL then yields back to the JVM, which will log the error, and might retry sending.
+      "recordTtl": 20 seconds
 
       # Optional. See https://docs.aws.amazon.com/streams/latest/dev/kinesis-kpl-concepts.html
       "collection": {

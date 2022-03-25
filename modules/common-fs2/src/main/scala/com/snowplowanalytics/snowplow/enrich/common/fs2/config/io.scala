@@ -209,6 +209,7 @@ object io {
       region: Option[String],
       partitionKey: Option[String],
       backoffPolicy: BackoffPolicy,
+      recordTtl: FiniteDuration,
       maxBufferedTime: FiniteDuration,
       collection: Collection,
       aggregation: Option[Aggregation],
@@ -220,7 +221,11 @@ object io {
       cloudwatchPort: Option[Long]
     ) extends Output
 
-    case class BackoffPolicy(minBackoff: FiniteDuration, maxBackoff: FiniteDuration)
+    case class BackoffPolicy(
+      minBackoff: FiniteDuration,
+      maxBackoff: FiniteDuration,
+      maxRetries: Int
+    )
     object BackoffPolicy {
       implicit def backoffPolicyDecoder: Decoder[BackoffPolicy] =
         deriveConfiguredDecoder[BackoffPolicy]
@@ -254,7 +259,7 @@ object io {
               case _ =>
                 s"Topic must conform projects/project-name/topics/topic-name format, $top given".asLeft
             }
-          case Kinesis(s, r, _, _, _, _, _, _, _, _, _, _, _) if s.isEmpty && r.nonEmpty =>
+          case k: Kinesis if k.streamName.isEmpty && k.region.nonEmpty =>
             "streamName needs to be set".asLeft
           case other => other.asRight
         }

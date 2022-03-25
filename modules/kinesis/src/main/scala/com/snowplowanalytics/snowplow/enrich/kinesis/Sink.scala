@@ -42,7 +42,7 @@ object Sink {
 
   def init[F[_]: Concurrent: ContextShift: Timer](
     output: Output,
-    monitoring: Option[Monitoring]
+    monitoring: Monitoring
   ): Resource[F, ByteSink[F]] =
     output match {
       case o: Output.Kinesis =>
@@ -60,7 +60,7 @@ object Sink {
 
   def initAttributed[F[_]: Concurrent: ContextShift: Timer](
     output: Output,
-    monitoring: Option[Monitoring]
+    monitoring: Monitoring
   ): Resource[F, AttributedByteSink[F]] =
     output match {
       case o: Output.Kinesis =>
@@ -79,10 +79,9 @@ object Sink {
   private def mkProducer[F[_]](
     config: Output.Kinesis,
     region: String,
-    monitoring: Option[Monitoring]
+    monitoring: Monitoring
   ): KinesisProducerClient[F] = {
-    val disableCloudwatch = monitoring.fold(false)(m => m.metrics.fold(false)(r => r.cloudwatch.contains(true)))
-    val metricsLevel = if (disableCloudwatch) "none" else "detailed"
+    val metricsLevel = if (monitoring.metrics.cloudwatch) "detailed" else "none"
 
     val producerConfig = new KinesisProducerConfiguration()
       .setThreadingModel(KinesisProducerConfiguration.ThreadingModel.POOLED)

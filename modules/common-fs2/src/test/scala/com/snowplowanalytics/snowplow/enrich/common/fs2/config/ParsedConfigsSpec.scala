@@ -41,16 +41,12 @@ class ParsedConfigsSpec extends Specification with CatsIO {
         ),
         io.Concurrency(10000, 64),
         Some(7.days),
-        Some(
-          io.Monitoring(
-            Some(Sentry(URI.create("http://sentry.acme.com"))),
-            Some(
-              io.MetricsReporters(
-                Some(io.MetricsReporters.StatsD("localhost", 8125, Map("app" -> "enrich"), 10.seconds, None)),
-                Some(io.MetricsReporters.Stdout(10.seconds, None)),
-                None
-              )
-            )
+        io.Monitoring(
+          Some(Sentry(URI.create("http://sentry.acme.com"))),
+          io.MetricsReporters(
+            Some(io.MetricsReporters.StatsD("localhost", 8125, Map("app" -> "enrich"), 10.seconds, None)),
+            Some(io.MetricsReporters.Stdout(10.seconds, None)),
+            true
           )
         ),
         io.Telemetry(

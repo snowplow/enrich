@@ -277,7 +277,7 @@ object io {
   final case class MetricsReporters(
     statsd: Option[MetricsReporters.StatsD],
     stdout: Option[MetricsReporters.Stdout],
-    cloudwatch: Option[Boolean]
+    cloudwatch: Boolean
   )
 
   object MetricsReporters {
@@ -324,7 +324,7 @@ object io {
     val DefaultPrefix = "snowplow.enrich"
   }
 
-  case class Monitoring(sentry: Option[Sentry], metrics: Option[MetricsReporters])
+  case class Monitoring(sentry: Option[Sentry], metrics: MetricsReporters)
 
   object Monitoring {
     implicit val monitoringDecoder: Decoder[Monitoring] =

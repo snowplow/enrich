@@ -168,7 +168,7 @@ object Environment {
       http <- Clients.mkHttp(ec)
       clts <- clients.map(Clients.init(http, _))
       igluClient <- IgluClient.parseDefault[F](parsedConfigs.igluJson).resource
-      metrics <- Resource.eval(metricsReporter[F](blocker, file))
+      metrics <- Resource.eval(Metrics.build[F](blocker, file.monitoring.metrics))
       assets = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
       sem <- Resource.eval(Semaphore(1L))
       assetsState <- Resource.eval(Assets.State.make[F](blocker, sem, clts, assets))
@@ -202,7 +202,7 @@ object Environment {
   }
 
   private def mkSentry[F[_]: Sync](config: ConfigFile): Resource[F, Option[SentryClient]] =
-    config.monitoring.flatMap(_.sentry).map(_.dsn) match {
+    config.monitoring.sentry.map(_.dsn) match {
       case Some(dsn) =>
         Resource
           .makeCase(Sync[F].delay(Sentry.init(dsn.toString))) {
@@ -215,9 +215,6 @@ object Environment {
       case None =>
         Resource.pure[F, Option[SentryClient]](none[SentryClient])
     }
-
-  private def metricsReporter[F[_]: ConcurrentEffect: ContextShift: Timer](blocker: Blocker, config: ConfigFile): F[Metrics[F]] =
-    config.monitoring.flatMap(_.metrics).map(Metrics.build[F](blocker, _)).getOrElse(Metrics.noop[F].pure[F])
 
   private implicit class EitherTOps[F[_], E: Show, A](eitherT: EitherT[F, E, A]) {
     def resource(implicit F: Sync[F]): Resource[F, A] = {

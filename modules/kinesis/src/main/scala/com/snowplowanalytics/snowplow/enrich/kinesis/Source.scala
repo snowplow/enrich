@@ -47,7 +47,7 @@ object Source {
   def init[F[_]: ConcurrentEffect: ContextShift: Timer](
     blocker: Blocker,
     input: Input,
-    monitoring: Option[Monitoring]
+    monitoring: Monitoring
   ): Stream[F, CommittableRecord] =
     input match {
       case k: Input.Kinesis =>
@@ -65,7 +65,7 @@ object Source {
     blocker: Blocker,
     kinesisConfig: Input.Kinesis,
     region: String,
-    monitoring: Option[Monitoring]
+    monitoring: Monitoring
   ): Stream[F, CommittableRecord] = {
     val resources =
       for {
@@ -104,7 +104,7 @@ object Source {
     dynamoDbClient: DynamoDbAsyncClient,
     cloudWatchClient: CloudWatchAsyncClient,
     kinesisConfig: Input.Kinesis,
-    monitoring: Option[Monitoring],
+    monitoring: Monitoring,
     recordProcessorFactory: ShardRecordProcessorFactory
   ): F[Scheduler] =
     Sync[F].delay(UUID.randomUUID()).map { uuid =>
@@ -142,8 +142,7 @@ object Source {
           }
 
       val metricsConfig = configsBuilder.metricsConfig.metricsLevel {
-        val disableCloudwatch = monitoring.fold(false)(m => m.metrics.fold(false)(r => r.cloudwatch.contains(true)))
-        if (disableCloudwatch) MetricsLevel.NONE else MetricsLevel.DETAILED
+        if (monitoring.metrics.cloudwatch) MetricsLevel.DETAILED else MetricsLevel.NONE
       }
 
       new Scheduler(

@@ -54,7 +54,7 @@ final case class ConfigFile(
   output: Outputs,
   concurrency: Concurrency,
   assetsUpdatePeriod: Option[FiniteDuration],
-  monitoring: Option[Monitoring],
+  monitoring: Monitoring,
   telemetry: Telemetry,
   featureFlags: FeatureFlags,
   experimental: Option[Experimental]

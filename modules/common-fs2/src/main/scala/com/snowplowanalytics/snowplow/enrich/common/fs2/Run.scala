@@ -42,10 +42,10 @@ object Run {
     description: String,
     ec: ExecutionContext,
     updateCliConfig: (Blocker, CliConfig) => F[CliConfig],
-    mkSource: (Blocker, Input, Option[Monitoring]) => Stream[F, A],
-    mkSinkGood: (Blocker, Output, Option[Monitoring]) => Resource[F, AttributedByteSink[F]],
-    mkSinkPii: (Blocker, Output, Option[Monitoring]) => Resource[F, AttributedByteSink[F]],
-    mkSinkBad: (Blocker, Output, Option[Monitoring]) => Resource[F, ByteSink[F]],
+    mkSource: (Blocker, Input, Monitoring) => Stream[F, A],
+    mkSinkGood: (Blocker, Output, Monitoring) => Resource[F, AttributedByteSink[F]],
+    mkSinkPii: (Blocker, Output, Monitoring) => Resource[F, AttributedByteSink[F]],
+    mkSinkBad: (Blocker, Output, Monitoring) => Resource[F, ByteSink[F]],
     checkpoint: List[A] => F[Unit],
     mkClients: List[Blocker => Resource[F, Client[F]]],
     getPayload: A => Array[Byte],
@@ -132,8 +132,8 @@ object Run {
   private def initAttributedSink[F[_]: Concurrent: ContextShift: Timer](
     blocker: Blocker,
     output: Output,
-    monitoring: Option[Monitoring],
-    mkSinkGood: (Blocker, Output, Option[Monitoring]) => Resource[F, AttributedByteSink[F]]
+    monitoring: Monitoring,
+    mkSinkGood: (Blocker, Output, Monitoring) => Resource[F, AttributedByteSink[F]]
   ): Resource[F, AttributedByteSink[F]] =
     output match {
       case f: Output.FileSystem =>

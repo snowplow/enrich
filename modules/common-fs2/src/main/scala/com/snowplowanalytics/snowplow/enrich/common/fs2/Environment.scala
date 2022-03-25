@@ -172,7 +172,7 @@ object Environment {
       http <- Clients.mkHttp(ec)
       clts <- clients.map(Clients.init(http, _))
       igluClient <- IgluClient.parseDefault[F](parsedConfigs.igluJson).resource
-      metrics <- Resource.eval(metricsReporter[F](blocker, file))
+      metrics <- Resource.eval(Metrics.build[F](blocker, file.monitoring.metrics))
       metadata <- Resource.eval(metadataReporter[F](file, processor.artifact, http))
       assets = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
       sem <- Resource.eval(Semaphore(1L))
@@ -209,7 +209,7 @@ object Environment {
   }
 
   private def mkSentry[F[_]: Sync](config: ConfigFile): Resource[F, Option[SentryClient]] =
-    config.monitoring.flatMap(_.sentry).map(_.dsn) match {
+    config.monitoring.sentry.map(_.dsn) match {
       case Some(dsn) =>
         Resource
           .makeCase(Sync[F].delay(Sentry.init(dsn.toString))) {
@@ -222,9 +222,6 @@ object Environment {
       case None =>
         Resource.pure[F, Option[SentryClient]](none[SentryClient])
     }
-
-  private def metricsReporter[F[_]: ConcurrentEffect: ContextShift: Timer](blocker: Blocker, config: ConfigFile): F[Metrics[F]] =
-    config.monitoring.flatMap(_.metrics).map(Metrics.build[F](blocker, _)).getOrElse(Metrics.noop[F].pure[F])
 
   private def metadataReporter[F[_]: ConcurrentEffect: ContextShift: Timer](
     config: ConfigFile,

@@ -24,7 +24,7 @@ import cats.effect.IO
 
 import cats.effect.testing.specs2.CatsIO
 
-import _root_.io.circe.literal._
+import pureconfig.ConfigSource
 
 import org.http4s.Uri
 
@@ -198,7 +198,7 @@ class ConfigFileSpec extends Specification with CatsIO {
 
     "parse valid 0 minutes as None" in {
       val input =
-        json"""{
+        """{
           "input": {
             "type": "PubSub",
             "subscription": "projects/test-project/subscriptions/inputSub",
@@ -255,7 +255,7 @@ class ConfigFileSpec extends Specification with CatsIO {
           }
         }"""
 
-      ConfigFile.parse[IO](Base64Hocon(input).asLeft).value.map {
+      ConfigFile.parse[IO](Base64Hocon(ConfigSource.string(input)).asLeft).value.map {
         case Left(message) => message must contain("assetsUpdatePeriod in config file cannot be less than 0")
         case _ => ko("Decoding should have failed")
       }

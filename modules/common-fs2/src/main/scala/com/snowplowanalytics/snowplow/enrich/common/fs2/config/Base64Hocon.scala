@@ -15,18 +15,13 @@ package com.snowplowanalytics.snowplow.enrich.common.fs2.config
 import java.util.Base64
 
 import cats.data.ValidatedNel
-import cats.syntax.either._
+import cats.implicits._
 
-import com.typesafe.config.{ConfigException, ConfigFactory}
-
-import _root_.io.circe.Json
-
-import pureconfig.syntax._
-import pureconfig.module.circe._
+import pureconfig.{ConfigObjectSource, ConfigSource}
 
 import com.monovore.decline.Argument
 
-final case class Base64Hocon(value: Json) extends AnyVal
+final case class Base64Hocon(value: ConfigObjectSource) extends AnyVal
 
 object Base64Hocon {
 
@@ -34,20 +29,15 @@ object Base64Hocon {
 
   implicit val base64Hocon: Argument[Base64Hocon] =
     new Argument[Base64Hocon] {
-      def read(string: String): ValidatedNel[String, Base64Hocon] = {
-        val result = for {
-          bytes <- Either.catchOnly[IllegalArgumentException](base64.decode(string)).leftMap(_.getMessage)
-          hocon <- parseHocon(new String(bytes))
-        } yield hocon
-        result.toValidatedNel
-      }
+      def read(string: String): ValidatedNel[String, Base64Hocon] =
+        parseHocon(string).toValidatedNel
 
       def defaultMetavar: String = "base64"
     }
 
   def parseHocon(str: String): Either[String, Base64Hocon] =
-    for {
-      configValue <- Either.catchOnly[ConfigException](ConfigFactory.parseString(str)).leftMap(_.toString).map(_.toConfig)
-      json <- configValue.to[Json].leftMap(_.toString)
-    } yield Base64Hocon(json)
+    Either
+      .catchOnly[IllegalArgumentException](base64.decode(str))
+      .map(bytes => Base64Hocon(ConfigSource.string(new String(bytes))))
+      .leftMap(_.getMessage)
 }

@@ -12,6 +12,9 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2.config
 
+import java.util.Base64
+import java.nio.charset.StandardCharsets
+
 import org.specs2.mutable.Specification
 
 import cats.effect.testing.specs2.CatsIO
@@ -25,7 +28,8 @@ class CliConfigSpec extends Specification with CatsIO {
               "subscription": "projects/test-project/subscriptions/collector-payloads-sub"
            }
           """.stripMargin
-      Base64Hocon.parseHocon(string) must beRight
+      val b64Encoded = Base64.getEncoder.encodeToString(string.getBytes(StandardCharsets.UTF_8))
+      Base64Hocon.parseHocon(b64Encoded) must beRight
     }
   }
 }

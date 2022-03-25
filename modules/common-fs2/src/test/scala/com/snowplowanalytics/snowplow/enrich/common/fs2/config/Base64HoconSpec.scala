@@ -20,16 +20,16 @@ import org.specs2.mutable.Specification
 
 class Base64HoconSpec extends Specification {
   "Argument[Base64Hocon]" should {
-    "parse a base64-encoded HOCON" in {
+    "parse a base64-encoded HOCON as a source" in {
       val inputStr = """input = {}"""
       val input = getEncoder.encodeToString(inputStr.getBytes())
       Argument[Base64Hocon].read(input).toEither must beRight
     }
 
-    "fail to parse plain string as HOCON" in {
+    "parse a plain string as a HOCON source" in {
       val inputStr = "+"
       val input = getEncoder.encodeToString(inputStr.getBytes())
-      Argument[Base64Hocon].read(input).toEither must beLeft
+      Argument[Base64Hocon].read(input).toEither must beRight
     }
   }
 }

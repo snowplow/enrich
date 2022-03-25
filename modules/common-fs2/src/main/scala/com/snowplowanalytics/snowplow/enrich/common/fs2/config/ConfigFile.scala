@@ -82,18 +82,19 @@ object ConfigFile {
   implicit val configFileEncoder: Encoder[ConfigFile] =
     deriveConfiguredEncoder[ConfigFile]
 
-  def parse[F[_]: Sync: ContextShift](in: EncodedHoconOrPath): EitherT[F, String, ConfigFile] =
-    in match {
-      case Right(path) =>
-        val result = Blocker[F].use { blocker =>
-          ConfigSource
-            .file(path)
-            .withFallback(ConfigSource.default)
-            .loadF[F, Json](blocker)
-            .map(_.as[ConfigFile].leftMap(f => show"Couldn't parse the config $f"))
-        }
-        result.attemptT.leftMap(_.getMessage).subflatMap(identity)
-      case Left(encoded) =>
-        EitherT.fromEither[F](encoded.value.as[ConfigFile].leftMap(failure => show"Couldn't parse a base64-encoded config file:\n$failure"))
-    }
+  def parse[F[_]: Sync: ContextShift](in: EncodedHoconOrPath): EitherT[F, String, ConfigFile] = {
+    val cliSource = in.fold(_.value, ConfigSource.file(_))
+    val source = ConfigSource.default(cliSource.withFallback(ConfigSource.default))
+
+    Blocker[F]
+      .use { blocker =>
+        source
+          .loadF[F, Json](blocker)
+          .map(_.as[ConfigFile].leftMap(f => show"Couldn't parse the config $f"))
+      }
+      .attemptT
+      .leftMap(_.getMessage)
+      .subflatMap(identity)
+  }
+
 }

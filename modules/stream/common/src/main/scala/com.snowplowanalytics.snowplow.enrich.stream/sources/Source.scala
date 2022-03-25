@@ -172,7 +172,7 @@ abstract class Source(
     ) match {
       case Left(throwable) =>
         log.error(
-          s"Problem occured while processing CollectorPayload [$canonicalInput]",
+          s"Problem occured while processing CollectorPayload",
           throwable
         )
         sentryClient.foreach { client =>

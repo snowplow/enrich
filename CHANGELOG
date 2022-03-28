@@ -1,3 +1,11 @@
+Version 3.0.2 (2022-03-28)
+--------------------------
+Stream Enrich: Remove logging of collector payloads (#522)
+enrich-inesis: Cap recordTtl in KPL (#581)
+kinesis: Fix disabling cloudwatch metrics (#580)
+common-fs2: Fix precedence of configuration system properties (#579)
+enrich-kinesis: Harden fetching enrichment configs from DynamoDB (#578)
+
 Version 3.0.1 (2022-03-24)
 --------------------------
 common: Recover from corrupt asset downloads (#573)

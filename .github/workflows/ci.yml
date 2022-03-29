@@ -5,9 +5,7 @@ on:
     tags:
       - '*'
     branches:
-      - master
-      - develop
-      - 'snapshot/**'
+      - '*'
   pull_request:
 
 jobs:
@@ -102,8 +100,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish_docker:
-    needs: test
-    if: startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/heads/snapshot')
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -115,12 +111,6 @@ jobs:
           - kinesis
     steps:
     - uses: actions/checkout@v2
-      if: startsWith(github.ref, 'refs/tags/')
-    - name: Checkout with history for version info
-      uses: actions/checkout@v2
-      if: startsWith(github.ref, 'refs/heads/snapshot')
-      with:
-        fetch-depth: 0
     - uses: coursier/cache-action@v6
     - name: Set up JDK 11
       uses: actions/setup-java@v1
@@ -132,15 +122,8 @@ jobs:
         DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
     - name: Get current version
-      if: startsWith(github.ref, 'refs/tags/')
       id: ver
-      run: echo "::set-output name=tag::${GITHUB_REF#refs/tags/}"
-    - name: Get current version (snapshot)
-      if: startsWith(github.ref, 'refs/heads/snapshot')
-      id: ver-snapshot
-      run: |
-        export SNAPSHOT_VERSION=$(sbt common/version -Dsbt.log.noformat=true | grep 'SNAPSHOT' | awk '{ print $2 }')
-        echo "::set-output name=tag::$SNAPSHOT_VERSION"
+      run: echo "::set-output name=tag::3.1.0"
     - name: Get app package name
       id: packageName
       run: |
@@ -159,12 +142,8 @@ jobs:
       with:
         images: ${{ steps.packageName.outputs.package_name }}
         tags: |
-          # tag `latest` if not `rc` nor `SNAPSHOT`
-          type=raw,value=latest,enable=${{ !contains(steps.ver.outputs.tag, 'rc') && !contains(steps.ver-snapshot.outputs.tag, 'SNAPSHOT' )}}
-          # tag `ver` if not `SNAPSHOT`
-          type=raw,value=${{ steps.ver.outputs.tag }},enable=${{ !contains(steps.ver.outputs.tag, 'SNAPSHOT') }}
-          # tag `ver-snapshot` if SNAPSHOT
-          type=raw,value=${{ steps.ver-snapshot.outputs.tag }},enable=${{ contains(steps.ver-snapshot.outputs.tag, 'SNAPSHOT') }}
+          type=raw,value=latest
+          type=raw,value=3.1.0
         flavor: |
           latest=false
     - name: Set up QEMU

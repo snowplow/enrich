@@ -160,7 +160,7 @@ jobs:
         images: ${{ steps.packageName.outputs.package_name }}
         tags: |
           type=raw,value=latest,enable=${{ !contains(steps.ver.outputs.tag, 'rc') && !contains(steps.ver-snapshot.outputs.tag, 'SNAPSHOT' )}}
-          type=raw,value=${{ steps.ver.outputs.tag }},enable=${{ contains(steps.ver.outputs.tag, 'rc') }}
+          type=raw,value=${{ steps.ver.outputs.tag }},enable=${{ !contains(steps.ver.outputs.tag, 'SNAPSHOT') }}
           type=raw,value=${{ steps.ver-snapshot.outputs.tag }},enable=${{ contains(steps.ver-snapshot.outputs.tag, 'SNAPSHOT') }}
         flavor: |
           latest=false

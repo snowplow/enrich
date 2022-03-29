@@ -159,8 +159,11 @@ jobs:
       with:
         images: ${{ steps.packageName.outputs.package_name }}
         tags: |
+          # tag `latest` if not `rc` nor `SNAPSHOT`
           type=raw,value=latest,enable=${{ !contains(steps.ver.outputs.tag, 'rc') && !contains(steps.ver-snapshot.outputs.tag, 'SNAPSHOT' )}}
-          type=raw,value=${{ steps.ver.outputs.tag }},enable=${{ contains(steps.ver.outputs.tag, 'rc') }}
+          # tag `ver` if not `SNAPSHOT`
+          type=raw,value=${{ steps.ver.outputs.tag }},enable=${{ !contains(steps.ver.outputs.tag, 'SNAPSHOT') }}
+          # tag `ver-snapshot` if SNAPSHOT
           type=raw,value=${{ steps.ver-snapshot.outputs.tag }},enable=${{ contains(steps.ver-snapshot.outputs.tag, 'SNAPSHOT') }}
         flavor: |
           latest=false

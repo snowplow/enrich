@@ -46,7 +46,7 @@ jobs:
       env:
         PGPASSWORD: supersecret1
     - name: Run tests
-      run: sbt coverage +test
+      run: SBT_OPTS="-Xms1G -Xmx8G -Xss4M -XX:MaxMetaspaceSize=1024M" sbt coverage +test
       env:
         OER_KEY: ${{ secrets.OER_KEY }}
     - name: Check Scala formatting

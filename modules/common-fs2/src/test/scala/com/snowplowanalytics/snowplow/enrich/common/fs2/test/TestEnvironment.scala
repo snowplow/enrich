@@ -38,6 +38,7 @@ import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 
 import com.snowplowanalytics.snowplow.badrows.BadRow
 
+import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
@@ -47,6 +48,8 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.Environment.{Enrichments
 import com.snowplowanalytics.snowplow.enrich.common.fs2.SpecHelpers.{filesResource, ioClock}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Concurrency, Telemetry}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients
+import org.http4s.client.{Client => Http4sClient}
+import org.http4s.dsl.Http4sDsl
 
 case class TestEnvironment[A](
   env: Environment[IO, A],
@@ -73,7 +76,7 @@ case class TestEnvironment[A](
     T: Timer[IO]
   ): IO[(Vector[BadRow], Vector[Event], Vector[Event])] = {
     val updatedEnv = updateEnv(env)
-
+    implicit val client: Http4sClient[IO] = updatedEnv.httpClient
     val stream = Enrich
       .run[IO, A](updatedEnv)
       .merge(
@@ -111,8 +114,15 @@ object TestEnvironment extends CatsIO {
 
   val embeddedRegistry = Registry.EmbeddedRegistry
 
+  val adapterRegistry = new AdapterRegistry()
+
   val igluClient: Client[IO, Json] =
     Client[IO, Json](Resolver(List(embeddedRegistry), None), CirceValidator)
+
+  val http4sClient: Http4sClient[IO] = Http4sClient[IO] { _ =>
+    val dsl = new Http4sDsl[IO] {}; import dsl._
+    Resource.eval(Ok(""))
+  }
 
   /**
    * A dummy test environment without enrichment and with noop sinks and sources
@@ -120,7 +130,7 @@ object TestEnvironment extends CatsIO {
    */
   def make(source: Stream[IO, Array[Byte]], enrichments: List[EnrichmentConf] = Nil): Resource[IO, TestEnvironment[Array[Byte]]] =
     for {
-      http <- Clients.mkHttp[IO](ExecutionContext.global)
+      http <- Clients.mkHttp[IO](ec = ExecutionContext.global)
       blocker <- ioBlocker
       _ <- filesResource(blocker, enrichments.flatMap(_.filesToCache).map(p => Paths.get(p._2)))
       counter <- Resource.eval(Counter.make[IO])
@@ -130,7 +140,10 @@ object TestEnvironment extends CatsIO {
       clients = Clients.init[IO](http, Nil)
       sem <- Resource.eval(Semaphore[IO](1L))
       assetsState <- Resource.eval(Assets.State.make(blocker, sem, clients, enrichments.flatMap(_.filesToCache)))
-      enrichmentsRef <- Enrichments.make[IO](enrichments, BlockerF.ofBlocker(blocker))
+      enrichmentsRef <- {
+        implicit val client: Http4sClient[IO] = http
+        Enrichments.make[IO](enrichments, BlockerF.ofBlocker(blocker))
+      }
       goodRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
       piiRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
       badRef <- Resource.eval(Ref.of[IO, Vector[Array[Byte]]](Vector.empty))
@@ -141,8 +154,10 @@ object TestEnvironment extends CatsIO {
                       sem,
                       assetsState,
                       http,
+                      Some(http),
                       blocker,
                       source,
+                      adapterRegistry,
                       g => goodRef.update(_ :+ g),
                       Some(p => piiRef.update(_ :+ p)),
                       b => badRef.update(_ :+ b),

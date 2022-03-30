@@ -13,28 +13,91 @@
 package com.snowplowanalytics.snowplow.enrich.common.utils
 
 import scala.util.control.NonFatal
-
-import cats.Id
+import cats.{Applicative, Id}
 import cats.effect.Sync
-import cats.syntax.either._
+import cats.implicits._
+import fs2.Stream
+import org.http4s.client.{Client => Http4sClient}
+import org.http4s.{EmptyBody, EntityBody, Method, Request, Status, Uri}
 import scalaj.http._
 
 trait HttpClient[F[_]] {
-  def getResponse(request: HttpRequest): F[Either[Throwable, String]]
+  def getResponse(
+    uri: String,
+    authUser: Option[String],
+    authPassword: Option[String],
+    body: Option[String],
+    method: String,
+    connectionTimeout: Option[Long],
+    readTimeout: Option[Long]
+  ): F[Either[Throwable, String]]
 }
 
 object HttpClient {
   def apply[F[_]](implicit ev: HttpClient[F]): HttpClient[F] = ev
 
-  implicit def syncHttpClient[F[_]: Sync]: HttpClient[F] =
+  implicit def syncHttpClient[F[_]: Sync](implicit http4sClient: Http4sClient[F]): HttpClient[F] =
     new HttpClient[F] {
-      override def getResponse(request: HttpRequest): F[Either[Throwable, String]] =
-        Sync[F].delay(getBody(request))
+
+      /**
+       * Only uri, method and body are used for syncHttpClient
+       * Other parameters exist for compatibility with Id instance
+       * and they aren't used here
+       * Corresponding configurations come from http4s client configuration
+       */
+      override def getResponse(
+        uri: String,
+        authUser: Option[String],
+        authPassword: Option[String],
+        body: Option[String],
+        method: String,
+        connectionTimeout: Option[Long],
+        readTimeout: Option[Long]
+      ): F[Either[Throwable, String]] =
+        Uri.fromString(uri) match {
+          case Left(parseFailure) =>
+            Applicative[F].pure(new IllegalArgumentException(s"uri [$uri] is not valid: ${parseFailure.sanitized}").asLeft[String])
+          case Right(validUri) =>
+            val request = Request[F](
+              uri = validUri,
+              method = Method.fromString(method).getOrElse(Method.GET),
+              body = body.fold[EntityBody[F]](EmptyBody)(s => Stream.emits(s.getBytes))
+            )
+            http4sClient
+              .run(request)
+              .use[F, Either[Throwable, String]] { response =>
+                val body = response.bodyText.compile.string
+                response.status.responseClass match {
+                  case Status.Successful => body.map(_.asRight[Throwable])
+                  case _ => Applicative[F].pure(new Exception(s"Request failed with status ${response.status.code}").asLeft[String])
+                }
+              }
+              .handleError(_.asLeft[String])
+        }
     }
 
-  implicit def idHttpClient: HttpClient[Id] =
+  implicit val idHttpClient: HttpClient[Id] =
     new HttpClient[Id] {
-      override def getResponse(request: HttpRequest): Id[Either[Throwable, String]] = getBody(request)
+      override def getResponse(
+        uri: String,
+        authUser: Option[String],
+        authPassword: Option[String],
+        body: Option[String],
+        method: String,
+        connectionTimeout: Option[Long],
+        readTimeout: Option[Long]
+      ): Id[Either[Throwable, String]] =
+        getBody(
+          buildRequest(
+            uri,
+            authUser,
+            authPassword,
+            body,
+            method,
+            connectionTimeout,
+            readTimeout
+          )
+        )
     }
 
   // The defaults are from scalaj library

@@ -56,8 +56,8 @@ object EnrichmentConf {
     outputs: List[apirequest.Output],
     cache: apirequest.Cache
   ) extends EnrichmentConf {
-    def enrichment[F[_]: CreateApiRequestEnrichment](blocker: BlockerF[F]): F[ApiRequestEnrichment[F]] =
-      ApiRequestEnrichment[F](this, blocker)
+    def enrichment[F[_]: CreateApiRequestEnrichment]: F[ApiRequestEnrichment[F]] =
+      ApiRequestEnrichment[F](this)
   }
 
   final case class PiiPseudonymizerConf(

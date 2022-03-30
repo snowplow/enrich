@@ -27,10 +27,10 @@ import cats.effect.{Blocker, IO, Resource}
 import cats.effect.concurrent.Semaphore
 
 import cats.effect.testing.specs2.CatsIO
-
 import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test._
+import org.http4s.client.{Client => Http4sClient}
 
 class AssetsSpec extends Specification with CatsIO with ScalaCheck {
 
@@ -115,7 +115,7 @@ class AssetsSpec extends Specification with CatsIO with ScalaCheck {
     "update an asset that has been updated after initialization" in {
       val uri = URI.create("http://localhost:8080/maxmind/GeoIP2-City.mmdb")
       val filename = "maxmind"
-
+      implicit val c: Http4sClient[IO] = TestEnvironment.http4sClient
       Stream
         .resource(SpecHelpers.refreshState(List(uri -> filename)))
         .flatMap { state =>

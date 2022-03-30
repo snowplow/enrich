@@ -41,20 +41,15 @@ import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import com.snowplowanalytics.iglu.client.Client
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-
-import com.snowplowanalytics.snowplow.badrows.{Processor, BadRow, Failure, Payload => BadRowPayload}
-
+import com.snowplowanalytics.snowplow.badrows.{BadRow, Failure, Processor, Payload => BadRowPayload}
 import com.snowplowanalytics.snowplow.enrich.common.EtlPipeline
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.loaders.{CollectorPayload, ThriftLoader}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
-import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
+import com.snowplowanalytics.snowplow.enrich.common.utils.{ConversionUtils, HttpClient}
 
 object Enrich {
-
-  /** Default adapter registry, can be constructed dynamically in future */
-  val adapterRegistry = new AdapterRegistry()
 
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
     Slf4jLogger.getLogger[F]
@@ -68,11 +63,18 @@ object Enrich {
    * [[Environment]] initialisation, then if `assetsUpdatePeriod` has been specified -
    * they'll be refreshed periodically by [[Assets.updateStream]]
    */
-  def run[F[_]: Concurrent: ContextShift: Clock: Parallel: Timer, A](env: Environment[F, A]): Stream[F, Unit] = {
-    val registry: F[EnrichmentRegistry[F]] = env.enrichments.get.map(_.registry)
+  def run[F[_]: Concurrent: ContextShift: Clock: HttpClient: Parallel: Timer, A](env: Environment[F, A]): Stream[F, Unit] = {
+    val enrichmentsRegistry: F[EnrichmentRegistry[F]] = env.enrichments.get.map(_.registry)
     val enrich: Enrich[F] = {
       implicit val rl: RegistryLookup[F] = env.registryLookup
-      enrichWith[F](registry, env.igluClient, env.sentry, env.processor, env.acceptInvalid, env.metrics.invalidCount)
+      enrichWith[F](enrichmentsRegistry,
+                    env.adapterRegistry,
+                    env.igluClient,
+                    env.sentry,
+                    env.processor,
+                    env.acceptInvalid,
+                    env.metrics.invalidCount
+      )
     }
 
     val enriched =
@@ -97,8 +99,9 @@ object Enrich {
    * Enrich a single `CollectorPayload` to get list of bad rows and/or enriched events
    * @return enriched event or bad row, along with the collector timestamp
    */
-  def enrichWith[F[_]: Clock: ContextShift: RegistryLookup: Sync](
+  def enrichWith[F[_]: Clock: ContextShift: RegistryLookup: Sync: HttpClient](
     enrichRegistry: F[EnrichmentRegistry[F]],
+    adapterRegistry: AdapterRegistry,
     igluClient: Client[F, Json],
     sentry: Option[SentryClient],
     processor: Processor,

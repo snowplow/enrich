@@ -236,7 +236,7 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers {
     val expected = FailureDetails.AdapterFailure.NotJson(
       "body",
       Some("{invalid json"),
-      """invalid json: expected " got 'invali...' (line 1, column 2)"""
+      """[REMOTE_ADAPTER] invalid json: expected " got 'invali...' (line 1, column 2)"""
     )
     result must beLeft(expected)
   }
@@ -249,7 +249,7 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers {
     val expected = FailureDetails.AdapterFailure.InputData(
       "body",
       Some("""{"events":"response"}"""),
-      "could not be decoded as a list of json objects: C[A]: DownField(events)"
+      "[REMOTE_ADAPTER] could not be decoded as a list of json objects: C[A]: DownField(events)"
     )
     result must beLeft(expected)
   }
@@ -262,7 +262,7 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers {
     val expected = FailureDetails.AdapterFailure.InputData(
       "body",
       Some("""{"error":"", "events":[]}"""),
-      "empty list of events"
+      "[REMOTE_ADAPTER] empty list of events"
     )
     result must beLeft(expected)
   }

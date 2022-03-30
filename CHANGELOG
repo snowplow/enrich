@@ -1,3 +1,9 @@
+Version 3.1.2 (2022-03-30)
+--------------------------
+common: Configure sbt memory in github action (#590)
+enrich-pubsub: Fix syntax error in application.conf (#588)
+Fix stable version tagging (#584)
+
 Version 3.1.1 (2022-03-28)
 --------------------------
 Stream Enrich: Remove logging of collector payloads (#522)

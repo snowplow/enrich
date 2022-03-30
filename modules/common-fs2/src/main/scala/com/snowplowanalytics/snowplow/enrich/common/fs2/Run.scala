@@ -35,6 +35,8 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{CliConfig, Parse
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{Sink, Source}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.Client
 
+import org.http4s.client.{Client => Http4sClient}
+
 object Run {
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
     Slf4jLogger.getLogger[F]
@@ -163,8 +165,16 @@ object Run {
   ): F[ExitCode] =
     environment.use { env =>
       val log = Logger[F].info("Running enrichment stream")
-      val enrich = Enrich.run[F, A](env)
-      val updates = Assets.run[F, A](env.blocker, env.semaphore, env.assetsUpdatePeriod, env.assetsState, env.enrichments)
+      val enrich = {
+        //  env.remoteAdapterHttpClient is None in case there is no remote adapter
+        //  env.httpClient is used as placeholder and not used at all, as there is no remote adapter
+        implicit val remoteAdapterHttpClient: Http4sClient[F] = env.remoteAdapterHttpClient.getOrElse(env.httpClient)
+        Enrich.run[F, A](env)
+      }
+      val updates = {
+        implicit val httpClient: Http4sClient[F] = env.httpClient
+        Assets.run[F, A](env.blocker, env.semaphore, env.assetsUpdatePeriod, env.assetsState, env.enrichments)
+      }
       val telemetry = Telemetry.run[F, A](env)
       val reporting = env.metrics.report
       val metadata = env.metadata.report

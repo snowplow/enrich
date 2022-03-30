@@ -59,17 +59,8 @@ final case class RemoteAdapter(
           "headers" := payload.context.headers,
           "body" := payload.body
         )
-        val request = HttpClient.buildRequest(
-          remoteUrl,
-          authUser = None,
-          authPassword = None,
-          Some(json.noSpaces),
-          "POST",
-          connectionTimeout,
-          readTimeout
-        )
         HttpClient[F]
-          .getResponse(request)
+          .getResponse(remoteUrl, None, None, Some(json.noSpaces), "POST", connectionTimeout, readTimeout)
           .map(processResponse(payload, _).toValidatedNel)
       case _ =>
         val msg = s"empty body: not a valid remote adapter $remoteUrl payload"
@@ -78,6 +69,9 @@ final case class RemoteAdapter(
         )
     }
 
+  /**
+   * [REMOTE_ADAPTER] prefix is used by BRA to filter adapter failures not caused by remote adapters
+   */
   def processResponse(
     payload: CollectorPayload,
     response: Either[Throwable, String]
@@ -88,12 +82,12 @@ final case class RemoteAdapter(
                  FailureDetails.AdapterFailure.InputData(
                    "body",
                    none,
-                   s"could not get response from remote adapter $remoteUrl: ${t.getMessage}"
+                   s"[REMOTE_ADAPTER] could not get response from remote adapter $remoteUrl: ${t.getMessage}"
                  )
                )
       json <- JsonUtils
                 .extractJson(res)
-                .leftMap(e => FailureDetails.AdapterFailure.NotJson("body", res.some, e))
+                .leftMap(e => FailureDetails.AdapterFailure.NotJson("body", res.some, "[REMOTE_ADAPTER] " + e))
       events <- json.hcursor
                   .downField("events")
                   .as[List[Map[String, String]]]
@@ -101,13 +95,13 @@ final case class RemoteAdapter(
                     FailureDetails.AdapterFailure.InputData(
                       "body",
                       res.some,
-                      s"could not be decoded as a list of json objects: ${e.getMessage}"
+                      s"[REMOTE_ADAPTER] could not be decoded as a list of json objects: ${e.getMessage}"
                     )
                   )
       nonEmptyEvents <- events match {
                           case Nil =>
                             FailureDetails.AdapterFailure
-                              .InputData("body", res.some, "empty list of events")
+                              .InputData("body", res.some, "[REMOTE_ADAPTER] empty list of events")
                               .asLeft
                           case h :: t => NonEmptyList.of(h, t: _*).asRight
                         }

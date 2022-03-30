@@ -45,7 +45,7 @@ object SpecHelpers extends CatsIO {
     for {
       b <- TestEnvironment.ioBlocker
       sem <- Resource.eval(Semaphore[IO](1L))
-      http <- Clients.mkHttp[IO](ExecutionContext.global)
+      http <- Clients.mkHttp[IO](ec = ExecutionContext.global)
       clients = Clients.init[IO](http, Nil)
       state <- Resource.eval(Assets.State.make[IO](b, sem, clients, assets))
     } yield state

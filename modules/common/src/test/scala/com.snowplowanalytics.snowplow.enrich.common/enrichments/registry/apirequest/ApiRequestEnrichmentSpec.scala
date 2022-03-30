@@ -19,13 +19,11 @@ import io.circe.Json
 import io.circe.literal._
 import io.circe.parser._
 
-import scalaj.http.HttpRequest
-
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.ApiRequestConf
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, HttpClient}
+import com.snowplowanalytics.snowplow.enrich.common.utils.HttpClient
 
 import org.specs2.Specification
 import org.specs2.matcher.ValidatedMatchers
@@ -67,7 +65,15 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
         Authentication(Some(HttpBasic(Some("xxx"), None)))
       )
     implicit val idHttpClient: HttpClient[Id] = new HttpClient[Id] {
-      override def getResponse(request: HttpRequest): Id[Either[Throwable, String]] =
+      override def getResponse(
+        uri: String,
+        authUser: Option[String],
+        authPassword: Option[String],
+        body: Option[String],
+        method: String,
+        connectionTimeout: Option[Long],
+        readTimeout: Option[Long]
+      ): Id[Either[Throwable, String]] =
         """{"record": {"name": "Fancy User", "company": "Acme"}}""".asRight
     }
     val output = Output("iglu:com.acme/user/jsonschema/1-0-0", Some(JsonOutput("$.record")))
@@ -158,7 +164,7 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
       )
 
     val enrichedContextResult = config
-      .enrichment[Id](BlockerF.noop)
+      .enrichment[Id]
       .lookup(
         event = fakeEnrichedEvent,
         derivedContexts = List.empty,
@@ -295,7 +301,15 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
     )
 
     implicit val idHttpClient: HttpClient[Id] = new HttpClient[Id] {
-      override def getResponse(request: HttpRequest): Id[Either[Throwable, String]] =
+      override def getResponse(
+        uri: String,
+        authUser: Option[String],
+        authPassword: Option[String],
+        body: Option[String],
+        method: String,
+        connectionTimeout: Option[Long],
+        readTimeout: Option[Long]
+      ): Id[Either[Throwable, String]] =
         """{"record": {"name": "Fancy User", "company": "Acme"}}""".asRight
     }
     val output =
@@ -390,7 +404,7 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
       )
 
     val enrichedContextResult = config
-      .enrichment[Id](BlockerF.noop)
+      .enrichment[Id]
       .lookup(
         event = fakeEnrichedEvent,
         derivedContexts = List.empty,
@@ -413,7 +427,15 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
         Authentication(None)
       )
     implicit val idHttpClient: HttpClient[Id] = new HttpClient[Id] {
-      override def getResponse(request: HttpRequest): Id[Either[Throwable, String]] =
+      override def getResponse(
+        uri: String,
+        authUser: Option[String],
+        authPassword: Option[String],
+        body: Option[String],
+        method: String,
+        connectionTimeout: Option[Long],
+        readTimeout: Option[Long]
+      ): Id[Either[Throwable, String]] =
         """{"latitude":32.234,"longitude":33.564}""".asRight
     }
     val output = Output("iglu:com.acme/geo/jsonschema/1-0-0", Some(JsonOutput("$")))
@@ -426,7 +448,7 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
         json"""{"latitude": 32.234, "longitude": 33.564}"""
       )
 
-    val enrichedContextResult = config.enrichment[Id](BlockerF.noop).lookup(new EnrichedEvent, Nil, Nil, None)
+    val enrichedContextResult = config.enrichment[Id].lookup(new EnrichedEvent, Nil, Nil, None)
 
     enrichedContextResult must beValid(List(expectedDerivation))
   }

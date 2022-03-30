@@ -34,13 +34,16 @@ class Tp2AdapterSpec extends Specification with CatsIO {
         body = Tp2AdapterSpec.body.some,
         contentType = "application/json".some
       )
+      implicit val c = TestEnvironment.http4sClient
       Enrich
-        .enrichWith(TestEnvironment.enrichmentReg.pure[IO],
-                    BlackBoxTesting.igluClient,
-                    None,
-                    EnrichSpec.processor,
-                    EnrichSpec.featureFlags,
-                    IO.unit
+        .enrichWith(
+          TestEnvironment.enrichmentReg.pure[IO],
+          TestEnvironment.adapterRegistry,
+          BlackBoxTesting.igluClient,
+          None,
+          EnrichSpec.processor,
+          EnrichSpec.featureFlags,
+          IO.unit
         )(
           input
         )

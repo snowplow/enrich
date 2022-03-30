@@ -13,9 +13,11 @@
 package com.snowplowanalytics.snowplow.enrich.common.fs2.blackbox
 
 import scala.collection.JavaConverters._
+import scala.concurrent.ExecutionContext
 
 import org.specs2.mutable.Specification
 
+import cats.effect.Blocker
 import cats.effect.IO
 
 import cats.effect.testing.specs2.CatsIO
@@ -28,6 +30,8 @@ import io.circe.literal._
 import io.circe.syntax._
 
 import org.apache.thrift.TSerializer
+
+import org.http4s.client.{Client => Http4sClient, JavaNetClientBuilder}
 
 import com.snowplowanalytics.snowplow.CollectorPayload.thrift.model1.CollectorPayload
 
@@ -45,11 +49,15 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.Enrich
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.FeatureFlags
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.EnrichSpec
+import com.snowplowanalytics.snowplow.enrich.common.fs2.test.TestEnvironment
 
 object BlackBoxTesting extends Specification with CatsIO {
 
   val igluClient: Client[IO, Json] =
     Client[IO, Json](Resolver(List(Registry.EmbeddedRegistry), None), CirceValidator)
+
+  val blocker: Blocker = Blocker.liftExecutionContext(ExecutionContext.global)
+  implicit val httpClient: Http4sClient[IO] = JavaNetClientBuilder[IO](blocker).create
 
   private val serializer: TSerializer = new TSerializer()
 
@@ -91,7 +99,14 @@ object BlackBoxTesting extends Specification with CatsIO {
     enrichmentConfig: Option[Json] = None
   ) =
     Enrich
-      .enrichWith(getEnrichmentRegistry(enrichmentConfig), igluClient, None, EnrichSpec.processor, featureFlags, IO.unit)(
+      .enrichWith(getEnrichmentRegistry(enrichmentConfig),
+                  TestEnvironment.adapterRegistry,
+                  igluClient,
+                  None,
+                  EnrichSpec.processor,
+                  featureFlags,
+                  IO.unit
+      )(
         input
       )
       .map {
@@ -119,7 +134,6 @@ object BlackBoxTesting extends Specification with CatsIO {
         val enrichmentsSchemaKey =
           SchemaKey("com.snowplowanalytics.snowplow", "enrichments", "jsonschema", SchemaVer.Full(1, 0, 0))
         val enrichmentsJson = SelfDescribingData(enrichmentsSchemaKey, Json.arr(json)).asJson
-
         for {
           parsed <- EnrichmentRegistry.parse[IO](enrichmentsJson, igluClient, true)
           confs <- parsed match {

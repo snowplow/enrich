@@ -43,6 +43,14 @@ class ConfigFileSpec extends Specification with CatsIO {
         ),
         io.Concurrency(256, 3),
         Some(7.days),
+        io.RemoteAdapterConfigs(
+          10.seconds,
+          45.seconds,
+          10,
+          List(
+            io.RemoteAdapterConfig("com.example", "v1", "https://remote-adapter.com")
+          )
+        ),
         io.Monitoring(
           Some(Sentry(URI.create("http://sentry.acme.com"))),
           io.MetricsReporters(
@@ -152,6 +160,14 @@ class ConfigFileSpec extends Specification with CatsIO {
         ),
         io.Concurrency(256, 1),
         Some(7.days),
+        io.RemoteAdapterConfigs(
+          10.seconds,
+          45.seconds,
+          10,
+          List(
+            io.RemoteAdapterConfig("com.example", "v1", "https://remote-adapter.com")
+          )
+        ),
         io.Monitoring(
           Some(Sentry(URI.create("http://sentry.acme.com"))),
           io.MetricsReporters(
@@ -229,6 +245,12 @@ class ConfigFileSpec extends Specification with CatsIO {
             "sink": 3
           },
           "assetsUpdatePeriod": "0 minutes",
+          "remoteAdapters": {
+            "connectionTimeout": "10 seconds",
+            "readTimeout": "45 seconds",
+            "maxConnections": 10,
+            "configs": []
+          },
           "metricsReportPeriod": "10 second",
           "telemetry": {
             "disable": false,

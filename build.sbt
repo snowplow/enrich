@@ -58,6 +58,7 @@ lazy val common = project
       Dependencies.Libraries.badRows,
       Dependencies.Libraries.igluClient,
       Dependencies.Libraries.snowplowRawEvent,
+      Dependencies.Libraries.http4sClient,
       Dependencies.Libraries.collectorPayload,
       Dependencies.Libraries.schemaSniffer,
       Dependencies.Libraries.thrift,

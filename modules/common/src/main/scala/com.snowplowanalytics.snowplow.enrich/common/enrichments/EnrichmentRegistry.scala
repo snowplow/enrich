@@ -111,7 +111,7 @@ object EnrichmentRegistry {
       e match {
         case c: ApiRequestConf =>
           for {
-            enrichment <- EitherT.right(c.enrichment[F](blocker))
+            enrichment <- EitherT.right(c.enrichment[F])
             registry <- er
           } yield registry.copy(apiRequest = enrichment.some)
         case c: PiiPseudonymizerConf => er.map(_.copy(piiPseudonymizer = c.enrichment.some))

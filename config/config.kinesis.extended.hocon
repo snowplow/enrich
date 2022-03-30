@@ -332,6 +332,25 @@
   # no assets will be updated if the key is absent
   "assetsUpdatePeriod": "7 days"
 
+  # Optional, configuration of remote adapters
+  "remoteAdapters": {
+    # how long enrich waits to establish a connection to remote adapters
+    "connectionTimeout": "10 seconds",
+    # how long enrich waits to get a response from remote adapters
+    "readTimeout": "45 seconds",
+    # how many connections enrich opens at maximum for remote adapters
+    # increasing this could help with throughput in case of adapters with high latency
+    "maxConnections": 10,
+    # a list of remote adapter configs
+    "configs": [
+      {
+        "vendor": "com.example",
+        "version": "v1",
+        "url": "https://remote-adapter.com"
+      }
+    ]
+  }
+
   "monitoring": {
 
     # Optional, for tracking runtime exceptions

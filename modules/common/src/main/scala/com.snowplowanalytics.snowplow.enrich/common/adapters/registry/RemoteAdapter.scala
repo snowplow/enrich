@@ -59,17 +59,8 @@ final case class RemoteAdapter(
           "headers" := payload.context.headers,
           "body" := payload.body
         )
-        val request = HttpClient.buildRequest(
-          remoteUrl,
-          authUser = None,
-          authPassword = None,
-          Some(json.noSpaces),
-          "POST",
-          connectionTimeout,
-          readTimeout
-        )
         HttpClient[F]
-          .getResponse(request)
+          .getResponse(remoteUrl, None, None, Some(json.noSpaces), "POST", connectionTimeout, readTimeout)
           .map(processResponse(payload, _).toValidatedNel)
       case _ =>
         val msg = s"empty body: not a valid remote adapter $remoteUrl payload"

@@ -44,6 +44,12 @@ class ParsedConfigsSpec extends Specification with CatsIO {
         ),
         io.Concurrency(10000, 64),
         Some(7.days),
+        io.RemoteAdapterConfigs(
+          10.seconds,
+          45.seconds,
+          10,
+          List()
+        ),
         io.Monitoring(
           Some(Sentry(URI.create("http://sentry.acme.com"))),
           io.MetricsReporters(

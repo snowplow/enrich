@@ -1,3 +1,7 @@
+Version 3.0.3 (2022-03-30)
+--------------------------
+enrich-pubsub: Fix syntax error in application.conf (#588)
+
 Version 3.0.2 (2022-03-28)
 --------------------------
 Stream Enrich: Remove logging of collector payloads (#522)

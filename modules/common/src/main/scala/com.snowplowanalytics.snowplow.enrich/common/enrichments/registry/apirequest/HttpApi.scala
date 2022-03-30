@@ -18,7 +18,7 @@ import java.net.URLEncoder
 import cats.syntax.option._
 import io.circe.syntax._
 
-import utils.{BlockerF, HttpClient}
+import utils.HttpClient
 
 /**
  * API client able to make HTTP requests
@@ -53,12 +53,11 @@ final case class HttpApi(
    * @return self-describing JSON ready to be attached to event contexts
    */
   def perform[F[_]: HttpClient](
-    blocker: BlockerF[F],
     url: String,
     body: Option[String]
-  ): F[Either[Throwable, String]] = {
-    val req =
-      HttpClient.buildRequest(
+  ): F[Either[Throwable, String]] =
+    HttpClient[F]
+      .getResponse(
         url,
         authUser = authUser,
         authPassword = authPassword,
@@ -67,8 +66,6 @@ final case class HttpApi(
         None,
         None
       )
-    blocker.blockOn(HttpClient[F].getResponse(req))
-  }
 
   /**
    * Build URL from URI templates (http://acme.com/{{key1}}/{{key2}}

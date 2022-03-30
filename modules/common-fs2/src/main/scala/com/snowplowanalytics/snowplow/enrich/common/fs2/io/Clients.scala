@@ -19,9 +19,11 @@ import cats.effect.{ConcurrentEffect, Resource}
 import fs2.Stream
 
 import org.http4s.{Request, Uri}
-import org.http4s.client.{Client => HttpClient}
+import org.http4s.client.defaults
+import org.http4s.client.{Client => Http4sClient}
 import org.http4s.client.blaze.BlazeClientBuilder
 
+import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
 
 import Clients._
@@ -39,10 +41,10 @@ case class Clients[F[_]: ConcurrentEffect](clients: List[Client[F]]) {
 }
 
 object Clients {
-  def init[F[_]: ConcurrentEffect](httpClient: HttpClient[F], others: List[Client[F]]): Clients[F] =
+  def init[F[_]: ConcurrentEffect](httpClient: Http4sClient[F], others: List[Client[F]]): Clients[F] =
     Clients(wrapHttpClient(httpClient) :: others)
 
-  def wrapHttpClient[F[_]: ConcurrentEffect](client: HttpClient[F]): Client[F] =
+  def wrapHttpClient[F[_]: ConcurrentEffect](client: Http4sClient[F]): Client[F] =
     new Client[F] {
       val prefixes = List("http", "https")
 
@@ -56,8 +58,17 @@ object Clients {
       }
     }
 
-  def mkHttp[F[_]: ConcurrentEffect](ec: ExecutionContext): Resource[F, HttpClient[F]] =
-    BlazeClientBuilder[F](ec).resource
+  def mkHttp[F[_]: ConcurrentEffect](
+    connectionTimeout: FiniteDuration = defaults.ConnectTimeout,
+    readTimeout: FiniteDuration = defaults.RequestTimeout,
+    maxConnections: Int = 10, // http4s uses 10 by default
+    ec: ExecutionContext
+  ): Resource[F, Http4sClient[F]] =
+    BlazeClientBuilder[F](ec)
+      .withConnectTimeout(connectionTimeout)
+      .withRequestTimeout(readTimeout)
+      .withMaxTotalConnections(maxConnections)
+      .resource
 
   trait RetryableFailure extends Throwable
 

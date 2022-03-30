@@ -36,14 +36,16 @@ import _root_.io.circe.parser.decode
 import _root_.io.circe.syntax._
 import _root_.io.circe.generic.auto._
 import _root_.io.circe.literal._
+import org.http4s.client.{Client => Http4sClient}
 import org.joda.time.DateTime
 import org.specs2.mutable.Specification
 import org.specs2.specification.core.{Fragment, Fragments}
 
 import java.time.Instant
-
 import scala.concurrent.ExecutionContext
 import scala.util.{Random, Try}
+
+import test.TestEnvironment
 
 class EventGenEtlPipelineSpec extends Specification with CatsIO {
 
@@ -208,6 +210,8 @@ class EventGenEtlPipelineSpec extends Specification with CatsIO {
   val dateTime = DateTime.now()
   val process = Processor("EventGenEtlPipelineSpec", "v1")
   val blocker: Blocker = Blocker.liftExecutionContext(ExecutionContext.global)
+
+  implicit val httpClient: Http4sClient[IO] = TestEnvironment.http4sClient
 
   def processEvents(e: CollectorPayload): IO[List[Validated[BadRow, EnrichedEvent]]] =
     EtlPipeline.processEvents[IO](

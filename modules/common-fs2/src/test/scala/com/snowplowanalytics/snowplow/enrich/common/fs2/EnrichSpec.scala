@@ -32,8 +32,7 @@ import org.apache.http.message.BasicNameValuePair
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
-import com.snowplowanalytics.snowplow.badrows.{Failure, FailureDetails, Processor, BadRow, Payload => BadRowPayload}
-
+import com.snowplowanalytics.snowplow.badrows.{BadRow, Failure, FailureDetails, Processor, Payload => BadRowPayload}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.IpLookupsEnrichment
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.MiscEnrichments
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
@@ -48,7 +47,6 @@ import org.specs2.ScalaCheck
 import org.specs2.mutable.Specification
 
 import cats.effect.testing.specs2.CatsIO
-
 import org.specs2.scalacheck.Parameters
 
 class EnrichSpec extends Specification with CatsIO with ScalaCheck {
@@ -69,14 +67,16 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
           event_version = Some("1-0-0"),
           derived_tstamp = Some(Instant.ofEpochMilli(0L))
         )
-
+      implicit val c = TestEnvironment.http4sClient
       Enrich
-        .enrichWith(TestEnvironment.enrichmentReg.pure[IO],
-                    TestEnvironment.igluClient,
-                    None,
-                    EnrichSpec.processor,
-                    EnrichSpec.featureFlags,
-                    IO.unit
+        .enrichWith(
+          TestEnvironment.enrichmentReg.pure[IO],
+          TestEnvironment.adapterRegistry,
+          TestEnvironment.igluClient,
+          None,
+          EnrichSpec.processor,
+          EnrichSpec.featureFlags,
+          IO.unit
         )(
           EnrichSpec.payload
         )
@@ -89,15 +89,18 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
 
     "enrich a randomly generated page view event" in {
       implicit val cpGen = PayloadGen.getPageViewArbitrary
+      implicit val c = TestEnvironment.http4sClient
       prop { (collectorPayload: CollectorPayload) =>
         val payload = collectorPayload.toRaw
         Enrich
-          .enrichWith(TestEnvironment.enrichmentReg.pure[IO],
-                      TestEnvironment.igluClient,
-                      None,
-                      EnrichSpec.processor,
-                      EnrichSpec.featureFlags,
-                      IO.unit
+          .enrichWith(
+            TestEnvironment.enrichmentReg.pure[IO],
+            TestEnvironment.adapterRegistry,
+            TestEnvironment.igluClient,
+            None,
+            EnrichSpec.processor,
+            EnrichSpec.featureFlags,
+            IO.unit
           )(
             payload
           )
@@ -113,6 +116,7 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
   "enrich" should {
     "update metrics with raw, good and bad counters" in {
       val input = Stream.emits(List(Array.empty[Byte], EnrichSpec.payload))
+      implicit val c = TestEnvironment.http4sClient
       TestEnvironment.make(input).use { test =>
         val enrichStream = Enrich.run[IO, Array[Byte]](test.env)
         for {

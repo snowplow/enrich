@@ -33,7 +33,7 @@ import fs2.io.file.{exists, move, readAll, tempFileResource, writeAll}
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
-import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, HttpClient}
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients
 
@@ -132,7 +132,7 @@ object Assets {
   )
 
   /** Initializes the [[updateStream]] if refresh period is specified. */
-  def run[F[_]: ConcurrentEffect: ContextShift: Parallel: Timer, A](
+  def run[F[_]: ConcurrentEffect: ContextShift: HttpClient: Parallel: Timer, A](
     blocker: Blocker,
     sem: Semaphore[F],
     updatePeriod: Option[FiniteDuration],
@@ -154,7 +154,7 @@ object Assets {
    * Creates an update stream that periodically checks if new versions of assets are available.
    * If that's the case, updates them locally for the enrichments and updates the state.
    */
-  def updateStream[F[_]: ConcurrentEffect: ContextShift: Parallel: Timer](
+  def updateStream[F[_]: ConcurrentEffect: ContextShift: Parallel: Timer: HttpClient](
     blocker: Blocker,
     sem: Semaphore[F],
     state: State[F],
@@ -221,7 +221,7 @@ object Assets {
    * 2. Updates the state of the assets with new hash(es)
    * 3. Updates the enrichments config
    */
-  def update[F[_]: ConcurrentEffect: ContextShift](
+  def update[F[_]: ConcurrentEffect: ContextShift: HttpClient](
     blocker: Blocker,
     state: State[F],
     enrichments: Ref[F, Environment.Enrichments[F]],

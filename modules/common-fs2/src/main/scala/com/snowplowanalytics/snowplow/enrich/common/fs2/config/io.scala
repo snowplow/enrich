@@ -362,6 +362,35 @@ object io {
       deriveConfiguredEncoder[Monitoring]
   }
 
+  case class RemoteAdapterConfig(
+    vendor: String,
+    version: String,
+    url: String
+  )
+
+  object RemoteAdapterConfig {
+    implicit val remoteAdapterConfigEncoder: Encoder[RemoteAdapterConfig] =
+      deriveConfiguredEncoder[RemoteAdapterConfig]
+
+    implicit val remoteAdapterConfigDecoder: Decoder[RemoteAdapterConfig] =
+      deriveConfiguredDecoder[RemoteAdapterConfig]
+  }
+
+  case class RemoteAdapterConfigs(
+    connectionTimeout: FiniteDuration,
+    readTimeout: FiniteDuration,
+    maxConnections: Int,
+    configs: List[RemoteAdapterConfig]
+  )
+
+  object RemoteAdapterConfigs {
+    implicit val remoteAdapterConfigsEncoder: Encoder[RemoteAdapterConfigs] =
+      deriveConfiguredEncoder[RemoteAdapterConfigs]
+
+    implicit val remoteAdapterConfigsDecoder: Decoder[RemoteAdapterConfigs] =
+      deriveConfiguredDecoder[RemoteAdapterConfigs]
+  }
+
   case class Telemetry(
     disable: Boolean,
     interval: FiniteDuration,

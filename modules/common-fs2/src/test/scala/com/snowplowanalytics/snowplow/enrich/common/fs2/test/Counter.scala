@@ -30,11 +30,14 @@ case class Counter(
   good: Long,
   bad: Long,
   latency: Option[Long],
-  invalid: Long
+  invalid: Long,
+  remoteAdaptersSuccessCount: Option[Long],
+  remoteAdaptersFailureCount: Option[Long],
+  remoteAdaptersTimeoutCount: Option[Long]
 )
 
 object Counter {
-  val empty: Counter = Counter(0L, 0L, 0L, None, 0L)
+  val empty: Counter = Counter(0L, 0L, 0L, None, 0L, None, None, None)
 
   def make[F[_]: Sync]: F[Ref[F, Counter]] =
     Ref.of[F, Counter](empty)
@@ -60,5 +63,14 @@ object Counter {
 
       def invalidCount: F[Unit] =
         ref.update(cnt => cnt.copy(invalid = cnt.invalid + 1))
+
+      def remoteAdaptersSuccessCount: F[Unit] =
+        ref.update(cnt => cnt.copy(remoteAdaptersSuccessCount = cnt.remoteAdaptersSuccessCount.map(_ + 1)))
+
+      def remoteAdaptersFailureCount: F[Unit] =
+        ref.update(cnt => cnt.copy(remoteAdaptersFailureCount = cnt.remoteAdaptersFailureCount.map(_ + 1)))
+
+      def remoteAdaptersTimeoutCount: F[Unit] =
+        ref.update(cnt => cnt.copy(remoteAdaptersTimeoutCount = cnt.remoteAdaptersTimeoutCount.map(_ + 1)))
     }
 }

@@ -46,6 +46,14 @@
     # each buffer holding up to maxRecords from above
     "bufferSize": 3
 
+    # Optional. Settings for backoff policy for checkpointing.
+    # Records are checkpointed after all the records of the same chunk have been enriched
+    "checkpointBackoff": {
+      "minBackoff": 100 milliseconds
+      "maxBackoff": 10 seconds
+      "maxRetries": 10
+    }
+
     # Optional, endpoint url configuration to override aws kinesis endpoints
     # Can be used to specify local endpoint when using localstack
     # "customEndpoint": "http://localhost:4566"

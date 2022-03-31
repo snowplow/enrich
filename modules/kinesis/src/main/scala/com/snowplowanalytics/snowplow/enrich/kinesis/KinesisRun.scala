@@ -61,7 +61,7 @@ object KinesisRun {
   }
 
   /** For each shard, the record with the biggest sequence number is found, and checkpointed. */
-  private def checkpoint[F[_]: Parallel: Sync](records: List[CommittableRecord]): F[Unit] =
+  private def checkpoint[F[_]: Parallel: Sync: Timer](records: List[CommittableRecord]): F[Unit] =
     records
       .groupBy(_.shardId)
       .foldLeft(List.empty[CommittableRecord]) { (acc, shardRecords) =>

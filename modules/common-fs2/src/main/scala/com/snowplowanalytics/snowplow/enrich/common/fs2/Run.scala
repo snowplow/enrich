@@ -17,6 +17,7 @@ import cats.implicits._
 
 import fs2.Stream
 
+import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
 
 import cats.effect.{Blocker, Clock, Concurrent, ConcurrentEffect, ContextShift, ExitCode, Resource, Sync, Timer}
@@ -24,9 +25,12 @@ import cats.effect.{Blocker, Clock, Concurrent, ConcurrentEffect, ContextShift, 
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
+import retry.syntax.all._
+import retry.RetryPolicies._
+
 import com.snowplowanalytics.snowplow.badrows.Processor
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Input, Monitoring, Output}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Input, Monitoring, Output, RetryCheckpointing}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{CliConfig, ParsedConfigs}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{Sink, Source}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.Client
@@ -99,7 +103,19 @@ object Run {
                                     file.featureFlags.acceptInvalid
                                   )
                                 runEnvironment[F, Array[Byte]](env)
-                              case _ =>
+                              case input =>
+                                val checkpointing = input match {
+                                  case retrySettings: RetryCheckpointing =>
+                                    withRetries(
+                                      retrySettings.checkpointBackoff.minBackoff,
+                                      retrySettings.checkpointBackoff.maxBackoff,
+                                      retrySettings.checkpointBackoff.maxRetries,
+                                      "Checkpointing failed",
+                                      checkpoint
+                                    )
+                                  case _ =>
+                                    checkpoint
+                                }
                                 val env = Environment
                                   .make[F, A](
                                     blocker,
@@ -110,7 +126,7 @@ object Run {
                                     sinkPii,
                                     sinkBad,
                                     clients,
-                                    checkpoint,
+                                    checkpointing,
                                     getPayload,
                                     processor,
                                     maxRecordSize,
@@ -159,4 +175,22 @@ object Run {
             Sync[F].raiseError[ExitCode](exception)
       }
     }
+
+  private def withRetries[F[_]: Sync: Timer, A, B](
+    minBackOff: FiniteDuration,
+    maxBackOff: FiniteDuration,
+    maxRetries: Int,
+    errorMessage: String,
+    f: A => F[B]
+  ): A => F[B] = { a =>
+    val retryPolicy = capDelay[F](maxBackOff, fullJitter[F](minBackOff)).join(limitRetries(maxRetries))
+
+    f(a)
+      .retryingOnAllErrors(
+        policy = retryPolicy,
+        onError = (exception, retryDetails) =>
+          Logger[F]
+            .error(exception)(s"$errorMessage (${retryDetails.retriesSoFar} retries)")
+      )
+  }
 }

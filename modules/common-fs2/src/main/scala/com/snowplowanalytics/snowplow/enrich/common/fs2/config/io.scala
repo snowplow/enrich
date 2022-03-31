@@ -54,6 +54,18 @@ object io {
 
   import ConfigFile.finiteDurationEncoder
 
+  case class CheckpointBackoff(
+    minBackoff: FiniteDuration,
+    maxBackoff: FiniteDuration,
+    maxRetries: Int
+  )
+  implicit val checkpointBackoffDecoder: Decoder[CheckpointBackoff] = deriveConfiguredDecoder[CheckpointBackoff]
+  implicit val checkpointBackoffEncoder: Encoder[CheckpointBackoff] = deriveConfiguredEncoder[CheckpointBackoff]
+
+  sealed trait RetryCheckpointing {
+    val checkpointBackoff: CheckpointBackoff
+  }
+
   /** Source of raw collector data (only PubSub supported atm) */
   sealed trait Input
 
@@ -80,10 +92,12 @@ object io {
       initialPosition: Kinesis.InitPosition,
       retrievalMode: Kinesis.Retrieval,
       bufferSize: Int,
+      checkpointBackoff: CheckpointBackoff,
       customEndpoint: Option[URI],
       dynamodbCustomEndpoint: Option[URI],
       cloudwatchCustomEndpoint: Option[URI]
     ) extends Input
+        with RetryCheckpointing
 
     object Kinesis {
       sealed trait InitPosition

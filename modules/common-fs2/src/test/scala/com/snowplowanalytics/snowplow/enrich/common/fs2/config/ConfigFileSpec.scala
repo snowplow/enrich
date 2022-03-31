@@ -93,6 +93,7 @@ class ConfigFileSpec extends Specification with CatsIO {
           io.Input.Kinesis.InitPosition.TrimHorizon,
           io.Input.Kinesis.Retrieval.Polling(10000),
           3,
+          io.CheckpointBackoff(100.milli, 10.second, 10),
           None,
           None,
           None

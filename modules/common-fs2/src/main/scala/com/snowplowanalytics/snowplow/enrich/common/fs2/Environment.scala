@@ -247,8 +247,8 @@ object Environment {
 
   private def getRegionFromConfig(file: ConfigFile): Option[String] =
     file.input match {
-      case Kinesis(_, _, region, _, _, _, _, _, _) =>
-        region
+      case k: Kinesis =>
+        k.region
       case _ =>
         None
     }

@@ -12,7 +12,7 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2
 
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration._
 
 import cats.Show
 import cats.data.EitherT
@@ -113,7 +113,7 @@ final case class Environment[F[_], A](
   region: Option[String],
   cloud: Option[Telemetry.Cloud],
   acceptInvalid: Boolean,
-  preShutdown: Option[() => F[Unit]]
+  preShutdown: Stream[F, Unit]
 )
 
 object Environment {
@@ -204,7 +204,7 @@ object Environment {
       getRegionFromConfig(file).orElse(getRegion),
       cloud,
       acceptInvalid,
-      Some(() => metadata.submit.compile.drain)
+      metadata.submit.interruptAfter(1.minute)
     )
   }
 

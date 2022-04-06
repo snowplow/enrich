@@ -160,7 +160,7 @@ object TestEnvironment extends CatsIO {
                       None,
                       None,
                       true,
-                      None
+                      Stream.empty[IO]
                     )
       _ <- Resource.eval(logger.info("TestEnvironment initialized"))
     } yield TestEnvironment(environment, counter, goodRef.get, piiRef.get, badRef.get)

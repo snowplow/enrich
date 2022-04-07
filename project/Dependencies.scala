@@ -100,6 +100,8 @@ object Dependencies {
     val sentry           = "1.7.30"
     val grpc             = "1.32.2"
     val macros           = "2.1.1"
+
+    val betterMonadicFor = "0.3.1"
   }
 
   object Libraries {
@@ -199,6 +201,130 @@ object Dependencies {
     val http4sServer     = "org.http4s"                       %% "http4s-blaze-server"                   % V.http4s          % Test
     val trackerCore      = "com.snowplowanalytics"            %% "snowplow-scala-tracker-core"           % V.snowplowTracker
     val emitterHttps     = "com.snowplowanalytics"            %% "snowplow-scala-tracker-emitter-http4s" % V.snowplowTracker
+
+    // compiler plugins
+    val betterMonadicFor = "com.olegpy" %% "better-monadic-for" % V.betterMonadicFor
+
+    val commonDependencies = Seq(
+      jodaTime,
+      commonsCodec,
+      useragent,
+      jacksonDatabind,
+      uaParser,
+      postgresDriver,
+      mysqlConnector,
+      hikariCP,
+      jaywayJsonpath,
+      iabClient,
+      yauaa,
+      guava,
+      circeOptics,
+      circeJackson,
+      refererParser,
+      maxmindIplookups,
+      scalaUri,
+      scalaForex,
+      scalaWeather,
+      gatlingJsonpath,
+      badRows,
+      igluClient,
+      snowplowRawEvent,
+      http4sClient,
+      collectorPayload,
+      schemaSniffer,
+      thrift,
+      sprayJson,
+      nettyAll,
+      nettyCodec,
+      protobuf,
+      specs2,
+      specs2Cats,
+      specs2Scalacheck,
+      specs2Mock,
+      circeLiteral % Test
+    )
+
+    val streamCommonDependencies = Seq(
+      config,
+      sentry,
+      slf4j,
+      log4jOverSlf4j,
+      s3Sdk,
+      gcs,
+      scopt,
+      pureconfig,
+      snowplowTracker,
+      jacksonCbor,
+      specs2,
+      scalacheck
+    )
+
+    val streamKinesisDependencies = streamCommonDependencies ++ Seq(
+      kinesisClient,
+      kinesisSdk,
+      dynamodbSdk,
+      sts
+    )
+
+    val streamKafkaDependencies = streamCommonDependencies ++ Seq(
+      kafkaClients,
+      mskAuth
+    )
+
+    val streamNsqDependencies = streamCommonDependencies ++ Seq(
+      log4j,
+      log4jApi,
+      nsqClient
+    )
+
+    val commonFs2Dependencies = Seq(
+      decline,
+      circeExtras,
+      circeLiteral,
+      circeConfig,
+      catsEffect,
+      fs2,
+      fs2Io,
+      slf4j,
+      sentry,
+      log4cats,
+      catsRetry,
+      igluClient,
+      igluClientHttp4s,
+      http4sClient,
+      http4sCirce,
+      pureconfig.withRevision(Dependencies.V.pureconfig013),
+      pureconfigCats.withRevision(Dependencies.V.pureconfig013),
+      pureconfigCirce.withRevision(Dependencies.V.pureconfig013),
+      trackerCore,
+      emitterHttps,
+      specs2,
+      specs2CE,
+      scalacheck,
+      specs2Scalacheck,
+      http4sDsl,
+      http4sServer,
+      eventGen,
+      specsDiff,
+      circeCore % Test,
+      circeGeneric % Test,
+      circeParser % Test
+    )
+
+    val pubsubDependencies = Seq(
+      fs2BlobGcs,
+      gcs,
+      fs2PubSub
+    )
+
+    val kinesisDependencies = Seq(
+      dynamodbSdk,
+      kinesisSdk,
+      fs2BlobS3,
+      fs2Aws,
+      kinesisClient2,
+      sts
+    )
 
     // exclusions
     val exclusions = Seq(

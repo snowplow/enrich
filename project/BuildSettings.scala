@@ -21,6 +21,8 @@ import sbtassembly.AssemblyPlugin.autoImport._
 import sbtbuildinfo.BuildInfoPlugin.autoImport.{BuildInfoKey, buildInfoKeys, buildInfoPackage}
 import sbtdynver.DynVerPlugin.autoImport._
 import com.typesafe.sbt.SbtNativePackager.autoImport._
+import com.typesafe.sbt.packager.archetypes.jar.LauncherJarPlugin.autoImport.packageJavaLauncherJar
+import com.typesafe.sbt.packager.docker.DockerPermissionStrategy
 import com.typesafe.sbt.packager.docker.DockerPlugin.autoImport._
 import com.typesafe.sbt.packager.linux.LinuxPlugin.autoImport._
 import com.typesafe.sbt.packager.universal.UniversalPlugin.autoImport._
@@ -175,7 +177,7 @@ object BuildSettings {
     }
   )
 
-  lazy val dockerSettings = Seq(
+  lazy val dockerSettingsFocal = Seq(
     Universal / javaOptions ++= Seq("-Dnashorn.args=--language=es6"),
     Docker / maintainer := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
     dockerBaseImage := "eclipse-temurin:11-jre-focal",
@@ -183,6 +185,21 @@ object BuildSettings {
     Docker / daemonUser := "snowplow",
     Docker / defaultLinuxInstallLocation := "/home/snowplow",
     dockerUpdateLatest := true
+  )
+
+  lazy val dockerSettingsDistroless = Seq(
+    Universal / javaOptions ++= Seq("-Dnashorn.args=--language=es6"),
+    Docker / maintainer := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
+    dockerBaseImage := "gcr.io/distroless/java11-debian11:nonroot",
+    Docker / daemonUser := "nonroot",
+    Docker / daemonGroup := "nonroot",
+    dockerRepository := Some("snowplow"),
+    Docker / daemonUserUid := None,
+    Docker / defaultLinuxInstallLocation := "/home/snowplow",
+    dockerEntrypoint := Seq("java", "-jar",s"/home/snowplow/lib/${(packageJavaLauncherJar / artifactPath).value.getName}"),
+    dockerPermissionStrategy := DockerPermissionStrategy.CopyChown,
+    dockerAlias := dockerAlias.value.copy(tag = dockerAlias.value.tag.map(t => s"$t-distroless")),
+    dockerUpdateLatest := false
   )
 
   // TESTS
@@ -209,7 +226,6 @@ object BuildSettings {
     Global / onChangedBuildSource := ReloadOnSourceChanges
   ) ++ compilerSettings ++ resolverSettings ++ formattingSettings
 
-  // common
   lazy val commonBuildSettings = {
     // Project
     commonProjectSettings ++ buildSettings ++ scalifiedSettings ++
@@ -219,7 +235,6 @@ object BuildSettings {
     scoverageSettings ++ noParallelTestExecution
   }
 
-  // streamCommon
   lazy val streamCommonBuildSettings = {
     // Project
     streamCommonProjectSettings ++ buildSettings ++
@@ -228,34 +243,36 @@ object BuildSettings {
       Seq(coverageMinimumStmtTotal := 20) // override value from scoverageSettings
   }
 
-  // streamKinesis
   lazy val streamKinesisBuildSettings = {
     // Project
     streamKinesisProjectSettings ++ buildSettings ++
     // Build and publish
-    assemblySettings ++ dockerSettings ++
+    assemblySettings ++ dockerSettingsFocal ++
       Seq(Docker / packageName := "stream-enrich-kinesis")
   }
 
-  // streamKafka
+  lazy val streamKinesisDistrolessBuildSettings = streamKinesisBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
+
   lazy val streamKafkaBuildSettings = {
     // Project
     streamKafkaProjectSettings ++ buildSettings ++
     // Build and publish
-    assemblySettings ++ dockerSettings ++
+    assemblySettings ++ dockerSettingsFocal ++
       Seq(Docker / packageName := "stream-enrich-kafka")
   }
 
-  // streamNsq
+  lazy val streamKafkaDistrolessBuildSettings = streamKafkaBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
+
   lazy val streamNsqBuildSettings = {
     // Project
     streamNsqProjectSettings ++ buildSettings ++
     // Build and publish
-    assemblySettings ++ dockerSettings ++
+    assemblySettings ++ dockerSettingsFocal ++
       Seq(Docker / packageName := "stream-enrich-nsq")
   }
 
-  // streamStdin
+  lazy val streamNsqDistrolessBuildSettings = streamNsqBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
+
   lazy val streamStdinBuildSettings = {
     // Project
     streamStdinProjectSettings ++ buildSettings ++
@@ -263,7 +280,6 @@ object BuildSettings {
     assemblySettings
   }
 
-  // commonFs2
   lazy val commonFs2BuildSettings = {
     // Project
     commonFs2ProjectSettings ++ buildSettings ++
@@ -271,27 +287,29 @@ object BuildSettings {
     scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp
   }
 
-  // pubsub
   lazy val pubsubBuildSettings = {
     // Project
     pubsubProjectSettings ++ buildSettings ++
     // Build and publish
-    assemblySettings ++ dockerSettings ++
+    assemblySettings ++ dockerSettingsFocal ++
       Seq(Docker / packageName := "snowplow-enrich-pubsub") ++
     // Tests
     scoverageSettings ++ noParallelTestExecution
   }
 
-  // kinesis
+  lazy val pubsubDistrolessBuildSettings = pubsubBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
+
   lazy val kinesisBuildSettings = {
     // Project
     kinesisProjectSettings ++ buildSettings ++
     // Build and publish
-    assemblySettings ++ dockerSettings ++
+    assemblySettings ++ dockerSettingsFocal ++
       Seq(Docker / packageName := "snowplow-enrich-kinesis") ++
     // Tests
     scoverageSettings ++ noParallelTestExecution
   }
+
+  lazy val kinesisDistrolessBuildSettings = kinesisBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
 
   /** Fork a JVM per test in order to not reuse enrichment registries. */
   def oneJVMPerTest(tests: Seq[TestDefinition]): Seq[Tests.Group] =

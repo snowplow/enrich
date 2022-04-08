@@ -21,7 +21,7 @@ lazy val root = project.in(file("."))
   .settings(BuildSettings.projectSettings)
   .settings(BuildSettings.compilerSettings)
   .settings(BuildSettings.resolverSettings)
-  .aggregate(common, commonFs2, pubsub, kinesis, streamCommon, streamKinesis, streamKafka, streamNsq, streamStdin)
+  .aggregate(common, commonFs2, pubsub, pubsubDistroless, kinesis, kinesisDistroless, streamCommon, streamKinesis, streamKinesisDistroless, streamKafka, streamKafkaDistroless, streamNsq, streamNsqDistroless, streamStdin)
 
 lazy val common = project
   .in(file("modules/common"))
@@ -107,6 +107,13 @@ lazy val streamKinesis = project
   .settings(excludeDependencies ++= Dependencies.Libraries.exclusions)
   .dependsOn(streamCommon)
 
+lazy val streamKinesisDistroless = project
+  .in(file("modules/distroless/stream/kinesis"))
+  .enablePlugins(JavaAppPackaging, DockerPlugin, LauncherJarPlugin)
+  .settings(sourceDirectory := (streamKinesis / sourceDirectory).value)
+  .settings(BuildSettings.streamKinesisDistrolessBuildSettings)
+  .dependsOn(streamKinesis)
+
 lazy val streamKafka = project
   .in(file("modules/stream/kafka"))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
@@ -119,10 +126,39 @@ lazy val streamKafka = project
   .settings(excludeDependencies ++= Dependencies.Libraries.exclusions)
   .dependsOn(streamCommon)
 
+lazy val streamKafkaDistroless = project
+  .in(file("modules/distroless/stream/kafka"))
+  .enablePlugins(JavaAppPackaging, DockerPlugin, LauncherJarPlugin)
+  .settings(sourceDirectory := (streamKafka / sourceDirectory).value)
+  .settings(BuildSettings.streamKafkaDistrolessBuildSettings)
+  // Dependencies need to be stated explictly, otherwise compilation fails.
+  .settings(streamCommonDependencies)
+  .settings(libraryDependencies ++= Seq(
+    Dependencies.Libraries.kafkaClients,
+    Dependencies.Libraries.mskAuth
+  ))
+  .settings(excludeDependencies ++= Dependencies.Libraries.exclusions)
+  .dependsOn(streamCommon)
+
 lazy val streamNsq = project
   .in(file("modules/stream/nsq"))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
   .settings(BuildSettings.streamNsqBuildSettings)
+  .settings(streamCommonDependencies)
+  .settings(libraryDependencies ++= Seq(
+    Dependencies.Libraries.log4j,
+    Dependencies.Libraries.log4jApi,
+    Dependencies.Libraries.nsqClient
+  ))
+  .settings(excludeDependencies ++= Dependencies.Libraries.exclusions)
+  .dependsOn(streamCommon)
+
+lazy val streamNsqDistroless = project
+  .in(file("modules/distroless/stream/nsq"))
+  .enablePlugins(JavaAppPackaging, DockerPlugin, LauncherJarPlugin)
+  .settings(sourceDirectory := (streamNsq / sourceDirectory).value)
+  .settings(BuildSettings.streamNsqDistrolessBuildSettings)
+  // Dependencies need to be stated explictly, otherwise compilation fails.
   .settings(streamCommonDependencies)
   .settings(libraryDependencies ++= Seq(
     Dependencies.Libraries.log4j,
@@ -198,6 +234,14 @@ lazy val pubsub = project
   .settings(excludeDependencies ++= Dependencies.Libraries.exclusions)
   .dependsOn(commonFs2)
 
+lazy val pubsubDistroless = project
+  .in(file("modules/distroless/pubsub"))
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin, LauncherJarPlugin)
+  .settings(sourceDirectory := (pubsub / sourceDirectory).value)
+  .settings(BuildSettings.pubsubDistrolessBuildSettings)
+  .dependsOn(pubsub)
+
+
 lazy val kinesis = project
   .in(file("modules/kinesis"))
   .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
@@ -217,6 +261,13 @@ lazy val kinesis = project
   .settings(Defaults.itSettings)
   .configs(IntegrationTest)
   .dependsOn(commonFs2)
+
+lazy val kinesisDistroless = project
+  .in(file("modules/distroless/kinesis"))
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin, LauncherJarPlugin)
+  .settings(sourceDirectory := (kinesis / sourceDirectory).value)
+  .settings(BuildSettings.kinesisDistrolessBuildSettings)
+  .dependsOn(kinesis)
 
 lazy val bench = project
   .in(file("modules/bench"))

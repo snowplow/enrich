@@ -163,8 +163,8 @@ jobs:
         tags: |
           type=raw,value=latest,enable=${{ !contains(steps.ver.outputs.tag, 'rc') && !contains(steps.ver-snapshot.outputs.tag, 'SNAPSHOT' )}}
           type=raw,value=latest-focal,enable=${{ !contains(steps.ver.outputs.tag, 'rc') && !contains(steps.ver-snapshot.outputs.tag, 'SNAPSHOT' )}}
-          type=raw,value=${{ steps.ver.outputs.tag }},enable=${{ !contains(steps.ver.outputs.tag, 'SNAPSHOT') }}
-          type=raw,value=${{ steps.ver.outputs.tag }}-focal,enable=${{ !contains(steps.ver.outputs.tag, 'SNAPSHOT') }}
+          type=raw,value=${{ steps.ver.outputs.tag }},enable=${{ !contains(steps.ver.outputs.tag, 'SNAPSHOT') && steps.ver.outputs.tag != '' }}
+          type=raw,value=${{ steps.ver.outputs.tag }}-focal,enable=${{ !contains(steps.ver.outputs.tag, 'SNAPSHOT') && steps.ver.outputs.tag != '' }}
           type=raw,value=${{ steps.ver-snapshot.outputs.tag }},enable=${{ contains(steps.ver-snapshot.outputs.tag, 'SNAPSHOT') }}
           type=raw,value=${{ steps.ver-snapshot.outputs.tag }}-focal,enable=${{ contains(steps.ver-snapshot.outputs.tag, 'SNAPSHOT') }}
         flavor: |
@@ -176,7 +176,7 @@ jobs:
         images: ${{ steps.packageName.outputs.package_name }}
         tags: |
           type=raw,value=latest-distroless,enable=${{ !contains(steps.ver.outputs.tag, 'rc') && !contains(steps.ver-snapshot.outputs.tag, 'SNAPSHOT' )}}
-          type=raw,value=${{ steps.ver.outputs.tag }}-distroless,enable=${{ !contains(steps.ver.outputs.tag, 'SNAPSHOT') }}
+          type=raw,value=${{ steps.ver.outputs.tag }}-distroless,enable=${{ !contains(steps.ver.outputs.tag, 'SNAPSHOT') && steps.ver.outputs.tag != '' }}
           type=raw,value=${{ steps.ver-snapshot.outputs.tag }}-distroless,enable=${{ contains(steps.ver-snapshot.outputs.tag, 'SNAPSHOT') }}
         flavor: |
           latest=false

@@ -112,8 +112,7 @@ final case class Environment[F[_], A](
   streamsSettings: Environment.StreamsSettings,
   region: Option[String],
   cloud: Option[Telemetry.Cloud],
-  acceptInvalid: Boolean,
-  preShutdown: Option[() => F[Unit]]
+  acceptInvalid: Boolean
 )
 
 object Environment {
@@ -203,8 +202,7 @@ object Environment {
       StreamsSettings(file.concurrency, maxRecordSize),
       getRegionFromConfig(file).orElse(getRegion),
       cloud,
-      acceptInvalid,
-      Some(() => metadata.submit.compile.drain)
+      acceptInvalid
     )
   }
 

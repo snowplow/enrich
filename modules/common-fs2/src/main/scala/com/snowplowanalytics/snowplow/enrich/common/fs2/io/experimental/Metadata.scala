@@ -45,7 +45,6 @@ import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
  */
 trait Metadata[F[_]] {
   def report: Stream[F, Unit]
-  def submit: Stream[F, Unit]
   def observe(event: EnrichedEvent): F[Unit]
 }
 
@@ -64,16 +63,9 @@ object Metadata {
         def report: Stream[F, Unit] =
           for {
             _ <- Stream.eval(Logger[F].info("Starting metadata repoter"))
+            _ <- Stream.bracket(ConcurrentEffect[F].unit)(_ => submit(reporter, observedRef))
             _ <- Stream.fixedDelay[F](config.interval)
-            _ <- submit
-          } yield ()
-
-        def submit: Stream[F, Unit] =
-          for {
-            snapshot <- Stream.eval(MetadataEventsRef.snapshot(observedRef))
-            _ <- Stream
-                   .emits[F, MetadataEvent](snapshot.eventsToEntities.keySet.toSeq)
-                   .evalMap[F, Unit](reporter.report(snapshot.periodStart, snapshot.periodEnd)(_, snapshot.eventsToEntities))
+            _ <- Stream.eval(submit(reporter, observedRef))
           } yield ()
 
         def observe(event: EnrichedEvent): F[Unit] =
@@ -84,9 +76,15 @@ object Metadata {
   def noop[F[_]: Async]: Metadata[F] =
     new Metadata[F] {
       def report: Stream[F, Unit] = Stream.never[F]
-      def submit: Stream[F, Unit] = Stream.never[F]
       def observe(event: EnrichedEvent): F[Unit] = Applicative[F].unit
     }
+
+  private def submit[F[_]: Sync: Clock](reporter: MetadataReporter[F], ref: MetadataEventsRef[F]): F[Unit] =
+    for {
+      snapshot <- MetadataEventsRef.snapshot(ref)
+      _ <- snapshot.eventsToEntities.keySet.toList
+             .traverse(reporter.report(snapshot.periodStart, snapshot.periodEnd)(_, snapshot.eventsToEntities))
+    } yield ()
 
   trait MetadataReporter[F[_]] {
     def report(
@@ -199,19 +197,19 @@ object Metadata {
    * @param eventsToEntities - mappings of entities observed (since `periodStart`) for given `MetadataEvent`s
    * @param periodStart - since when `eventsToEntities` are accumulated
    */
-  case class MetadataEventsRef[F[_]: Sync](
+  case class MetadataEventsRef[F[_]](
     eventsToEntities: Ref[F, EventsToEntities],
     periodStart: Ref[F, Instant]
   )
 
   object MetadataEventsRef {
-    def init[F[_]: Sync: Clock] =
+    def init[F[_]: Sync: Clock]: F[MetadataEventsRef[F]] =
       for {
         time <- Clock[F].instantNow
         eventsToEntities <- Ref.of[F, EventsToEntities](Map.empty)
         periodStart <- Ref.of[F, Instant](time)
       } yield MetadataEventsRef(eventsToEntities, periodStart)
-    def snapshot[F[_]: Sync: Clock](ref: MetadataEventsRef[F]) =
+    def snapshot[F[_]: Sync: Clock](ref: MetadataEventsRef[F]): F[MetadataSnapshot] =
       for {
         periodEnd <- Clock[F].instantNow
         eventsToEntities <- ref.eventsToEntities.getAndSet(Map.empty)

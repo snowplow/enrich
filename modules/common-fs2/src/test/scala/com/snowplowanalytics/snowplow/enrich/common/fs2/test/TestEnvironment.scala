@@ -159,8 +159,7 @@ object TestEnvironment extends CatsIO {
                       StreamsSettings(Concurrency(10000, 64), 1024 * 1024),
                       None,
                       None,
-                      true,
-                      None
+                      true
                     )
       _ <- Resource.eval(logger.info("TestEnvironment initialized"))
     } yield TestEnvironment(environment, counter, goodRef.get, piiRef.get, badRef.get)

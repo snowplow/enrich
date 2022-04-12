@@ -47,6 +47,15 @@ trait Metrics[F[_]] {
 
   /** Increment invalid enriched events count */
   def invalidCount: F[Unit]
+
+  /** If remote adapters are enabled, increment count of successful http requests to remote adapters */
+  def remoteAdaptersSuccessCount: F[Unit]
+
+  /** If remote adapters are enabled, increment count of failed http requests to remote adapters except timeouts */
+  def remoteAdaptersFailureCount: F[Unit]
+
+  /** If remote adapters are enabled, increment count of timed out http requests to remote adapters */
+  def remoteAdaptersTimeoutCount: F[Unit]
 }
 
 object Metrics {
@@ -57,13 +66,19 @@ object Metrics {
   val GoodCounterName = "good"
   val BadCounterName = "bad"
   val InvalidCounterName = "invalid_enriched"
+  val RemoteAdaptersSuccessCounterName = "remote_adapters_success"
+  val RemoteAdaptersFailureCounterName = "remote_adapters_failure"
+  val RemoteAdaptersTimeoutCounterName = "remote_adapters_timeout"
 
   final case class MetricSnapshot(
     enrichLatency: Option[Long], // milliseconds
     rawCount: Int,
     goodCount: Int,
     badCount: Int,
-    invalidCount: Int
+    invalidCount: Int,
+    remoteAdaptersSuccessCount: Option[Int],
+    remoteAdaptersFailureCount: Option[Int],
+    remoteAdaptersTimeoutCount: Option[Int]
   )
 
   trait Reporter[F[_]] {
@@ -132,6 +147,15 @@ object Metrics {
       def invalidCount: F[Unit] =
         refsStatsd.invalidCount.update(_ + 1) *>
           refsStdout.invalidCount.update(_ + 1)
+
+      def remoteAdaptersSuccessCount: F[Unit] =
+        refsStatsd.remoteAdaptersSuccessCount.update(_.map(_ + 1)) *> refsStdout.remoteAdaptersSuccessCount.update(_.map(_ + 1))
+
+      def remoteAdaptersFailureCount: F[Unit] =
+        refsStatsd.remoteAdaptersFailureCount.update(_.map(_ + 1)) *> refsStdout.remoteAdaptersFailureCount.update(_.map(_ + 1))
+
+      def remoteAdaptersTimeoutCount: F[Unit] =
+        refsStatsd.remoteAdaptersTimeoutCount.update(_.map(_ + 1)) *> refsStdout.remoteAdaptersTimeoutCount.update(_.map(_ + 1))
     }
 
   private final case class MetricRefs[F[_]](
@@ -139,7 +163,10 @@ object Metrics {
     rawCount: Ref[F, Int],
     goodCount: Ref[F, Int],
     badCount: Ref[F, Int],
-    invalidCount: Ref[F, Int]
+    invalidCount: Ref[F, Int],
+    remoteAdaptersSuccessCount: Ref[F, Option[Int]],
+    remoteAdaptersFailureCount: Ref[F, Option[Int]],
+    remoteAdaptersTimeoutCount: Ref[F, Option[Int]]
   )
 
   private object MetricRefs {
@@ -150,7 +177,19 @@ object Metrics {
         goodCounter <- Ref.of[F, Int](0)
         badCounter <- Ref.of[F, Int](0)
         invalidCounter <- Ref.of[F, Int](0)
-      } yield MetricRefs(latency, rawCounter, goodCounter, badCounter, invalidCounter)
+        remoteAdaptersSuccessCounter <- Ref.of[F, Option[Int]](None)
+        remoteAdaptersFailureCounter <- Ref.of[F, Option[Int]](None)
+        remoteAdaptersTimeoutCounter <- Ref.of[F, Option[Int]](None)
+      } yield MetricRefs(
+        latency,
+        rawCounter,
+        goodCounter,
+        badCounter,
+        invalidCounter,
+        remoteAdaptersSuccessCounter,
+        remoteAdaptersFailureCounter,
+        remoteAdaptersTimeoutCounter
+      )
 
     def snapshot[F[_]: Monad](refs: MetricRefs[F]): F[MetricSnapshot] =
       for {
@@ -159,7 +198,18 @@ object Metrics {
         goodCount <- refs.goodCount.getAndSet(0)
         badCount <- refs.badCount.getAndSet(0)
         invalidCount <- refs.invalidCount.getAndSet(0)
-      } yield MetricSnapshot(latency, rawCount, goodCount, badCount, invalidCount)
+        remoteAdaptersSuccessCount <- refs.remoteAdaptersSuccessCount.getAndSet(None)
+        remoteAdaptersFailureCount <- refs.remoteAdaptersFailureCount.getAndSet(None)
+        remoteAdaptersTimeoutCount <- refs.remoteAdaptersTimeoutCount.getAndSet(None)
+      } yield MetricSnapshot(latency,
+                             rawCount,
+                             goodCount,
+                             badCount,
+                             invalidCount,
+                             remoteAdaptersSuccessCount,
+                             remoteAdaptersFailureCount,
+                             remoteAdaptersTimeoutCount
+      )
   }
 
   def reporterStream[F[_]: Sync: Timer: ContextShift](
@@ -189,6 +239,15 @@ object Metrics {
           _ <- snapshot.enrichLatency
                  .map(latency => logger.info(s"${MetricsReporters.normalizeMetric(config.prefix, LatencyGaugeName)} = $latency"))
                  .getOrElse(Sync[F].unit)
+          _ <- snapshot.remoteAdaptersSuccessCount
+                 .map(cnt => logger.info(s"${MetricsReporters.normalizeMetric(config.prefix, RemoteAdaptersSuccessCounterName)} = $cnt"))
+                 .getOrElse(Applicative[F].unit)
+          _ <- snapshot.remoteAdaptersFailureCount
+                 .map(cnt => logger.info(s"${MetricsReporters.normalizeMetric(config.prefix, RemoteAdaptersFailureCounterName)} = $cnt"))
+                 .getOrElse(Applicative[F].unit)
+          _ <- snapshot.remoteAdaptersTimeoutCount
+                 .map(cnt => logger.info(s"${MetricsReporters.normalizeMetric(config.prefix, RemoteAdaptersTimeoutCounterName)} = $cnt"))
+                 .getOrElse(Applicative[F].unit)
         } yield ()
     }
 
@@ -200,6 +259,8 @@ object Metrics {
       def goodCount: F[Unit] = Applicative[F].unit
       def badCount: F[Unit] = Applicative[F].unit
       def invalidCount: F[Unit] = Applicative[F].unit
+      def remoteAdaptersSuccessCount: F[Unit] = Applicative[F].unit
+      def remoteAdaptersFailureCount: F[Unit] = Applicative[F].unit
+      def remoteAdaptersTimeoutCount: F[Unit] = Applicative[F].unit
     }
-
 }

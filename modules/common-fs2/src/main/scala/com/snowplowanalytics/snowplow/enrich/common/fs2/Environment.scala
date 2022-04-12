@@ -28,7 +28,7 @@ import _root_.io.circe.Json
 import _root_.io.sentry.{Sentry, SentryClient}
 
 import org.http4s.client.{Client => Http4sClient}
-
+import org.http4s.Status
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
@@ -51,6 +51,8 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.io.experimental.Metadata
 
 import scala.concurrent.ExecutionContext
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input.Kinesis
+
+import java.util.concurrent.TimeoutException
 
 /**
  * All allocated resources, configs and mutable variables necessary for running Enrich process
@@ -178,7 +180,7 @@ object Environment {
       metrics <- Resource.eval(Metrics.build[F](blocker, file.monitoring.metrics))
       metadata <- Resource.eval(metadataReporter[F](file, processor.artifact, http))
       assets = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
-      (remoteAdaptersHttpClient, remoteAdapters) <- prepareRemoteAdapters[F](file.remoteAdapters, ec)
+      (remoteAdaptersHttpClient, remoteAdapters) <- prepareRemoteAdapters[F](file.remoteAdapters, ec, metrics)
       adapterRegistry = new AdapterRegistry(remoteAdapters)
       sem <- Resource.eval(Semaphore(1L))
       assetsState <- Resource.eval(Assets.State.make[F](blocker, sem, clts, assets))
@@ -270,7 +272,8 @@ object Environment {
    */
   def prepareRemoteAdapters[F[_]: ConcurrentEffect](
     remoteAdapters: RemoteAdapterConfigs,
-    ec: ExecutionContext
+    ec: ExecutionContext,
+    metrics: Metrics[F]
   ): Resource[F, (Option[Http4sClient[F]], Map[(String, String), RemoteAdapter])] = {
     val preparedRemoteAdapters =
       remoteAdapters.configs.map { config =>
@@ -279,7 +282,24 @@ object Environment {
     if (preparedRemoteAdapters.nonEmpty)
       Clients
         .mkHttp(remoteAdapters.connectionTimeout, remoteAdapters.readTimeout, remoteAdapters.maxConnections, ec)
+        .map(enableRemoteAdapterMetrics(metrics))
         .map(c => (c.some, preparedRemoteAdapters))
     else Resource.pure[F, (Option[Http4sClient[F]], Map[(String, String), RemoteAdapter])]((None, preparedRemoteAdapters))
   }
+
+  def enableRemoteAdapterMetrics[F[_]: Sync](metrics: Metrics[F])(inner: Http4sClient[F]): Http4sClient[F] =
+    Http4sClient { req =>
+      for {
+        resp <- inner.run(req).attemptTap {
+                  case Left(_: TimeoutException) => Resource.eval(metrics.remoteAdaptersTimeoutCount)
+                  case Left(_) => Resource.eval(metrics.remoteAdaptersFailureCount)
+                  case Right(response) =>
+                    response.status.responseClass match {
+                      case Status.Successful => Resource.eval(metrics.remoteAdaptersSuccessCount)
+                      case Status.ServerError => Resource.eval(metrics.remoteAdaptersFailureCount)
+                      case _ => Resource.pure[F, Unit](())
+                    }
+                }
+      } yield resp
+    }
 }

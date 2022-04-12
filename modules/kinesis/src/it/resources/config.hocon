@@ -60,6 +60,7 @@
       "stdout": {
         "period": "60 seconds"
       }
+      "cloudwatch": false
     }
   }
 

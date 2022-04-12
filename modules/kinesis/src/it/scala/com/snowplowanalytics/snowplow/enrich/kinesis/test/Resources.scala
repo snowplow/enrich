@@ -14,7 +14,7 @@ package com.snowplowanalytics.snowplow.enrich.kinesis.it
 
 import scala.concurrent.duration._
 
-import java.nio.file.{Files, Path, Paths}
+import java.nio.file.{Files, Path, Paths, StandardCopyOption}
 import java.io.File
 
 import org.typelevel.log4cats.Logger
@@ -58,25 +58,13 @@ object Resources {
   val enrichmentsPath = Paths.get(configPath.toString, enrichmentsDir)
 
   def init[F[_]: Sync: Timer]: Resource[F, Unit] = {
-
-    def acquire(kinesisClient: KinesisClient, dynamoDbClient: DynamoDbClient): F[Unit] =
-      for {
-        _ <- Logger[F].info("Initializing AWS resources")
-        _ <- deleteStreams(kinesisClient, streams)
-        _ <- deleteTables(dynamoDbClient, tables)
-        _ <- Timer[F].sleep(10.seconds)   // Let Kinesis settle
-        _ <- createStreams(kinesisClient, streams)
-        _ <- Timer[F].sleep(10.seconds)   // Let Kinesis settle
-        _ <- writeFilesToDisk
-      } yield ()
-
-    def release(kinesisClient: KinesisClient, dynamoDbClient: DynamoDbClient): F[Unit] =
-      deleteStreams(kinesisClient, streams) >>
-        deleteTables(dynamoDbClient, tables)
-        deleteFiles
-
     def mkResource(kinesisClient: KinesisClient, dynamoDbClient: DynamoDbClient) =
-      Resource.make(acquire(kinesisClient, dynamoDbClient))(_ => release(kinesisClient, dynamoDbClient))
+      for {
+        _ <- Resource.make(Logger[F].info("Initializing AWS resources"))(_ => Logger[F].info("AWS resources destroyed"))
+        _ <- Resource.make(deleteStreams(kinesisClient, streams) *> Timer[F].sleep(10.seconds) *> createStreams(kinesisClient, streams))(_ => deleteStreams(kinesisClient, streams))
+        _ <- Resource.make(deleteTables(dynamoDbClient, tables))(_ => deleteTables(dynamoDbClient, tables))
+        _ <- Resource.make(writeFilesToDisk)(_ => deleteFiles)
+      } yield ()
 
     val mkKinesisClient = Resource.fromAutoCloseable(Sync[F].pure(KinesisClient.builder.region(Region.of(region)).build()))
     val mkDynamoDbClient = Resource.fromAutoCloseable(Sync[F].pure(DynamoDbClient.builder.region(Region.of(region)).build()))
@@ -131,7 +119,7 @@ object Resources {
 
   def writeFileToDisk[F[_]: Sync](resourceName: String, dest: Path): F[Unit] = {
     val inputStream = getClass.getResourceAsStream("/" + resourceName)
-    Sync[F].delay(Files.copy(inputStream, dest)).void
+    Sync[F].delay(Files.copy(inputStream, dest, StandardCopyOption.REPLACE_EXISTING)).void
   }
 
   def writeEnrichmentsJson[F[_]: Sync]: F[Unit] =

@@ -1,3 +1,8 @@
+Version 3.1.3 (2022-04-13)
+--------------------------
+enrich-kinesis: add retry mechanism for the checkpointing (#591)
+common-fs2: move metadata shutdown hook (#593)
+
 Version 3.1.2 (2022-03-30)
 --------------------------
 common: Configure sbt memory in github action (#590)

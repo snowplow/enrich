@@ -1,3 +1,8 @@
+Version 3.0.4 (2022-04-27)
+--------------------------
+enrich-kinesis: use flatMap for the resources in the integration test (#599)
+enrich-kinesis: add retry mechanism for the checkpointing (#591)
+
 Version 3.0.3 (2022-03-30)
 --------------------------
 enrich-pubsub: Fix syntax error in application.conf (#588)

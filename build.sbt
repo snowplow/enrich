@@ -239,7 +239,17 @@ lazy val pubsubDistroless = project
   .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin, LauncherJarPlugin)
   .settings(sourceDirectory := (pubsub / sourceDirectory).value)
   .settings(BuildSettings.pubsubDistrolessBuildSettings)
-  .dependsOn(pubsub)
+  .settings(
+    libraryDependencies ++= Seq(
+      Dependencies.Libraries.fs2BlobGcs,
+      Dependencies.Libraries.fs2PubSub,
+      Dependencies.Libraries.gson,
+      Dependencies.Libraries.googleAuth
+    ),
+    addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
+  )
+  .settings(excludeDependencies ++= Dependencies.Libraries.exclusions)
+  .dependsOn(commonFs2)
 
 
 lazy val kinesis = project

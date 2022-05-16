@@ -18,7 +18,7 @@ import cats.effect.Sync
 import cats.implicits._
 import fs2.Stream
 import org.http4s.client.{Client => Http4sClient}
-import org.http4s.{EmptyBody, EntityBody, Method, Request, Uri}
+import org.http4s.{EmptyBody, EntityBody, Method, Request, Status, Uri}
 import scalaj.http._
 
 trait HttpClient[F[_]] {
@@ -67,7 +67,7 @@ object HttpClient {
               .run(request)
               .use[F, Either[Throwable, String]] { response =>
                 val body = response.bodyText.compile.string
-                if (response.status == org.http4s.Status.Ok)
+                if (response.status.responseClass == Status.Successful)
                   body.map(_.asRight[Throwable])
                 else
                   Applicative[F].pure(new Exception(s"Request failed with status ${response.status.code}").asLeft[String])

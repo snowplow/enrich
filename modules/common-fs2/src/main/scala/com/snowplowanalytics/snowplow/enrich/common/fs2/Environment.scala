@@ -294,11 +294,8 @@ object Environment {
                   case Left(_: TimeoutException) => Resource.eval(metrics.remoteAdaptersTimeoutCount)
                   case Left(_) => Resource.eval(metrics.remoteAdaptersFailureCount)
                   case Right(response) =>
-                    response.status.responseClass match {
-                      case Status.Successful => Resource.eval(metrics.remoteAdaptersSuccessCount)
-                      case Status.ServerError => Resource.eval(metrics.remoteAdaptersFailureCount)
-                      case _ => Resource.pure[F, Unit](())
-                    }
+                    if (response.status.responseClass == Status.Successful) Resource.eval(metrics.remoteAdaptersSuccessCount)
+                    else Resource.eval(metrics.remoteAdaptersFailureCount)
                 }
       } yield resp
     }

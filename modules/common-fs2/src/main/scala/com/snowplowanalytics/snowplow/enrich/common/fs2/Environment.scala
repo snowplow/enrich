@@ -289,14 +289,14 @@ object Environment {
 
   def enableRemoteAdapterMetrics[F[_]: Sync](metrics: Metrics[F])(inner: Http4sClient[F]): Http4sClient[F] =
     Http4sClient { req =>
-      for {
-        resp <- inner.run(req).attemptTap {
-                  case Left(_: TimeoutException) => Resource.eval(metrics.remoteAdaptersTimeoutCount)
-                  case Left(_) => Resource.eval(metrics.remoteAdaptersFailureCount)
-                  case Right(response) =>
-                    if (response.status.responseClass == Status.Successful) Resource.eval(metrics.remoteAdaptersSuccessCount)
-                    else Resource.eval(metrics.remoteAdaptersFailureCount)
-                }
-      } yield resp
+      inner.run(req).attemptTap {
+        case Left(_: TimeoutException) => Resource.eval(metrics.remoteAdaptersTimeoutCount)
+        case Left(_) => Resource.eval(metrics.remoteAdaptersFailureCount)
+        case Right(response) =>
+          response.status.responseClass match {
+            case Status.Successful => Resource.eval(metrics.remoteAdaptersSuccessCount)
+            case _ => Resource.eval(metrics.remoteAdaptersFailureCount)
+          }
+      }
     }
 }

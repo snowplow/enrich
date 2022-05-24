@@ -30,7 +30,7 @@ import retry.RetryPolicies._
 
 import com.google.common.util.concurrent.{FutureCallback, Futures, ListenableFuture, MoreExecutors}
 
-import com.amazonaws.services.kinesis.producer.{KinesisProducerConfiguration, UserRecordResult}
+import com.amazonaws.services.kinesis.producer.{KinesisProducerConfiguration, UserRecordFailedException, UserRecordResult}
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.{AttributedByteSink, AttributedData, ByteSink}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Monitoring, Output}
@@ -150,8 +150,15 @@ object Sink {
               ).mkString(" ")
             ),
         onError = (exception, retryDetails) =>
-          Logger[F]
-            .error(exception)(s"Writing to Kinesis errored (${retryDetails.retriesSoFar} retries from cats-retry)")
+          exception match {
+            case urfe: UserRecordFailedException =>
+              val message = getErrorMessages(urfe.getResult)
+              Logger[F]
+                .error(s"Writing to Kinesis errored (${retryDetails.retriesSoFar} retries from cats-retry). Error: $message")
+            case _ =>
+              Logger[F]
+                .error(exception)(s"Writing to Kinesis errored (${retryDetails.retriesSoFar} retries from cats-retry)")
+          }
       )
       .void
   }

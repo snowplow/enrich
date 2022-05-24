@@ -52,11 +52,11 @@ object Counter {
       def rawCount(nb: Int): F[Unit] =
         ref.update(cnt => cnt.copy(raw = cnt.raw + nb))
 
-      def goodCount: F[Unit] =
-        ref.update(cnt => cnt.copy(good = cnt.good + 1))
+      def goodCount(nb: Int): F[Unit] =
+        ref.update(cnt => cnt.copy(good = cnt.good + nb))
 
-      def badCount: F[Unit] =
-        ref.update(cnt => cnt.copy(bad = cnt.bad + 1))
+      def badCount(nb: Int): F[Unit] =
+        ref.update(cnt => cnt.copy(bad = cnt.bad + nb))
 
       def invalidCount: F[Unit] =
         ref.update(cnt => cnt.copy(invalid = cnt.invalid + 1))

@@ -40,10 +40,10 @@ trait Metrics[F[_]] {
   def rawCount(nb: Int): F[Unit]
 
   /** Increment good enriched events */
-  def goodCount: F[Unit]
+  def goodCount(nb: Int): F[Unit]
 
   /** Increment bad events */
-  def badCount: F[Unit]
+  def badCount(nb: Int): F[Unit]
 
   /** Increment invalid enriched events count */
   def invalidCount: F[Unit]
@@ -121,13 +121,13 @@ object Metrics {
         refsStatsd.rawCount.update(_ + nb) *>
           refsStdout.rawCount.update(_ + nb)
 
-      def goodCount: F[Unit] =
-        refsStatsd.goodCount.update(_ + 1) *>
-          refsStdout.goodCount.update(_ + 1)
+      def goodCount(nb: Int): F[Unit] =
+        refsStatsd.goodCount.update(_ + nb) *>
+          refsStdout.goodCount.update(_ + nb)
 
-      def badCount: F[Unit] =
-        refsStatsd.badCount.update(_ + 1) *>
-          refsStdout.badCount.update(_ + 1)
+      def badCount(nb: Int): F[Unit] =
+        refsStatsd.badCount.update(_ + nb) *>
+          refsStdout.badCount.update(_ + nb)
 
       def invalidCount: F[Unit] =
         refsStatsd.invalidCount.update(_ + 1) *>
@@ -197,8 +197,8 @@ object Metrics {
       def report: Stream[F, Unit] = Stream.never[F]
       def enrichLatency(collectorTstamp: Option[Long]): F[Unit] = Applicative[F].unit
       def rawCount(nb: Int): F[Unit] = Applicative[F].unit
-      def goodCount: F[Unit] = Applicative[F].unit
-      def badCount: F[Unit] = Applicative[F].unit
+      def goodCount(nb: Int): F[Unit] = Applicative[F].unit
+      def badCount(nb: Int): F[Unit] = Applicative[F].unit
       def invalidCount: F[Unit] = Applicative[F].unit
     }
 

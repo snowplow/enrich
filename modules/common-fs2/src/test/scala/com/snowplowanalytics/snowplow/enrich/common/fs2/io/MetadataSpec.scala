@@ -57,7 +57,7 @@ class MetadataSpec extends Specification with CatsIO {
       for {
         state <- Ref.of[IO, List[Report]](List.empty)
         system <- Metadata.build[IO](config, TestReporter(state))
-        _ <- system.observe(event)
+        _ <- system.observe(List(event))
         _ <- system.report.take(1).compile.drain
         res <- state.get
       } yield {
@@ -99,7 +99,7 @@ class MetadataSpec extends Specification with CatsIO {
         val tracker = "js-tracker-3.0.0"
         event.v_tracker = tracker
         event.app_id = source
-        Metadata.recalculate(Map.empty, event) should containTheSameElementsAs(
+        Metadata.recalculate(Map.empty, List(event)) should containTheSameElementsAs(
           Seq((MetadataEvent(event) -> Set.empty))
         )
       }
@@ -125,7 +125,7 @@ class MetadataSpec extends Specification with CatsIO {
           SchemaKey("org.w3", "PerformanceTiming", eventFormat, SchemaVer.Full(1, 0, 0))
         )
 
-        Metadata.recalculate(Map(MetadataEvent(event) -> Set(schema)), event) should containTheSameElementsAs(
+        Metadata.recalculate(Map(MetadataEvent(event) -> Set(schema)), List(event)) should containTheSameElementsAs(
           Seq((MetadataEvent(event) -> schemas))
         )
       }

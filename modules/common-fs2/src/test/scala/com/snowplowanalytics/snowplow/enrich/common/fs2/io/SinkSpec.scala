@@ -31,12 +31,8 @@ class SinkSpec extends Specification with CatsIO {
       val blocker = Blocker.liftExecutionContext(ExecutionContext.global)
       val maxBytes = 100L
 
-      val write = Sink.rotatingFileSink[IO](dir.resolve("out"), maxBytes, blocker).use { sink =>
-        for {
-          _ <- sink("AAAAA".getBytes)
-          _ <- sink("BBBBB".getBytes)
-          _ <- sink("CCCCC".getBytes)
-        } yield ()
+      val write = FileSink.rotatingFileSink[IO](dir.resolve("out"), maxBytes, blocker).use { sink =>
+        sink(List("AAAAA".getBytes, "BBBBB".getBytes, "CCCCC".getBytes))
       }
 
       for {
@@ -57,14 +53,8 @@ class SinkSpec extends Specification with CatsIO {
       val blocker = Blocker.liftExecutionContext(ExecutionContext.global)
       val maxBytes = 15L
 
-      val write = Sink.rotatingFileSink[IO](dir.resolve("out"), maxBytes, blocker).use { sink =>
-        for {
-          _ <- sink("AAAAA".getBytes)
-          _ <- sink("BBBBB".getBytes)
-          _ <- sink("CCCCC".getBytes)
-          _ <- sink("DDDDD".getBytes)
-          _ <- sink("EEEEE".getBytes)
-        } yield ()
+      val write = FileSink.rotatingFileSink[IO](dir.resolve("out"), maxBytes, blocker).use { sink =>
+        sink(List("AAAAA".getBytes, "BBBBB".getBytes, "CCCCC".getBytes, "DDDDD".getBytes, "EEEEE".getBytes))
       }
 
       for {

@@ -84,13 +84,26 @@ object Enrich {
         .evalTap(chunk => env.metrics.rawCount(chunk.size))
         .map(chunk => chunk.map(a => (a, env.getPayload(a))))
         .evalMap(chunk =>
-          env.semaphore.withPermit(
-            chunk.toList.map { case (orig, bytes) => enrich(bytes).map((orig, _)) }.parSequenceN(env.streamsSettings.concurrency.enrich)
-          )
+          for {
+            begin <- Clock[F].realTime(TimeUnit.MILLISECONDS)
+            result <-
+              env.semaphore.withPermit(
+                chunk.toList.map { case (orig, bytes) => enrich(bytes).map((orig, _)) }.parSequenceN(env.streamsSettings.concurrency.enrich)
+              )
+            end <- Clock[F].realTime(TimeUnit.MILLISECONDS)
+            _ <- Logger[F].debug(s"Chunk of size ${chunk.size} enriched in ${end - begin} ms")
+          } yield result
         )
 
     val sinkAndCheckpoint: Pipe[F, List[(A, Result)], Unit] =
-      _.parEvalMap(env.streamsSettings.concurrency.sink)(sinkChunk(_, sinkOne(env), env.metrics.enrichLatency))
+      _.parEvalMap(env.streamsSettings.concurrency.sink)(chunk =>
+        for {
+          begin <- Clock[F].realTime(TimeUnit.MILLISECONDS)
+          result <- sinkChunk(chunk, sinkOne(env), env.metrics.enrichLatency)
+          end <- Clock[F].realTime(TimeUnit.MILLISECONDS)
+          _ <- Logger[F].debug(s"Chunk of size ${chunk.size} sunk in ${end - begin} ms")
+        } yield result
+      )
         .evalMap(env.checkpoint)
 
     Stream.eval(runWithShutdown(enriched, sinkAndCheckpoint))

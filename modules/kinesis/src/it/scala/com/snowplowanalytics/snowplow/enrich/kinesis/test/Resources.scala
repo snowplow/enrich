@@ -25,6 +25,7 @@ import software.amazon.awssdk.services.kinesis.KinesisClient
 import software.amazon.awssdk.services.kinesis.model.{DeleteStreamRequest, CreateStreamRequest, CreateStreamResponse}
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient
 import software.amazon.awssdk.services.dynamodb.model.DeleteTableRequest
+import software.amazon.awssdk.http.apache.ApacheHttpClient
 
 import org.apache.commons.io.FileUtils
 
@@ -61,18 +62,19 @@ object Resources {
     def mkResource(kinesisClient: KinesisClient, dynamoDbClient: DynamoDbClient) =
       for {
         _ <- Resource.make(Logger[F].info("Initializing AWS resources"))(_ => Logger[F].info("AWS resources destroyed"))
-        _ <- Resource.make(deleteStreams(kinesisClient, streams) *> Timer[F].sleep(10.seconds) *> createStreams(kinesisClient, streams))(_ => deleteStreams(kinesisClient, streams))
+        _ <- Resource.make(deleteStreams(kinesisClient, streams) *> createStreams(kinesisClient, streams))(_ => deleteStreams(kinesisClient, streams))
         _ <- Resource.make(deleteTables(dynamoDbClient, tables))(_ => deleteTables(dynamoDbClient, tables))
         _ <- Resource.make(writeFilesToDisk)(_ => deleteFiles)
       } yield ()
 
-    val mkKinesisClient = Resource.fromAutoCloseable(Sync[F].pure(KinesisClient.builder.region(Region.of(region)).build()))
-    val mkDynamoDbClient = Resource.fromAutoCloseable(Sync[F].pure(DynamoDbClient.builder.region(Region.of(region)).build()))
+    val httpClient = ApacheHttpClient.create()
+    val mkKinesisClient = Resource.fromAutoCloseable(Sync[F].pure(KinesisClient.builder.region(Region.of(region)).httpClient(httpClient).build()))
+    val mkDynamoDbClient = Resource.fromAutoCloseable(Sync[F].pure(DynamoDbClient.builder.region(Region.of(region)).httpClient(httpClient).build()))
     (mkKinesisClient, mkDynamoDbClient).tupled.flatMap { case (kinesis, dynamoDb) => mkResource(kinesis, dynamoDb) }
   }
 
-  def deleteStreams[F[_]: Sync](kinesisClient: KinesisClient, streams: List[String]): F[Unit] =
-    streams.traverse_(deleteStream(kinesisClient, _))
+  def deleteStreams[F[_]: Sync: Timer](kinesisClient: KinesisClient, streams: List[String]): F[Unit] =
+    streams.traverse_(deleteStream(kinesisClient, _)) *> Timer[F].sleep(10.seconds)
 
   def deleteStream[F[_]: Sync](kinesisClient: KinesisClient, streamName: String): F[Unit] = {
     val deleteRequest = DeleteStreamRequest.builder.streamName(streamName).enforceConsumerDeletion(true).build
@@ -103,8 +105,8 @@ object Resources {
   def deleteFileFromDisk[F[_]: Sync](path: Path): F[Unit] =
     Sync[F].delay(Files.deleteIfExists(path)).void
 
-  def createStreams[F[_]: Sync](kinesisClient: KinesisClient, streams: List[String]): F[Unit] =
-    streams.traverse_(createStream(kinesisClient, _))
+  def createStreams[F[_]: Sync: Timer](kinesisClient: KinesisClient, streams: List[String]): F[Unit] =
+    streams.traverse_(createStream(kinesisClient, _)) *> Timer[F].sleep(10.seconds)
 
   def createStream[F[_]: Sync](kinesisClient: KinesisClient, streamName: String): F[CreateStreamResponse] = {
     val createRequest = CreateStreamRequest.builder.streamName(streamName).shardCount(1).build

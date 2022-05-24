@@ -19,7 +19,7 @@ import cats.implicits._
 
 import cats.effect.{Concurrent, ContextShift, Resource, Sync, Timer}
 
-import com.permutive.pubsub.producer.Model.{ProjectId, Topic}
+import com.permutive.pubsub.producer.Model.{ProjectId, SimpleRecord, Topic}
 import com.permutive.pubsub.producer.encoder.MessageEncoder
 import com.permutive.pubsub.producer.grpc.{GooglePubsubProducer, PubsubProducerConfig}
 
@@ -34,12 +34,9 @@ object Sink {
   def init[F[_]: Concurrent: ContextShift: Timer](
     output: Output
   ): Resource[F, ByteSink[F]] =
-    output match {
-      case o: Output.PubSub =>
-        pubsubSink[F, Array[Byte]](o).map(sink => bytes => sink(AttributedData(bytes, Map.empty)))
-      case o =>
-        Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"Output $o is not PubSub")))
-    }
+    for {
+      sink <- initAttributed(output)
+    } yield records => sink(records.map(AttributedData(_, Map.empty)))
 
   def initAttributed[F[_]: Concurrent: ContextShift: Timer](
     output: Output
@@ -53,7 +50,7 @@ object Sink {
 
   private def pubsubSink[F[_]: Concurrent, A: MessageEncoder](
     output: Output.PubSub
-  ): Resource[F, AttributedData[A] => F[Unit]] = {
+  ): Resource[F, List[AttributedData[A]] => F[Unit]] = {
     val config = PubsubProducerConfig[F](
       batchSize = output.maxBatchSize,
       requestByteThreshold = Some(output.maxBatchBytes),
@@ -63,6 +60,6 @@ object Sink {
 
     GooglePubsubProducer
       .of[F, A](ProjectId(output.project), Topic(output.name), config)
-      .map(producer => row => producer.produce(row.data, row.attributes).void)
+      .map(producer => records => producer.produceMany[List](records.map(r => SimpleRecord(r.data, r.attributes))).void)
   }
 }

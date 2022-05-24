@@ -225,16 +225,8 @@ object io {
       region: Option[String],
       partitionKey: Option[String],
       backoffPolicy: BackoffPolicy,
-      recordTtl: FiniteDuration,
-      maxBufferedTime: FiniteDuration,
-      collection: Collection,
-      aggregation: Option[Aggregation],
-      maxConnections: Long,
-      logLevel: String,
-      customEndpoint: Option[URI],
-      customPort: Option[Long],
-      cloudwatchEndpoint: Option[URI],
-      cloudwatchPort: Option[Long]
+      recordLimit: Int,
+      customEndpoint: Option[URI]
     ) extends Output
 
     case class BackoffPolicy(
@@ -247,22 +239,6 @@ object io {
         deriveConfiguredDecoder[BackoffPolicy]
       implicit def backoffPolicyEncoder: Encoder[BackoffPolicy] =
         deriveConfiguredEncoder[BackoffPolicy]
-    }
-
-    case class Collection(maxCount: Long, maxSize: Long)
-    object Collection {
-      implicit def collectionDecoder: Decoder[Collection] =
-        deriveConfiguredDecoder[Collection]
-      implicit def collectionEncoder: Encoder[Collection] =
-        deriveConfiguredEncoder[Collection]
-    }
-
-    case class Aggregation(maxCount: Long, maxSize: Long)
-    object Aggregation {
-      implicit def aggregationDecoder: Decoder[Aggregation] =
-        deriveConfiguredDecoder[Aggregation]
-      implicit def aggregationEncoder: Encoder[Aggregation] =
-        deriveConfiguredEncoder[Aggregation]
     }
 
     implicit val outputDecoder: Decoder[Output] =

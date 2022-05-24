@@ -32,7 +32,7 @@ import com.snowplowanalytics.snowplow.badrows.Processor
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Input, Monitoring, Output, RetryCheckpointing}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{CliConfig, ParsedConfigs}
-import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{Sink, Source}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{FileSink, Source}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.Client
 
 import org.http4s.client.{Client => Http4sClient}
@@ -49,9 +49,9 @@ object Run {
     ec: ExecutionContext,
     updateCliConfig: (Blocker, CliConfig) => F[CliConfig],
     mkSource: (Blocker, Input, Monitoring) => Stream[F, A],
-    mkSinkGood: (Blocker, Output, Monitoring) => Resource[F, AttributedByteSink[F]],
-    mkSinkPii: (Blocker, Output, Monitoring) => Resource[F, AttributedByteSink[F]],
-    mkSinkBad: (Blocker, Output, Monitoring) => Resource[F, ByteSink[F]],
+    mkSinkGood: (Blocker, Output) => Resource[F, AttributedByteSink[F]],
+    mkSinkPii: (Blocker, Output) => Resource[F, AttributedByteSink[F]],
+    mkSinkBad: (Blocker, Output) => Resource[F, ByteSink[F]],
     checkpoint: List[A] => F[Unit],
     mkClients: List[Blocker => Resource[F, Client[F]]],
     getPayload: A => Array[Byte],
@@ -75,13 +75,13 @@ object Run {
                     _ <- Logger[F].info(s"Initialising resources for $name $version")
                     processor = Processor(name, version)
                     file = parsed.configFile
-                    sinkGood = initAttributedSink(blocker, file.output.good, file.monitoring, mkSinkGood)
-                    sinkPii = file.output.pii.map(out => initAttributedSink(blocker, out, file.monitoring, mkSinkPii))
+                    sinkGood = initAttributedSink(blocker, file.output.good, mkSinkGood)
+                    sinkPii = file.output.pii.map(out => initAttributedSink(blocker, out, mkSinkPii))
                     sinkBad = file.output.bad match {
                                 case f: Output.FileSystem =>
-                                  Sink.fileSink[F](f, blocker)
+                                  FileSink.fileSink[F](f, blocker)
                                 case _ =>
-                                  mkSinkBad(blocker, file.output.bad, file.monitoring)
+                                  mkSinkBad(blocker, file.output.bad)
                               }
                     clients = mkClients.map(mk => mk(blocker)).sequence
                     exit <- file.input match {
@@ -150,14 +150,13 @@ object Run {
   private def initAttributedSink[F[_]: Concurrent: ContextShift: Timer](
     blocker: Blocker,
     output: Output,
-    monitoring: Monitoring,
-    mkSinkGood: (Blocker, Output, Monitoring) => Resource[F, AttributedByteSink[F]]
+    mkSinkGood: (Blocker, Output) => Resource[F, AttributedByteSink[F]]
   ): Resource[F, AttributedByteSink[F]] =
     output match {
       case f: Output.FileSystem =>
-        Sink.fileSink[F](f, blocker).map(sink => row => sink(row.data))
+        FileSink.fileSink[F](f, blocker).map(sink => records => sink(records.map(_.data)))
       case _ =>
-        mkSinkGood(blocker, output, monitoring)
+        mkSinkGood(blocker, output)
     }
 
   private def runEnvironment[F[_]: ConcurrentEffect: ContextShift: Parallel: Timer, A](

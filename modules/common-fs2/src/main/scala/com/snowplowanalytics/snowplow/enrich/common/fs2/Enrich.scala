@@ -116,7 +116,6 @@ object Enrich {
 
     val result =
       for {
-        _ <- Logger[F].debug(payloadToString(payload))
         etlTstamp <- Clock[F].realTime(TimeUnit.MILLISECONDS).map(millis => new DateTime(millis))
         registry <- enrichRegistry
         enriched <- EtlPipeline.processEvents[F](

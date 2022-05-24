@@ -186,7 +186,7 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
     }
   }
 
-  "sinkResult" should {
+  "sinkChunk" should {
     "emit an enriched event with attributes to the good sink" in {
       TestEnvironment.make(Stream.empty).use { test =>
         val environment = test.env.copy(goodAttributes = { ee => Map("app_id" -> ee.app_id) })
@@ -195,7 +195,7 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
         ee.platform = "web"
 
         for {
-          _ <- Enrich.sinkOne(environment)(Validated.Valid(ee))
+          _ <- sinkGood(environment, ee)
           good <- test.good
           pii <- test.pii
           bad <- test.bad
@@ -222,7 +222,7 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
         ee.pii = "e30="
 
         for {
-          _ <- Enrich.sinkOne(environment)(Validated.Valid(ee))
+          _ <- sinkGood(environment, ee)
           good <- test.good
           pii <- test.pii
           bad <- test.bad
@@ -253,7 +253,7 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
         val badRow = BadRow.AdapterFailures(EnrichSpec.processor, failure, EnrichSpec.collectorPayload.toBadRowPayload)
 
         for {
-          _ <- Enrich.sinkOne(test.env)(Validated.Invalid(badRow))
+          _ <- sinkBad(test.env, badRow)
           good <- test.good
           pii <- test.pii
           bad <- test.bad
@@ -268,9 +268,6 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
       }
     }
 
-  }
-
-  "sinkBad" should {
     "serialize a bad event to the bad output" in {
       implicit val cpGen = PayloadGen.getPageViewArbitrary
       prop { (collectorPayload: CollectorPayload) =>
@@ -283,7 +280,7 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
 
         TestEnvironment.make(Stream.empty).use { test =>
           for {
-            _ <- Enrich.sinkBad(test.env, badRow)
+            _ <- sinkBad(test.env, badRow)
             good <- test.good
             pii <- test.pii
             bad <- test.bad
@@ -295,16 +292,13 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
         }
       }
     }
-  }
-
-  "sinkGood" should {
 
     "serialize a good event to the good output" in {
       val ee = new EnrichedEvent()
 
       TestEnvironment.make(Stream.empty).use { test =>
         for {
-          _ <- Enrich.sinkGood(test.env, ee)
+          _ <- sinkGood(test.env, ee)
           good <- test.good
           pii <- test.pii
           bad <- test.bad
@@ -322,7 +316,7 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
 
       TestEnvironment.make(Stream.empty).use { test =>
         for {
-          _ <- Enrich.sinkGood(test.env, ee)
+          _ <- sinkGood(test.env, ee)
           good <- test.good
           pii <- test.pii
           bad <- test.bad
@@ -344,7 +338,7 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
 
       TestEnvironment.make(Stream.empty).use { test =>
         for {
-          _ <- Enrich.sinkGood(test.env, ee)
+          _ <- sinkGood(test.env, ee)
           good <- test.good
           pii <- test.pii
           bad <- test.bad
@@ -354,32 +348,41 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
           (bad should be empty)
         }
       }
-
     }
 
-    "serialize an over-sized pii event to the bad output" in {
+    "not generate a bad row for an over-sized pii event" in {
       val ee = new EnrichedEvent()
       ee.pii = "x" * 10000000
 
       TestEnvironment.make(Stream.empty).use { test =>
         for {
-          _ <- Enrich.sinkGood(test.env, ee)
+          _ <- sinkGood(test.env, ee)
           good <- test.good
           pii <- test.pii
           bad <- test.bad
         } yield {
-          bad should beLike {
-            case Vector(bytes) =>
-              bytes must not be empty
-              bytes must have size (be_<=(6900000))
-          }
           (good.size must_== 1)
+          (bad should be empty)
           (pii should be empty)
         }
       }
-
     }
   }
+
+  def sinkGood(
+    environment: Environment[IO, Array[Byte]],
+    enriched: EnrichedEvent
+  ): IO[Unit] = sinkOne(environment, Validated.Valid(enriched))
+
+  def sinkBad(
+    environment: Environment[IO, Array[Byte]],
+    badRow: BadRow
+  ): IO[Unit] = sinkOne(environment, Validated.Invalid(badRow))
+
+  def sinkOne(
+    environment: Environment[IO, Array[Byte]],
+    event: Validated[BadRow, EnrichedEvent]
+  ): IO[Unit] = Enrich.sinkChunk(List((List(event), None)), environment)
 }
 
 object EnrichSpec {

@@ -260,6 +260,7 @@ lazy val kinesis = project
   .settings(
     libraryDependencies ++= Seq(
       Dependencies.Libraries.dynamodbSdk,
+      Dependencies.Libraries.kinesisSdk,
       Dependencies.Libraries.fs2BlobS3,
       Dependencies.Libraries.fs2Aws,
       Dependencies.Libraries.kinesisClient2,

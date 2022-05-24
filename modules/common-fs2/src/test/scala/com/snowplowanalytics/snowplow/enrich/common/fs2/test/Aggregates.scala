@@ -26,7 +26,7 @@ object Aggregates {
   def metadata[F[_]](ref: Ref[F, Map[MetadataEvent, Set[SchemaKey]]]): Metadata[F] =
     new Metadata[F] {
       def report: Stream[F, Unit] = Stream.empty.covary[F]
-      def observe(event: EnrichedEvent): F[Unit] =
-        ref.update(Metadata.recalculate(_, event))
+      def observe(events: List[EnrichedEvent]): F[Unit] =
+        ref.update(Metadata.recalculate(_, events))
     }
 }

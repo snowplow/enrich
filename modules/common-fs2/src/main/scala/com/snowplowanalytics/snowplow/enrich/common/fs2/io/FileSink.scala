@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2021 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-2022 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -26,7 +26,7 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Output.{FileSy
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.ByteSink
 
-object Sink {
+object FileSink {
 
   def fileSink[F[_]: Concurrent: ContextShift](config: FileSystemConfig, blocker: Blocker): Resource[F, ByteSink[F]] =
     config.maxBytes match {
@@ -39,11 +39,13 @@ object Sink {
     for {
       channel <- makeChannel(blocker, path)
       sem <- Resource.eval(Semaphore(1L))
-    } yield { bytes =>
+    } yield { records =>
       sem.withPermit {
         blocker.delay {
-          channel.write(ByteBuffer.wrap(bytes))
-          channel.write(ByteBuffer.wrap(Array('\n'.toByte)))
+          records.foreach { bytes =>
+            channel.write(ByteBuffer.wrap(bytes))
+            channel.write(ByteBuffer.wrap(Array('\n'.toByte)))
+          }
         }.void
       }
     }
@@ -61,14 +63,16 @@ object Sink {
       (hs, first) <- Hotswap(makeFile(blocker, 1, path))
       ref <- Resource.eval(Ref.of(first))
       sem <- Resource.eval(Semaphore(1L))
-    } yield { bytes =>
+    } yield { records =>
       sem.withPermit {
-        for {
-          state <- ref.get
-          state <- maybeRotate(blocker, hs, path, state, maxBytes, bytes.size)
-          state <- writeLine(blocker, state, bytes)
-          _ <- ref.set(state)
-        } yield ()
+        records.traverse_ { bytes =>
+          for {
+            state <- ref.get
+            state <- maybeRotate(blocker, hs, path, state, maxBytes, bytes.size)
+            state <- writeLine(blocker, state, bytes)
+            _ <- ref.set(state)
+          } yield ()
+        }
       }
     }
 

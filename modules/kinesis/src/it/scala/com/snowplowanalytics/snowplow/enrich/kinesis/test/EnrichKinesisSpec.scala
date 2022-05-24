@@ -13,7 +13,6 @@
 package com.snowplowanalytics.snowplow.enrich.kinesis.it
 
 import scala.concurrent.duration._
-
 import scala.concurrent.ExecutionContext
 
 import org.typelevel.log4cats.Logger
@@ -65,8 +64,7 @@ class EnrichKinesisSpec extends Specification with CatsIO {
           "--enrichments",
           Resources.enrichmentsPath.toString
         )
-      val executionContext = ExecutionContext.global
-      val enrich = Stream.eval[IO, ExitCode](KinesisRun.run[IO](args, executionContext))
+      val enrich = Stream.eval[IO, ExitCode](KinesisRun.run[IO](args, ExecutionContext.global))
 
       def consume(refGood: Ref[IO, AggregateGood], refBad: Ref[IO, AggregateBad]): Stream[IO, Unit] =
         consumeGood(refGood)

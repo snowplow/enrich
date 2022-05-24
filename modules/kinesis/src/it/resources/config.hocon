@@ -22,14 +22,9 @@
       "backoffPolicy": {
         "minBackoff": 100 milliseconds
         "maxBackoff": 10 seconds
+        "maxRetries": 10
       }
-      "maxBufferedTime": 100 milliseconds
-      "collection": {
-        "maxCount": 500
-        "maxSize": 5242880
-      }
-      "maxConnections": 24
-      "logLevel": "warning"
+      "recordLimit": 500
     }
 
     "bad": {
@@ -39,14 +34,9 @@
       "backoffPolicy": {
         "minBackoff": 100 milliseconds
         "maxBackoff": 10 seconds
+        "maxRetries": 10
       }
-      "maxBufferedTime": 100 milliseconds
-      "collection": {
-        "maxCount": 500
-        "maxSize": 5242880
-      }
-      "maxConnections": 24
-      "logLevel": "warning"
+      "recordLimit": 500
     }
   }
 

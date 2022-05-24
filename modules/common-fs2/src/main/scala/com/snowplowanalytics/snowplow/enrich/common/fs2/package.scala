@@ -24,8 +24,8 @@ package object fs2 {
 
   type ValidationResult[A] = ValidatedNel[String, A]
 
-  type ByteSink[F[_]] = Array[Byte] => F[Unit]
-  type AttributedByteSink[F[_]] = AttributedData[Array[Byte]] => F[Unit]
+  type ByteSink[F[_]] = List[Array[Byte]] => F[Unit]
+  type AttributedByteSink[F[_]] = List[AttributedData[Array[Byte]]] => F[Unit]
 
   /** Enrichment result, containing list of (valid and invalid) results as well as the collector timestamp */
   type Result = (List[Validated[BadRow, EnrichedEvent]], Option[Long])

@@ -45,7 +45,7 @@ import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
  */
 trait Metadata[F[_]] {
   def report: Stream[F, Unit]
-  def observe(event: EnrichedEvent): F[Unit]
+  def observe(events: List[EnrichedEvent]): F[Unit]
 }
 
 object Metadata {
@@ -68,15 +68,15 @@ object Metadata {
             _ <- Stream.eval(submit(reporter, observedRef))
           } yield ()
 
-        def observe(event: EnrichedEvent): F[Unit] =
-          observedRef.eventsToEntities.update(recalculate(_, event))
+        def observe(events: List[EnrichedEvent]): F[Unit] =
+          observedRef.eventsToEntities.update(recalculate(_, events))
       }
     }
 
   def noop[F[_]: Async]: Metadata[F] =
     new Metadata[F] {
       def report: Stream[F, Unit] = Stream.never[F]
-      def observe(event: EnrichedEvent): F[Unit] = Applicative[F].unit
+      def observe(events: List[EnrichedEvent]): F[Unit] = Applicative[F].unit
     }
 
   private def submit[F[_]: Sync: Clock](reporter: MetadataReporter[F], ref: MetadataEventsRef[F]): F[Unit] =
@@ -240,8 +240,8 @@ object Metadata {
       SchemaVer.parseFull(event.event_version).getOrElse(SchemaVer.Full(0, 0, 0))
     )
 
-  def recalculate(previous: EventsToEntities, event: EnrichedEvent): EventsToEntities =
-    previous ++ Map(MetadataEvent(event) -> unwrapEntities(event))
+  def recalculate(previous: EventsToEntities, events: List[EnrichedEvent]): EventsToEntities =
+    previous ++ events.map(e => MetadataEvent(e) -> unwrapEntities(e))
 
   def mkWebhookEvent(
     organizationId: UUID,

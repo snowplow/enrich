@@ -17,7 +17,6 @@ import java.nio.charset.Charset
 import java.net.URI
 import java.time.Instant
 import org.joda.time.DateTime
-import org.slf4j.LoggerFactory
 import io.circe.Json
 import cats.Monad
 import cats.data.{EitherT, NonEmptyList, OptionT, ValidatedNel}
@@ -29,12 +28,11 @@ import com.snowplowanalytics.refererparser._
 import com.snowplowanalytics.iglu.client.Client
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
+import com.snowplowanalytics.iglu.core.SelfDescribingData
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
 import com.snowplowanalytics.snowplow.badrows._
 import com.snowplowanalytics.snowplow.badrows.{FailureDetails, Payload, Processor}
-import com.snowplowanalytics.snowplow.badrows.FailureDetails.EnrichmentFailure
 
 import adapters.RawEvent
 import enrichments.{EventEnrichments => EE}
@@ -48,10 +46,6 @@ import outputs.EnrichedEvent
 import utils.{IgluUtils, ConversionUtils => CU}
 
 object EnrichmentManager {
-
-  val atomicSchema: SchemaKey = SchemaKey("com.snowplowanalytics.snowplow", "atomic", "jsonschema", SchemaVer.Full(1, 0, 0))
-
-  private val logger = LoggerFactory.getLogger("InvalidEnriched")
 
   /**
    * Run the enrichment workflow
@@ -101,7 +95,7 @@ object EnrichmentManager {
                enriched.pii = pii.asString
              }
            }
-      _ <- validateEnriched(enriched, raw, processor, client, acceptInvalid, invalidCount)
+      _ <- validateEnriched(enriched, raw, processor, acceptInvalid, invalidCount)
     } yield enriched
 
   /**
@@ -767,63 +761,12 @@ object EnrichmentManager {
     enriched: EnrichedEvent,
     raw: RawEvent,
     processor: Processor,
-    client: Client[F, Json],
     acceptInvalid: Boolean,
     invalidCount: F[Unit]
   ): EitherT[F, BadRow, Unit] =
-    EitherT(
-      for {
-        validated <- EnrichedEvent
-                       .toAtomic(enriched)
-                       .leftMap(err =>
-                         EnrichmentManager.buildEnrichmentFailuresBadRow(
-                           NonEmptyList(
-                             EnrichmentFailure(
-                               None,
-                               FailureDetails.EnrichmentFailureMessage.Simple(
-                                 "Error during conversion of enriched event to the atomic format"
-                               )
-                             ),
-                             List(EnrichmentFailure(None, FailureDetails.EnrichmentFailureMessage.Simple(err.toString)))
-                           ),
-                           EnrichedEvent.toPartiallyEnrichedEvent(enriched),
-                           RawEvent.toRawEvent(raw),
-                           processor
-                         )
-                       )
-                       .toEitherT[F]
-                       .flatMap(atomic =>
-                         client
-                           .check(SelfDescribingData(atomicSchema, atomic))
-                           .leftMap(err =>
-                             EnrichmentManager.buildEnrichmentFailuresBadRow(
-                               NonEmptyList(
-                                 EnrichmentFailure(
-                                   None,
-                                   FailureDetails.EnrichmentFailureMessage.Simple(
-                                     s"Enriched event not valid against ${atomicSchema.toSchemaUri}"
-                                   )
-                                 ),
-                                 List(EnrichmentFailure(None, FailureDetails.EnrichmentFailureMessage.IgluError(atomicSchema, err)))
-                               ),
-                               EnrichedEvent.toPartiallyEnrichedEvent(enriched),
-                               RawEvent.toRawEvent(raw),
-                               processor
-                             )
-                           )
-                       )
-                       .value
-        validation <- validated match {
-                        case Left(br) if !acceptInvalid =>
-                          Monad[F].pure(Left(br))
-                        case Left(br) =>
-                          for {
-                            _ <- invalidCount
-                            _ <- Monad[F].pure(logger.debug(s"Enriched event not valid against atomic schema. Bad row: ${br.compact}"))
-                          } yield Right(())
-                        case _ =>
-                          Monad[F].pure(Right(()))
-                      }
-      } yield validation
-    )
+    EitherT {
+
+      //We're using static field's length validation. See more in https://github.com/snowplow/enrich/issues/608
+      AtomicFieldsLengthValidator.validate[F](enriched, raw, processor, acceptInvalid, invalidCount)
+    }
 }

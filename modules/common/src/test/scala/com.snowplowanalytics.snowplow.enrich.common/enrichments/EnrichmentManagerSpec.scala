@@ -20,7 +20,6 @@ import cats.data.NonEmptyList
 import io.circe.literal._
 import org.joda.time.DateTime
 import com.snowplowanalytics.snowplow.badrows._
-import com.snowplowanalytics.snowplow.badrows.FailureDetails.EnrichmentFailureMessage
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer}
 import loaders._
 import adapters.RawEvent
@@ -38,6 +37,7 @@ import org.apache.commons.codec.digest.DigestUtils
 import org.specs2.mutable.Specification
 import org.specs2.matcher.EitherMatchers
 import SpecHelpers._
+import com.snowplowanalytics.snowplow.badrows.FailureDetails.EnrichmentFailureMessage
 
 class EnrichmentManagerSpec extends Specification with EitherMatchers {
   import EnrichmentManagerSpec._
@@ -711,45 +711,46 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
 
   "validateEnriched" should {
     "create a bad row if a field is oversized" >> {
-      EnrichmentManager
+      val result = EnrichmentManager
         .enrichEvent[Id](
           enrichmentReg,
           client,
           processor,
           timestamp,
           RawEvent(api, fatBody, None, source, context),
-          false,
+          acceptInvalid = false,
           AcceptInvalid.countInvalid
         )
-        .swap
-        .map {
-          case BadRow.EnrichmentFailures(_, failure, _) =>
-            failure.messages.map(_.message match {
-              case EnrichmentFailureMessage.Simple(error) => error
-              case EnrichmentFailureMessage.IgluError(schemaKey, _) => schemaKey
-              case _ => None
-            })
-          case _ => None
-        }
-        .getOrElse(None) === NonEmptyList(
-        s"Enriched event not valid against ${EnrichmentManager.atomicSchema.toSchemaUri}",
-        List(EnrichmentManager.atomicSchema)
-      )
+        .value
+
+      result must beLeft.like {
+        case badRow: BadRow.EnrichmentFailures =>
+          val firstError = badRow.failure.messages.head.message
+          val secondError = badRow.failure.messages.last.message
+
+          firstError must beEqualTo(
+            EnrichmentFailureMessage.Simple("Enriched event does not conform to atomic schema field's length restrictions")
+          )
+          secondError must beEqualTo(EnrichmentFailureMessage.Simple("Field v_tracker longer than maximum allowed size 100"))
+        case br =>
+          ko(s"bad row [$br] is not BadRow.EnrichmentFailures")
+      }
     }
 
     "not create a bad row if a field is oversized and acceptInvalid is set to true" >> {
-      EnrichmentManager
+      val result = EnrichmentManager
         .enrichEvent[Id](
           enrichmentReg,
           client,
           processor,
           timestamp,
           RawEvent(api, fatBody, None, source, context),
-          true,
+          acceptInvalid = true,
           AcceptInvalid.countInvalid
         )
-        .map(_ => true)
-        .getOrElse(false) must beTrue
+        .value
+
+      result must beRight[EnrichedEvent]
     }
   }
 }

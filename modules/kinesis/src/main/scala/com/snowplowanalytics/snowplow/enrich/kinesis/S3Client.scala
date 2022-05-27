@@ -14,11 +14,12 @@ package com.snowplowanalytics.snowplow.enrich.kinesis
 
 import java.net.URI
 
-import cats.effect.{ConcurrentEffect, Resource}
+import cats.implicits._
+import cats.effect.{ConcurrentEffect, Resource, Timer}
 
 import fs2.Stream
 
-import blobstore.Path
+import blobstore.url.Url
 import blobstore.s3.S3Store
 
 import software.amazon.awssdk.services.s3.S3AsyncClient
@@ -28,26 +29,28 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.{Client, Retr
 
 object S3Client {
 
-  def mk[F[_]: ConcurrentEffect]: Resource[F, Client[F]] =
+  def mk[F[_]: ConcurrentEffect: Timer]: Resource[F, Client[F]] =
     for {
       s3Client <- Resource.fromAutoCloseable(ConcurrentEffect[F].delay(S3AsyncClient.builder().build()))
-      store <- Resource.eval(S3Store[F](s3Client))
+      store <- Resource.eval(S3Store.builder[F](s3Client).build.toEither.leftMap(_.head).pure[F].rethrow)
     } yield new Client[F] {
       val prefixes = List("s3")
 
       def download(uri: URI): Stream[F, Byte] =
-        store
-          .get(Path(uri.toString), 16 * 1024)
-          .handleErrorWith { e =>
-            val e2 = e match {
-              case sdke: SdkException if sdke.retryable =>
-                new RetryableFailure {
-                  override def getMessage: String = sdke.getMessage
-                  override def getCause: Throwable = sdke
-                }
-              case e => e
+        Stream.eval(Url.parseF[F](uri.toString)).flatMap { url =>
+          store
+            .get(url, 16 * 1024)
+            .handleErrorWith { e =>
+              val e2 = e match {
+                case sdke: SdkException if sdke.retryable =>
+                  new RetryableFailure {
+                    override def getMessage: String = sdke.getMessage
+                    override def getCause: Throwable = sdke
+                  }
+                case e => e
+              }
+              Stream.raiseError[F](e2)
             }
-            Stream.raiseError(e2)
-          }
+        }
     }
 }

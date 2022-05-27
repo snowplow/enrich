@@ -83,7 +83,6 @@ lazy val allStreamSettings = BuildSettings.basicSettings ++ BuildSettings.sbtAss
     Dependencies.Libraries.log4jOverSlf4j,
     Dependencies.Libraries.s3Sdk,
     Dependencies.Libraries.gcs,
-    Dependencies.Libraries.gson,
     Dependencies.Libraries.scopt,
     Dependencies.Libraries.pureconfig,
     Dependencies.Libraries.snowplowTracker,
@@ -232,9 +231,8 @@ lazy val pubsub = project
   .settings(
     libraryDependencies ++= Seq(
       Dependencies.Libraries.fs2BlobGcs,
-      Dependencies.Libraries.fs2PubSub,
-      Dependencies.Libraries.gson,
-      Dependencies.Libraries.googleAuth
+      Dependencies.Libraries.gcs,
+      Dependencies.Libraries.fs2PubSub
     ),
     addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
   )

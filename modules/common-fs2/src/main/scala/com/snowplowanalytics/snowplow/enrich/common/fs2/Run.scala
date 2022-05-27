@@ -18,7 +18,6 @@ import cats.implicits._
 import fs2.Stream
 
 import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext
 
 import cats.effect.{Blocker, Clock, Concurrent, ConcurrentEffect, ContextShift, ExitCode, Resource, Sync, Timer}
 
@@ -44,7 +43,6 @@ object Run {
     name: String,
     version: String,
     description: String,
-    ec: ExecutionContext,
     updateCliConfig: (Blocker, CliConfig) => F[CliConfig],
     mkSource: (Blocker, Input, Monitoring) => Stream[F, A],
     mkSinkGood: (Blocker, Output, Monitoring) => Resource[F, AttributedByteSink[F]],
@@ -87,7 +85,6 @@ object Run {
                                 val env = Environment
                                   .make[F, Array[Byte]](
                                     blocker,
-                                    ec,
                                     parsed,
                                     Source.filesystem[F](blocker, p.dir),
                                     sinkGood,
@@ -119,7 +116,6 @@ object Run {
                                 val env = Environment
                                   .make[F, A](
                                     blocker,
-                                    ec,
                                     parsed,
                                     mkSource(blocker, file.input, file.monitoring),
                                     sinkGood,

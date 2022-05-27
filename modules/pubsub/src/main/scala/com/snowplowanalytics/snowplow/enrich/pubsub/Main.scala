@@ -15,11 +15,7 @@ package com.snowplowanalytics.snowplow.enrich.pubsub
 import cats.Parallel
 import cats.implicits._
 
-import cats.effect.{ExitCode, IO, IOApp, Resource, Sync, SyncIO}
-
-import java.util.concurrent.{Executors, TimeUnit}
-
-import scala.concurrent.ExecutionContext
+import cats.effect.{ExitCode, IO, IOApp, Resource, Sync}
 
 import com.permutive.pubsub.consumer.ConsumerRecord
 
@@ -28,7 +24,7 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.Telemetry
 
 import com.snowplowanalytics.snowplow.enrich.pubsub.generated.BuildInfo
 
-object Main extends IOApp.WithContext {
+object Main extends IOApp {
 
   /**
    * The maximum size of a serialized payload that can be written to pubsub.
@@ -38,30 +34,12 @@ object Main extends IOApp.WithContext {
    */
   private val MaxRecordSize = 6900000
 
-  /**
-   * An execution context matching the cats effect IOApp default. We create it explicitly so we can
-   * also use it for our Blaze client.
-   */
-  override protected val executionContextResource: Resource[SyncIO, ExecutionContext] = {
-    val poolSize = math.max(2, Runtime.getRuntime().availableProcessors())
-    Resource
-      .make(SyncIO(Executors.newFixedThreadPool(poolSize)))(pool =>
-        SyncIO {
-          pool.shutdown()
-          pool.awaitTermination(10, TimeUnit.SECONDS)
-          ()
-        }
-      )
-      .map(ExecutionContext.fromExecutorService)
-  }
-
   def run(args: List[String]): IO[ExitCode] =
     Run.run[IO, ConsumerRecord[IO, Array[Byte]]](
       args,
       BuildInfo.name,
       BuildInfo.version,
       BuildInfo.description,
-      executionContext,
       (_, cliConfig) => IO(cliConfig),
       (blocker, input, _) => Source.init(blocker, input),
       (_, out, _) => Sink.initAttributed(out),

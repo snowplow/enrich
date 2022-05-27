@@ -47,7 +47,6 @@ object Dependencies {
     val sprayJson        = "1.3.6" // override transitive dependency to mitigate security vulnerabilities
     val netty            = "4.1.68.Final" // override transitive dependency to mitigate security vulnerabilities
     val protobuf         = "3.19.4" // override transitive dependency to mitigate security vulnerabilities
-    val googleAuth       = "1.33.1" // override transitive dependency to mitigate security vulnerabilities
 
     val refererParser    = "1.1.0"
     val maxmindIplookups = "0.7.1"
@@ -67,14 +66,13 @@ object Dependencies {
     val schemaSniffer    = "0.0.0"
 
     val awsSdk           = "1.12.129"
-    val gcpSdk           = "2.4.2"
+    val gcpSdk           = "2.7.2"
     val kinesisClient    = "1.14.5"
     val kafka            = "2.8.1"
     val mskAuth          = "1.1.1"
     val nsqClient        = "1.3.0"
     val jackson          = "2.11.4"
     val config           = "1.3.4"
-    val gson             = "2.9.0" // override transitive dependency of gcpSdk
 
     val decline          = "1.0.0"
     val fs2              = "2.5.5"
@@ -149,7 +147,6 @@ object Dependencies {
     val slf4j            = "org.slf4j"                  %  "slf4j-simple"                  % V.slf4j
     val sentry           = "io.sentry"                  %  "sentry"                        % V.sentry
     val protobuf         = "com.google.protobuf"        %  "protobuf-java"                 % V.protobuf
-    val googleAuth       = "com.google.oauth-client"    %  "google-oauth-client"           % V.googleAuth
 
     val specs2             = "org.specs2"             %% "specs2-core"                   % V.specs2    % Test
     val specs2Cats         = "org.specs2"             %% "specs2-cats"                   % V.specs2    % Test
@@ -168,7 +165,6 @@ object Dependencies {
     val kinesisClient    = "com.amazonaws"                    %  "amazon-kinesis-client"             % V.kinesisClient
     val sts              = "com.amazonaws"                    %  "aws-java-sdk-sts"                  % V.awsSdk           % Runtime
     val gcs              = "com.google.cloud"                 %  "google-cloud-storage"              % V.gcpSdk
-    val gson             = "com.google.code.gson"             %  "gson"                              % V.gson
     val kafkaClients     = "org.apache.kafka"                 %  "kafka-clients"                     % V.kafka
     val mskAuth          = "software.amazon.msk"              %  "aws-msk-iam-auth"                  % V.mskAuth          % Runtime
     val jacksonCbor      = "com.fasterxml.jackson.dataformat" %  "jackson-dataformat-cbor"           % V.jackson

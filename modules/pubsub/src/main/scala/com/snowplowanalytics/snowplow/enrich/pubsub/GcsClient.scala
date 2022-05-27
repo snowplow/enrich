@@ -15,12 +15,12 @@ package com.snowplowanalytics.snowplow.enrich.pubsub
 import java.net.URI
 
 import cats.implicits._
-import cats.effect.{Blocker, ConcurrentEffect, ContextShift}
+import cats.effect.{Blocker, ConcurrentEffect, ContextShift, Timer}
 
 import fs2.Stream
 
 import blobstore.gcs.GcsStore
-import blobstore.Path
+import blobstore.url.Url
 
 import com.google.cloud.storage.StorageOptions
 import com.google.cloud.BaseServiceException
@@ -29,27 +29,29 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.{Client, Retr
 
 object GcsClient {
 
-  def mk[F[_]: ConcurrentEffect: ContextShift](blocker: Blocker): F[Client[F]] =
+  def mk[F[_]: ConcurrentEffect: ContextShift: Timer](blocker: Blocker): F[Client[F]] =
     ConcurrentEffect[F].delay(StorageOptions.getDefaultInstance.getService).map { service =>
       new Client[F] {
         val prefixes = List("gs")
 
-        val store = GcsStore(service, blocker, List.empty)
+        val store = GcsStore.builder(service, blocker).unsafe
 
         def download(uri: URI): Stream[F, Byte] =
-          store
-            .get(Path(uri.toString), 16 * 1024)
-            .handleErrorWith { e =>
-              val e2 = e match {
-                case bse: BaseServiceException if bse.isRetryable =>
-                  new RetryableFailure {
-                    override def getMessage: String = bse.getMessage
-                    override def getCause: Throwable = bse
-                  }
-                case e => e
+          Stream.eval(Url.parseF[F](uri.toString)).flatMap { url =>
+            store
+              .get(url, 16 * 1024)
+              .handleErrorWith { e =>
+                val e2 = e match {
+                  case bse: BaseServiceException if bse.isRetryable =>
+                    new RetryableFailure {
+                      override def getMessage: String = bse.getMessage
+                      override def getCause: Throwable = bse
+                    }
+                  case e => e
+                }
+                Stream.raiseError[F](e2)
               }
-              Stream.raiseError[F](e2)
-            }
+          }
       }
     }
 }

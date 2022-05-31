@@ -86,8 +86,14 @@ object Enrich {
           )
         )
 
+    // TODO: make this configurable, and tune it.
+    // Should be at least as big as output.good.collection.maxCount
+    // And smaller than input.retrievalMode.maxRecords
+    val outputChunkSize = 1000
+
     val sinkAndCheckpoint: Pipe[F, List[(A, Result)], Unit] =
-      _.parEvalMap(env.streamsSettings.concurrency.sink)(sinkChunk(_, sinkOne(env), env.metrics.enrichLatency))
+      _.flatMap(chunk => Stream.iterable(chunk.grouped(outputChunkSize).toIterable))
+        .parEvalMap(env.streamsSettings.concurrency.sink)(sinkChunk(_, sinkOne(env), env.metrics.enrichLatency))
         .evalMap(env.checkpoint)
 
     Stream.eval(runWithShutdown(enriched, sinkAndCheckpoint))

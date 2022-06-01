@@ -1,3 +1,12 @@
+3.1.4 (2022-06-01)
+------------------
+Bump jackson-databind to 2.13.3 (#615)
+common: Bump GCP sdk to 2.7.2 (#613)
+common-fs2: Bump fs2-blobstore to 0.8.6 (#614)
+common-fs2: Bump http4s to 0.21.33 (#612)
+common-fs2: Change http4s client backend to Ember (#611)
+common: update the validation of the enriched event with static field lengths (#608)
+
 3.1.3 (2022-04-27)
 ------------------
 enrich-kinesis: use flatMap for the resources in the integration test (#599)

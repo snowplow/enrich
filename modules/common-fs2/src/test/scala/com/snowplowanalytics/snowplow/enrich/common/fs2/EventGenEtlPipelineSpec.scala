@@ -217,7 +217,7 @@ class EventGenEtlPipelineSpec extends Specification with CatsIO {
       processor,
       dateTime,
       Some(e).validNel,
-      false,
+      EtlPipeline.FeatureFlags(acceptInvalid = false, legacyEnrichmentOrder = false),
       IO.unit
     )
 

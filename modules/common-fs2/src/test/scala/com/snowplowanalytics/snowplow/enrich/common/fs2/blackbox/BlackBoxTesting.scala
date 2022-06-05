@@ -42,6 +42,7 @@ import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Enrich
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.FeatureFlags
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.EnrichSpec
 
@@ -90,7 +91,7 @@ object BlackBoxTesting extends Specification with CatsIO {
     enrichmentConfig: Option[Json] = None
   ) =
     Enrich
-      .enrichWith(getEnrichmentRegistry(enrichmentConfig), igluClient, None, EnrichSpec.processor, false, IO.unit)(
+      .enrichWith(getEnrichmentRegistry(enrichmentConfig), igluClient, None, EnrichSpec.processor, featureFlags, IO.unit)(
         input
       )
       .map {
@@ -132,4 +133,6 @@ object BlackBoxTesting extends Specification with CatsIO {
                       }
         } yield registry
     }
+
+  private val featureFlags = FeatureFlags(acceptInvalid = false, legacyEnrichmentOrder = false)
 }

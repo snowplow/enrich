@@ -50,6 +50,7 @@ import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.loaders.{CollectorPayload, ThriftLoader}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.FeatureFlags
 
 object Enrich {
 
@@ -72,7 +73,7 @@ object Enrich {
     val registry: F[EnrichmentRegistry[F]] = env.enrichments.get.map(_.registry)
     val enrich: Enrich[F] = {
       implicit val rl: RegistryLookup[F] = env.registryLookup
-      enrichWith[F](registry, env.igluClient, env.sentry, env.processor, env.acceptInvalid, env.metrics.invalidCount)
+      enrichWith[F](registry, env.igluClient, env.sentry, env.processor, env.featureFlags, env.metrics.invalidCount)
     }
 
     val enriched =
@@ -102,7 +103,7 @@ object Enrich {
     igluClient: Client[F, Json],
     sentry: Option[SentryClient],
     processor: Processor,
-    acceptInvalid: Boolean,
+    featureFlags: FeatureFlags,
     invalidCount: F[Unit]
   )(
     row: Array[Byte]
@@ -122,7 +123,7 @@ object Enrich {
                       processor,
                       etlTstamp,
                       payload,
-                      acceptInvalid,
+                      FeatureFlags.toCommon(featureFlags),
                       invalidCount
                     )
       } yield (enriched, collectorTstamp)

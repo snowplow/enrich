@@ -176,7 +176,7 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
         Processor("spark", "0.0.0"),
         new DateTime(1500000000L),
         input,
-        AcceptInvalid.acceptInvalid,
+        AcceptInvalid.featureFlags,
         AcceptInvalid.countInvalid
       )
   }

@@ -158,6 +158,10 @@ abstract class Source(
   def enrichEvents(binaryData: Array[Byte]): List[Validated[(BadRow, String), (String, String, Option[String])]] = {
     val canonicalInput: ValidatedNel[BadRow, Option[CollectorPayload]] =
       ThriftLoader.toCollectorPayload(binaryData, processor)
+    val featureFlags = EtlPipeline.FeatureFlags(
+      acceptInvalid = true, // See https://github.com/snowplow/enrich/issues/517#issuecomment-1033910690
+      legacyEnrichmentOrder = true // Stream enrich has always used the legacy order
+    )
     Either.catchNonFatal(
       EtlPipeline.processEvents[Id](
         adapterRegistry,
@@ -166,7 +170,7 @@ abstract class Source(
         processor,
         new DateTime(System.currentTimeMillis),
         canonicalInput,
-        true, // See https://github.com/snowplow/enrich/issues/517#issuecomment-1033910690
+        featureFlags,
         () // See https://github.com/snowplow/enrich/issues/517#issuecomment-1033910690
       )
     ) match {

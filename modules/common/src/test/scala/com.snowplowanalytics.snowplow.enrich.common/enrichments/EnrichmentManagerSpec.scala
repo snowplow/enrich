@@ -70,7 +70,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         processor,
         timestamp,
         rawEvent,
-        AcceptInvalid.acceptInvalid,
+        AcceptInvalid.featureFlags,
         AcceptInvalid.countInvalid
       )
 
@@ -105,7 +105,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         processor,
         timestamp,
         rawEvent,
-        AcceptInvalid.acceptInvalid,
+        AcceptInvalid.featureFlags,
         AcceptInvalid.countInvalid
       )
       enriched.value must beLeft.like {
@@ -149,7 +149,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         processor,
         timestamp,
         rawEvent,
-        AcceptInvalid.acceptInvalid,
+        AcceptInvalid.featureFlags,
         AcceptInvalid.countInvalid
       )
       enriched.value must beLeft.like {
@@ -214,7 +214,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         processor,
         timestamp,
         rawEvent,
-        AcceptInvalid.acceptInvalid,
+        AcceptInvalid.featureFlags,
         AcceptInvalid.countInvalid
       )
       enriched.value must beLeft.like {
@@ -275,7 +275,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         processor,
         timestamp,
         rawEvent,
-        AcceptInvalid.acceptInvalid,
+        AcceptInvalid.featureFlags,
         AcceptInvalid.countInvalid
       )
       enriched.value must beRight
@@ -337,7 +337,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         processor,
         timestamp,
         rawEvent,
-        AcceptInvalid.acceptInvalid,
+        AcceptInvalid.featureFlags,
         AcceptInvalid.countInvalid
       )
       enriched.value must beRight
@@ -399,7 +399,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         processor,
         timestamp,
         rawEvent,
-        AcceptInvalid.acceptInvalid,
+        AcceptInvalid.featureFlags,
         AcceptInvalid.countInvalid
       )
       enriched.value must beRight
@@ -461,7 +461,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         processor,
         timestamp,
         rawEvent,
-        AcceptInvalid.acceptInvalid,
+        AcceptInvalid.featureFlags,
         AcceptInvalid.countInvalid
       )
       enriched.value must beLeft
@@ -523,7 +523,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         processor,
         timestamp,
         rawEvent,
-        AcceptInvalid.acceptInvalid,
+        AcceptInvalid.featureFlags,
         AcceptInvalid.countInvalid
       )
       enriched.value must beLeft
@@ -591,7 +591,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         processor,
         timestamp,
         rawEvent,
-        AcceptInvalid.acceptInvalid,
+        AcceptInvalid.featureFlags,
         AcceptInvalid.countInvalid
       )
       enriched.value must beLeft
@@ -617,7 +617,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
               processor,
               timestamp,
               rawEvent,
-              AcceptInvalid.acceptInvalid,
+              AcceptInvalid.featureFlags,
               AcceptInvalid.countInvalid
             )
             enriched.value must beRight
@@ -646,7 +646,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
               processor,
               timestamp,
               rawEvent,
-              AcceptInvalid.acceptInvalid,
+              AcceptInvalid.featureFlags,
               AcceptInvalid.countInvalid
             )
             enriched.value must beRight
@@ -671,7 +671,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         processor,
         timestamp,
         rawEvent,
-        AcceptInvalid.acceptInvalid,
+        AcceptInvalid.featureFlags,
         AcceptInvalid.countInvalid
       )
       enriched.value.map(_.useragent) must beRight(qs_ua)
@@ -692,7 +692,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         processor,
         timestamp,
         rawEvent,
-        AcceptInvalid.acceptInvalid,
+        AcceptInvalid.featureFlags,
         AcceptInvalid.countInvalid
       )
       enriched.value.map(_.useragent) must beRight("header-useragent")
@@ -700,41 +700,61 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
   }
 
   "getIabContext" should {
-    "return None if useragent is null" >> {
+    "return no context if useragent is null" >> {
       val input = new EnrichedEvent()
       input.setUser_ipaddress("127.0.0.1")
       input.setDerived_tstamp("2010-06-30 01:20:01.000")
-      EnrichmentManager.getIabContext(input, iabEnrichment) must beRight(None)
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager.getIabContext[Id](iabEnrichment).runS(inputState) must beLike {
+        case acc: EnrichmentManager.Accumulation =>
+          (acc.errors must beEmpty) and (acc.contexts must beEmpty)
+      }
     }
 
-    "return None if user_ipaddress is null" >> {
+    "return no context if user_ipaddress is null" >> {
       val input = new EnrichedEvent()
       input.setUseragent("Firefox")
       input.setDerived_tstamp("2010-06-30 01:20:01.000")
-      EnrichmentManager.getIabContext(input, iabEnrichment) must beRight(None)
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager.getIabContext[Id](iabEnrichment).runS(inputState) must beLike {
+        case acc: EnrichmentManager.Accumulation =>
+          (acc.errors must beEmpty) and (acc.contexts must beEmpty)
+      }
     }
 
-    "return None if derived_tstamp is null" >> {
+    "return no context if derived_tstamp is null" >> {
       val input = new EnrichedEvent()
       input.setUser_ipaddress("127.0.0.1")
       input.setUseragent("Firefox")
-      EnrichmentManager.getIabContext(input, iabEnrichment) must beRight(None)
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager.getIabContext[Id](iabEnrichment).runS(inputState) must beLike {
+        case acc: EnrichmentManager.Accumulation =>
+          (acc.errors must beEmpty) and (acc.contexts must beEmpty)
+      }
     }
 
-    "return None if user_ipaddress is invalid" >> {
+    "return no context if user_ipaddress is invalid" >> {
       val input = new EnrichedEvent()
       input.setUser_ipaddress("invalid")
       input.setUseragent("Firefox")
       input.setDerived_tstamp("2010-06-30 01:20:01.000")
-      EnrichmentManager.getIabContext(input, iabEnrichment) must beRight(None)
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager.getIabContext[Id](iabEnrichment).runS(inputState) must beLike {
+        case acc: EnrichmentManager.Accumulation =>
+          (acc.errors must beEmpty) and (acc.contexts must beEmpty)
+      }
     }
 
-    "return None if user_ipaddress is hostname (don't try to resovle it)" >> {
+    "return no context if user_ipaddress is hostname (don't try to resovle it)" >> {
       val input = new EnrichedEvent()
       input.setUser_ipaddress("localhost")
       input.setUseragent("Firefox")
       input.setDerived_tstamp("2010-06-30 01:20:01.000")
-      EnrichmentManager.getIabContext(input, iabEnrichment) must beRight(None)
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager.getIabContext[Id](iabEnrichment).runS(inputState) must beLike {
+        case acc: EnrichmentManager.Accumulation =>
+          (acc.errors must beEmpty) and (acc.contexts must beEmpty)
+      }
     }
 
     "return Some if all arguments are valid" >> {
@@ -742,28 +762,37 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       input.setUser_ipaddress("127.0.0.1")
       input.setUseragent("Firefox")
       input.setDerived_tstamp("2010-06-30 01:20:01.000")
-      EnrichmentManager.getIabContext(input, iabEnrichment) must beRight.like { case ctx => ctx must beSome }
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager.getIabContext[Id](iabEnrichment).runS(inputState) must beLike {
+        case acc: EnrichmentManager.Accumulation =>
+          (acc.errors must beEmpty) and (acc.contexts must not beEmpty)
+      }
     }
   }
 
   "getCollectorVersionSet" should {
     "return an enrichment failure if v_collector is null or empty" >> {
       val input = new EnrichedEvent()
-      EnrichmentManager.getCollectorVersionSet(input) must beLeft.like {
-        case _: FailureDetails.EnrichmentFailure => ok
-        case other => ko(s"expected EnrichmentFailure but got $other")
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager.getCollectorVersionSet[Id].runS(inputState) must beLike {
+        case acc: EnrichmentManager.Accumulation =>
+          acc.errors must not beEmpty
       }
       input.v_collector = ""
-      EnrichmentManager.getCollectorVersionSet(input) must beLeft.like {
-        case _: FailureDetails.EnrichmentFailure => ok
-        case other => ko(s"expected EnrichmentFailure but got $other")
+      EnrichmentManager.getCollectorVersionSet[Id].runS(inputState) must beLike {
+        case acc: EnrichmentManager.Accumulation =>
+          acc.errors must not beEmpty
       }
     }
 
     "return Unit if v_collector is set" >> {
       val input = new EnrichedEvent()
       input.v_collector = "v42"
-      EnrichmentManager.getCollectorVersionSet(input) must beRight(())
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager.getCollectorVersionSet[Id].runS(inputState) must beLike {
+        case acc: EnrichmentManager.Accumulation =>
+          acc.errors must beEmpty
+      }
     }
   }
 
@@ -776,7 +805,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
           processor,
           timestamp,
           RawEvent(api, fatBody, None, source, context),
-          acceptInvalid = false,
+          featureFlags = AcceptInvalid.featureFlags.copy(acceptInvalid = false),
           AcceptInvalid.countInvalid
         )
         .value
@@ -803,7 +832,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
           processor,
           timestamp,
           RawEvent(api, fatBody, None, source, context),
-          acceptInvalid = true,
+          featureFlags = AcceptInvalid.featureFlags.copy(acceptInvalid = true),
           AcceptInvalid.countInvalid
         )
         .value

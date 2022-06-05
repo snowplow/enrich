@@ -27,6 +27,8 @@ import _root_.io.circe.config.syntax._
 import _root_.io.circe.DecodingFailure
 import org.http4s.{ParseFailure, Uri}
 
+import com.snowplowanalytics.snowplow.enrich.common.EtlPipeline.{FeatureFlags => CommonFeatureFlags}
+
 object io {
 
   import ConfigFile.finiteDurationEncoder
@@ -403,13 +405,21 @@ object io {
   }
 
   case class FeatureFlags(
-    acceptInvalid: Boolean
+    acceptInvalid: Boolean,
+    legacyEnrichmentOrder: Boolean
   )
 
   object FeatureFlags {
-    implicit val telemetryDecoder: Decoder[FeatureFlags] =
+    implicit val featureFlagsDecoder: Decoder[FeatureFlags] =
       deriveConfiguredDecoder[FeatureFlags]
-    implicit val telemetryEncoder: Encoder[FeatureFlags] =
+    implicit val featureFlagsEncoder: Encoder[FeatureFlags] =
       deriveConfiguredEncoder[FeatureFlags]
+
+    // Currently the FS2 feature flags exactly match the common feature flags, but it might not always be like this.
+    def toCommon(ff: FeatureFlags): CommonFeatureFlags =
+      CommonFeatureFlags(
+        acceptInvalid = ff.acceptInvalid,
+        legacyEnrichmentOrder = ff.legacyEnrichmentOrder
+      )
   }
 }

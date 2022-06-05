@@ -35,6 +35,15 @@ import com.snowplowanalytics.snowplow.enrich.common.utils.HttpClient
 /** Expresses the end-to-end event pipeline supported by the Scala Common Enrich project. */
 object EtlPipeline {
 
+  /*
+   * Feature flags available in the current version of Enrich
+   * @param acceptInvalid Whether enriched events that are invalid against
+   *                      atomic schema should be emitted as enriched events.
+   *                      If not they will be emitted as bad rows
+   * @param legacyEnrichmentOrder Whether to use the enrichment order which was historically used in stream enrich.
+   */
+  case class FeatureFlags(acceptInvalid: Boolean, legacyEnrichmentOrder: Boolean)
+
   /**
    * A helper method to take a ValidatedMaybeCanonicalInput and transform it into a List (possibly
    * empty) of ValidatedCanonicalOutputs.
@@ -46,9 +55,7 @@ object EtlPipeline {
    * @param processor The ETL application (Spark/Beam/Stream enrich) and its version
    * @param etlTstamp The ETL timestamp
    * @param input The ValidatedMaybeCanonicalInput
-   * @param acceptInvalid Whether enriched events that are invalid against
-   *                      atomic schema should be emitted as enriched events.
-   *                      If not they will be emitted as bad rows
+   * @param featureFlags The feature flags available in the current version of Enrich
    * @param invalidCount Function to increment the count of invalid events
    * @return the ValidatedMaybeCanonicalOutput. Thanks to flatMap, will include any validation
    * errors contained within the ValidatedMaybeCanonicalInput
@@ -60,7 +67,7 @@ object EtlPipeline {
     processor: Processor,
     etlTstamp: DateTime,
     input: ValidatedNel[BadRow, Option[CollectorPayload]],
-    acceptInvalid: Boolean,
+    featureFlags: FeatureFlags,
     invalidCount: F[Unit]
   ): F[List[Validated[BadRow, EnrichedEvent]]] =
     input match {
@@ -77,7 +84,7 @@ object EtlPipeline {
                     processor,
                     etlTstamp,
                     event,
-                    acceptInvalid,
+                    featureFlags,
                     invalidCount
                   )
                   .toValidated

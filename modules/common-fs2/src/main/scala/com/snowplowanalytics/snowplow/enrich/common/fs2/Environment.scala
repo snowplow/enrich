@@ -43,7 +43,7 @@ import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{ConfigFile, ParsedConfigs}
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Concurrency, Telemetry => TelemetryConfig}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Concurrency, FeatureFlags, Telemetry => TelemetryConfig}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{Clients, Metrics}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.Client
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.experimental.Metadata
@@ -81,8 +81,7 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input.Kinesis
  * @param streamsSettings     parameters used to configure the streams
  * @param region              region in the cloud where enrich runs
  * @param cloud               cloud where enrich runs (AWS or GCP)
- * @param acceptInvalid       Whether enriched event not valid against atomic schema should be
- *                            emitted. If false they will be emitted as bad rows.
+ * @param featureFlags        Feature flags for the current version of enrich, liable to change in future versions.
  * @tparam A                  type emitted by the source (e.g. `ConsumerRecord` for PubSub).
  *                            getPayload must be defined for this type, as well as checkpointing
  */
@@ -111,7 +110,7 @@ final case class Environment[F[_], A](
   streamsSettings: Environment.StreamsSettings,
   region: Option[String],
   cloud: Option[Telemetry.Cloud],
-  acceptInvalid: Boolean
+  featureFlags: FeatureFlags
 )
 
 object Environment {
@@ -158,7 +157,7 @@ object Environment {
     maxRecordSize: Int,
     cloud: Option[Telemetry.Cloud],
     getRegion: => Option[String],
-    acceptInvalid: Boolean
+    featureFlags: FeatureFlags
   ): Resource[F, Environment[F, A]] = {
     val file = parsedConfigs.configFile
     for {
@@ -200,7 +199,7 @@ object Environment {
       StreamsSettings(file.concurrency, maxRecordSize),
       getRegionFromConfig(file).orElse(getRegion),
       cloud,
-      acceptInvalid
+      featureFlags
     )
   }
 

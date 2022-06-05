@@ -65,6 +65,7 @@ class ConfigFileSpec extends Specification with CatsIO {
           Some("1.0.0")
         ),
         io.FeatureFlags(
+          false,
           false
         ),
         Some(
@@ -174,6 +175,7 @@ class ConfigFileSpec extends Specification with CatsIO {
           Some("1.0.0")
         ),
         io.FeatureFlags(
+          false,
           false
         ),
         Some(
@@ -239,7 +241,8 @@ class ConfigFileSpec extends Specification with CatsIO {
             "secure": true
           },
           "featureFlags" : {
-            "acceptInvalid": false
+            "acceptInvalid": false,
+            "legacyEnrichmentOrder": false
           },
           "experimental": {
             "metadata": {

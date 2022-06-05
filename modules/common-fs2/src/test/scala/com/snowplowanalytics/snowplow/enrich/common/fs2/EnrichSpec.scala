@@ -39,6 +39,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.MiscEnrichments
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.FeatureFlags
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.EnrichSpec.{Expected, minimalEvent, normalizeResult}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test._
@@ -70,7 +71,13 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
         )
 
       Enrich
-        .enrichWith(TestEnvironment.enrichmentReg.pure[IO], TestEnvironment.igluClient, None, EnrichSpec.processor, false, IO.unit)(
+        .enrichWith(TestEnvironment.enrichmentReg.pure[IO],
+                    TestEnvironment.igluClient,
+                    None,
+                    EnrichSpec.processor,
+                    EnrichSpec.featureFlags,
+                    IO.unit
+        )(
           EnrichSpec.payload
         )
         .map(normalizeResult)
@@ -85,7 +92,13 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
       prop { (collectorPayload: CollectorPayload) =>
         val payload = collectorPayload.toRaw
         Enrich
-          .enrichWith(TestEnvironment.enrichmentReg.pure[IO], TestEnvironment.igluClient, None, EnrichSpec.processor, false, IO.unit)(
+          .enrichWith(TestEnvironment.enrichmentReg.pure[IO],
+                      TestEnvironment.igluClient,
+                      None,
+                      EnrichSpec.processor,
+                      EnrichSpec.featureFlags,
+                      IO.unit
+          )(
             payload
           )
           .map(normalizeResult)
@@ -420,4 +433,6 @@ object EnrichSpec {
       event_version = Some("1-0-0"),
       derived_tstamp = Some(Instant.ofEpochMilli(0L))
     )
+
+  val featureFlags = FeatureFlags(acceptInvalid = false, legacyEnrichmentOrder = false)
 }

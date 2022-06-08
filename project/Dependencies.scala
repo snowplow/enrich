@@ -187,7 +187,7 @@ object Dependencies {
     val fs2              = "co.fs2"                           %% "fs2-core"                              % V.fs2
     val fs2Io            = "co.fs2"                           %% "fs2-io"                                % V.fs2
     val kinesisClient2   = "software.amazon.kinesis"          %  "amazon-kinesis-client"                 % V.kinesisClient2
-    val http4sClient     = "org.http4s"                       %% "http4s-ember-client"                   % V.http4s
+    val http4sClient     = "org.http4s"                       %% "http4s-blaze-client"                   % V.http4s
     val http4sCirce      = "org.http4s"                       %% "http4s-circe"                          % V.http4s
     val log4cats         = "org.typelevel"                    %% "log4cats-slf4j"                        % V.log4cats
     val catsRetry        = "com.github.cb372"                 %% "cats-retry"                            % V.catsRetry

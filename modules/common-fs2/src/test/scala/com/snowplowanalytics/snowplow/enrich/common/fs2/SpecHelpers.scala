@@ -15,6 +15,7 @@ package com.snowplowanalytics.snowplow.enrich.common.fs2
 import java.nio.file.{NoSuchFileException, Path}
 
 import scala.concurrent.duration.TimeUnit
+import scala.concurrent.ExecutionContext
 
 import cats.effect.{Blocker, Clock, IO, Resource}
 
@@ -44,7 +45,7 @@ object SpecHelpers extends CatsIO {
     for {
       b <- TestEnvironment.ioBlocker
       sem <- Resource.eval(Semaphore[IO](1L))
-      http <- Clients.mkHttp[IO]
+      http <- Clients.mkHttp[IO](ExecutionContext.global)
       clients = Clients.init[IO](http, Nil)
       state <- Resource.eval(Assets.State.make[IO](b, sem, clients, assets))
     } yield state

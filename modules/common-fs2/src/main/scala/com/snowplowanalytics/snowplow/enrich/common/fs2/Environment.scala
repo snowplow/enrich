@@ -48,6 +48,7 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{Clients, Metrics}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.Client
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.experimental.Metadata
 
+import scala.concurrent.ExecutionContext
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input.Kinesis
 
 /**
@@ -145,6 +146,7 @@ object Environment {
   /** Initialize and allocate all necessary resources */
   def make[F[_]: ConcurrentEffect: ContextShift: Clock: Timer, A](
     blocker: Blocker,
+    ec: ExecutionContext,
     parsedConfigs: ParsedConfigs,
     source: Stream[F, A],
     sinkGood: Resource[F, AttributedByteSink[F]],
@@ -165,7 +167,7 @@ object Environment {
       good <- sinkGood
       bad <- sinkBad
       pii <- sinkPii.sequence
-      http <- Clients.mkHttp
+      http <- Clients.mkHttp(ec)
       clts <- clients.map(Clients.init(http, _))
       igluClient <- IgluClient.parseDefault[F](parsedConfigs.igluJson).resource
       metrics <- Resource.eval(Metrics.build[F](blocker, file.monitoring.metrics))

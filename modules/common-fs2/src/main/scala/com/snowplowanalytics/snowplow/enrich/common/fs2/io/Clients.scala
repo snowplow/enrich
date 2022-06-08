@@ -14,13 +14,15 @@ package com.snowplowanalytics.snowplow.enrich.common.fs2.io
 
 import java.net.URI
 
-import cats.effect.{Concurrent, ConcurrentEffect, ContextShift, Resource, Timer}
+import cats.effect.{ConcurrentEffect, Resource}
 
 import fs2.Stream
 
 import org.http4s.{Request, Uri}
 import org.http4s.client.{Client => HttpClient}
-import org.http4s.ember.client.EmberClientBuilder
+import org.http4s.client.blaze.BlazeClientBuilder
+
+import scala.concurrent.ExecutionContext
 
 import Clients._
 
@@ -54,8 +56,8 @@ object Clients {
       }
     }
 
-  def mkHttp[F[_]: Concurrent: Timer: ContextShift]: Resource[F, HttpClient[F]] =
-    EmberClientBuilder.default[F].build
+  def mkHttp[F[_]: ConcurrentEffect](ec: ExecutionContext): Resource[F, HttpClient[F]] =
+    BlazeClientBuilder[F](ec).resource
 
   trait RetryableFailure extends Throwable
 

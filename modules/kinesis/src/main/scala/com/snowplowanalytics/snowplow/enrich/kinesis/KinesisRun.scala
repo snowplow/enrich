@@ -18,6 +18,7 @@ import cats.Parallel
 import cats.implicits._
 
 import scala.collection.mutable.ArrayBuffer
+import scala.concurrent.ExecutionContext
 
 import fs2.aws.kinesis.CommittableRecord
 
@@ -31,12 +32,13 @@ object KinesisRun {
   // Kinesis records must not exceed 1MB
   private val MaxRecordSize = 1000000
 
-  def run[F[_]: Clock: ConcurrentEffect: ContextShift: Parallel: Timer](args: List[String]): F[ExitCode] =
+  def run[F[_]: Clock: ConcurrentEffect: ContextShift: Parallel: Timer](args: List[String], ec: ExecutionContext): F[ExitCode] =
     Run.run[F, CommittableRecord](
       args,
       BuildInfo.name,
       BuildInfo.version,
       BuildInfo.description,
+      ec,
       DynamoDbConfig.updateCliConfig[F],
       Source.init[F],
       (_, out, monitoring) => Sink.initAttributed(out, monitoring),

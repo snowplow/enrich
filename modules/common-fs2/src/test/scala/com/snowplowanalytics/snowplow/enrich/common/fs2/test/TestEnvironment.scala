@@ -16,6 +16,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Paths
 
 import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext
 
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
@@ -119,7 +120,7 @@ object TestEnvironment extends CatsIO {
    */
   def make(source: Stream[IO, Array[Byte]], enrichments: List[EnrichmentConf] = Nil): Resource[IO, TestEnvironment[Array[Byte]]] =
     for {
-      http <- Clients.mkHttp[IO]
+      http <- Clients.mkHttp[IO](ExecutionContext.global)
       blocker <- ioBlocker
       _ <- filesResource(blocker, enrichments.flatMap(_.filesToCache).map(p => Paths.get(p._2)))
       counter <- Resource.eval(Counter.make[IO])

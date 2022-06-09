@@ -65,6 +65,13 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       "jsonschema",
       SchemaVer.Full(1, 0, 0)
     )
+  val clientSessionSchema =
+    SchemaKey(
+      "com.snowplowanalytics.snowplow",
+      "client_session",
+      "jsonschema",
+      SchemaVer.Full(1, 0, 1)
+    )
   val emailSent1 = s"""{
     "schema": "${emailSentSchema.toSchemaUri}",
     "data": {
@@ -83,6 +90,17 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
     "schema": "${emailSentSchema.toSchemaUri}",
     "data": {
       "emailAddress": "hello@world.com"
+    }
+  }"""
+  val clientSession = s"""{
+    "schema": "${clientSessionSchema.toSchemaUri}",
+    "data": {
+      "sessionIndex": 1,
+      "storageMechanism": "LOCAL_STORAGE",
+      "firstEventId": "5c33fccf-6be5-4ce6-afb1-e34026a3ca75",
+      "sessionId": "21c2a0dd-892d-42d1-b156-3a9d4e147eef",
+      "previousSessionId": null,
+      "userId": "20d631b8-7837-49df-a73e-6da73154e6fd"
     }
   }"""
   val noSchema =
@@ -312,6 +330,18 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
           ok
         case res =>
           ko(s"[$res] are not 2 SDJs with expected schema [${emailSentSchema.toSchemaUri}]")
+      }
+    }
+
+    "return the extracted SDJ for an input that has a required property set to null if the schema explicitly allows it" >> {
+      val input = new EnrichedEvent
+      input.setContexts(buildInputContexts(List(clientSession)))
+
+      IgluUtils.extractAndValidateInputContexts(input, SpecHelpers.client) must beValid.like {
+        case sdj: List[SelfDescribingData[Json]] if sdj.size == 1 && sdj.forall(_.schema == clientSessionSchema) =>
+          ok
+        case _ =>
+          ko("$.previousSessionId: is missing but it is required")
       }
     }
   }

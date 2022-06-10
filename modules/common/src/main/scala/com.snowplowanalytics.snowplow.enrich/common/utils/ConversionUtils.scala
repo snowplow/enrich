@@ -319,16 +319,20 @@ object ConversionUtils {
    * @return either a Failure String or a Success JInt
    */
   val stringToJInteger: String => Either[String, JInteger] = str =>
-    if (Option(str).isEmpty)
-      null.asInstanceOf[JInteger].asRight
-    else
-      try {
-        val jint: JInteger = str.toInt
-        jint.asRight
-      } catch {
-        case _: NumberFormatException =>
-          "cannot be converted to java.lang.Integer".asLeft
-      }
+    Option(str) match {
+      case None =>
+        null.asInstanceOf[JInteger].asRight
+      case Some(s) if s.toLowerCase == "null" =>
+        null.asInstanceOf[JInteger].asRight
+      case Some(s) =>
+        try {
+          val jint: JInteger = s.toInt
+          jint.asRight
+        } catch {
+          case _: NumberFormatException =>
+            "cannot be converted to java.lang.Integer".asLeft
+        }
+    }
 
   val stringToJInteger2: (String, String) => Either[FailureDetails.EnrichmentFailure, JInteger] =
     (field, str) =>
@@ -342,12 +346,16 @@ object ConversionUtils {
       }
 
   val stringToJFloat: String => Either[String, JFloat] = str =>
-    if (Option(str).isEmpty)
-      null.asInstanceOf[JFloat].asRight
-    else
-      Either
-        .catchNonFatal(JFloat.valueOf(str))
-        .leftMap(e => s"cannot be converted to java.lang.Float. Error : ${e.getMessage}")
+    Option(str) match {
+      case None =>
+        null.asInstanceOf[JFloat].asRight
+      case Some(s) if s.toLowerCase == "null" =>
+        null.asInstanceOf[JFloat].asRight
+      case Some(s) =>
+        Either
+          .catchNonFatal(JFloat.valueOf(s))
+          .leftMap(e => s"cannot be converted to java.lang.Float. Error : ${e.getMessage}")
+    }
 
   val stringToJFloat2: (String, String) => Either[FailureDetails.EnrichmentFailure, JFloat] =
     (field, str) =>

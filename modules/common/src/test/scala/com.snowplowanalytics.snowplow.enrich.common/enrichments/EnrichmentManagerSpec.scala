@@ -597,6 +597,60 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       enriched.value must beLeft
     }
 
+    "emit an EnrichedEvent for valid integer fields" >> {
+      val integers = List("42", "-42", "null")
+      val fields = List("tid", "vid", "ti_qu", "pp_mix", "pp_max", "pp_miy", "pp_may")
+
+      integers.flatMap { integer =>
+        fields.map { field =>
+          val parameters = Map(
+            "e" -> "ue",
+            "tv" -> "js-0.13.1",
+            "p" -> "web",
+            field -> integer
+          ).toOpt
+          val rawEvent = RawEvent(api, parameters, None, source, context)
+          val enriched = EnrichmentManager.enrichEvent[Id](
+            enrichmentReg,
+            client,
+            processor,
+            timestamp,
+            rawEvent,
+            AcceptInvalid.acceptInvalid,
+            AcceptInvalid.countInvalid
+          )
+          enriched.value must beRight
+        }
+      }.reduce(_ and _)
+    }
+
+    "emit an EnrichedEvent for valid float fields" >> {
+      val floats = List("42", "42.5", "null")
+      val fields = List("ev_va", "se_va", "tr_tt", "tr_tx", "tr_sh", "ti_pr")
+
+      floats.flatMap { float =>
+        fields.map { field =>
+          val parameters = Map(
+            "e" -> "ue",
+            "tv" -> "js-0.13.1",
+            "p" -> "web",
+            field -> float
+          ).toOpt
+          val rawEvent = RawEvent(api, parameters, None, source, context)
+          val enriched = EnrichmentManager.enrichEvent[Id](
+            enrichmentReg,
+            client,
+            processor,
+            timestamp,
+            rawEvent,
+            AcceptInvalid.acceptInvalid,
+            AcceptInvalid.countInvalid
+          )
+          enriched.value must beRight
+        }
+      }.reduce(_ and _)
+    }
+
     "have a preference of 'ua' query string parameter over user agent of HTTP header" >> {
       val qs_ua = "Mozilla/5.0 (X11; Linux x86_64; rv:75.0) Gecko/20100101 Firefox/75.0"
       val parameters = Map(

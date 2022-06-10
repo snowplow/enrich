@@ -261,6 +261,7 @@ lazy val kinesis = project
       Dependencies.Libraries.dynamodbSdk,
       Dependencies.Libraries.fs2BlobS3,
       Dependencies.Libraries.fs2Aws,
+      Dependencies.Libraries.kinesisClient2,
       Dependencies.Libraries.sts,
       Dependencies.Libraries.specs2CEIt,
       Dependencies.Libraries.specs2ScalacheckIt

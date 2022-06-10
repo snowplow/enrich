@@ -68,6 +68,7 @@ object Dependencies {
     val awsSdk           = "1.12.129"
     val gcpSdk           = "2.7.2"
     val kinesisClient    = "1.14.5"
+    val kinesisClient2   = "2.4.1" // Override version from fs2-aws
     val kafka            = "2.8.1"
     val mskAuth          = "1.1.1"
     val nsqClient        = "1.3.0"
@@ -185,6 +186,7 @@ object Dependencies {
     val fs2Aws           = "io.laserdisc"                     %% "fs2-aws"                               % V.fs2Aws
     val fs2              = "co.fs2"                           %% "fs2-core"                              % V.fs2
     val fs2Io            = "co.fs2"                           %% "fs2-io"                                % V.fs2
+    val kinesisClient2   = "software.amazon.kinesis"          %  "amazon-kinesis-client"                 % V.kinesisClient2
     val http4sClient     = "org.http4s"                       %% "http4s-ember-client"                   % V.http4s
     val http4sCirce      = "org.http4s"                       %% "http4s-circe"                          % V.http4s
     val log4cats         = "org.typelevel"                    %% "log4cats-slf4j"                        % V.log4cats

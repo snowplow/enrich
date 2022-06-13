@@ -59,13 +59,13 @@ object Rdbms {
     database: String
   ) extends Rdbms {
 
-    val driver: Class[_] = Class.forName("com.mysql.jdbc.Driver") // Load class
+    val driver: Class[_] = Class.forName("com.mysql.cj.jdbc.Driver") // Load class
 
     val connectionString =
       s"jdbc:mysql://$host:$port/$database?user=$username&password=$password" ++ (if (sslMode)
-                                                                                    "&useSsl=true&verifyServerCertificate=false"
+                                                                                    "&sslMode=REQUIRED"
                                                                                   else
-                                                                                    "")
+                                                                                    "&sslMode=PREFERRED")
   }
 
   val postgresqlDbDecoder: Decoder[PostgresqlDb] =

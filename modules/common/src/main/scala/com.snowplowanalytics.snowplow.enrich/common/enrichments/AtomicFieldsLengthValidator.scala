@@ -139,12 +139,11 @@ object AtomicFieldsLengthValidator {
   ): F[Either[BadRow, Unit]] =
     atomicFields
       .map(validateField(event))
-      .combineAll
-      .leftMap(buildBadRow(event, rawEvent, processor)) match {
-      case Invalid(badRow) if acceptInvalid =>
-        handleAcceptableBadRow(invalidCount, badRow) *> Monad[F].pure(Right(()))
-      case Invalid(badRow) =>
-        Monad[F].pure(Left(badRow))
+      .combineAll match {
+      case Invalid(errors) if acceptInvalid =>
+        handleAcceptableBadRow(invalidCount, event, errors) *> Monad[F].pure(Right(()))
+      case Invalid(errors) =>
+        Monad[F].pure(buildBadRow(event, rawEvent, processor, errors).asLeft)
       case Valid(()) =>
         Monad[F].pure(Right(()))
     }
@@ -160,8 +159,7 @@ object AtomicFieldsLengthValidator {
   private def buildBadRow(
     event: EnrichedEvent,
     rawEvent: RawEvent,
-    processor: Processor
-  )(
+    processor: Processor,
     errors: NonEmptyList[String]
   ): BadRow.EnrichmentFailures =
     EnrichmentManager.buildEnrichmentFailuresBadRow(
@@ -174,9 +172,17 @@ object AtomicFieldsLengthValidator {
       processor
     )
 
-  private def handleAcceptableBadRow[F[_]: Monad](invalidCount: F[Unit], badRow: BadRow.EnrichmentFailures): F[Unit] =
+  private def handleAcceptableBadRow[F[_]: Monad](
+    invalidCount: F[Unit],
+    event: EnrichedEvent,
+    errors: NonEmptyList[String]
+  ): F[Unit] =
     invalidCount *>
-      Monad[F].pure(logger.debug(s"Enriched event not valid against atomic schema. Bad row: ${badRow.compact}"))
+      Monad[F].pure(
+        logger.debug(
+          s"Enriched event not valid against atomic schema. Event id: ${event.event_id}. Invalid fields: ${errors.toList.mkString(",")}"
+        )
+      )
 
   private def asEnrichmentFailure(errorMessage: String): EnrichmentFailure =
     EnrichmentFailure(

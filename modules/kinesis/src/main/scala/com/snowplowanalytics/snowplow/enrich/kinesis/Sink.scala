@@ -106,9 +106,12 @@ object Sink {
     }
 
     val withKinesisEndpoint =
-      (config.customEndpoint, config.customPort)
-        .mapN { case (host, port) => withAggregation.setKinesisEndpoint(host.toString).setKinesisPort(port) }
-        .getOrElse(producerConfig)
+      (config.customEndpoint, config.customPort, config.verifyCertificates) match {
+        case (Some(host), Some(port), Some(verify)) =>
+          withAggregation.setKinesisEndpoint(host.toString).setKinesisPort(port).setVerifyCertificate(verify)
+        case (Some(host), Some(port), None) => withAggregation.setKinesisEndpoint(host.toString).setKinesisPort(port)
+        case _ => producerConfig
+      }
 
     val withCloudwatchEndpoint =
       (config.cloudwatchEndpoint, config.cloudwatchPort)

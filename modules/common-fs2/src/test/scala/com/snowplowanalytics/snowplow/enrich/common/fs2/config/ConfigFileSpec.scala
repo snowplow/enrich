@@ -113,6 +113,7 @@ class ConfigFileSpec extends Specification with CatsIO {
             None,
             None,
             None,
+            None,
             None
           ),
           Some(
@@ -130,6 +131,7 @@ class ConfigFileSpec extends Specification with CatsIO {
               None,
               None,
               None,
+              None,
               None
             )
           ),
@@ -144,6 +146,7 @@ class ConfigFileSpec extends Specification with CatsIO {
             None,
             24,
             "warning",
+            None,
             None,
             None,
             None,

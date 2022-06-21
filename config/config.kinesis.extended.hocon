@@ -143,6 +143,10 @@
       # Needs to be specified along with customEndpoint
       # "customPort": 4566
 
+      # Optional, should Kinesis KPL producer validate SSL certificate of the endpoint
+      # Can be used with custom localstack endpoints
+      # "verifyCertificates": false
+
       # Optional. Use a custom Cloudwatch endpoint.
       # Note this does not accept protocols or paths, only host names or ip addresses.
       # There is no way to disable TLS
@@ -229,6 +233,10 @@
       # Needs to be specified along with customEndpoint
       # "customPort": 4566
 
+      # Optional, should Kinesis KPL producer validate SSL certificate of the endpoint
+      # Can be used with custom localstack endpoints
+      # "verifyCertificates": false
+
       # Optional. Use a custom Cloudwatch endpoint.
       # Note this does not accept protocols or paths, only host names or ip addresses.
       # There is no way to disable TLS
@@ -306,6 +314,10 @@
       # Optional. Server port to connect to for Kinesis.
       # Needs to be specified along with customEndpoint
       # "customPort": 4566
+
+      # Optional, should Kinesis KPL producer validate SSL certificate of the endpoint
+      # Can be used with custom localstack endpoints
+      # "verifyCertificates": false
 
       # Optional. Use a custom Cloudwatch endpoint.
       # Note this does not accept protocols or paths, only host names or ip addresses.

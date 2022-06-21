@@ -232,7 +232,8 @@ object io {
       customEndpoint: Option[URI],
       customPort: Option[Long],
       cloudwatchEndpoint: Option[URI],
-      cloudwatchPort: Option[Long]
+      cloudwatchPort: Option[Long],
+      verifyCertificates: Option[Boolean]
     ) extends Output
 
     case class BackoffPolicy(

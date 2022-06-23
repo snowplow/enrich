@@ -24,11 +24,10 @@ import org.apache.commons.codec.binary.Base64
 
 import cats.Id
 import cats.syntax.either._
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.snowplow.badrows.Processor
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
-import io.circe.Json
 
 import model.{SentryConfig, Stdin, StreamsConfig}
 import sinks.{Sink, StderrSink, StdoutSink}
@@ -38,7 +37,7 @@ object StdinSource {
   def create(
     config: StreamsConfig,
     sentryConfig: Option[SentryConfig],
-    client: Client[Id, Json],
+    client: IgluCirceClient[Id],
     adapterRegistry: AdapterRegistry,
     enrichmentRegistry: EnrichmentRegistry[Id],
     processor: Processor
@@ -60,7 +59,7 @@ object StdinSource {
 
 /** Source to decode raw events (in base64) from stdin. */
 class StdinSource private (
-  client: Client[Id, Json],
+  client: IgluCirceClient[Id],
   adapterRegistry: AdapterRegistry,
   enrichmentRegistry: EnrichmentRegistry[Id],
   processor: Processor,

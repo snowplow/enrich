@@ -26,11 +26,10 @@ import com.snowplowanalytics.client.nsq._
 import com.snowplowanalytics.client.nsq.callbacks._
 import com.snowplowanalytics.client.nsq.exceptions.NSQException
 import com.snowplowanalytics.client.nsq.lookup.DefaultNSQLookup
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.snowplow.badrows.Processor
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
-import io.circe.Json
 
 import model.{Nsq, SentryConfig, StreamsConfig}
 import sinks.{NsqSink, Sink}
@@ -40,7 +39,7 @@ object NsqSource {
   def create(
     config: StreamsConfig,
     sentryConfig: Option[SentryConfig],
-    client: Client[Id, Json],
+    client: IgluCirceClient[Id],
     adapterRegistry: AdapterRegistry,
     enrichmentRegistry: EnrichmentRegistry[Id],
     processor: Processor
@@ -79,7 +78,7 @@ class NsqSource private (
   goodProducer: NSQProducer,
   piiProducer: Option[NSQProducer],
   badProducer: NSQProducer,
-  client: Client[Id, Json],
+  client: IgluCirceClient[Id],
   adapterRegistry: AdapterRegistry,
   enrichmentRegistry: EnrichmentRegistry[Id],
   processor: Processor,

@@ -29,9 +29,8 @@ import cats.effect.testing.specs2.CatsIO
 
 import fs2.Stream
 
-import io.circe.{Json, parser}
+import io.circe.parser
 
-import com.snowplowanalytics.iglu.client.{CirceValidator, Client, Resolver}
 import com.snowplowanalytics.iglu.client.resolver.registries.{Http4sRegistryLookup, Registry}
 
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
@@ -45,7 +44,7 @@ import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.{Assets, AttributedData, Enrich, EnrichSpec, Environment}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Environment.{Enrichments, StreamsSettings}
-import com.snowplowanalytics.snowplow.enrich.common.fs2.SpecHelpers.{filesResource, ioClock}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.SpecHelpers.{createIgluClient, filesResource, ioClock}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Concurrency, Telemetry}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients
 import org.http4s.client.{Client => Http4sClient}
@@ -116,9 +115,6 @@ object TestEnvironment extends CatsIO {
 
   val adapterRegistry = new AdapterRegistry()
 
-  val igluClient: Client[IO, Json] =
-    Client[IO, Json](Resolver(List(embeddedRegistry), None), CirceValidator)
-
   val http4sClient: Http4sClient[IO] = Http4sClient[IO] { _ =>
     val dsl = new Http4sDsl[IO] {}; import dsl._
     Resource.eval(Ok(""))
@@ -147,6 +143,7 @@ object TestEnvironment extends CatsIO {
       goodRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
       piiRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
       badRef <- Resource.eval(Ref.of[IO, Vector[Array[Byte]]](Vector.empty))
+      igluClient <- Resource.eval(createIgluClient(List(embeddedRegistry)))
       environment = Environment[IO, Array[Byte]](
                       igluClient,
                       Http4sRegistryLookup(http),

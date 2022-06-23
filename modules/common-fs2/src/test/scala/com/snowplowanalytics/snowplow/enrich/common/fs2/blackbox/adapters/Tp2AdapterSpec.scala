@@ -25,6 +25,7 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.Enrich
 import com.snowplowanalytics.snowplow.enrich.common.fs2.EnrichSpec
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test.TestEnvironment
 import com.snowplowanalytics.snowplow.enrich.common.fs2.blackbox.BlackBoxTesting
+import com.snowplowanalytics.snowplow.enrich.common.fs2.SpecHelpers.createIgluClient
 
 class Tp2AdapterSpec extends Specification with CatsIO {
   "enrichWith" should {
@@ -35,22 +36,24 @@ class Tp2AdapterSpec extends Specification with CatsIO {
         contentType = "application/json".some
       )
       implicit val c = TestEnvironment.http4sClient
-      Enrich
-        .enrichWith(
-          TestEnvironment.enrichmentReg.pure[IO],
-          TestEnvironment.adapterRegistry,
-          BlackBoxTesting.igluClient,
-          None,
-          EnrichSpec.processor,
-          EnrichSpec.featureFlags,
-          IO.unit
-        )(
-          input
-        )
-        .map {
-          case (l, _) if l.forall(_.isValid) => l must haveSize(10)
-          case other => ko(s"there should be 10 enriched events, got $other")
-        }
+      createIgluClient(List(TestEnvironment.embeddedRegistry)).flatMap { igluClient =>
+        Enrich
+          .enrichWith(
+            TestEnvironment.enrichmentReg.pure[IO],
+            TestEnvironment.adapterRegistry,
+            igluClient,
+            None,
+            EnrichSpec.processor,
+            EnrichSpec.featureFlags,
+            IO.unit
+          )(
+            input
+          )
+          .map {
+            case (l, _) if l.forall(_.isValid) => l must haveSize(10)
+            case other => ko(s"there should be 10 enriched events, got $other")
+          }
+      }
     }
   }
 }

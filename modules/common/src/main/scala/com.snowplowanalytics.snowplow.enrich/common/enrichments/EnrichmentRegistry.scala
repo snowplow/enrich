@@ -24,7 +24,7 @@ import io.circe.syntax._
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 
 import com.snowplowanalytics.forex.CreateForex
@@ -56,7 +56,7 @@ object EnrichmentRegistry {
    */
   def parse[F[_]: Monad: RegistryLookup: Clock](
     json: Json,
-    client: Client[F, Json],
+    client: IgluCirceClient[F],
     localMode: Boolean
   ): F[ValidatedNel[String, List[EnrichmentConf]]] =
     (for {

@@ -25,7 +25,7 @@ import cats.implicits._
 
 import com.snowplowanalytics.refererparser._
 
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 
 import com.snowplowanalytics.iglu.core.SelfDescribingData
@@ -60,7 +60,7 @@ object EnrichmentManager {
    */
   def enrichEvent[F[_]: Monad: RegistryLookup: Clock](
     registry: EnrichmentRegistry[F],
-    client: Client[F, Json],
+    client: IgluCirceClient[F],
     processor: Processor,
     etlTstamp: DateTime,
     raw: RawEvent,

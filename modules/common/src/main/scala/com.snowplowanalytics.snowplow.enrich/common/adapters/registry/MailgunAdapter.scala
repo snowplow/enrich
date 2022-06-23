@@ -20,7 +20,7 @@ import cats.effect.Clock
 import cats.syntax.either._
 import cats.syntax.option._
 import cats.syntax.validated._
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 import com.snowplowanalytics.snowplow.badrows._
@@ -67,7 +67,7 @@ object MailgunAdapter extends Adapter {
    */
   override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
     payload: CollectorPayload,
-    client: Client[F, Json]
+    client: IgluCirceClient[F]
   ): F[Adapted] =
     (payload.body, payload.contentType) match {
       case (None, _) =>

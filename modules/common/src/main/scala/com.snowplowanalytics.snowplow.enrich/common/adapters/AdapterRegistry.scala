@@ -20,10 +20,8 @@ import cats.data.{NonEmptyList, Validated}
 import cats.effect.Clock
 import cats.implicits._
 
-import io.circe.Json
-
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.IgluCirceClient
 
 import com.snowplowanalytics.snowplow.badrows._
 
@@ -93,7 +91,7 @@ class AdapterRegistry(remoteAdapters: Map[(String, String), RemoteAdapter] = Map
    */
   def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
     payload: CollectorPayload,
-    client: Client[F, Json],
+    client: IgluCirceClient[F],
     processor: Processor
   ): F[Validated[BadRow, NonEmptyList[RawEvent]]] =
     (adapters.get((payload.api.vendor, payload.api.version)) match {

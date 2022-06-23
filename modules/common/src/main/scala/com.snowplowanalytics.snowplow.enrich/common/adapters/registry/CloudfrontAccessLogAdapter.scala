@@ -31,7 +31,7 @@ import io.circe._
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
@@ -82,7 +82,10 @@ object CloudfrontAccessLogAdapter extends Adapter {
    * @param client The Iglu client used for schema lookup and validation
    * @return a validation boxing either a NEL of raw events or a NEL of failure strings
    */
-  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](payload: CollectorPayload, client: Client[F, Json]): F[Adapted] =
+  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
+    payload: CollectorPayload,
+    client: IgluCirceClient[F]
+  ): F[Adapted] =
     payload.body match {
       case Some(p) =>
         val _ = client

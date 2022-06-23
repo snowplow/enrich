@@ -18,11 +18,10 @@ package com.snowplowanalytics.snowplow.enrich.stream
 package sources
 
 import cats.Id
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.snowplow.badrows.Processor
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
-import io.circe.Json
 
 import sinks.Sink
 
@@ -32,7 +31,7 @@ import sinks.Sink
  * sources.
  */
 class TestSource(
-  client: Client[Id, Json],
+  client: IgluCirceClient[Id],
   adapterRegistry: AdapterRegistry,
   enrichmentRegistry: EnrichmentRegistry[Id]
 ) extends Source(client, adapterRegistry, enrichmentRegistry, Processor("sce-test", "1.0.0"), "", None) {

@@ -33,13 +33,12 @@ import fs2.{Pipe, Stream}
 
 import _root_.io.sentry.SentryClient
 
-import _root_.io.circe.Json
 import _root_.io.circe.syntax._
 
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 import com.snowplowanalytics.snowplow.badrows.{BadRow, Failure, Processor, Payload => BadRowPayload}
 import com.snowplowanalytics.snowplow.enrich.common.EtlPipeline
@@ -116,7 +115,7 @@ object Enrich {
   def enrichWith[F[_]: Clock: ContextShift: RegistryLookup: Sync: HttpClient](
     enrichRegistry: F[EnrichmentRegistry[F]],
     adapterRegistry: AdapterRegistry,
-    igluClient: Client[F, Json],
+    igluClient: IgluCirceClient[F],
     sentry: Option[SentryClient],
     processor: Processor,
     featureFlags: FeatureFlags,

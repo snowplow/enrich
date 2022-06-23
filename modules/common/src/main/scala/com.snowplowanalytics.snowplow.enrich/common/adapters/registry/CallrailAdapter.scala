@@ -19,12 +19,10 @@ import cats.data.NonEmptyList
 import cats.effect.Clock
 import cats.syntax.validated._
 
-import io.circe.Json
-
 import org.joda.time.DateTimeZone
 import org.joda.time.format.DateTimeFormat
 
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
@@ -76,7 +74,7 @@ object CallrailAdapter extends Adapter {
    */
   override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
     payload: CollectorPayload,
-    client: Client[F, Json]
+    client: IgluCirceClient[F]
   ): F[Adapted] = {
     val _ = client
     val params = toMap(payload.querystring)

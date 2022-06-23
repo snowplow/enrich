@@ -18,7 +18,7 @@ import java.util.regex.Pattern
 
 import scala.util.matching.Regex
 import cats.Id
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
@@ -174,7 +174,7 @@ object SpecHelpers {
   }
   val validatedResolver = for {
     json <- JsonUtils.extractJson(igluConfig)
-    resolver <- Client.parseDefault[Id](json).leftMap(_.toString).value
+    resolver <- IgluCirceClient.parseDefault[Id](json).leftMap(_.toString).value
   } yield resolver
 
   val client = validatedResolver.fold(

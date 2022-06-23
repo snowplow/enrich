@@ -26,7 +26,6 @@ import cats.data.Validated
 import cats.data.Validated.{Invalid, Valid}
 
 import io.circe.Json
-import io.circe.literal._
 import io.circe.syntax._
 
 import org.apache.thrift.TSerializer
@@ -35,7 +34,7 @@ import org.http4s.client.{Client => Http4sClient, JavaNetClientBuilder}
 
 import com.snowplowanalytics.snowplow.CollectorPayload.thrift.model1.CollectorPayload
 
-import com.snowplowanalytics.iglu.client.{CirceValidator, Client, Resolver}
+import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.Registry
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
@@ -49,12 +48,10 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.Enrich
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.FeatureFlags
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.EnrichSpec
+import com.snowplowanalytics.snowplow.enrich.common.fs2.SpecHelpers.createIgluClient
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test.TestEnvironment
 
 object BlackBoxTesting extends Specification with CatsIO {
-
-  val igluClient: Client[IO, Json] =
-    Client[IO, Json](Resolver(List(Registry.EmbeddedRegistry), None), CirceValidator)
 
   val blocker: Blocker = Blocker.liftExecutionContext(ExecutionContext.global)
   implicit val httpClient: Http4sClient[IO] = JavaNetClientBuilder[IO](blocker).create
@@ -98,20 +95,23 @@ object BlackBoxTesting extends Specification with CatsIO {
     expected: Map[String, String],
     enrichmentConfig: Option[Json] = None
   ) =
-    Enrich
-      .enrichWith(getEnrichmentRegistry(enrichmentConfig),
-                  TestEnvironment.adapterRegistry,
-                  igluClient,
-                  None,
-                  EnrichSpec.processor,
-                  featureFlags,
-                  IO.unit
-      )(
-        input
-      )
-      .map {
-        case (List(Validated.Valid(enriched)), _) => checkEnriched(enriched, expected)
-        case other => ko(s"there should be one enriched event but got $other")
+    createIgluClient(List(Registry.EmbeddedRegistry))
+      .flatMap { igluClient =>
+        Enrich
+          .enrichWith(getEnrichmentRegistry(enrichmentConfig, igluClient),
+                      TestEnvironment.adapterRegistry,
+                      igluClient,
+                      None,
+                      EnrichSpec.processor,
+                      featureFlags,
+                      IO.unit
+          )(
+            input
+          )
+          .map {
+            case (List(Validated.Valid(enriched)), _) => checkEnriched(enriched, expected)
+            case other => ko(s"there should be one enriched event but got $other")
+          }
       }
 
   private def checkEnriched(enriched: EnrichedEvent, expectedFields: Map[String, String]) = {
@@ -126,7 +126,7 @@ object BlackBoxTesting extends Specification with CatsIO {
   private def getMap(enriched: EnrichedEvent): Map[String, String] =
     enrichedFields.map(f => (f.getName(), Option(f.get(enriched)).map(_.toString).getOrElse(""))).toMap
 
-  private def getEnrichmentRegistry(enrichmentConfig: Option[Json]): IO[EnrichmentRegistry[IO]] =
+  private def getEnrichmentRegistry(enrichmentConfig: Option[Json], igluClient: IgluCirceClient[IO]): IO[EnrichmentRegistry[IO]] =
     enrichmentConfig match {
       case None =>
         IO.pure(EnrichmentRegistry[IO]())

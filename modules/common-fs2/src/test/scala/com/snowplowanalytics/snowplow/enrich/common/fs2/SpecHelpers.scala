@@ -23,6 +23,9 @@ import cats.implicits._
 
 import fs2.io.file.deleteIfExists
 
+import com.snowplowanalytics.iglu.client.{IgluCirceClient, Resolver}
+import com.snowplowanalytics.iglu.client.resolver.registries.Registry
+
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test._
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients
 
@@ -61,4 +64,7 @@ object SpecHelpers extends CatsIO {
   /** Make sure files don't exist before and after test starts */
   def filesResource(blocker: Blocker, files: List[Path]): Resource[IO, Unit] =
     Resource.make(filesCleanup(blocker, files))(_ => filesCleanup(blocker, files))
+
+  def createIgluClient(registries: List[Registry]): IO[IgluCirceClient[IO]] =
+    IgluCirceClient.fromResolver[IO](Resolver(registries, None), cacheSize = 0)
 }

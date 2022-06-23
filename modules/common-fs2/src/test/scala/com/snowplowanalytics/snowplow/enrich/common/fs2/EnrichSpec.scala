@@ -41,6 +41,7 @@ import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.FeatureFlags
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.EnrichSpec.{Expected, minimalEvent, normalizeResult}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.SpecHelpers.createIgluClient
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test._
 
 import org.specs2.ScalaCheck
@@ -68,23 +69,26 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
           derived_tstamp = Some(Instant.ofEpochMilli(0L))
         )
       implicit val c = TestEnvironment.http4sClient
-      Enrich
-        .enrichWith(
-          TestEnvironment.enrichmentReg.pure[IO],
-          TestEnvironment.adapterRegistry,
-          TestEnvironment.igluClient,
-          None,
-          EnrichSpec.processor,
-          EnrichSpec.featureFlags,
-          IO.unit
-        )(
-          EnrichSpec.payload
-        )
-        .map(normalizeResult)
-        .map {
-          case List(Validated.Valid(event)) => event must beEqualTo(expected)
-          case other => ko(s"Expected one valid event, got $other")
-        }
+      createIgluClient(List(TestEnvironment.embeddedRegistry)).flatMap { igluClient =>
+        Enrich
+          .enrichWith(
+            TestEnvironment.enrichmentReg.pure[IO],
+            TestEnvironment.adapterRegistry,
+            igluClient,
+            None,
+            EnrichSpec.processor,
+            EnrichSpec.featureFlags,
+            IO.unit
+          )(
+            EnrichSpec.payload
+          )
+          .map(normalizeResult)
+          .map {
+            case List(Validated.Valid(event)) => event must beEqualTo(expected)
+            case other => ko(s"Expected one valid event, got $other")
+          }
+      }
+
     }
 
     "enrich a randomly generated page view event" in {
@@ -92,23 +96,25 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
       implicit val c = TestEnvironment.http4sClient
       prop { (collectorPayload: CollectorPayload) =>
         val payload = collectorPayload.toRaw
-        Enrich
-          .enrichWith(
-            TestEnvironment.enrichmentReg.pure[IO],
-            TestEnvironment.adapterRegistry,
-            TestEnvironment.igluClient,
-            None,
-            EnrichSpec.processor,
-            EnrichSpec.featureFlags,
-            IO.unit
-          )(
-            payload
-          )
-          .map(normalizeResult)
-          .map {
-            case List(Validated.Valid(e)) => e.event must beSome("page_view")
-            case other => ko(s"Expected one valid event, got $other")
-          }
+        createIgluClient(List(TestEnvironment.embeddedRegistry)).flatMap { igluClient =>
+          Enrich
+            .enrichWith(
+              TestEnvironment.enrichmentReg.pure[IO],
+              TestEnvironment.adapterRegistry,
+              igluClient,
+              None,
+              EnrichSpec.processor,
+              EnrichSpec.featureFlags,
+              IO.unit
+            )(
+              payload
+            )
+            .map(normalizeResult)
+            .map {
+              case List(Validated.Valid(e)) => e.event must beSome("page_view")
+              case other => ko(s"Expected one valid event, got $other")
+            }
+        }
       }.setParameters(Parameters(maxSize = 20, minTestsOk = 25))
     }
   }

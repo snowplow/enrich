@@ -23,8 +23,6 @@ import cats.effect.concurrent.{Ref, Semaphore}
 
 import fs2.Stream
 
-import _root_.io.circe.Json
-
 import _root_.io.sentry.{Sentry, SentryClient}
 
 import org.http4s.client.{Client => Http4sClient}
@@ -32,7 +30,7 @@ import org.http4s.Status
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
-import com.snowplowanalytics.iglu.client.{Client => IgluClient}
+import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.{Http4sRegistryLookup, RegistryLookup}
 
 import com.snowplowanalytics.snowplow.badrows.Processor
@@ -95,7 +93,7 @@ import java.util.concurrent.TimeoutException
  *                            getPayload must be defined for this type, as well as checkpointing
  */
 final case class Environment[F[_], A](
-  igluClient: IgluClient[F, Json],
+  igluClient: IgluCirceClient[F],
   registryLookup: RegistryLookup[F],
   enrichments: Ref[F, Environment.Enrichments[F]],
   semaphore: Semaphore[F],
@@ -179,7 +177,7 @@ object Environment {
       pii <- sinkPii.sequence
       http <- Clients.mkHttp(ec = ec)
       clts <- clients.map(Clients.init(http, _))
-      igluClient <- IgluClient.parseDefault[F](parsedConfigs.igluJson).resource
+      igluClient <- IgluCirceClient.parseDefault[F](parsedConfigs.igluJson).resource
       remoteAdaptersEnabled = file.remoteAdapters.configs.nonEmpty
       metrics <- Resource.eval(Metrics.build[F](blocker, file.monitoring.metrics, remoteAdaptersEnabled))
       metadata <- Resource.eval(metadataReporter[F](file, processor.artifact, http))

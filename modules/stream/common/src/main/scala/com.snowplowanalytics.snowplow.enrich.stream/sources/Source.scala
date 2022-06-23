@@ -30,7 +30,7 @@ import cats.Id
 import cats.data.{Validated, ValidatedNel}
 import cats.data.Validated.{Invalid, Valid}
 import cats.implicits._
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.snowplow.badrows._
 import com.snowplowanalytics.snowplow.enrich.common.EtlPipeline
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
@@ -39,7 +39,6 @@ import com.snowplowanalytics.snowplow.enrich.common.loaders.{CollectorPayload, T
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
 import com.snowplowanalytics.snowplow.enrich.stream.model.SentryConfig
-import io.circe.Json
 import org.joda.time.DateTime
 import org.slf4j.LoggerFactory
 import io.sentry.Sentry
@@ -105,7 +104,7 @@ object Source {
 
 /** Abstract base for the different sources we support. */
 abstract class Source(
-  client: Client[Id, Json],
+  client: IgluCirceClient[Id],
   adapterRegistry: AdapterRegistry,
   enrichmentRegistry: EnrichmentRegistry[Id],
   processor: Processor,

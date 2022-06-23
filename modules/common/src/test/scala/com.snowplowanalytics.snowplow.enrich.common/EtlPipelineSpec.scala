@@ -16,10 +16,9 @@ import cats.Id
 import cats.data.Validated
 import cats.syntax.validated._
 
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.Resolver
 import com.snowplowanalytics.iglu.client.resolver.registries.Registry
-import com.snowplowanalytics.iglu.client.validator.CirceValidator
 
 import com.snowplowanalytics.snowplow.badrows.Processor
 import com.snowplowanalytics.snowplow.badrows.BadRow
@@ -27,8 +26,6 @@ import com.snowplowanalytics.snowplow.badrows.BadRow
 import org.apache.thrift.TSerializer
 
 import com.snowplowanalytics.snowplow.CollectorPayload.thrift.model1.{CollectorPayload => tCollectorPayload}
-
-import io.circe.Json
 
 import org.joda.time.DateTime
 
@@ -52,7 +49,7 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers {
   val adapterRegistry = new AdapterRegistry()
   val enrichmentReg = EnrichmentRegistry[Id]()
   val igluCentral = Registry.IgluCentral
-  val client = Client[Id, Json](Resolver(List(igluCentral), None), CirceValidator)
+  val client = IgluCirceClient.fromResolver[Id](Resolver(List(igluCentral), None), cacheSize = 0)
   val processor = Processor("sce-test-suite", "1.0.0")
   val dateTime = DateTime.now()
 

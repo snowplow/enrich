@@ -17,9 +17,7 @@ import cats.data.{Validated, ValidatedNel}
 import cats.effect.Clock
 import cats.implicits._
 
-import io.circe.Json
-
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 
 import com.snowplowanalytics.snowplow.badrows.{BadRow, Processor}
@@ -64,7 +62,7 @@ object EtlPipeline {
   def processEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
     adapterRegistry: AdapterRegistry,
     enrichmentRegistry: EnrichmentRegistry[F],
-    client: Client[F, Json],
+    client: IgluCirceClient[F],
     processor: Processor,
     etlTstamp: DateTime,
     input: ValidatedNel[BadRow, Option[CollectorPayload]],

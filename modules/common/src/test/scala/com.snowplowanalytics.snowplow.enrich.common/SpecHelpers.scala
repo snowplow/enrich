@@ -15,7 +15,7 @@ package com.snowplowanalytics.snowplow.enrich.common
 import cats.Id
 import cats.implicits._
 
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.core.SelfDescribingData
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
@@ -62,7 +62,7 @@ object SpecHelpers {
   }"""
 
   /** Builds an Iglu client from the above Iglu configuration. */
-  val client: Client[Id, Json] = Client
+  val client: IgluCirceClient[Id] = IgluCirceClient
     .parseDefault[Id](igluConfig)
     .value
     .getOrElse(throw new RuntimeException("invalid resolver configuration"))

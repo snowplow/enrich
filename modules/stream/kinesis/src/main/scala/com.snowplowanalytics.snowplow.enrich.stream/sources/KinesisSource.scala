@@ -36,12 +36,11 @@ import com.amazonaws.services.kinesis.clientlibrary.exceptions._
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker._
 import com.amazonaws.services.kinesis.model.Record
 import com.amazonaws.services.kinesis.metrics.impl.NullMetricsFactory
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.snowplow.badrows.Processor
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.scalatracker.Tracker
-import io.circe.Json
 
 import model.{Kinesis, SentryConfig, StreamsConfig}
 import sinks._
@@ -52,7 +51,7 @@ object KinesisSource {
   def createAndInitialize(
     config: StreamsConfig,
     sentryConfig: Option[SentryConfig],
-    client: Client[Id, Json],
+    client: IgluCirceClient[Id],
     adapterRegistry: AdapterRegistry,
     enrichmentRegistry: EnrichmentRegistry[Id],
     tracker: Option[Tracker[Id]],
@@ -83,7 +82,7 @@ object KinesisSource {
 
 /** Source to read events from a Kinesis stream */
 class KinesisSource private (
-  client: Client[Id, Json],
+  client: IgluCirceClient[Id],
   adapterRegistry: AdapterRegistry,
   enrichmentRegistry: EnrichmentRegistry[Id],
   tracker: Option[Tracker[Id]],

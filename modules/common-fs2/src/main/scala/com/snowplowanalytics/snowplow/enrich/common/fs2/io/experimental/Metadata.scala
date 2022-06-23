@@ -241,7 +241,7 @@ object Metadata {
     )
 
   def recalculate(previous: EventsToEntities, events: List[EnrichedEvent]): EventsToEntities =
-    previous ++ events.map(e => MetadataEvent(e) -> unwrapEntities(e))
+    previous |+| events.map(e => Map(MetadataEvent(e) -> unwrapEntities(e))).combineAll
 
   def mkWebhookEvent(
     organizationId: UUID,

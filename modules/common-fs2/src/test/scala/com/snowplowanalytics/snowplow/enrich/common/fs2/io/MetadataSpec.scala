@@ -44,6 +44,7 @@ class MetadataSpec extends Specification with CatsIO {
   }
 
   "Metadata" should {
+
     "report observed events and entities" in {
       val event = new EnrichedEvent()
       event.contexts =
@@ -72,6 +73,7 @@ class MetadataSpec extends Specification with CatsIO {
         )
       }
     }
+
     "parse schemas for event's entities" in {
       val event = new EnrichedEvent()
       event.contexts =
@@ -84,51 +86,88 @@ class MetadataSpec extends Specification with CatsIO {
 
       Metadata.unwrapEntities(event) should containTheSameElementsAs(expected)
     }
+
     "recalculate event aggregates" should {
-      "add new event type" in {
-        val eventVendor = "org.w3"
-        val eventName = "PerformanceTiming"
-        val eventVersion = SchemaVer.Full(1, 0, 0)
-        val eventFormat = "jsonschema"
-        val event = new EnrichedEvent()
-        event.event_name = eventName
-        event.event_vendor = eventVendor
-        event.event_version = eventVersion.asString
-        event.event_format = eventFormat
-        val source = "app123"
-        val tracker = "js-tracker-3.0.0"
-        event.v_tracker = tracker
-        event.app_id = source
-        Metadata.recalculate(Map.empty, List(event)) should containTheSameElementsAs(
-          Seq((MetadataEvent(event) -> Set.empty))
+
+      "add metadata event to empty state" in {
+        val enriched = MetadataSpec.enriched
+        Metadata.recalculate(Map.empty, List(enriched)) should containTheSameElementsAs(
+          Seq((MetadataEvent(enriched) -> Set.empty))
         )
       }
-      "add new entities for a known event type" in {
-        val eventVendor = "org.w3"
-        val eventName = "PerformanceTiming"
-        val eventFormat = "jsonschema"
-        val eventVersion = SchemaVer.Full(1, 0, 0)
-        val tracker = "js-tracker-3.0.0"
-        val source = "app123"
-        val event = new EnrichedEvent()
-        event.event_name = eventName
-        event.event_vendor = eventVendor
-        event.event_format = eventFormat
-        event.event_version = eventVersion.asString
-        event.v_tracker = tracker
-        event.app_id = source
-        event.contexts =
-          """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-0","data":{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}},{"schema":"iglu:org.w3/PerformanceTiming/jsonschema/1-0-0","data":{"navigationStart":1581931694397,"unloadEventStart":1581931696046,"unloadEventEnd":1581931694764,"redirectStart":0,"redirectEnd":0,"fetchStart":1581931694397,"domainLookupStart":1581931694440,"domainLookupEnd":1581931694513,"connectStart":1581931694513,"connectEnd":1581931694665,"secureConnectionStart":1581931694572,"requestStart":1581931694665,"responseStart":1581931694750,"responseEnd":1581931694750,"domLoading":1581931694762,"domInteractive":1581931695963,"domContentLoadedEventStart":1581931696039,"domContentLoadedEventEnd":1581931696039,"domComplete":0,"loadEventStart":0,"loadEventEnd":0}}]}"""
-        val schema = SchemaKey(eventVendor, eventName, eventFormat, eventVersion)
-        val schemas = Set(
-          SchemaKey("com.snowplowanalytics.snowplow", "web_page", eventFormat, SchemaVer.Full(1, 0, 0)),
-          SchemaKey("org.w3", "PerformanceTiming", eventFormat, SchemaVer.Full(1, 0, 0))
-        )
 
-        Metadata.recalculate(Map(MetadataEvent(event) -> Set(schema)), List(event)) should containTheSameElementsAs(
-          Seq((MetadataEvent(event) -> schemas))
+      "add new metadata event to non-empty state" in {
+        val enriched = MetadataSpec.enriched
+        val other = MetadataSpec.enriched
+        val v1_0_1 = SchemaVer.Full(1, 0, 1)
+        other.event_version = v1_0_1.asString
+        val previous = Map(MetadataEvent(enriched) -> Set.empty[SchemaKey])
+        Metadata.recalculate(previous, List(other)) should containTheSameElementsAs(
+          previous.toSeq ++ Seq(MetadataEvent(other) -> Set.empty[SchemaKey])
+        )
+      }
+
+      "add new entity to metadata event that already has an entity" in {
+        val enriched = MetadataSpec.enriched
+        enriched.contexts =
+          """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-0","data":{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}},{"schema":"iglu:org.w3/PerformanceTiming/jsonschema/1-0-0","data":{"navigationStart":1581931694397,"unloadEventStart":1581931696046,"unloadEventEnd":1581931694764,"redirectStart":0,"redirectEnd":0,"fetchStart":1581931694397,"domainLookupStart":1581931694440,"domainLookupEnd":1581931694513,"connectStart":1581931694513,"connectEnd":1581931694665,"secureConnectionStart":1581931694572,"requestStart":1581931694665,"responseStart":1581931694750,"responseEnd":1581931694750,"domLoading":1581931694762,"domInteractive":1581931695963,"domContentLoadedEventStart":1581931696039,"domContentLoadedEventEnd":1581931696039,"domComplete":0,"loadEventStart":0,"loadEventEnd":0}}]}"""
+        val entities = Set(
+          SchemaKey("com.snowplowanalytics.snowplow", "web_page", "jsonschema", SchemaVer.Full(1, 0, 0)),
+          SchemaKey("org.w3", "PerformanceTiming", "jsonschema", SchemaVer.Full(1, 0, 0))
+        )
+        val enrichedBis = MetadataSpec.enriched
+        enrichedBis.contexts =
+          """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-1","data":{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}}]}"""
+        val entityBis = SchemaKey("com.snowplowanalytics.snowplow", "web_page", "jsonschema", SchemaVer.Full(1, 0, 1))
+        val previous = Map(MetadataEvent(enriched) -> entities)
+        Metadata.recalculate(previous, List(enrichedBis)) should containTheSameElementsAs(
+          Seq(MetadataEvent(enriched) -> (entities + entityBis))
+        )
+      }
+
+      "add several entities from several events to an existing metadata event" in {
+        val enriched = MetadataSpec.enriched
+        enriched.contexts =
+          """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-0","data":{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}},{"schema":"iglu:org.w3/PerformanceTiming/jsonschema/1-0-0","data":{"navigationStart":1581931694397,"unloadEventStart":1581931696046,"unloadEventEnd":1581931694764,"redirectStart":0,"redirectEnd":0,"fetchStart":1581931694397,"domainLookupStart":1581931694440,"domainLookupEnd":1581931694513,"connectStart":1581931694513,"connectEnd":1581931694665,"secureConnectionStart":1581931694572,"requestStart":1581931694665,"responseStart":1581931694750,"responseEnd":1581931694750,"domLoading":1581931694762,"domInteractive":1581931695963,"domContentLoadedEventStart":1581931696039,"domContentLoadedEventEnd":1581931696039,"domComplete":0,"loadEventStart":0,"loadEventEnd":0}}]}"""
+        val entities = Set(
+          SchemaKey("com.snowplowanalytics.snowplow", "web_page", "jsonschema", SchemaVer.Full(1, 0, 0)),
+          SchemaKey("org.w3", "PerformanceTiming", "jsonschema", SchemaVer.Full(1, 0, 0))
+        )
+        val enrichedBis = MetadataSpec.enriched
+        enrichedBis.contexts =
+          """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-1","data":{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}}]}"""
+        val entityBis = SchemaKey("com.snowplowanalytics.snowplow", "web_page", "jsonschema", SchemaVer.Full(1, 0, 1))
+        val enrichedTer = MetadataSpec.enriched
+        enrichedTer.contexts =
+          """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-2","data":{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}}]}"""
+        val entityTer = SchemaKey("com.snowplowanalytics.snowplow", "web_page", "jsonschema", SchemaVer.Full(1, 0, 2))
+        val previous = Map(MetadataEvent(enriched) -> entities)
+        Metadata.recalculate(previous, List(enrichedBis, enrichedTer)) should containTheSameElementsAs(
+          Seq(MetadataEvent(enriched) -> (entities + entityBis + entityTer))
         )
       }
     }
   }
+}
+
+object MetadataSpec {
+  val eventVendor = "com.acme"
+  val eventName = "example"
+  val eventFormat = "jsonschema"
+  val eventVersion = SchemaVer.Full(1, 0, 0)
+
+  def enriched = {
+    val appId = "app123"
+    val tracker = "js-tracker-3.0.0"
+    val enriched = new EnrichedEvent()
+    enriched.event_vendor = eventVendor
+    enriched.event_name = eventName
+    enriched.event_format = eventFormat
+    enriched.event_version = eventVersion.asString
+    enriched.app_id = appId
+    enriched.v_tracker = tracker
+    enriched
+  }
+
+  val eventSchema = SchemaKey(eventVendor, eventName, eventFormat, eventVersion)
 }

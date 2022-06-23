@@ -22,7 +22,7 @@ import cats.syntax.validated._
 import com.snowplowanalytics.iglu.core.{SchemaKey, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.Client2
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 
 import com.snowplowanalytics.snowplow.badrows._
@@ -68,7 +68,7 @@ object IgluAdapter extends Adapter {
    */
   override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
     payload: CollectorPayload,
-    client: Client[F, Json]
+    client: Client2[F, Json]
   ): F[Adapted] = {
     val _ = client
     val params = toMap(payload.querystring)

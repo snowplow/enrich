@@ -21,7 +21,7 @@ import io.circe.Json
 
 import java.time.Instant
 
-import com.snowplowanalytics.iglu.client.{Client, ClientError}
+import com.snowplowanalytics.iglu.client.{Client2, ClientError}
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SelfDescribingData}
@@ -55,7 +55,7 @@ object IgluUtils {
    */
   def extractAndValidateInputJsons[F[_]: Monad: RegistryLookup: Clock](
     enriched: EnrichedEvent,
-    client: Client[F, Json],
+    client: Client2[F, Json],
     raw: RawEvent,
     processor: Processor
   ): EitherT[
@@ -95,7 +95,7 @@ object IgluUtils {
    */
   private[common] def extractAndValidateUnstructEvent[F[_]: Monad: RegistryLookup: Clock](
     enriched: EnrichedEvent,
-    client: Client[F, Json],
+    client: Client2[F, Json],
     field: String = "ue_properties",
     criterion: SchemaCriterion = SchemaCriterion("com.snowplowanalytics.snowplow", "unstruct_event", "jsonschema", 1, 0)
   ): F[Validated[FailureDetails.SchemaViolation, Option[SelfDescribingData[Json]]]] =
@@ -132,7 +132,7 @@ object IgluUtils {
    */
   private[common] def extractAndValidateInputContexts[F[_]: Monad: RegistryLookup: Clock](
     enriched: EnrichedEvent,
-    client: Client[F, Json],
+    client: Client2[F, Json],
     field: String = "contexts",
     criterion: SchemaCriterion = SchemaCriterion("com.snowplowanalytics.snowplow", "contexts", "jsonschema", 1, 0)
   ): F[ValidatedNel[FailureDetails.SchemaViolation, List[SelfDescribingData[Json]]]] =
@@ -167,7 +167,7 @@ object IgluUtils {
    *  @return Unit if all the contexts are valid
    */
   private[common] def validateEnrichmentsContexts[F[_]: Monad: RegistryLookup: Clock](
-    client: Client[F, Json],
+    client: Client2[F, Json],
     sdjs: List[SelfDescribingData[Json]],
     raw: RawEvent,
     processor: Processor,
@@ -199,7 +199,7 @@ object IgluUtils {
     rawJson: String,
     field: String, // to put in the bad row
     expectedCriterion: SchemaCriterion,
-    client: Client[F, Json]
+    client: Client2[F, Json]
   ): EitherT[F, FailureDetails.SchemaViolation, Json] =
     for {
       // Parse Json string with the SDJ
@@ -236,7 +236,7 @@ object IgluUtils {
 
   /** Check that a SDJ is valid */
   private def check[F[_]: Monad: RegistryLookup: Clock](
-    client: Client[F, Json],
+    client: Client2[F, Json],
     sdj: SelfDescribingData[Json]
   ): EitherT[F, (SchemaKey, ClientError), Unit] =
     client
@@ -245,7 +245,7 @@ object IgluUtils {
 
   /** Check a list of SDJs and merge the Iglu errors */
   private def checkList[F[_]: Monad: RegistryLookup: Clock](
-    client: Client[F, Json],
+    client: Client2[F, Json],
     sdjs: List[SelfDescribingData[Json]]
   ): EitherT[F, NonEmptyList[(SchemaKey, ClientError)], Unit] =
     EitherT {
@@ -258,7 +258,7 @@ object IgluUtils {
   /** Parse a Json as a SDJ and check that it's valid */
   private def parseAndValidateSDJ_sv[F[_]: Monad: RegistryLookup: Clock]( // _sv for SchemaViolation
     json: Json,
-    client: Client[F, Json]
+    client: Client2[F, Json]
   ): EitherT[F, FailureDetails.SchemaViolation, SelfDescribingData[Json]] =
     for {
       sdj <- SelfDescribingData

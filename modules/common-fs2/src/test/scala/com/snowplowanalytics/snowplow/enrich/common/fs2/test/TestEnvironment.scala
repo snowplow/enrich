@@ -30,7 +30,7 @@ import fs2.Stream
 
 import io.circe.{Json, parser}
 
-import com.snowplowanalytics.iglu.client.{CirceValidator, Client, Resolver}
+import com.snowplowanalytics.iglu.client.{CirceValidator, Client2, Resolver}
 import com.snowplowanalytics.iglu.client.resolver.registries.{Http4sRegistryLookup, Registry}
 
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
@@ -110,8 +110,8 @@ object TestEnvironment extends CatsIO {
 
   val embeddedRegistry = Registry.EmbeddedRegistry
 
-  val igluClient: Client[IO, Json] =
-    Client[IO, Json](Resolver(List(embeddedRegistry), None), CirceValidator)
+  def igluClient: Client2[IO, Json] =
+    Client2[IO, Json](Resolver(List(embeddedRegistry), None), CirceValidator.validatorF[IO].unsafeRunSync())
 
   /**
    * A dummy test environment without enrichment and with noop sinks and sources

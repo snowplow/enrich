@@ -25,7 +25,7 @@ import scala.collection.JavaConverters._
 
 import cats.Id
 import cats.syntax.either._
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.Client2
 import com.snowplowanalytics.snowplow.badrows.Processor
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
@@ -42,7 +42,7 @@ object KafkaSource {
   def create(
     config: StreamsConfig,
     sentryConfig: Option[SentryConfig],
-    client: Client[Id, Json],
+    client: Client2[Id, Json],
     adapterRegistry: AdapterRegistry,
     enrichmentRegistry: EnrichmentRegistry[Id],
     processor: Processor
@@ -82,7 +82,7 @@ class KafkaSource private (
   goodProducer: KafkaProducer[String, String],
   piiProducer: Option[KafkaProducer[String, String]],
   badProducer: KafkaProducer[String, String],
-  client: Client[Id, Json],
+  client: Client2[Id, Json],
   adapterRegistry: AdapterRegistry,
   enrichmentRegistry: EnrichmentRegistry[Id],
   processor: Processor,

@@ -39,7 +39,7 @@ import _root_.io.circe.syntax._
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.Client2
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 
 import com.snowplowanalytics.snowplow.badrows.{Processor, BadRow, Failure, Payload => BadRowPayload}
@@ -113,7 +113,7 @@ object Enrich {
    */
   def enrichWith[F[_]: Clock: ContextShift: RegistryLookup: Sync](
     enrichRegistry: F[EnrichmentRegistry[F]],
-    igluClient: Client[F, Json],
+    igluClient: Client2[F, Json],
     sentry: Option[SentryClient],
     processor: Processor,
     featureFlags: FeatureFlags,

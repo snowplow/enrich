@@ -31,7 +31,7 @@ import org.apache.thrift.TSerializer
 
 import com.snowplowanalytics.snowplow.CollectorPayload.thrift.model1.CollectorPayload
 
-import com.snowplowanalytics.iglu.client.{CirceValidator, Client, Resolver}
+import com.snowplowanalytics.iglu.client.{CirceValidator, Client2, Resolver}
 import com.snowplowanalytics.iglu.client.resolver.registries.Registry
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
@@ -48,8 +48,8 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.EnrichSpec
 
 object BlackBoxTesting extends Specification with CatsIO {
 
-  val igluClient: Client[IO, Json] =
-    Client[IO, Json](Resolver(List(Registry.EmbeddedRegistry), None), CirceValidator)
+  def igluClient: Client2[IO, Json] =
+    Client2[IO, Json](Resolver(List(Registry.EmbeddedRegistry), None), CirceValidator.validatorF[IO].unsafeRunSync())
 
   private val serializer: TSerializer = new TSerializer()
 

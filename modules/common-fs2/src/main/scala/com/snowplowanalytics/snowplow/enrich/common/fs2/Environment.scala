@@ -32,7 +32,7 @@ import org.http4s.client.{Client => HttpClient}
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
-import com.snowplowanalytics.iglu.client.{Client => IgluClient}
+import com.snowplowanalytics.iglu.client.{Client2 => IgluClient}
 import com.snowplowanalytics.iglu.client.resolver.registries.{Http4sRegistryLookup, RegistryLookup}
 
 import com.snowplowanalytics.snowplow.badrows.Processor

@@ -19,7 +19,7 @@
 package com.snowplowanalytics.snowplow.enrich.stream
 
 import cats.Id
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.Client2
 import com.snowplowanalytics.snowplow.badrows.Processor
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
@@ -38,7 +38,7 @@ object KafkaEnrich extends Enrich {
   override def getSource(
     streamsConfig: StreamsConfig,
     sentryConfig: Option[SentryConfig],
-    client: Client[Id, Json],
+    client: Client2[Id, Json],
     adapterRegistry: AdapterRegistry,
     enrichmentRegistry: EnrichmentRegistry[Id],
     tracker: Option[Tracker[Id]],

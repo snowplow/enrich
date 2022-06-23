@@ -21,7 +21,7 @@ import cats.syntax.validated._
 
 import cats.effect.Clock
 
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.Client2
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 import com.snowplowanalytics.snowplow.badrows._
@@ -54,7 +54,7 @@ class AdapterSpec extends Specification with DataTables with ValidatedMatchers {
   // TODO: add test for buildFormatter()
 
   object BaseAdapter extends Adapter {
-    override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](payload: CollectorPayload, client: Client[F, Json]) = {
+    override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](payload: CollectorPayload, client: Client2[F, Json]) = {
       val _ = client
       Monad[F].pure(
         FailureDetails.AdapterFailure

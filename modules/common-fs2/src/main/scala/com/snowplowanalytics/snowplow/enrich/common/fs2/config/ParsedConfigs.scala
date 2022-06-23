@@ -29,7 +29,7 @@ import cats.Applicative
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.Client2
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
@@ -79,7 +79,7 @@ object ParsedConfigs {
            )
       goodAttributes = outputAttributes(configFile.output.good)
       piiAttributes = configFile.output.pii.map(outputAttributes).getOrElse { _: EnrichedEvent => Map.empty[String, String] }
-      client <- Client.parseDefault[F](igluJson).leftMap(x => show"Cannot decode Iglu Client. $x")
+      client <- Client2.parseDefault[F](igluJson).leftMap(x => show"Cannot decode Iglu Client. $x")
       _ <- EitherT.liftF(
              Logger[F].info(show"Parsed Iglu Client with following registries: ${client.resolver.repos.map(_.config.name).mkString(", ")}")
            )

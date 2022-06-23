@@ -16,7 +16,7 @@ import cats.Id
 import cats.data.Validated
 import cats.syntax.validated._
 
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.Client2
 import com.snowplowanalytics.iglu.client.resolver.Resolver
 import com.snowplowanalytics.iglu.client.resolver.registries.Registry
 import com.snowplowanalytics.iglu.client.validator.CirceValidator
@@ -52,7 +52,7 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers {
   val adapterRegistry = new AdapterRegistry()
   val enrichmentReg = EnrichmentRegistry[Id]()
   val igluCentral = Registry.IgluCentral
-  val client = Client[Id, Json](Resolver(List(igluCentral), None), CirceValidator)
+  val client = Client2[Id, Json](Resolver(List(igluCentral), None), CirceValidator.validatorF[Id])
   val processor = Processor("sce-test-suite", "1.0.0")
   val dateTime = DateTime.now()
 

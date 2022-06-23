@@ -30,7 +30,7 @@ import cats.Id
 import cats.data.{Validated, ValidatedNel}
 import cats.data.Validated.{Invalid, Valid}
 import cats.implicits._
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.Client2
 import com.snowplowanalytics.snowplow.badrows._
 import com.snowplowanalytics.snowplow.enrich.common.EtlPipeline
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
@@ -105,7 +105,7 @@ object Source {
 
 /** Abstract base for the different sources we support. */
 abstract class Source(
-  client: Client[Id, Json],
+  client: Client2[Id, Json],
   adapterRegistry: AdapterRegistry,
   enrichmentRegistry: EnrichmentRegistry[Id],
   processor: Processor,

@@ -26,7 +26,7 @@ import cats.effect.Clock
 import io.circe._
 import io.circe.syntax._
 
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.Client2
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 
@@ -472,7 +472,7 @@ object GoogleAnalyticsAdapter extends Adapter {
    */
   override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
     payload: CollectorPayload,
-    client: Client[F, Json]
+    client: Client2[F, Json]
   ): F[Adapted] = {
     val events: Option[NonEmptyList[ValidatedNel[FailureDetails.AdapterFailure, RawEvent]]] = for {
       body <- payload.body

@@ -24,7 +24,7 @@ import io.circe.Json
 import org.joda.time.DateTimeZone
 import org.joda.time.format.DateTimeFormat
 
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.Client2
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
@@ -76,7 +76,7 @@ object CallrailAdapter extends Adapter {
    */
   override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
     payload: CollectorPayload,
-    client: Client[F, Json]
+    client: Client2[F, Json]
   ): F[Adapted] = {
     val _ = client
     val params = toMap(payload.querystring)

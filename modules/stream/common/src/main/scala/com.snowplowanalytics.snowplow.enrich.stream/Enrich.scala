@@ -25,7 +25,7 @@ import scala.sys.process._
 
 import cats.Id
 import cats.implicits._
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.Client2
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.CirceIgluCodecs._
 import com.snowplowanalytics.snowplow.badrows.Processor
@@ -113,7 +113,7 @@ trait Enrich {
   def getSource(
     streamsConfig: StreamsConfig,
     sentryConfig: Option[SentryConfig],
-    client: Client[Id, Json],
+    client: Client2[Id, Json],
     adapterRegistry: AdapterRegistry,
     enrichmentRegistry: EnrichmentRegistry[Id],
     tracker: Option[Tracker[Id]],
@@ -170,11 +170,11 @@ trait Enrich {
    * a  * @param creds optionally necessary credentials to download the resolver
    * @return a validated iglu resolver
    */
-  def parseClient(resolverArg: String)(implicit creds: Credentials): Either[String, Client[Id, Json]] =
+  def parseClient(resolverArg: String)(implicit creds: Credentials): Either[String, Client2[Id, Json]] =
     for {
       parsedResolver <- extractResolver(resolverArg)
       json <- JsonUtils.extractJson(parsedResolver)
-      client <- Client.parseDefault[Id](json).leftMap(_.toString).value
+      client <- Client2.parseDefault[Id](json).leftMap(_.toString).value
     } yield client
 
   /**
@@ -202,7 +202,7 @@ trait Enrich {
    */
   def parseEnrichmentRegistry(
     enrichmentsDirArg: Option[String],
-    client: Client[Id, Json]
+    client: Client2[Id, Json]
   )(
     implicit creds: Credentials
   ): Either[String, List[EnrichmentConf]] =

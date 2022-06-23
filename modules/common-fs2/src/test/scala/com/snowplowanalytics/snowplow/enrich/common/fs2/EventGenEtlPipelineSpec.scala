@@ -16,7 +16,7 @@ import cats.data.{Validated, ValidatedNel}
 import cats.effect.testing.specs2.CatsIO
 import cats.effect.{Blocker, IO}
 import cats.implicits._
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.Client2
 import com.snowplowanalytics.iglu.client.resolver.registries.Registry
 import com.snowplowanalytics.snowplow.badrows.{BadRow, Processor}
 import com.snowplowanalytics.snowplow.enrich.common.EtlPipeline
@@ -174,7 +174,7 @@ class EventGenEtlPipelineSpec extends Specification with CatsIO {
   val adapterRegistry = new AdapterRegistry()
   val enrichmentReg = EnrichmentRegistry[IO]()
   val igluCentral = Registry.IgluCentral
-  val client = Client.parseDefault[IO](json"""
+  val client = Client2.parseDefault[IO](json"""
       {
         "schema": "iglu:com.snowplowanalytics.iglu/resolver-config/jsonschema/1-0-1",
         "data": {

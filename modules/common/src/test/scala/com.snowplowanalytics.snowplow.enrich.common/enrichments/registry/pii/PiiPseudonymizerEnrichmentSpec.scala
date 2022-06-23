@@ -30,7 +30,7 @@ import org.specs2.matcher.ValidatedMatchers
 
 import com.snowplowanalytics.iglu.core._
 
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.Client2
 import com.snowplowanalytics.iglu.client.resolver.Resolver
 import com.snowplowanalytics.iglu.client.resolver.registries.Registry
 import com.snowplowanalytics.iglu.client.validator.CirceValidator
@@ -167,7 +167,7 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
       List("com.snowplowanalytics.snowplow", "com.acme", "com.mailgun")
     )
     val reg = Registry.Embedded(regConf, path = "/iglu-schemas")
-    val client = Client[Id, Json](Resolver(List(reg), None), CirceValidator)
+    val client = Client2[Id, Json](Resolver(List(reg), None), CirceValidator.validatorF[Id])
     EtlPipeline
       .processEvents[Id](
         new AdapterRegistry(),

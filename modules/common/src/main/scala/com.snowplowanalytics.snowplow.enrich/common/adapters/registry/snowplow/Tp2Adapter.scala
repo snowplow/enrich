@@ -21,7 +21,7 @@ import cats.effect.Clock
 
 import io.circe.Json
 
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.Client2
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
@@ -56,7 +56,7 @@ object Tp2Adapter extends Adapter {
    * @param client The Iglu client used for schema lookup and validation
    * @return a Validation boxing either a NEL of RawEvents on Success, or a NEL of Failure Strings
    */
-  def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](payload: CollectorPayload, client: Client[F, Json]): F[
+  def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](payload: CollectorPayload, client: Client2[F, Json]): F[
     ValidatedNel[FailureDetails.AdapterFailureOrTrackerProtocolViolation, NonEmptyList[RawEvent]]
   ] = {
     val qsParams = toMap(payload.querystring)
@@ -210,7 +210,7 @@ object Tp2Adapter extends Adapter {
   private def extractAndValidateJson[F[_]: Monad: RegistryLookup: Clock](
     schemaCriterion: SchemaCriterion,
     instance: String,
-    client: Client[F, Json]
+    client: Client2[F, Json]
   ): EitherT[F, NonEmptyList[FailureDetails.TrackerProtocolViolation], Json] =
     (for {
       j <- EitherT.fromEither[F](

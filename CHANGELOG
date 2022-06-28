@@ -1,3 +1,17 @@
+3.2.0 (2022-06-28)
+------------------
+Publish distroless docker image (#605)
+common-fs2: fix the building of metadata (#634)
+Drop KPL in enrich-kinesis and sink chunks (#633)
+common-fs2: add DEBUG logging with the time needed for enriching and sinking (#637)
+common-fs2: remove logging of collector payload (#636)
+stream-enrich-kafka: reinstate config example (#646)
+Common: fix mysql connection (#626)
+common-fs2: add support for remote adapters (#567)
+common-fs2: Revert http4s client backend to blaze (#620)
+common: Remove logging of user data when accepting invalid enriched events (#637)
+Common: Return to original intended enrichment order (#619)
+
 3.1.5 (2022-06-10)
 ------------------
 common: Add test to check that a required field that is allowed to be null passes validation (#621)

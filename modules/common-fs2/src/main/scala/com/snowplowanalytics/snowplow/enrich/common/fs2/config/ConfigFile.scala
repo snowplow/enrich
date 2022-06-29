@@ -78,6 +78,9 @@ object ConfigFile {
       // Remove pii output if topic empty
       case c @ ConfigFile(_, Outputs(good, Some(Output.PubSub(t, _, _, _, _)), bad), _, _, _, _, _, _, _) if t.isEmpty =>
         c.copy(output = Outputs(good, None, bad)).asRight
+      // Remove pii output if topic empty
+      case c @ ConfigFile(_, Outputs(good, Some(Output.Kafka(topicName, _, _, _, _)), bad), _, _, _, _, _, _, _) if topicName.isEmpty =>
+        c.copy(output = Outputs(good, None, bad)).asRight
       case other => other.asRight
     }
   implicit val configFileEncoder: Encoder[ConfigFile] =

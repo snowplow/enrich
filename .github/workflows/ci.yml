@@ -49,6 +49,13 @@ jobs:
       run: SBT_OPTS="-Xms1G -Xmx8G -Xss4M -XX:MaxMetaspaceSize=1024M" sbt coverage +test
       env:
         OER_KEY: ${{ secrets.OER_KEY }}
+    - name: Run integration tests
+      id: integrationTest
+      run: |
+        sbt "project kafka" "docker:publishLocal"
+        docker-compose -f integration-tests/enrich-kafka/docker-compose.yml up -d
+        sbt "project kafka" "it:test"
+        docker-compose -f integration-tests/enrich-kafka/docker-compose.yml down
     - name: Check Scala formatting
       if: ${{ always() }}
       run: sbt scalafmtCheckAll
@@ -85,7 +92,8 @@ jobs:
             "project streamNsq; set assembly / test := {}; assembly" \
             "project pubsub; set assembly / test := {}; assembly" \
             "project kinesis; set assembly / test := {}; assembly" \
-            "project rabbitmq; set assembly / test := {}; assembly"
+            "project rabbitmq; set assembly / test := {}; assembly" \
+            "project kafka; set assembly / test := {}; assembly"
     - name: Create GitHub release and attach artifacts
       uses: softprops/action-gh-release@v1
       with:
@@ -100,6 +108,7 @@ jobs:
           modules/pubsub/target/scala-2.12/snowplow-enrich-pubsub-${{ steps.ver.outputs.tag }}.jar
           modules/kinesis/target/scala-2.12/snowplow-enrich-kinesis-${{ steps.ver.outputs.tag }}.jar
           modules/rabbitmq/target/scala-2.12/snowplow-enrich-rabbitmq-${{ steps.ver.outputs.tag }}.jar
+          modules/kafka/target/scala-2.12/snowplow-enrich-kafka-${{ steps.ver.outputs.tag }}.jar
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -115,6 +124,7 @@ jobs:
           - streamNsq
           - pubsub
           - kinesis
+          - kafka
           - rabbitmq
         include:
           - suffix: ""
@@ -231,4 +241,3 @@ jobs:
         PGP_SECRET: ${{ secrets.SONA_PGP_SECRET }}
         SONATYPE_USERNAME: ${{ secrets.SONA_USER }}
         SONATYPE_PASSWORD: ${{ secrets.SONA_PASS }}
-

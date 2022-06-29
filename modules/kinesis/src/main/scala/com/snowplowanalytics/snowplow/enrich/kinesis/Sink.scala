@@ -13,7 +13,6 @@
 package com.snowplowanalytics.snowplow.enrich.kinesis
 
 import java.nio.ByteBuffer
-import java.util.UUID
 
 import scala.collection.JavaConverters._
 
@@ -48,7 +47,7 @@ object Sink {
   ): Resource[F, ByteSink[F]] =
     for {
       sink <- initAttributed(blocker, output)
-    } yield records => sink(records.map(AttributedData(_, Map.empty)))
+    } yield (records: List[Array[Byte]]) => sink(records.map(AttributedData(_, "", Map.empty)))
 
   def initAttributed[F[_]: Concurrent: ContextShift: Parallel: Timer](
     blocker: Blocker,
@@ -169,13 +168,8 @@ object Sink {
 
   private def toKinesisRecords(records: List[AttributedData[Array[Byte]]]): List[KinesisRecord] =
     records.map { r =>
-      val partitionKey =
-        r.attributes.toList match { // there can be only one attribute : the partition key
-          case head :: Nil => head._2
-          case _ => UUID.randomUUID().toString
-        }
       val data = ByteBuffer.wrap(r.data)
-      KinesisRecord(data, partitionKey)
+      KinesisRecord(data, r.partitionKey)
     }
 
   private def putRecords(

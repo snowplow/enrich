@@ -196,7 +196,7 @@ object Enrich {
 
     val (moreBad, good) = enriched.map { e =>
       serializeEnriched(e, env.processor, env.streamsSettings.maxRecordSize)
-        .map(bytes => (e, AttributedData(bytes, env.goodAttributes(e))))
+        .map(bytes => (e, AttributedData(bytes, env.goodPartitionKey(e), env.goodAttributes(e))))
     }.separate
 
     val allBad = (bad ++ moreBad).map(badRowResize(env, _))
@@ -208,6 +208,7 @@ object Enrich {
         env.metrics.goodCount,
         env.metadata.observe,
         env.sinkPii,
+        env.piiPartitionKey,
         env.piiAttributes,
         env.processor,
         env.streamsSettings.maxRecordSize
@@ -222,13 +223,20 @@ object Enrich {
     incMetrics: Int => F[Unit],
     metadata: List[EnrichedEvent] => F[Unit],
     piiSink: Option[AttributedByteSink[F]],
+    piiPartitionKey: EnrichedEvent => String,
     piiAttributes: EnrichedEvent => Map[String, String],
     processor: Processor,
     maxRecordSize: Int
   ): F[Unit] = {
     val enriched = good.map(_._1)
     val serialized = good.map(_._2)
-    sink(serialized) *> incMetrics(good.size) *> metadata(enriched) *> sinkPii(enriched, piiSink, piiAttributes, processor, maxRecordSize)
+    sink(serialized) *> incMetrics(good.size) *> metadata(enriched) *> sinkPii(enriched,
+                                                                               piiSink,
+                                                                               piiPartitionKey,
+                                                                               piiAttributes,
+                                                                               processor,
+                                                                               maxRecordSize
+    )
   }
 
   def sinkBad[F[_]: Monad](
@@ -241,6 +249,7 @@ object Enrich {
   def sinkPii[F[_]: Sync](
     enriched: List[EnrichedEvent],
     maybeSink: Option[AttributedByteSink[F]],
+    partitionKey: EnrichedEvent => String,
     attributes: EnrichedEvent => Map[String, String],
     processor: Processor,
     maxRecordSize: Int
@@ -250,7 +259,7 @@ object Enrich {
         val (bad, serialized) =
           enriched
             .flatMap(ConversionUtils.getPiiEvent(processor, _))
-            .map(e => serializeEnriched(e, processor, maxRecordSize).map(AttributedData(_, attributes(e))))
+            .map(e => serializeEnriched(e, processor, maxRecordSize).map(AttributedData(_, partitionKey(e), attributes(e))))
             .separate
         val logging =
           if (bad.nonEmpty)

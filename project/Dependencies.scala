@@ -80,6 +80,7 @@ object Dependencies {
     val catsEffect       = "2.5.0"
     val fs2PubSub        = "0.18.1"
     val fs2Aws           = "3.1.1"
+    val fs2Kafka         = "1.10.0"
     val fs2BlobStorage   = "0.8.6"
     val http4s           = "0.21.33"
     val log4cats         = "1.3.0"
@@ -188,6 +189,7 @@ object Dependencies {
     val fs2Aws           = "io.laserdisc"                     %% "fs2-aws"                               % V.fs2Aws
     val fs2              = "co.fs2"                           %% "fs2-core"                              % V.fs2
     val fs2Io            = "co.fs2"                           %% "fs2-io"                                % V.fs2
+    val fs2Kafka         = "com.github.fd4s"                  %% "fs2-kafka"                             % V.fs2Kafka
     val kinesisClient2   = "software.amazon.kinesis"          %  "amazon-kinesis-client"                 % V.kinesisClient2
     val http4sClient     = "org.http4s"                       %% "http4s-blaze-client"                   % V.http4s
     val http4sCirce      = "org.http4s"                       %% "http4s-circe"                          % V.http4s
@@ -324,6 +326,10 @@ object Dependencies {
       fs2Aws,
       kinesisClient2,
       sts
+    )
+
+    val kafkaDependencies = Seq(
+      fs2Kafka
     )
 
     // exclusions

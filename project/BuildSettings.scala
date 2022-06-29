@@ -86,7 +86,7 @@ object BuildSettings {
   lazy val pubsubProjectSettings = projectSettings ++ Seq(
     name := "snowplow-enrich-pubsub",
     moduleName := "snowplow-enrich-pubsub",
-    description := "High-performance streaming enrich app with Pub/Sub source, built on top of functional streams",
+    description := "High-performance streaming enrich app working with Pub/Sub, built on top of functional streams",
     buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
     buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.pubsub.generated"
   )
@@ -94,9 +94,17 @@ object BuildSettings {
   lazy val kinesisProjectSettings = projectSettings ++ Seq(
     name := "snowplow-enrich-kinesis",
     moduleName := "snowplow-enrich-kinesis",
-    description := "High-performance streaming enrich app with Kinesis source, built on top of functional streams",
+    description := "High-performance streaming enrich app working with Kinesis, built on top of functional streams",
     buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
     buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.kinesis.generated"
+  )
+
+  lazy val kafkaProjectSettings = projectSettings ++ Seq(
+    name := "snowplow-enrich-kafka",
+    moduleName := "snowplow-enrich-kafka",
+    description := "High-performance streaming enrich app working with Kafka, built on top of functional streams",
+    buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
+    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.kafka.generated"
   )
 
   /** Make package (build) metadata available within source code. */
@@ -310,6 +318,18 @@ object BuildSettings {
   }
 
   lazy val kinesisDistrolessBuildSettings = kinesisBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
+
+  lazy val kafkaBuildSettings = {
+    // Project
+    kafkaProjectSettings ++ buildSettings ++
+    // Build and publish
+    assemblySettings ++ dockerSettingsFocal ++
+      Seq(Docker / packageName := "snowplow-enrich-kafka") ++
+    // Tests
+    scoverageSettings ++ noParallelTestExecution
+  }
+
+  lazy val kafkaDistrolessBuildSettings = kafkaBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
 
   /** Fork a JVM per test in order to not reuse enrichment registries. */
   def oneJVMPerTest(tests: Seq[TestDefinition]): Seq[Tests.Group] =

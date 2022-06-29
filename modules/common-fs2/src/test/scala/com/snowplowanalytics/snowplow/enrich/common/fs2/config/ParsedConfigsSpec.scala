@@ -106,4 +106,40 @@ class ParsedConfigsSpec extends Specification with CatsIO {
       result must haveValue("test_app")
     }
   }
+
+  "attributesFromFields" should {
+    "fetch attribute values" in {
+      val ee = new EnrichedEvent()
+      ee.app_id = "test_attributesFromFields"
+
+      val result = ParsedConfigs.attributesFromFields(Set("app_id"))(ee)
+
+      result must haveSize(1)
+      result must haveKey("app_id")
+      result must haveValue("test_attributesFromFields")
+    }
+  }
+
+  "outputPartitionKey" should {
+    "fetch partition key's value" in {
+      val output = io.Output.Kafka("good-topic", "localhost:9092", "app_id", Set(), Map.empty)
+      val ee = new EnrichedEvent()
+      ee.app_id = "test_outputPartitionKey"
+
+      val result = ParsedConfigs.outputPartitionKey(output)(ee)
+
+      result must beEqualTo("test_outputPartitionKey")
+    }
+  }
+
+  "partitionKeyFromFields" should {
+    "fetch partition key's value" in {
+      val ee = new EnrichedEvent()
+      ee.app_id = "test_partitionKeyFromFields"
+
+      val result = ParsedConfigs.partitionKeyFromFields("app_id")(ee)
+
+      result must beEqualTo("test_partitionKeyFromFields")
+    }
+  }
 }

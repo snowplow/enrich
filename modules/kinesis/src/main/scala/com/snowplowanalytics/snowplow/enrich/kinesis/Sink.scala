@@ -49,7 +49,7 @@ object Sink {
   ): Resource[F, ByteSink[F]] =
     for {
       sink <- initAttributed(blocker, output)
-    } yield records => sink(records.map(AttributedData(_, Map.empty)))
+    } yield (records: List[Array[Byte]]) => sink(records.map(AttributedData(_, UUID.randomUUID().toString, Map.empty)))
 
   def initAttributed[F[_]: Concurrent: ContextShift: Parallel: Timer](
     blocker: Blocker,
@@ -210,14 +210,9 @@ object Sink {
 
   private def toKinesisRecords(records: List[AttributedData[Array[Byte]]]): List[PutRecordsRequestEntry] =
     records.map { r =>
-      val partitionKey =
-        r.attributes.toList match { // there can be only one attribute : the partition key
-          case head :: Nil => head._2
-          case _ => UUID.randomUUID().toString
-        }
       val data = ByteBuffer.wrap(r.data)
       val prre = new PutRecordsRequestEntry()
-      prre.setPartitionKey(partitionKey)
+      prre.setPartitionKey(r.partitionKey)
       prre.setData(data)
       prre
     }

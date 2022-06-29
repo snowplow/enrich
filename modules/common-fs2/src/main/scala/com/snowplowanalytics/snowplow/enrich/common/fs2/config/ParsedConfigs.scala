@@ -13,6 +13,7 @@
 package com.snowplowanalytics.snowplow.enrich.common.fs2.config
 
 import java.lang.reflect.Field
+import java.util.UUID
 
 import _root_.io.circe.Json
 import _root_.io.circe.syntax._
@@ -44,6 +45,8 @@ final case class ParsedConfigs(
   igluJson: Json,
   enrichmentConfigs: List[EnrichmentConf],
   configFile: ConfigFile,
+  goodPartitionKey: EnrichedEvent => String,
+  piiPartitionKey: EnrichedEvent => String,
   goodAttributes: EnrichedEvent => Map[String, String],
   piiAttributes: EnrichedEvent => Map[String, String]
 )
@@ -77,6 +80,8 @@ object ParsedConfigs {
       _ <- EitherT.liftF(
              Logger[F].info(s"Parsed config file: ${configFile}")
            )
+      goodPartitionKey = outputPartitionKey(configFile.output.good)
+      piiPartitionKey = configFile.output.pii.map(outputPartitionKey).getOrElse { _: EnrichedEvent => "" }
       goodAttributes = outputAttributes(configFile.output.good)
       piiAttributes = configFile.output.pii.map(outputAttributes).getOrElse { _: EnrichedEvent => Map.empty[String, String] }
       resolverConfig <-
@@ -90,7 +95,7 @@ object ParsedConfigs {
                    show"Cannot decode enrichments - ${x.mkString_(", ")}"
                  }
       _ <- EitherT.liftF(Logger[F].info(show"Parsed following enrichments: ${configs.map(_.schemaKey.name).mkString(", ")}"))
-    } yield ParsedConfigs(igluJson, configs, configFile, goodAttributes, piiAttributes)
+    } yield ParsedConfigs(igluJson, configs, configFile, goodPartitionKey, piiPartitionKey, goodAttributes, piiAttributes)
 
   private[config] def validateConfig[F[_]: Applicative](configFile: ConfigFile): EitherT[F, String, ConfigFile] = {
     val goodCheck: ValidationResult[OutputConfig] = validateAttributes(configFile.output.good)
@@ -114,31 +119,52 @@ object ParsedConfigs {
           }
       case OutputConfig.Kinesis(_, _, Some(key), _, _, _, _, _) if !enrichedFieldsMap.contains(key) =>
         NonEmptyList.one(s"Partition key $key not valid").invalid
+      case ka: OutputConfig.Kafka if !ka.headers.forall(enrichedFieldsMap.contains) =>
+        NonEmptyList
+          .one(
+            s"Fields [${ka.headers.filterNot(enrichedFieldsMap.contains).mkString(", ")}] for headers are not part of the enriched event"
+          )
+          .invalid
       case _ =>
         output.valid
     }
 
   private[config] def outputAttributes(output: OutputConfig): EnrichedEvent => Map[String, String] =
     output match {
-      case OutputConfig.PubSub(_, Some(attributes), _, _, _) =>
-        val fields = ParsedConfigs.enrichedFieldsMap.filter {
-          case (s, _) =>
-            attributes.contains(s)
-        }
-        attributesFromFields(fields)
-      case OutputConfig.Kinesis(_, _, Some(key), _, _, _, _, _) =>
-        val fields = ParsedConfigs.enrichedFieldsMap.filter {
-          case (s, _) =>
-            s == key
-        }
-        attributesFromFields(fields)
-      case _ =>
-        _ => Map.empty
+      case OutputConfig.PubSub(_, Some(attributes), _, _, _) => attributesFromFields(attributes)
+      case OutputConfig.Kafka(_, _, _, headers, _) => attributesFromFields(headers)
+      case _ => _ => Map.empty
     }
 
-  private def attributesFromFields(fields: Map[String, Field])(ee: EnrichedEvent): Map[String, String] =
-    fields.flatMap {
-      case (k, f) =>
-        Option(f.get(ee)).map(v => k -> v.toString)
+  private[config] def attributesFromFields(attributes: Set[String]): EnrichedEvent => Map[String, String] = {
+    val fields = ParsedConfigs.enrichedFieldsMap.filter {
+      case (s, _) =>
+        attributes.contains(s)
     }
+    (ee: EnrichedEvent) =>
+      fields.flatMap {
+        case (k, f) =>
+          Option(f.get(ee)).map(v => k -> v.toString)
+      }
+  }
+
+  private[config] def outputPartitionKey(output: OutputConfig): EnrichedEvent => String =
+    output match {
+      case OutputConfig.Kafka(_, _, partitionKey, _, _) => partitionKeyFromFields(partitionKey)
+      case OutputConfig.Kinesis(_, _, Some(partitionKey), _, _, _, _, _) => partitionKeyFromFields(partitionKey)
+      case _ => _ => UUID.randomUUID().toString
+    }
+
+  private[config] def partitionKeyFromFields(partitionKey: String): EnrichedEvent => String =
+    ParsedConfigs.enrichedFieldsMap.get(partitionKey).fold[EnrichedEvent => String](_ => UUID.randomUUID().toString) { f => ee =>
+      Option(f.get(ee)).fold(UUID.randomUUID().toString)(_.toString)
+    }
+
+  /** Checks if partitionKey is a valid enriched event field name */
+  private[config] def isValidPartitionKey(partitionKey: String): Boolean =
+    ParsedConfigs.enrichedFieldsMap.contains(partitionKey)
+
+  /** Filters attributes' members which are not valid enriched event field names */
+  private[config] def filterInvalidAttributes(attributes: Set[String]): Set[String] =
+    attributes.filterNot(ParsedConfigs.enrichedFieldsMap.contains)
 }

@@ -105,6 +105,12 @@ object io {
 
   object Input {
 
+    case class Kafka private (
+      topicName: String,
+      bootstrapServers: String,
+      consumerConf: Map[String, String]
+    ) extends Input
+
     case class PubSub private (
       subscription: String,
       parallelPullCount: Int,
@@ -215,6 +221,8 @@ object io {
               case _ =>
                 s"Subscription must conform projects/project-name/subscriptions/subscription-name format, $s given".asLeft
             }
+          case Kafka(topicName, bootstrapServers, _) if topicName.isEmpty ^ bootstrapServers.isEmpty =>
+            "Both topicName and bootstrapServers have to be set".asLeft
           case other => other.asRight
         }
         .emap {
@@ -246,6 +254,15 @@ object io {
   sealed trait Output
 
   object Output {
+
+    case class Kafka private (
+      topicName: String,
+      bootstrapServers: String,
+      partitionKey: String,
+      headers: Set[String],
+      producerConf: Map[String, String]
+    ) extends Output
+
     case class PubSub private (
       topic: String,
       attributes: Option[Set[String]],
@@ -284,6 +301,8 @@ object io {
     implicit val outputDecoder: Decoder[Output] =
       deriveConfiguredDecoder[Output]
         .emap {
+          case Kafka(topicName, bootstrapServers, _, _, _) if topicName.isEmpty ^ bootstrapServers.isEmpty =>
+            "Both topicName and bootstrapServers have to be set".asLeft
           case s @ PubSub(top, _, _, _, _) if top.nonEmpty =>
             top.split("/").toList match {
               case List("projects", _, "topics", _) =>
@@ -296,6 +315,12 @@ object io {
           case other => other.asRight
         }
         .emap {
+          case Kafka(_, _, pk, _, _) if pk.nonEmpty && !ParsedConfigs.isValidPartitionKey(pk) =>
+            s"Kafka partition key [$pk] is invalid".asLeft
+          case ka: Kafka if ka.headers.nonEmpty =>
+            val invalidAttrs = ParsedConfigs.filterInvalidAttributes(ka.headers)
+            if (invalidAttrs.nonEmpty) s"Kafka headers [${invalidAttrs.mkString(",")}] are invalid".asLeft
+            else ka.asRight
           case p: PubSub if p.delayThreshold < Duration.Zero =>
             "PubSub delay threshold cannot be less than 0".asLeft
           case p: PubSub if p.maxBatchSize < 0 =>

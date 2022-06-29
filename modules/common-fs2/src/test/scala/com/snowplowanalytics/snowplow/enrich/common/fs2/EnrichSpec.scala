@@ -201,8 +201,9 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
           bad <- test.bad
         } yield {
           good should beLike {
-            case Vector(AttributedData(bytes, attrs)) =>
+            case Vector(AttributedData(bytes, pk, attrs)) =>
               bytes must not be empty
+              pk must beEqualTo("test_good_partition_key")
               attrs must contain(exactly("app_id" -> "test_app"))
           }
 
@@ -229,14 +230,16 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
         } yield {
 
           good should beLike {
-            case Vector(AttributedData(bytes, attrs)) =>
+            case Vector(AttributedData(bytes, pk, attrs)) =>
               bytes must not be empty
+              pk must beEqualTo("test_good_partition_key")
               attrs must contain(exactly("app_id" -> "test_app"))
           }
 
           pii should beLike {
-            case Vector(AttributedData(bytes, attrs)) =>
+            case Vector(AttributedData(bytes, pk, attrs)) =>
               bytes must not be empty
+              pk must beEqualTo("test_pii_partition_key")
               attrs must contain(exactly("platform" -> "srv"))
           }
 

@@ -167,6 +167,8 @@ object TestEnvironment extends CatsIO {
                       metrics,
                       metadata,
                       None,
+                      _ => "test_good_partition_key",
+                      _ => "test_pii_partition_key",
                       _ => Map.empty,
                       _ => Map.empty,
                       Telemetry(true, 1.minute, "POST", "foo.bar", 1234, true, None, None, None, None, None),

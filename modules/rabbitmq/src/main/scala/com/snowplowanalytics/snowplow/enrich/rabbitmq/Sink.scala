@@ -41,7 +41,7 @@ object Sink {
   ): Resource[F, ByteSink[F]] =
     for {
       sink <- initAttributed(blocker, output)
-    } yield records => sink(records.map(AttributedData(_, Map.empty)))
+    } yield records => sink(records.map(AttributedData(_, "", Map.empty)))
 
   def initAttributed[F[_]: ConcurrentEffect: ContextShift: Parallel: Sync: Timer](
     blocker: Blocker,

@@ -151,6 +151,31 @@ lazy val kinesisDistroless = project
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(commonFs2)
 
+lazy val kafka = project
+  .in(file("modules/kafka"))
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
+  .settings(kafkaBuildSettings)
+  .settings(libraryDependencies ++= kafkaDependencies ++ Seq(
+    // integration test dependencies
+    specs2CEIt,
+    specs2ScalacheckIt
+  ))
+  .settings(excludeDependencies ++= exclusions)
+  .settings(Defaults.itSettings)
+  .configs(IntegrationTest)
+  .settings(addCompilerPlugin(betterMonadicFor))
+  .dependsOn(commonFs2)
+
+lazy val kafkaDistroless = project
+  .in(file("modules/distroless/kafka"))
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin, LauncherJarPlugin)
+  .settings(sourceDirectory := (kafka / sourceDirectory).value)
+  .settings(kafkaDistrolessBuildSettings)
+  .settings(libraryDependencies ++= kafkaDependencies)
+  .settings(excludeDependencies ++= exclusions)
+  .settings(addCompilerPlugin(betterMonadicFor))
+  .dependsOn(commonFs2)
+
 lazy val bench = project
   .in(file("modules/bench"))
   .dependsOn(pubsub % "test->test")

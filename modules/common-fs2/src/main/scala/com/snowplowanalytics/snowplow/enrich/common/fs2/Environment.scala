@@ -83,6 +83,8 @@ import java.util.concurrent.TimeoutException
  * @param metrics             common counters
  * @param metadata            metadata aggregations
  * @param assetsUpdatePeriod  time after which enrich assets should be refresh
+ * @param goodPartitionKey    field from an enriched event to use as output partition key
+ * @param piiPartitionKey     field from a PII event to use as output partition key
  * @param goodAttributes      fields from an enriched event to use as output message attributes
  * @param piiAttributes       fields from a PII event to use as output message attributes
  * @param telemetryConfig     configuration for telemetry
@@ -114,6 +116,8 @@ final case class Environment[F[_], A](
   metrics: Metrics[F],
   metadata: Metadata[F],
   assetsUpdatePeriod: Option[FiniteDuration],
+  goodPartitionKey: EnrichedEvent => String,
+  piiPartitionKey: EnrichedEvent => String,
   goodAttributes: EnrichedEvent => Map[String, String],
   piiAttributes: EnrichedEvent => Map[String, String],
   telemetryConfig: TelemetryConfig,
@@ -212,6 +216,8 @@ object Environment {
       metrics,
       metadata,
       file.assetsUpdatePeriod,
+      parsedConfigs.goodPartitionKey,
+      parsedConfigs.piiPartitionKey,
       parsedConfigs.goodAttributes,
       parsedConfigs.piiAttributes,
       file.telemetry,

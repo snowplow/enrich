@@ -82,8 +82,7 @@ object KinesisRun {
           } :: acc
       }
       .parTraverse_ { record =>
-        Sync[F]
-          .delay(record.checkpointer.checkpoint)
+        record.checkpoint
           .recoverWith {
             // The ShardRecordProcessor instance has been shutdown. This just means another KCL
             // worker has stolen our lease. It is expected during autoscaling of instances, and is

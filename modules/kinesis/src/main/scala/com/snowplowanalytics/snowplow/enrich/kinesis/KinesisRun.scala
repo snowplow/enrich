@@ -20,7 +20,12 @@ import cats.implicits._
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.ExecutionContext
 
+import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
+
 import fs2.aws.kinesis.CommittableRecord
+
+import software.amazon.kinesis.exceptions.ShutdownException
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Run
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Telemetry
@@ -31,6 +36,9 @@ object KinesisRun {
 
   // Kinesis records must not exceed 1MB
   private val MaxRecordSize = 1000000
+
+  private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
+    Slf4jLogger.getLogger[F]
 
   def run[F[_]: Clock: ConcurrentEffect: ContextShift: Parallel: Timer](args: List[String], ec: ExecutionContext): F[ExitCode] =
     Run.run[F, CommittableRecord](
@@ -73,5 +81,15 @@ object KinesisRun {
               biggest
           } :: acc
       }
-      .parTraverse_(record => Sync[F].delay(record.checkpointer.checkpoint))
+      .parTraverse_ { record =>
+        Sync[F]
+          .delay(record.checkpointer.checkpoint)
+          .recoverWith {
+            // The ShardRecordProcessor instance has been shutdown. This just means another KCL
+            // worker has stolen our lease. It is expected during autoscaling of instances, and is
+            // safe to ignore.
+            case _: ShutdownException =>
+              Logger[F].warn(s"Skipping checkpointing of shard ${record.shardId} because this worker no longer owns the lease")
+          }
+      }
 }

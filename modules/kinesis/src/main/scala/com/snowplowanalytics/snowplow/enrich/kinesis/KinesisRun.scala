@@ -22,6 +22,8 @@ import scala.concurrent.ExecutionContext
 
 import fs2.aws.kinesis.CommittableRecord
 
+import software.amazon.kinesis.exceptions.ShutdownException
+
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Run
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Telemetry
 
@@ -73,5 +75,14 @@ object KinesisRun {
               biggest
           } :: acc
       }
-      .parTraverse_(record => Sync[F].delay(record.checkpointer.checkpoint))
+      .parTraverse_ { record =>
+        Sync[F]
+          .delay(record.checkpointer.checkpoint)
+          .recover {
+            // The ShardRecordProcessor instance has been shutdown. This just means another KCL
+            // worker has stolen our lease. It is expected during autoscaling of instances, and is
+            // safe to ignore.
+            case _: ShutdownException => ()
+          }
+      }
 }

@@ -1,3 +1,8 @@
+3.2.1 (2022-07-04)
+------------------
+enrich-kinesis: Checkpoint only fully processed records (close #652)
+enrich-kinesis: Recover from losing lease to a new worker (close #649)
+
 3.2.0 (2022-06-28)
 ------------------
 Publish distroless docker image (#605)

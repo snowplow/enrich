@@ -27,6 +27,8 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.Enrichm
 import org.joda.money.CurrencyUnit
 import org.joda.time.DateTime
 
+import java.math.BigDecimal
+
 import org.specs2.Specification
 
 class CurrencyConversionEnrichmentSpec extends Specification {
@@ -178,7 +180,7 @@ class CurrencyConversionEnrichmentSpec extends Specification {
         None,
         Some(coTstamp)
       )
-    val expected: Result = (Some(12.75), None, None, None).valid
+    val expected: Result = (Some(new BigDecimal("12.75")), None, None, None).valid
     val actual = runEnrichment(input)
     actual must beEqualTo(expected)
   }
@@ -194,7 +196,7 @@ class CurrencyConversionEnrichmentSpec extends Specification {
         None,
         Some(coTstamp)
       )
-    val expected: Result = (None, Some(3.09), Some(0.00), None).valid
+    val expected: Result = (None, Some(new BigDecimal("3.09")), Some(new BigDecimal("0.00")), None).valid
     val actual = runEnrichment(input)
     actual must beEqualTo(expected)
   }
@@ -210,7 +212,7 @@ class CurrencyConversionEnrichmentSpec extends Specification {
         Some(12.99),
         Some(coTstamp)
       )
-    val expected: Result = (None, None, None, Some(15.05)).valid
+    val expected: Result = (None, None, None, Some(new BigDecimal("15.05"))).valid
     val actual = runEnrichment(input)
     actual must beEqualTo(expected)
   }
@@ -226,7 +228,7 @@ class CurrencyConversionEnrichmentSpec extends Specification {
         None,
         Some(coTstamp)
       )
-    val expected: Result = (Some(12.75), Some(3.09), Some(0.00), None).valid
+    val expected: Result = (Some(new BigDecimal("12.75")), Some(new BigDecimal("3.09")), Some(new BigDecimal("0.00")), None).valid
     val actual = runEnrichment(input)
     actual must beEqualTo(expected)
   }
@@ -243,7 +245,7 @@ class CurrencyConversionEnrichmentSpec extends Specification {
         Some(coTstamp)
       )
     val expected: Result =
-      (None, None, None, Some(12.74)).valid
+      (None, None, None, Some(new BigDecimal("12.74"))).valid
     val actual = runEnrichment(input)
     actual must beEqualTo(expected)
   }
@@ -277,10 +279,10 @@ class CurrencyConversionEnrichmentSpec extends Specification {
       )
     val expected: Result =
       (
-        Some(11.00),
-        Some(2.67),
-        Some(0.00),
-        Some(12.99)
+        Some(new BigDecimal("11.00")),
+        Some(new BigDecimal("2.67")),
+        Some(new BigDecimal("0.00")),
+        Some(new BigDecimal("12.99"))
       ).valid
     val actual = runEnrichment(input)
     actual must beEqualTo(expected)
@@ -297,7 +299,7 @@ class CurrencyConversionEnrichmentSpec extends Specification {
         Some(10.00),
         Some(coTstamp)
       )
-    val expected: Result = (Some(18.54), Some(3.09), Some(0.00), None).valid
+    val expected: Result = (Some(new BigDecimal("18.54")), Some(new BigDecimal("3.09")), Some(new BigDecimal("0.00")), None).valid
     val actual = runEnrichment(input)
     actual must beEqualTo(expected)
   }
@@ -314,7 +316,7 @@ object CurrencyConversionEnrichmentSpec {
     )
   type Result = ValidatedNel[
     FailureDetails.EnrichmentFailure,
-    (Option[Double], Option[Double], Option[Double], Option[Double])
+    (Option[BigDecimal], Option[BigDecimal], Option[BigDecimal], Option[BigDecimal])
   ]
   val schemaKey = SchemaKey("vendor", "name", "format", SchemaVer.Full(1, 0, 0))
   val ef: FailureDetails.EnrichmentFailureMessage => FailureDetails.EnrichmentFailure = m =>

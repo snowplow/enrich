@@ -626,18 +626,18 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         .reduce(_ and _)
     }
 
-    "emit an EnrichedEvent for valid float fields" >> {
-      val floats = List("42", "42.5", "null")
+    "emit an EnrichedEvent for valid decimal fields" >> {
+      val decimals = List("42", "42.5", "null")
       val fields = List("ev_va", "se_va", "tr_tt", "tr_tx", "tr_sh", "ti_pr")
 
-      floats
-        .flatMap { float =>
+      decimals
+        .flatMap { decimal =>
           fields.map { field =>
             val parameters = Map(
               "e" -> "ue",
               "tv" -> "js-0.13.1",
               "p" -> "web",
-              field -> float
+              field -> decimal
             ).toOpt
             val rawEvent = RawEvent(api, parameters, None, source, context)
             val enriched = EnrichmentManager.enrichEvent[Id](
@@ -650,6 +650,34 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
               AcceptInvalid.countInvalid
             )
             enriched.value must beRight
+          }
+        }
+        .reduce(_ and _)
+    }
+
+    "create an EnrichedEvent with correct BigInteger field values" >> {
+      val decimals = List("42", "42.5", "137777104559", "-137777104559")
+
+      decimals
+        .map { decimal =>
+          val parameters = Map(
+            "e" -> "ue",
+            "tv" -> "js-0.13.1",
+            "p" -> "web",
+            "ev_va" -> decimal
+          ).toOpt
+          val rawEvent = RawEvent(api, parameters, None, source, context)
+          val enriched = EnrichmentManager.enrichEvent[Id](
+            enrichmentReg,
+            client,
+            processor,
+            timestamp,
+            rawEvent,
+            AcceptInvalid.featureFlags,
+            AcceptInvalid.countInvalid
+          )
+          enriched.value must beRight { ee: EnrichedEvent =>
+            ee.se_value.toString must_== decimal
           }
         }
         .reduce(_ and _)

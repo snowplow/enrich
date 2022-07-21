@@ -15,6 +15,7 @@ package com.snowplowanalytics.snowplow.enrich.common.outputs
 import java.lang.{Integer => JInteger}
 import java.lang.{Float => JFloat}
 import java.lang.{Byte => JByte}
+import java.math.{BigDecimal => JBigDecimal}
 import java.time.format.DateTimeFormatter
 
 import scala.beans.BeanProperty
@@ -126,7 +127,7 @@ class EnrichedEvent extends Serializable {
   @BeanProperty var se_action: String = _
   @BeanProperty var se_label: String = _
   @BeanProperty var se_property: String = _
-  @BeanProperty var se_value: JFloat = _
+  @BeanProperty var se_value: JBigDecimal = _
 
   // Unstructured Event
   @BeanProperty var unstruct_event: String = _
@@ -134,9 +135,9 @@ class EnrichedEvent extends Serializable {
   // Ecommerce transaction (from querystring)
   @BeanProperty var tr_orderid: String = _
   @BeanProperty var tr_affiliation: String = _
-  @BeanProperty var tr_total: JFloat = _
-  @BeanProperty var tr_tax: JFloat = _
-  @BeanProperty var tr_shipping: JFloat = _
+  @BeanProperty var tr_total: JBigDecimal = _
+  @BeanProperty var tr_tax: JBigDecimal = _
+  @BeanProperty var tr_shipping: JBigDecimal = _
   @BeanProperty var tr_city: String = _
   @BeanProperty var tr_state: String = _
   @BeanProperty var tr_country: String = _
@@ -146,7 +147,7 @@ class EnrichedEvent extends Serializable {
   @BeanProperty var ti_sku: String = _
   @BeanProperty var ti_name: String = _
   @BeanProperty var ti_category: String = _
-  @BeanProperty var ti_price: JFloat = _
+  @BeanProperty var ti_price: JBigDecimal = _
   @BeanProperty var ti_quantity: JInteger = _
 
   // Page Pings
@@ -203,11 +204,11 @@ class EnrichedEvent extends Serializable {
 
   // Currency
   @BeanProperty var tr_currency: String = _
-  @BeanProperty var tr_total_base: JFloat = _
-  @BeanProperty var tr_tax_base: JFloat = _
-  @BeanProperty var tr_shipping_base: JFloat = _
+  @BeanProperty var tr_total_base: JBigDecimal = _
+  @BeanProperty var tr_tax_base: JBigDecimal = _
+  @BeanProperty var tr_shipping_base: JBigDecimal = _
   @BeanProperty var ti_currency: String = _
-  @BeanProperty var ti_price_base: JFloat = _
+  @BeanProperty var ti_price_base: JBigDecimal = _
   @BeanProperty var base_currency: String = _
 
   // Geolocation
@@ -268,6 +269,7 @@ object EnrichedEvent {
   private def toKv(k: String, i: JInteger): Option[(String, Json)] = toKv(k, i, (jInt: JInteger) => Json.fromInt(jInt))
   private def toKv(k: String, f: JFloat): Option[(String, Json)] = toKv(k, f, (jFloat: JFloat) => Json.fromFloatOrNull(jFloat))
   private def toKv(k: String, b: JByte): Option[(String, Json)] = toKv(k, b, (jByte: JByte) => Json.fromBoolean(jByte != 0))
+  private def toKv(k: String, b: JBigDecimal): Option[(String, Json)] = toKv(k, b, (jNum: JBigDecimal) => Json.fromBigDecimal(jNum))
   private def toDateKv(k: String, s: String): Option[(String, Json)] =
     toKv(
       k,

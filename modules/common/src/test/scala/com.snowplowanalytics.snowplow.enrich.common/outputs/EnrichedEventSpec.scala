@@ -18,6 +18,7 @@ package com.snowplowanalytics.snowplow.enrich.common.outputs
 import java.lang.{Integer => JInteger}
 import java.lang.{Float => JFloat}
 import java.lang.{Byte => JByte}
+import java.math.{BigDecimal => JBigDecimal}
 
 import com.snowplowanalytics.snowplow.badrows.Payload.PartiallyEnrichedEvent
 import org.specs2.mutable.Specification
@@ -97,13 +98,13 @@ class EnrichedEventSpec extends Specification {
       testField(_.se_action = "se_action", _.se_action)
       testField(_.se_label = "se_label", _.se_label)
       testField(_.se_property = "se_property", _.se_property)
-      testField(_.se_value = JFloat.valueOf("0.0"), _.se_value)
+      testField(_.se_value = new JBigDecimal("0.0"), _.se_value)
       testField(_.unstruct_event = "unstruct_event", _.unstruct_event)
       testField(_.tr_orderid = "tr_orderid", _.tr_orderid)
       testField(_.tr_affiliation = "tr_affiliation", _.tr_affiliation)
-      testField(_.tr_total = JFloat.valueOf("0.0"), _.tr_total)
-      testField(_.tr_tax = JFloat.valueOf("0.0"), _.tr_tax)
-      testField(_.tr_shipping = JFloat.valueOf("0.0"), _.tr_shipping)
+      testField(_.tr_total = new JBigDecimal("0.0"), _.tr_total)
+      testField(_.tr_tax = new JBigDecimal("0.0"), _.tr_tax)
+      testField(_.tr_shipping = new JBigDecimal("0.0"), _.tr_shipping)
       testField(_.tr_city = "tr_city", _.tr_city)
       testField(_.tr_state = "tr_state", _.tr_state)
       testField(_.tr_country = "tr_country", _.tr_country)
@@ -111,7 +112,7 @@ class EnrichedEventSpec extends Specification {
       testField(_.ti_sku = "ti_sku", _.ti_sku)
       testField(_.ti_name = "ti_name", _.ti_name)
       testField(_.ti_category = "ti_category", _.ti_category)
-      testField(_.ti_price = JFloat.valueOf("0.0"), _.ti_price)
+      testField(_.ti_price = new JBigDecimal("0.0"), _.ti_price)
       testField(_.ti_quantity = JInteger.valueOf(0), _.ti_quantity)
       testField(_.pp_xoffset_min = JInteger.valueOf(0), _.pp_xoffset_min)
       testField(_.pp_xoffset_max = JInteger.valueOf(0), _.pp_xoffset_max)
@@ -149,11 +150,11 @@ class EnrichedEventSpec extends Specification {
       testField(_.doc_width = JInteger.valueOf(0), _.doc_width)
       testField(_.doc_height = JInteger.valueOf(0), _.doc_height)
       testField(_.tr_currency = "tr_currency", _.tr_currency)
-      testField(_.tr_total_base = JFloat.valueOf("0.0"), _.tr_total_base)
-      testField(_.tr_tax_base = JFloat.valueOf("0.0"), _.tr_tax_base)
-      testField(_.tr_shipping_base = JFloat.valueOf("0.0"), _.tr_shipping_base)
+      testField(_.tr_total_base = new JBigDecimal("0.0"), _.tr_total_base)
+      testField(_.tr_tax_base = new JBigDecimal("0.0"), _.tr_tax_base)
+      testField(_.tr_shipping_base = new JBigDecimal("0.0"), _.tr_shipping_base)
       testField(_.ti_currency = "ti_currency", _.ti_currency)
-      testField(_.ti_price_base = JFloat.valueOf("0.0"), _.ti_price_base)
+      testField(_.ti_price_base = new JBigDecimal("0.0"), _.ti_price_base)
       testField(_.base_currency = "base_currency", _.base_currency)
       testField(_.geo_timezone = "geo_timezone", _.geo_timezone)
       testField(_.mkt_clickid = "mkt_clickid", _.mkt_clickid)

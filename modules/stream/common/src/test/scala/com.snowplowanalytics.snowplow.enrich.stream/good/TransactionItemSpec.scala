@@ -98,7 +98,7 @@ object TransactionItemSpec {
     "1002",
     "Red shoes",
     "",
-    "4000.0",
+    "4000",
     "1",
     "",
     "",

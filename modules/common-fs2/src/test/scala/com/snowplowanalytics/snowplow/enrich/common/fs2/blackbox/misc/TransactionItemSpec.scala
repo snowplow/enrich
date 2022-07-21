@@ -40,7 +40,7 @@ class TransactionItemSpec extends Specification with CatsIO {
         "ti_quantity" -> "2",
         "ti_currency" -> "",
         "ti_category" -> "APPAREL",
-        "ti_price" -> "2000.0",
+        "ti_price" -> "2000",
         "ti_price_base" -> ""
       )
       BlackBoxTesting.runTest(input, expected)

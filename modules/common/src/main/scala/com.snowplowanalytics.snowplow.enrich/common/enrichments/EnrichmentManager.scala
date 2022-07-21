@@ -484,40 +484,36 @@ object EnrichmentManager {
         currencyConversion match {
           case Some(currency) =>
             event.base_currency = currency.baseCurrency.getCode
-            // Note that jFloatToDouble is applied to either-valid-or-null event POJO
+            // Note that jBigDecimalToDouble is applied to either-valid-or-null event POJO
             // properties, so we don't expect any of these four vals to be a Failure
-            val trTax = CU.jFloatToDouble("tr_tx", event.tr_tax).toValidatedNel
-            val tiPrice = CU.jFloatToDouble("ti_pr", event.ti_price).toValidatedNel
-            val trTotal = CU.jFloatToDouble("tr_tt", event.tr_total).toValidatedNel
-            val trShipping = CU.jFloatToDouble("tr_sh", event.tr_shipping).toValidatedNel
-            (for {
-              convertedCu <- EitherT(
-                               (trTotal, trTax, trShipping, tiPrice)
-                                 .mapN {
-                                   currency.convertCurrencies(
-                                     Option(event.tr_currency),
-                                     _,
-                                     _,
-                                     _,
-                                     Option(event.ti_currency),
-                                     _,
-                                     timestamp
-                                   )
-                                 }
-                                 .toEither
-                                 .sequence
-                                 .map(_.flatMap(_.toEither))
-                             )
-              trTotalBase <- EitherT.fromEither[F](CU.doubleToJFloat("tr_total_base ", convertedCu._1).leftMap(e => NonEmptyList.one(e)))
-              _ = trTotalBase.map(t => event.tr_total_base = t)
-              trTaxBase <- EitherT.fromEither[F](CU.doubleToJFloat("tr_tax_base ", convertedCu._2).leftMap(e => NonEmptyList.one(e)))
-              _ = trTaxBase.map(t => event.tr_tax_base = t)
-              trShippingBase <-
-                EitherT.fromEither[F](CU.doubleToJFloat("tr_shipping_base ", convertedCu._3).leftMap(e => NonEmptyList.one(e)))
-              _ = trShippingBase.map(t => event.tr_shipping_base = t)
-              tiPriceBase <- EitherT.fromEither[F](CU.doubleToJFloat("ti_price_base ", convertedCu._4).leftMap(e => NonEmptyList.one(e)))
-              _ = tiPriceBase.map(t => event.ti_price_base = t)
-            } yield List.empty[SelfDescribingData[Json]]).value
+            val trTax = CU.jBigDecimalToDouble("tr_tx", event.tr_tax).toValidatedNel
+            val tiPrice = CU.jBigDecimalToDouble("ti_pr", event.ti_price).toValidatedNel
+            val trTotal = CU.jBigDecimalToDouble("tr_tt", event.tr_total).toValidatedNel
+            val trShipping = CU.jBigDecimalToDouble("tr_sh", event.tr_shipping).toValidatedNel
+            EitherT(
+              (trTotal, trTax, trShipping, tiPrice)
+                .mapN {
+                  currency.convertCurrencies(
+                    Option(event.tr_currency),
+                    _,
+                    _,
+                    _,
+                    Option(event.ti_currency),
+                    _,
+                    timestamp
+                  )
+                }
+                .toEither
+                .sequence
+                .map(_.flatMap(_.toEither))
+            ).map {
+              case (trTotalBase, trTaxBase, trShippingBase, tiPriceBase) =>
+                trTotalBase.foreach(v => event.tr_total_base = v)
+                trTaxBase.foreach(v => event.tr_tax_base = v)
+                trShippingBase.foreach(v => event.tr_shipping_base = v)
+                tiPriceBase.foreach(v => event.ti_price_base = v)
+                List.empty[SelfDescribingData[Json]]
+            }.value
           case None => Monad[F].pure(Nil.asRight)
         }
     }

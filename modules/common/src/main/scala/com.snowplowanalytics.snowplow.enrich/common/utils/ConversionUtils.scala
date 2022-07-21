@@ -13,7 +13,7 @@
 package com.snowplowanalytics.snowplow.enrich.common
 package utils
 
-import java.lang.{Byte => JByte, Float => JFloat, Integer => JInteger}
+import java.lang.{Byte => JByte, Integer => JInteger}
 import java.lang.reflect.Field
 import java.math.{BigDecimal => JBigDecimal}
 import java.net.{InetAddress, URI, URLDecoder, URLEncoder}
@@ -345,21 +345,28 @@ object ConversionUtils {
         FailureDetails.EnrichmentFailure(None, f)
       }
 
-  val stringToJFloat: String => Either[String, JFloat] = str =>
+  val stringToJBigDecimal: String => Either[String, JBigDecimal] = str =>
     Option(str) match {
       case None =>
-        null.asInstanceOf[JFloat].asRight
+        null.asInstanceOf[JBigDecimal].asRight
       case Some(s) if s.toLowerCase == "null" =>
-        null.asInstanceOf[JFloat].asRight
+        null.asInstanceOf[JBigDecimal].asRight
       case Some(s) =>
         Either
-          .catchNonFatal(JFloat.valueOf(s))
-          .leftMap(e => s"cannot be converted to java.lang.Float. Error : ${e.getMessage}")
+          .catchNonFatal(new JBigDecimal(s))
+          .flatMap { bd =>
+            if (bd.scale < 0)
+              // Make sure the big integer will be serialized without scientific notation
+              Either.catchNonFatal(bd.setScale(0))
+            else
+              Right(bd)
+          }
+          .leftMap(e => s"cannot be converted to java.math.BigDecimal. Error : ${e.getMessage}")
     }
 
-  val stringToJFloat2: (String, String) => Either[FailureDetails.EnrichmentFailure, JFloat] =
+  val stringToJBigDecimal2: (String, String) => Either[FailureDetails.EnrichmentFailure, JBigDecimal] =
     (field, str) =>
-      stringToJFloat(str).leftMap { e =>
+      stringToJBigDecimal(str).leftMap { e =>
         val f = FailureDetails.EnrichmentFailureMessage.InputData(
           field,
           Option(str),
@@ -426,11 +433,11 @@ object ConversionUtils {
         )
       )
 
-  /** Convert a java Float a Double */
-  def jFloatToDouble(field: String, f: JFloat): Either[FailureDetails.EnrichmentFailure, Option[Double]] =
+  /** Convert a java BigDecimal a Double */
+  def jBigDecimalToDouble(field: String, f: JBigDecimal): Either[FailureDetails.EnrichmentFailure, Option[Double]] =
     Either
       .catchNonFatal {
-        Option(f).map(_.toDouble)
+        Option(f).map(_.doubleValue)
       }
       .leftMap(_ =>
         FailureDetails.EnrichmentFailure(
@@ -443,11 +450,11 @@ object ConversionUtils {
         )
       )
 
-  /** Convert a Double to a java Float */
-  def doubleToJFloat(field: String, d: Option[Double]): Either[FailureDetails.EnrichmentFailure, Option[JFloat]] =
+  /** Convert a Double to a java BigDecimal */
+  def doubleToJBigDecimal(field: String, d: Option[Double]): Either[FailureDetails.EnrichmentFailure, Option[JBigDecimal]] =
     Either
       .catchNonFatal {
-        d.map(dd => JFloat.valueOf(dd.toFloat))
+        d.map(dd => new JBigDecimal(dd))
       }
       .leftMap(_ =>
         FailureDetails.EnrichmentFailure(
@@ -455,7 +462,7 @@ object ConversionUtils {
           FailureDetails.EnrichmentFailureMessage.InputData(
             field,
             d.map(_.toString),
-            "cannot be converted to java Float"
+            "cannot be converted to java BigDecimal"
           )
         )
       )

@@ -183,6 +183,7 @@ object Input {
     "java.lang.Integer" -> IntPlaceholder,
     "java.lang.Byte" -> BytePlaceholder,
     "java.lang.Float" -> FloatPlaceholder,
+    "java.math.BigDecimal" -> BigDecimalPlaceholder,
     // Just in case
     "String" -> StringPlaceholder,
     "scala.Int" -> IntPlaceholder,
@@ -368,5 +369,12 @@ object Input {
     type PlaceholderType = Long
     def getSetter(preparedStatement: PreparedStatement) =
       preparedStatement.setLong
+  }
+
+  object BigDecimalPlaceholder extends StatementPlaceholder {
+    type PlaceholderType = BigDecimal
+    def getSetter(preparedStatement: PreparedStatement) = { (i, v) =>
+      preparedStatement.setDouble(i, v.doubleValue)
+    }
   }
 }

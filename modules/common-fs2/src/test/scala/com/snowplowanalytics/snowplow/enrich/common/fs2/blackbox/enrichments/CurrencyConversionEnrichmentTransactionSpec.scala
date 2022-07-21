@@ -22,7 +22,7 @@ import cats.syntax.option._
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.blackbox.BlackBoxTesting
 
-class CurrencyConversionEnrichmentTransactionpec extends Specification with CatsIO {
+class CurrencyConversionEnrichmentTransactionSpec extends Specification with CatsIO {
 
   args(skipAll = !sys.env.contains("OER_KEY"))
 
@@ -44,12 +44,12 @@ class CurrencyConversionEnrichmentTransactionpec extends Specification with Cats
         "base_currency" -> "EUR",
         "tr_currency" -> "USD",
         "tr_affiliation" -> "pb",
-        "tr_total" -> "8000.0",
+        "tr_total" -> "8000",
         "tr_total_base" -> "7087.49",
-        "tr_tax" -> "200.0",
+        "tr_tax" -> "200",
         "tr_tax_base" -> "177.19",
-        "tr_shipping" -> "50.0",
-        "tr_shipping_base" -> "44.3",
+        "tr_shipping" -> "50",
+        "tr_shipping_base" -> "44.30",
         "tr_orderid" -> "order-123",
         "tr_state" -> "England",
         "txn_id" -> "28288",

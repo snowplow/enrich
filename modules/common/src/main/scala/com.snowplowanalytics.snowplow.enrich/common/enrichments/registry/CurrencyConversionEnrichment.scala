@@ -14,6 +14,7 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.time.ZonedDateTime
 import java.io.{PrintWriter, StringWriter}
+import java.math.BigDecimal
 
 import cats.Monad
 import cats.data.{EitherT, NonEmptyList, ValidatedNel}
@@ -117,7 +118,7 @@ final case class CurrencyConversionEnrichment[F[_]: Monad](
     initialCurrency: Option[Either[FailureDetails.EnrichmentFailure, CurrencyUnit]],
     value: Option[Double],
     tstamp: ZonedDateTime
-  ): F[Either[FailureDetails.EnrichmentFailure, Option[Double]]] =
+  ): F[Either[FailureDetails.EnrichmentFailure, Option[BigDecimal]]] =
     (initialCurrency, value) match {
       case (Some(ic), Some(v)) =>
         (for {
@@ -132,7 +133,7 @@ final case class CurrencyConversionEnrichment[F[_]: Monad](
                      _.bimap(
                        l => mkEnrichmentFailure(Right(l)),
                        r =>
-                         Either.catchNonFatal(r.getAmount().doubleValue) match {
+                         Either.catchNonFatal(r.getAmount()) match {
                            case Left(e) =>
                              Left(mkEnrichmentFailure(Left(e)))
                            case Right(a) =>
@@ -166,7 +167,7 @@ final case class CurrencyConversionEnrichment[F[_]: Monad](
     collectorTstamp: Option[DateTime]
   ): F[ValidatedNel[
     FailureDetails.EnrichmentFailure,
-    (Option[Double], Option[Double], Option[Double], Option[Double])
+    (Option[BigDecimal], Option[BigDecimal], Option[BigDecimal], Option[BigDecimal])
   ]] =
     collectorTstamp match {
       case Some(tstamp) =>

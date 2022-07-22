@@ -43,8 +43,8 @@
 
       # Optional. Maximum number of bytes sent within a batch.
       # When the buffer reaches this size messages are sent.
-      # PubSub maximum : 10MB
-      "maxBatchBytes": 10000000
+      # Note the PubSub maximum is 10MB
+      "maxBatchBytes": 8000000
     }
 
     # Pii events output
@@ -70,8 +70,8 @@
 
       # Optional. Maximum number of bytes sent within a batch.
       # When the buffer reaches this size messages are sent.
-      # PubSub maximum : 10MB
-      "maxBatchBytes": 10000000
+      # Note the PubSub maximum is 10MB
+      "maxBatchBytes": 8000000
     }
 
     # Bad rows output
@@ -94,8 +94,8 @@
 
       # Optional. Maximum number of bytes sent within a batch.
       # When the buffer reaches this size messages are sent.
-      # PubSub maximum : 10MB
-      "maxBatchBytes": 10000000
+      # Note the PubSub maximum is 10MB
+      "maxBatchBytes": 8000000
     }
   }
 

@@ -354,6 +354,13 @@ object ConversionUtils {
       case Some(s) =>
         Either
           .catchNonFatal(new JBigDecimal(s))
+          .flatMap { bd =>
+            if (bd.scale < 0)
+              // Make sure the big integer will be serialized without scientific notation
+              Either.catchNonFatal(bd.setScale(0))
+            else
+              Right(bd)
+          }
           .leftMap(e => s"cannot be converted to java.math.BigDecimal. Error : ${e.getMessage}")
     }
 

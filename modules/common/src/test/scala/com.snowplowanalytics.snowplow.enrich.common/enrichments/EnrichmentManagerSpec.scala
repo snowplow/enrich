@@ -656,29 +656,40 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
     }
 
     "create an EnrichedEvent with correct BigInteger field values" >> {
-      val decimals = List("42", "42.5", "137777104559", "-137777104559")
+      val decimals = List(
+        // input, expected
+        ("42", "42"),
+        ("42.5", "42.5"),
+        ("137777104559", "137777104559"),
+        ("-137777104559", "-137777104559"),
+        ("1E7", "10000000"),
+        ("1.2E9", "1200000000"),
+        ("0.000001", "0.000001"),
+        ("0.0000001", "1E-7")
+      )
 
       decimals
-        .map { decimal =>
-          val parameters = Map(
-            "e" -> "ue",
-            "tv" -> "js-0.13.1",
-            "p" -> "web",
-            "ev_va" -> decimal
-          ).toOpt
-          val rawEvent = RawEvent(api, parameters, None, source, context)
-          val enriched = EnrichmentManager.enrichEvent[Id](
-            enrichmentReg,
-            client,
-            processor,
-            timestamp,
-            rawEvent,
-            AcceptInvalid.featureFlags,
-            AcceptInvalid.countInvalid
-          )
-          enriched.value must beRight { ee: EnrichedEvent =>
-            ee.se_value.toString must_== decimal
-          }
+        .map {
+          case (input, expected) =>
+            val parameters = Map(
+              "e" -> "ue",
+              "tv" -> "js-0.13.1",
+              "p" -> "web",
+              "ev_va" -> input
+            ).toOpt
+            val rawEvent = RawEvent(api, parameters, None, source, context)
+            val enriched = EnrichmentManager.enrichEvent[Id](
+              enrichmentReg,
+              client,
+              processor,
+              timestamp,
+              rawEvent,
+              AcceptInvalid.featureFlags,
+              AcceptInvalid.countInvalid
+            )
+            enriched.value must beRight { ee: EnrichedEvent =>
+              ee.se_value.toString must_== expected
+            }
         }
         .reduce(_ and _)
     }

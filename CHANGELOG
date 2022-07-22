@@ -1,7 +1,12 @@
+3.2.2 (2022-07-22)
+------------------
+Pubsub: Decrease maxBatchBytes defaults to 8 MB (#653)
+Common: BigDecimal instead of Float for numeric EnrichedEvent fields (#654)
+
 3.2.1 (2022-07-04)
 ------------------
-enrich-kinesis: Checkpoint only fully processed records (close #652)
-enrich-kinesis: Recover from losing lease to a new worker (close #649)
+enrich-kinesis: Checkpoint only fully processed records (#652)
+enrich-kinesis: Recover from losing lease to a new worker (#649)
 
 3.2.0 (2022-06-28)
 ------------------

@@ -37,9 +37,9 @@ class ConfigFileSpec extends Specification with CatsIO {
       val expected = ConfigFile(
         io.Input.PubSub("projects/test-project/subscriptions/collector-payloads-sub", 1, 3000),
         io.Outputs(
-          io.Output.PubSub("projects/test-project/topics/enriched", Some(Set("app_id")), 200.milliseconds, 1000, 10000000),
-          Some(io.Output.PubSub("projects/test-project/topics/pii", None, 200.milliseconds, 1000, 10000000)),
-          io.Output.PubSub("projects/test-project/topics/bad", None, 200.milliseconds, 1000, 10000000)
+          io.Output.PubSub("projects/test-project/topics/enriched", Some(Set("app_id")), 200.milliseconds, 1000, 8000000),
+          Some(io.Output.PubSub("projects/test-project/topics/pii", None, 200.milliseconds, 1000, 8000000)),
+          io.Output.PubSub("projects/test-project/topics/bad", None, 200.milliseconds, 1000, 8000000)
         ),
         io.Concurrency(256, 3),
         Some(7.days),
@@ -201,21 +201,21 @@ class ConfigFileSpec extends Specification with CatsIO {
               "topic": "projects/test-project/topics/good-topic",
               "delayThreshold": "200 milliseconds",
               "maxBatchSize": 1000,
-              "maxBatchBytes": 10000000
+              "maxBatchBytes": 8000000
             },
             "pii": {
               "type": "PubSub",
               "topic": "projects/test-project/topics/pii-topic",
               "delayThreshold": "200 milliseconds",
               "maxBatchSize": 1000,
-              "maxBatchBytes": 10000000
+              "maxBatchBytes": 8000000
             },
             "bad": {
               "type": "PubSub",
               "topic": "projects/test-project/topics/bad-topic",
               "delayThreshold": "200 milliseconds",
               "maxBatchSize": 1000,
-              "maxBatchBytes": 10000000
+              "maxBatchBytes": 8000000
             }
           },
           "concurrency": {

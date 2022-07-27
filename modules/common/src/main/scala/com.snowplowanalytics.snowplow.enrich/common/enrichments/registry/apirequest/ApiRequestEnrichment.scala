@@ -32,6 +32,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{Enrich
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.ApiRequestConf
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.{CirceUtils, HttpClient}
+import org.slf4j.LoggerFactory
 
 object ApiRequestEnrichment extends ParseableEnrichment {
   override val supportedSchema =
@@ -102,6 +103,8 @@ final case class ApiRequestEnrichment[F[_]: Monad: HttpClient](
 ) extends Enrichment {
   import ApiRequestEnrichment._
 
+  lazy val log = LoggerFactory.getLogger(getClass())
+
   private val enrichmentInfo =
     FailureDetails.EnrichmentInformation(schemaKey, "api-request").some
 
@@ -127,6 +130,20 @@ final case class ApiRequestEnrichment[F[_]: Monad: HttpClient](
         unstructEvent
       )
 
+    log.error(s"Did we find the ip? ${event.user_ipaddress} referrer? ${event.page_referrer} user agent? ${event.useragent}")
+    log.error(s"What about custom contexts? ${customContexts}")
+    log.error(s"Going to use url template ${api.uri} and method ${api.method}")
+    log.error(s"Template context: ${templateContext} derived from inputs ${inputs}") //returns none if any inputs are missing
+
+    try templateContext.foreach(cx =>
+      cx.foreach { definedCx =>
+        log.error(s"url we would use, if we made it that far ${api.buildUrl(definedCx).toList} and body ${api.buildBody(definedCx)}")
+      }
+    )
+    catch {
+      case e: Throwable => log.error(s"wow it'd be a shame if none of this worked because of some logging ${e.getMessage}")
+    }
+
     val contexts: EitherT[F, NonEmptyList[String], List[SelfDescribingData[Json]]] =
       for {
         context <- EitherT.fromEither[F](templateContext.toEither)
@@ -148,12 +165,16 @@ final case class ApiRequestEnrichment[F[_]: Monad: HttpClient](
    * @return validated list of lookups, whole lookup will be failed if any of outputs were failed
    */
   private[apirequest] def getOutputs(validInputs: Option[Map[String, String]]): EitherT[F, NonEmptyList[String], List[Json]] = {
+    // we do not expect to get here, so would be interesting to see which strings there are if we do
+    log.error(s"Enriching inputs ${validInputs}")
     val result: List[F[Either[Throwable, Json]]] =
       for {
         templateContext <- validInputs.toList
         url <- api.buildUrl(templateContext).toList
         output <- outputs
         body = api.buildBody(templateContext)
+        // we don't expect to get here either but ¯\_(ツ)_/¯
+        _ = log.error(s"going to send request with url ${url} and body ${body}")
       } yield cachedOrRequest(url, body, output)
 
     result.parTraverse { action =>

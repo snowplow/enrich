@@ -35,6 +35,8 @@ import com.snowplowanalytics.snowplow.enrich.common.utils.{CirceUtils, HttpClien
 import org.slf4j.LoggerFactory
 
 object ApiRequestEnrichment extends ParseableEnrichment {
+  lazy val log = LoggerFactory.getLogger(getClass())
+
   override val supportedSchema =
     SchemaCriterion(
       "com.snowplowanalytics.snowplow.enrichments",
@@ -56,8 +58,9 @@ object ApiRequestEnrichment extends ParseableEnrichment {
     c: Json,
     schemaKey: SchemaKey,
     localMode: Boolean = false
-  ): ValidatedNel[String, ApiRequestConf] =
-    isParseable(c, schemaKey)
+  ): ValidatedNel[String, ApiRequestConf] = {
+
+    val result = isParseable(c, schemaKey)
       .leftMap(e => NonEmptyList.one(e))
       .flatMap { _ =>
         // input ctor throws exception
@@ -77,6 +80,12 @@ object ApiRequestEnrichment extends ParseableEnrichment {
         }.toEither
       }
       .toValidated
+    if (result.isValid)
+      log.error(s"Parsed config!")
+    else
+      log.error(s"config not valid - ${result}")
+    result
+  }
 
   /**
    * Creates an UUID based on url and optional body.

@@ -18,6 +18,7 @@ import java.net.URI
 import java.util.UUID
 
 import cats.syntax.either._
+import cats.data.NonEmptyList
 
 import scala.concurrent.duration.{Duration, FiniteDuration}
 
@@ -59,19 +60,47 @@ object io {
 
   import ConfigFile.finiteDurationEncoder
 
-  case class CheckpointBackoff(
+  case class BackoffPolicy(
     minBackoff: FiniteDuration,
     maxBackoff: FiniteDuration,
     maxRetries: Int
   )
-  implicit val checkpointBackoffDecoder: Decoder[CheckpointBackoff] = deriveConfiguredDecoder[CheckpointBackoff]
-  implicit val checkpointBackoffEncoder: Encoder[CheckpointBackoff] = deriveConfiguredEncoder[CheckpointBackoff]
-
-  sealed trait RetryCheckpointing {
-    val checkpointBackoff: CheckpointBackoff
+  object BackoffPolicy {
+    implicit def backoffPolicyDecoder: Decoder[BackoffPolicy] =
+      deriveConfiguredDecoder[BackoffPolicy]
+    implicit def backoffPolicyEncoder: Encoder[BackoffPolicy] =
+      deriveConfiguredEncoder[BackoffPolicy]
   }
 
-  /** Source of raw collector data (only PubSub supported atm) */
+  sealed trait RetryCheckpointing {
+    val checkpointBackoff: BackoffPolicy
+  }
+
+  case class RabbitMQNode(
+    host: String,
+    port: Int
+  )
+  object RabbitMQNode {
+    implicit val rabbitMQNodeDecoder: Decoder[RabbitMQNode] = deriveConfiguredDecoder[RabbitMQNode]
+    implicit val rabbitMQNodeEncoder: Encoder[RabbitMQNode] = deriveConfiguredEncoder[RabbitMQNode]
+  }
+
+  case class RabbitMQConfig(
+    nodes: NonEmptyList[RabbitMQNode],
+    username: String,
+    password: String,
+    virtualHost: String,
+    connectionTimeout: Int,
+    ssl: Boolean,
+    internalQueueSize: Int,
+    requestedHeartbeat: Int,
+    automaticRecovery: Boolean
+  )
+  object RabbitMQConfig {
+    implicit val rabbitMQConfigDecoder: Decoder[RabbitMQConfig] = deriveConfiguredDecoder[RabbitMQConfig]
+    implicit val rabbitMQConfigEncoder: Encoder[RabbitMQConfig] = deriveConfiguredEncoder[RabbitMQConfig]
+  }
+
   sealed trait Input
 
   object Input {
@@ -99,10 +128,16 @@ object io {
       initialPosition: Kinesis.InitPosition,
       retrievalMode: Kinesis.Retrieval,
       bufferSize: Int,
-      checkpointBackoff: CheckpointBackoff,
+      checkpointBackoff: BackoffPolicy,
       customEndpoint: Option[URI],
       dynamodbCustomEndpoint: Option[URI],
       cloudwatchCustomEndpoint: Option[URI]
+    ) extends Input
+        with RetryCheckpointing
+    case class RabbitMQ(
+      cluster: RabbitMQConfig,
+      queue: String,
+      checkpointBackoff: BackoffPolicy
     ) extends Input
         with RetryCheckpointing
 
@@ -238,18 +273,12 @@ object io {
       byteLimit: Int,
       customEndpoint: Option[URI]
     ) extends Output
-
-    case class BackoffPolicy(
-      minBackoff: FiniteDuration,
-      maxBackoff: FiniteDuration,
-      maxRetries: Int
-    )
-    object BackoffPolicy {
-      implicit def backoffPolicyDecoder: Decoder[BackoffPolicy] =
-        deriveConfiguredDecoder[BackoffPolicy]
-      implicit def backoffPolicyEncoder: Encoder[BackoffPolicy] =
-        deriveConfiguredEncoder[BackoffPolicy]
-    }
+    case class RabbitMQ(
+      cluster: RabbitMQConfig,
+      exchange: String,
+      routingKey: String,
+      backoffPolicy: BackoffPolicy
+    ) extends Output
 
     implicit val outputDecoder: Decoder[Output] =
       deriveConfiguredDecoder[Output]

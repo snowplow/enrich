@@ -35,7 +35,7 @@ import com.amazonaws.services.kinesis.model._
 import com.amazonaws.services.kinesis.{AmazonKinesis, AmazonKinesisClientBuilder}
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.{AttributedByteSink, AttributedData, ByteSink}
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Output
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{BackoffPolicy, Output}
 
 object Sink {
 
@@ -97,7 +97,7 @@ object Sink {
                 }
     } yield exists
 
-  private def getRetryPolicy[F[_]: Applicative](config: Output.BackoffPolicy): RetryPolicy[F] =
+  private def getRetryPolicy[F[_]: Applicative](config: BackoffPolicy): RetryPolicy[F] =
     capDelay[F](config.maxBackoff, fullJitter[F](config.minBackoff))
       .join(limitRetries(config.maxRetries))
 

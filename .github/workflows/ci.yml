@@ -85,6 +85,7 @@ jobs:
             "project streamNsq; set assembly / test := {}; assembly" \
             "project pubsub; set assembly / test := {}; assembly" \
             "project kinesis; set assembly / test := {}; assembly"
+            "project rabbitmq; set assembly / test := {}; assembly"
     - name: Create GitHub release and attach artifacts
       uses: softprops/action-gh-release@v1
       with:
@@ -98,6 +99,7 @@ jobs:
           modules/stream/nsq/target/scala-2.12/snowplow-stream-enrich-nsq-${{ steps.ver.outputs.tag }}.jar
           modules/pubsub/target/scala-2.12/snowplow-enrich-pubsub-${{ steps.ver.outputs.tag }}.jar
           modules/kinesis/target/scala-2.12/snowplow-enrich-kinesis-${{ steps.ver.outputs.tag }}.jar
+          modules/rabbitmq/target/scala-2.12/snowplow-enrich-kinesis-${{ steps.ver.outputs.tag }}.jar
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -113,6 +115,7 @@ jobs:
           - streamNsq
           - pubsub
           - kinesis
+          - rabbitmq
     steps:
     - uses: actions/checkout@v2
       if: startsWith(github.ref, 'refs/tags/')

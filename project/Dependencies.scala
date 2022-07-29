@@ -86,6 +86,7 @@ object Dependencies {
     val catsRetry        = "2.1.0"
     val specsDiff        = "0.6.0"
     val eventGen         = "0.2.0"
+    val fs2RabbitMQ      = "3.0.1" // latest version without CE3
 
     val scopt            = "3.7.1"
     val pureconfig       = "0.11.0"
@@ -201,6 +202,7 @@ object Dependencies {
     val http4sServer     = "org.http4s"                       %% "http4s-blaze-server"                   % V.http4s          % Test
     val trackerCore      = "com.snowplowanalytics"            %% "snowplow-scala-tracker-core"           % V.snowplowTracker
     val emitterHttps     = "com.snowplowanalytics"            %% "snowplow-scala-tracker-emitter-http4s" % V.snowplowTracker
+    val fs2RabbitMQ      = "dev.profunktor"                   %% "fs2-rabbit"                            % V.fs2RabbitMQ
 
     // compiler plugins
     val betterMonadicFor = "com.olegpy" %% "better-monadic-for" % V.betterMonadicFor
@@ -324,6 +326,10 @@ object Dependencies {
       fs2Aws,
       kinesisClient2,
       sts
+    )
+ 
+   val rabbitmqDependencies = Seq(
+      fs2RabbitMQ
     )
 
     // exclusions

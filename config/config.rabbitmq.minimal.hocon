@@ -1,0 +1,36 @@
+{
+  "input": {
+    "hostName": "localhost"
+    "portNumber": 5672
+    "userName": "guest"
+    "password": "guest"
+    "virtualHost": "/"
+    "exchangeName": "collectorPayloads"
+    "routingKey": "collectorPayloads"
+    "queueName": "collectorPayloads"
+  }
+
+  "output": {
+    "good": {
+      "hostName": "localhost"
+      "portNumber": 5672
+      "userName": "guest"
+      "password": "guest"
+      "virtualHost": "/"
+      "exchangeName": "enriched"
+      "routingKey": "enriched"
+      "queueName": "enriched"
+    }
+
+    "bad": {
+      "hostName": "localhost"
+      "portNumber": 5672
+      "userName": "guest"
+      "password": "guest"
+      "virtualHost": "/"
+      "exchangeName": "badRows"
+      "routingKey": "badRows"
+      "queueName": "badRows"
+    }
+  }
+}

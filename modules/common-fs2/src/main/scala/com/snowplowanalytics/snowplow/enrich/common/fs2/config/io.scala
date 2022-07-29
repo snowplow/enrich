@@ -100,6 +100,16 @@ object io {
       cloudwatchCustomEndpoint: Option[URI]
     ) extends Input
         with RetryCheckpointing
+    case class RabbitMQ(
+      hostName: String,
+      portNumber: Int,
+      userName: String,
+      password: String,
+      virtualHost: String,
+      queueName: String,
+      exchangeName: String,
+      routingKey: String
+    ) extends Input
 
     object Kinesis {
       sealed trait InitPosition
@@ -227,6 +237,16 @@ object io {
       backoffPolicy: BackoffPolicy,
       recordLimit: Int,
       customEndpoint: Option[URI]
+    ) extends Output
+    case class RabbitMQ(
+      hostName: String,
+      portNumber: Int,
+      userName: String,
+      password: String,
+      virtualHost: String,
+      exchangeName: String,
+      routingKey: String,
+      queueName: String
     ) extends Output
 
     case class BackoffPolicy(

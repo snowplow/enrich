@@ -18,7 +18,8 @@ import cats.effect.Sync
 import cats.implicits._
 import fs2.Stream
 import org.http4s.client.{Client => Http4sClient}
-import org.http4s.{EmptyBody, EntityBody, Method, Request, Status, Uri}
+import org.http4s.headers.Authorization
+import org.http4s.{BasicCredentials, EmptyBody, EntityBody, Header, Headers, Method, Request, Status, Uri}
 import scalaj.http._
 
 trait HttpClient[F[_]] {
@@ -35,6 +36,13 @@ trait HttpClient[F[_]] {
 
 object HttpClient {
   def apply[F[_]](implicit ev: HttpClient[F]): HttpClient[F] = ev
+
+  private[utils] def getHeaders(authUser: Option[String], authPassword: Option[String]): Headers = {
+    val contentTypeHeader = Header("content-type", "application/json")
+    if (authUser.isDefined || authPassword.isDefined)
+      Headers(Authorization(BasicCredentials(authUser.getOrElse(""), authPassword.getOrElse(""))), contentTypeHeader)
+    else Headers(contentTypeHeader)
+  }
 
   implicit def syncHttpClient[F[_]: Sync](implicit http4sClient: Http4sClient[F]): HttpClient[F] =
     new HttpClient[F] {
@@ -61,7 +69,8 @@ object HttpClient {
             val request = Request[F](
               uri = validUri,
               method = Method.fromString(method).getOrElse(Method.GET),
-              body = body.fold[EntityBody[F]](EmptyBody)(s => Stream.emits(s.getBytes))
+              body = body.fold[EntityBody[F]](EmptyBody)(s => Stream.emits(s.getBytes)),
+              headers = getHeaders(authUser, authPassword)
             )
             http4sClient
               .run(request)

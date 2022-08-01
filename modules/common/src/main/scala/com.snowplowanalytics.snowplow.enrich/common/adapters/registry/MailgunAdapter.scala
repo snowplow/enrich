@@ -14,12 +14,6 @@ package com.snowplowanalytics.snowplow.enrich.common
 package adapters
 package registry
 
-import java.net.URI
-import java.nio.charset.StandardCharsets.UTF_8
-
-import scala.collection.JavaConverters._
-import scala.util.{Try, Success => TS, Failure => TF}
-
 import cats.Monad
 import cats.data.NonEmptyList
 import cats.effect.Clock
@@ -31,8 +25,7 @@ import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 import com.snowplowanalytics.snowplow.badrows._
 import io.circe._
-import io.circe.syntax._
-import org.apache.http.client.utils.URLEncodedUtils
+import io.circe.parser._
 
 import loaders.CollectorPayload
 import utils.{HttpClient, JsonUtils => JU}
@@ -48,8 +41,7 @@ object MailgunAdapter extends Adapter {
   private val TrackerVersion = "com.mailgun-v1"
 
   // Expected content type for a request body
-  private val ContentTypes = List("application/x-www-form-urlencoded", "multipart/form-data")
-  private val ContentTypesStr = ContentTypes.mkString(", ")
+  private val ContentType = "application/json"
 
   private val Vendor = "com.mailgun"
   private val Format = "jsonschema"
@@ -73,7 +65,10 @@ object MailgunAdapter extends Adapter {
    * @param client The Iglu client used for schema lookup and validation
    * @return a Validation boxing either a NEL of RawEvents on Success, or a NEL of Failure Strings
    */
-  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](payload: CollectorPayload, client: Client[F, Json]): F[Adapted] =
+  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
+    payload: CollectorPayload,
+    client: Client[F, Json]
+  ): F[Adapted] =
     (payload.body, payload.contentType) match {
       case (None, _) =>
         val failure = FailureDetails.AdapterFailure.InputData(
@@ -90,45 +85,38 @@ object MailgunAdapter extends Adapter {
         )
         Monad[F].pure(failure.invalidNel)
       case (_, None) =>
-        val msg = s"no content type: expected one of $ContentTypesStr"
+        val msg = s"no content type: expected $ContentType"
         Monad[F].pure(
           FailureDetails.AdapterFailure.InputData("contentType", none, msg).invalidNel
         )
-      case (_, Some(ct)) if !ContentTypes.exists(ct.startsWith) =>
-        val msg = s"expected one of $ContentTypesStr"
+      case (_, Some(ct)) if ct != ContentType =>
+        val msg = s"expected $ContentType"
         Monad[F].pure(
           FailureDetails.AdapterFailure
             .InputData("contentType", ct.some, msg)
             .invalidNel
         )
-      case (Some(body), Some(ct)) =>
+      case (Some(body), Some(_)) =>
         val _ = client
         val params = toMap(payload.querystring)
-        Try {
-          getBoundary(ct)
-            .map(parseMultipartForm(body, _))
-            .getOrElse(
-              toMap(
-                URLEncodedUtils.parse(URI.create("http://localhost/?" + body), UTF_8).asScala.toList
-              )
-                .collect { case (k, Some(v)) => (k, v) }
-            )
-        } match {
-          case TF(e) =>
+        parse(body) match {
+          case Left(e) =>
             val msg = s"could not parse body: ${JU.stripInstanceEtc(e.getMessage).orNull}"
             Monad[F].pure(
               FailureDetails.AdapterFailure
                 .InputData("body", body.some, msg)
                 .invalidNel
             )
-          case TS(bodyMap) =>
+          case Right(bodyJson) =>
             Monad[F].pure(
-              bodyMap
-                .get("event")
+              bodyJson.hcursor
+                .downField("event-data")
+                .downField("event")
+                .focus
                 .map { eventType =>
                   (for {
-                    schemaUri <- lookupSchema(eventType.some, EventSchemaMap)
-                    event <- payloadBodyToEvent(bodyMap)
+                    schemaUri <- lookupSchema(eventType.asString, EventSchemaMap)
+                    event <- payloadBodyToEvent(bodyJson)
                     mEvent <- mutateMailgunEvent(event)
                   } yield NonEmptyList.one(
                     RawEvent(
@@ -139,7 +127,7 @@ object MailgunAdapter extends Adapter {
                         schemaUri,
                         cleanupJsonEventValues(
                           mEvent,
-                          ("event", eventType).some,
+                          eventType.asString.map(("event", _)),
                           List("timestamp")
                         ),
                         "srv"
@@ -188,53 +176,13 @@ object MailgunAdapter extends Adapter {
     }
   }
 
-  private val boundaryRegex =
-    """multipart/form-data.*?boundary=(?:")?([\S ]{0,69})(?: )*(?:")?$""".r
-
   /**
-   * Returns the boundary parameter for a message of media type multipart/form-data
-   * (https://www.ietf.org/rfc/rfc2616.txt and https://www.ietf.org/rfc/rfc2046.txt)
-   * @param contentType Header field of the form
-   * "multipart/form-data; boundary=353d603f-eede-4b49-97ac-724fbc54ea3c"
-   * @return boundary Option[String]
+   * Converts payload into an event
+   * @param body Webhook Json request body
    */
-  private def getBoundary(contentType: String): Option[String] =
-    contentType match {
-      case boundaryRegex(boundaryString) => Some(boundaryString)
-      case _ => None
-    }
-
-  /**
-   * Rudimentary parsing the form fields of a multipart/form-data into a Map[String, String]
-   * other fields will be discarded
-   * (see https://www.ietf.org/rfc/rfc1867.txt and https://www.ietf.org/rfc/rfc2046.txt).
-   * This parser will only take into account part headers of content-disposition type form-data
-   * and only the parameter name e.g.
-   * Content-Disposition: form-data; anything="notllokingintothis"; name="key"
-   *
-   * value
-   * @param body The body of the message
-   * @param boundary String that separates the body parts
-   * @return a map of the form fields and their values (other fields are dropped)
-   */
-  private def parseMultipartForm(body: String, boundary: String): Map[String, String] =
-    body
-      .split(s"--$boundary")
-      .flatMap({
-        case formDataRegex(k, v) => Some((k, v))
-        case _ => None
-      })
-      .toMap
-
-  private val formDataRegex =
-    """(?sm).*Content-Disposition:\s*form-data\s*;[ \S\t]*?name="([^"]+)"[ \S\t]*$.*?(?<=^[ \t\S]*$)^\s*(.*?)(?:\s*)\z""".r
-
-  /**
-   * Converts a querystring payload into an event
-   * @param bodyMap The converted map from the querystring
-   */
-  private def payloadBodyToEvent(bodyMap: Map[String, String]): Either[FailureDetails.AdapterFailure, Json] =
-    (bodyMap.get("timestamp"), bodyMap.get("token"), bodyMap.get("signature")) match {
+  private def payloadBodyToEvent(body: Json): Either[FailureDetails.AdapterFailure, Json] = {
+    val bodyMap = body.hcursor.downField("signature")
+    (bodyMap.downField("timestamp").focus, bodyMap.downField("token").focus, bodyMap.downField("signature").focus) match {
       case (None, _, _) =>
         FailureDetails.AdapterFailure
           .InputData("timestamp", none, "missing 'timestamp'")
@@ -247,6 +195,18 @@ object MailgunAdapter extends Adapter {
         FailureDetails.AdapterFailure
           .InputData("signature", none, "missing 'signature'")
           .asLeft
-      case (Some(_), Some(_), Some(_)) => bodyMap.asJson.asRight
+      case (Some(timestamp), Some(_), Some(_)) =>
+        body.hcursor
+          .downField("event-data")
+          .downField("timestamp")
+          .withFocus(_ => timestamp)
+          .up
+          .focus
+          .flatMap(json => bodyMap.focus.map(_.deepMerge(json)))
+          .toRight(
+            FailureDetails.AdapterFailure
+              .InputData("event-data", none, "missing 'event-data'")
+          )
     }
+  }
 }

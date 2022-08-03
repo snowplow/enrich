@@ -160,7 +160,7 @@ abstract class Source(
       ThriftLoader.toCollectorPayload(binaryData, processor)
     val featureFlags = EtlPipeline.FeatureFlags(
       acceptInvalid = true, // See https://github.com/snowplow/enrich/issues/517#issuecomment-1033910690
-      legacyEnrichmentOrder = true // Stream enrich has always used the legacy order
+      legacyEnrichmentOrder = false // Stream enrich has always used the correct order
     )
     Either.catchNonFatal(
       EtlPipeline.processEvents[Id](

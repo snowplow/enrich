@@ -40,7 +40,8 @@ object EtlPipeline {
    * @param acceptInvalid Whether enriched events that are invalid against
    *                      atomic schema should be emitted as enriched events.
    *                      If not they will be emitted as bad rows
-   * @param legacyEnrichmentOrder Whether to use the enrichment order which was historically used in stream enrich.
+   * @param legacyEnrichmentOrder Whether to use the incorrect enrichment order which was historically
+   *                      used in early versions of enrich-pubsub and enrich-kinesis.
    */
   case class FeatureFlags(acceptInvalid: Boolean, legacyEnrichmentOrder: Boolean)
 

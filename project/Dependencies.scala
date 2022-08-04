@@ -68,9 +68,11 @@ object Dependencies {
     val awsSdk           = "1.12.129"
     val gcpSdk           = "2.7.2"
     val kinesisClient    = "1.14.5"
-    val kinesisClient2   = "2.4.1" // Override version from fs2-aws
+    val kinesisClient2   = "2.17.247" // Override version from fs2-aws
+    val dynamoDbClient2  = "2.17.247"
+    val sts2             = "2.17.247"
     val kafka            = "2.8.1"
-    val mskAuth          = "1.1.1"
+    val mskAuth          = "1.1.4"
     val nsqClient        = "1.3.0"
     val jackson          = "2.13.3"
     val config           = "1.3.4"
@@ -188,7 +190,9 @@ object Dependencies {
     val fs2Aws           = "io.laserdisc"                     %% "fs2-aws"                               % V.fs2Aws
     val fs2              = "co.fs2"                           %% "fs2-core"                              % V.fs2
     val fs2Io            = "co.fs2"                           %% "fs2-io"                                % V.fs2
-    val kinesisClient2   = "software.amazon.kinesis"          %  "amazon-kinesis-client"                 % V.kinesisClient2
+    val kinesisClient2   = "software.amazon.awssdk"           %  "kinesis"                               % V.kinesisClient2
+    val dynamoDbClient2  = "software.amazon.awssdk"           %  "dynamodb"                              % V.dynamoDbClient2
+    val sts2             = "software.amazon.awssdk"           %  "sts"                                   % V.sts2
     val http4sClient     = "org.http4s"                       %% "http4s-blaze-client"                   % V.http4s
     val http4sCirce      = "org.http4s"                       %% "http4s-circe"                          % V.http4s
     val log4cats         = "org.typelevel"                    %% "log4cats-slf4j"                        % V.log4cats
@@ -323,7 +327,9 @@ object Dependencies {
       fs2BlobS3,
       fs2Aws,
       kinesisClient2,
-      sts
+      dynamoDbClient2,
+      sts,
+      sts2
     )
 
     // exclusions

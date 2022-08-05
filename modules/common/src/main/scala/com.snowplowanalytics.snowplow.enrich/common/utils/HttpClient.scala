@@ -38,10 +38,10 @@ object HttpClient {
   def apply[F[_]](implicit ev: HttpClient[F]): HttpClient[F] = ev
 
   private[utils] def getHeaders(authUser: Option[String], authPassword: Option[String]): Headers = {
-    val contentTypeHeader = Header("content-type", "application/json")
+    val alwaysIncludedHeaders = List(Header("content-type", "application/json"), Header("accept", "*/*"))
     if (authUser.isDefined || authPassword.isDefined)
-      Headers(Authorization(BasicCredentials(authUser.getOrElse(""), authPassword.getOrElse(""))), contentTypeHeader)
-    else Headers(contentTypeHeader)
+      Headers(Authorization(BasicCredentials(authUser.getOrElse(""), authPassword.getOrElse(""))) :: alwaysIncludedHeaders)
+    else Headers(alwaysIncludedHeaders)
   }
 
   implicit def syncHttpClient[F[_]: Sync](implicit http4sClient: Http4sClient[F]): HttpClient[F] =
@@ -168,7 +168,7 @@ object HttpClient {
 
     def maybePostData(body: Option[String]): HttpRequest =
       body
-        .map(data => request.postData(data).header("content-type", "application/json"))
+        .map(data => request.postData(data).header("content-type", "application/json").header("accept", "*/*"))
         .getOrElse(request)
   }
 }

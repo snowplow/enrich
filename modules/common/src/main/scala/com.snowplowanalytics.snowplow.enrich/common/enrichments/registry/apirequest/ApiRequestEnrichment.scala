@@ -40,7 +40,6 @@ object ApiRequestEnrichment extends ParseableEnrichment {
       "api_request_enrichment_config",
       "jsonschema",
       1,
-      0,
       0
     )
 

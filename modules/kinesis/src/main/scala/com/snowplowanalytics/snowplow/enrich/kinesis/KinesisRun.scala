@@ -84,11 +84,29 @@ object KinesisRun {
       .parTraverse_ { record =>
         record.checkpoint
           .recoverWith {
-            // The ShardRecordProcessor instance has been shutdown. This just means another KCL
-            // worker has stolen our lease. It is expected during autoscaling of instances, and is
-            // safe to ignore.
             case _: ShutdownException =>
+              // The ShardRecordProcessor instance has been shutdown. This just means another KCL
+              // worker has stolen our lease. It is expected during autoscaling of instances, and is
+              // safe to ignore.
               Logger[F].warn(s"Skipping checkpointing of shard ${record.shardId} because this worker no longer owns the lease")
+
+            case _: IllegalArgumentException if record.isLastInShard =>
+              // See https://github.com/snowplow/enrich/issues/657
+              // This can happen at the shard end when KCL no longer allows checkpointing of the last record in the shard.
+              // We need to release the semaphore, so that fs2-aws handles checkpointing the end of the shard.
+              Logger[F].warn(
+                s"Checkpointing failed on last record in shard. Ignoring error and instead try checkpointing of the shard end"
+              ) *>
+                Sync[F].delay(record.lastRecordSemaphore.release())
+
+            case _: IllegalArgumentException if record.lastRecordSemaphore.availablePermits === 0 =>
+              // See https://github.com/snowplow/enrich/issues/657 and https://github.com/snowplow/enrich/pull/658
+              // This can happen near the shard end, e.g. the penultimate batch in the shard, when KCL has already enqueued the final record in the shard to the fs2 queue.
+              // We must not release the semaphore yet, because we are not ready for fs2-aws to checkpoint the end of the shard.
+              // We can safely ignore the exception and move on.
+              Logger[F].warn(
+                s"Checkpointing failed on a record which was not the last in the shard. Meanwhile, KCL has already enqueued the final record in the shard to the fs2 queue. Ignoring error and instead continue processing towards the shard end"
+              )
           }
       }
 }

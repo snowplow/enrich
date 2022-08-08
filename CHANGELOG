@@ -1,3 +1,9 @@
+3.2.3 (2022-08-08)
+------------------
+Common: Get HttpClient to Set Authorization header and Content-Type (#660)
+Stream Enrich: Fix the enrichment order (#662)
+Enrich-kinesis: recover from IllegalArgumentException when checkpointing near end of shard (#657)
+
 3.2.2 (2022-07-22)
 ------------------
 Pubsub: Decrease maxBatchBytes defaults to 8 MB (#653)

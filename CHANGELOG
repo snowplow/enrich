@@ -1,3 +1,8 @@
+3.2.4 (2022-08-11)
+------------------
+Bump postgresql to 42.2.26 (#672)
+enrich-pubsub: Fix to sending output events in parallel (#673)
+
 3.2.3 (2022-08-08)
 ------------------
 Common: Get HttpClient to Set Authorization header and Content-Type (#660)

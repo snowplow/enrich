@@ -1,3 +1,9 @@
+3.2.5 (2022-08-15)
+------------------
+Update Mailgun adapter to work with the new API (#665)
+Common: api_request_enrichment_config schema version 1-0-1 support (#669)
+Common: Explicitly set Accept header (#667)
+
 3.2.4 (2022-08-11)
 ------------------
 Bump postgresql to 42.2.26 (#672)

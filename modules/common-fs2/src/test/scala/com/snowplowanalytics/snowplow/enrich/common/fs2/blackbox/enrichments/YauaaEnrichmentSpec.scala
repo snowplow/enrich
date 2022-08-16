@@ -28,7 +28,19 @@ class YauaaEnrichmentSpec extends Specification with CatsIO {
       val input = BlackBoxTesting.buildCollectorPayload(
         path = "/i",
         querystring = "e=pp".some,
-        userAgent = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:12.0) Gecko/20100101 Firefox/12.0".some
+        userAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36".some,
+        headers = List(
+          """Sec-CH-UA: "Chromium";v="106", "Google Chrome";v="106", "Not;A=Brand";v="99"""",
+          """Sec-CH-UA-Arch: "x86"""",
+          """Sec-CH-UA-Bitness: "64"""",
+          """Sec-CH-UA-Full-Version: "106.0.5249.119"""",
+          """Sec-CH-UA-Full-Version-List: "Chromium";v="106.0.5249.119", "Google Chrome";v="106.0.5249.119", "Not;A=Brand";v="99.0.0.0"""",
+          """Sec-CH-UA-Mobile: ?0""",
+          """Sec-CH-UA-Model: """"",
+          """Sec-CH-UA-Platform: "Linux"""",
+          """Sec-CH-ua-Platform-version: "6.0.1"""",
+          """Sec-CH-UA-WoW64: ?0"""
+        )
       )
       val expected = Map(
         "event_vendor" -> "com.snowplowanalytics.snowplow",
@@ -36,7 +48,45 @@ class YauaaEnrichmentSpec extends Specification with CatsIO {
         "event_format" -> "jsonschema",
         "event_version" -> "1-0-0",
         "event" -> "page_ping",
-        "derived_contexts" -> json"""{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[{"schema":"iglu:nl.basjes/yauaa_context/jsonschema/1-0-3","data":{"deviceBrand":"Unknown","deviceName":"Desktop","operatingSystemVersionMajor":"7","layoutEngineNameVersion":"Gecko 12.0","operatingSystemNameVersion":"Windows 7","layoutEngineBuild":"20100101","layoutEngineNameVersionMajor":"Gecko 12","operatingSystemName":"Windows NT","agentVersionMajor":"12","layoutEngineVersionMajor":"12","deviceClass":"Desktop","agentNameVersionMajor":"Firefox 12","operatingSystemNameVersionMajor":"Windows 7","deviceCpuBits":"64","operatingSystemClass":"Desktop","layoutEngineName":"Gecko","agentName":"Firefox","agentVersion":"12.0","layoutEngineClass":"Browser","agentNameVersion":"Firefox 12.0","operatingSystemVersion":"7","deviceCpu":"Intel x86_64","agentClass":"Browser","layoutEngineVersion":"12.0"}}]}""".noSpaces
+        "derived_contexts" -> json"""{
+          "schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1",
+          "data":[{
+            "schema":"iglu:nl.basjes/yauaa_context/jsonschema/1-0-4",
+            "data": {
+              "deviceBrand":"Unknown",
+              "deviceName":"Linux Desktop",
+              "operatingSystemVersionMajor":"6",
+              "layoutEngineNameVersion":"Blink 106.0",
+              "operatingSystemNameVersion":"Linux 6.0.1",
+              "agentInformationEmail": "Unknown",
+              "networkType": "Unknown",
+              "operatingSystemVersionBuild":"??",
+              "webviewAppNameVersionMajor": "Unknown ??",
+              "layoutEngineNameVersionMajor":"Blink 106",
+              "operatingSystemName":"Linux",
+              "agentVersionMajor":"106",
+              "layoutEngineVersionMajor":"106",
+              "webviewAppName": "Unknown",
+              "deviceClass":"Desktop",
+              "agentNameVersionMajor":"Chrome 106",
+              "operatingSystemNameVersionMajor":"Linux 6",
+              "deviceCpuBits":"64",
+              "webviewAppVersionMajor": "??",
+              "operatingSystemClass":"Desktop",
+              "webviewAppVersion": "??",
+              "layoutEngineName":"Blink",
+              "agentName":"Chrome",
+              "agentVersion":"106.0.5249.119",
+              "layoutEngineClass":"Browser",
+              "agentNameVersion":"Chrome 106.0.5249.119",
+              "operatingSystemVersion":"6.0.1",
+              "deviceCpu":"Intel x86_64",
+              "agentClass":"Browser",
+              "layoutEngineVersion":"106.0",
+              "agentInformationUrl": "Unknown"
+            }
+          }]
+        }""".noSpaces
       )
       BlackBoxTesting.runTest(input, expected, Some(YauaaEnrichmentSpec.conf))
     }

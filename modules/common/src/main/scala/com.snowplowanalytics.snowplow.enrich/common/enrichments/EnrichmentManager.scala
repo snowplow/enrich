@@ -209,7 +209,7 @@ object EnrichmentManager {
         _       <- setEventFingerprint[F](raw.parameters, registry.eventFingerprint)  // This enrichment cannot fail
         _       <- getCookieContexts                                                  // Execute cookie extractor enrichment
         _       <- getHttpHeaderContexts                                              // Execute header extractor enrichment
-        _       <- getYauaaContext[F](registry.yauaa)                                 // Runs YAUAA enrichment (gets info thanks to user agent)
+        _       <- getYauaaContext[F](registry.yauaa, raw.context.headers)            // Runs YAUAA enrichment (gets info thanks to user agent)
         _       <- extractSchemaFields[F](unstructEvent)                              // Extract the event vendor/name/format/version
         _       <- getJsScript[F](registry.javascriptScript)                          // Execute the JavaScript scripting enrichment
         _       <- getCurrency[F](raw.context.timestamp, registry.currencyConversion) // Finalize the currency conversion
@@ -237,7 +237,7 @@ object EnrichmentManager {
         _       <- getCookieContexts                                                  // Execute cookie extractor enrichment
         _       <- getHttpHeaderContexts                                              // Execute header extractor enrichment
         _       <- getWeatherContext[F](registry.weather)                             // Fetch weather context
-        _       <- getYauaaContext[F](registry.yauaa)                                 // Runs YAUAA enrichment (gets info thanks to user agent)
+        _       <- getYauaaContext[F](registry.yauaa, raw.context.headers)            // Runs YAUAA enrichment (gets info thanks to user agent)
         _       <- extractSchemaFields[F](unstructEvent)                              // Extract the event vendor/name/format/version
         _       <- geoLocation[F](registry.ipLookups)                                 // Execute IP lookup enrichment
         _       <- getJsScript[F](registry.javascriptScript)                          // Execute the JavaScript scripting enrichment
@@ -693,10 +693,10 @@ object EnrichmentManager {
         }
     }
 
-  def getYauaaContext[F[_]: Applicative](yauaa: Option[YauaaEnrichment]): EStateT[F, Unit] =
+  def getYauaaContext[F[_]: Applicative](yauaa: Option[YauaaEnrichment], headers: List[String]): EStateT[F, Unit] =
     EStateT.fromEither {
       case (event, _) =>
-        yauaa.map(_.getYauaaContext(event.useragent)).toList.asRight
+        yauaa.map(_.getYauaaContext(event.useragent, headers)).toList.asRight
     }
 
   // Derive some contexts with custom SQL Query enrichment

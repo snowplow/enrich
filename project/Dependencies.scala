@@ -41,7 +41,8 @@ object Dependencies {
     val hikariCP         = "5.0.1"
     val jaywayJsonpath   = "2.7.0"
     val iabClient        = "0.2.0"
-    val yauaa            = "5.23"
+    val yauaa            = "7.7.0"
+    val log4jToSlf4j     = "2.18.0"
     val guava            = "28.1-jre"
     val slf4j            = "2.0.3"
     val log4j            = "2.17.0" // CVE-2021-44228
@@ -126,6 +127,7 @@ object Dependencies {
                              .exclude("org.slf4j", "slf4j-api")
     val jaywayJsonpath   = "com.jayway.jsonpath"        %  "json-path"                     % V.jaywayJsonpath
     val yauaa            = "nl.basjes.parse.useragent"  %  "yauaa"                         % V.yauaa
+    val log4jToSlf4j     = "org.apache.logging.log4j"   % "log4j-to-slf4j"                 % V.log4jToSlf4j
     val guava            = "com.google.guava"           %  "guava"                         % V.guava
     val log4j            = "org.apache.logging.log4j"   % "log4j-core"                     % V.log4j
     val log4jApi         = "org.apache.logging.log4j"   % "log4j-api"                      % V.log4j
@@ -241,6 +243,7 @@ object Dependencies {
       jaywayJsonpath,
       iabClient,
       yauaa,
+      log4jToSlf4j,
       guava,
       circeOptics,
       circeJackson,

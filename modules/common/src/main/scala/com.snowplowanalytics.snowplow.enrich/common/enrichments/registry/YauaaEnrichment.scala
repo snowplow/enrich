@@ -41,7 +41,7 @@ object YauaaEnrichment extends ParseableEnrichment {
   val DefaultDeviceClass = "Unknown"
   val DefaultResult = Map(decapitalize(UserAgent.DEVICE_CLASS) -> DefaultDeviceClass)
 
-  val outputSchema: SchemaKey = SchemaKey("nl.basjes", "yauaa_context", "jsonschema", SchemaVer.Full(1, 0, 3))
+  val outputSchema: SchemaKey = SchemaKey("nl.basjes", "yauaa_context", "jsonschema", SchemaVer.Full(1, 0, 4))
 
   /**
    * Creates a YauaaConf instance from a JValue containing the configuration of the enrichment.
@@ -91,23 +91,91 @@ final case class YauaaEnrichment(cacheSize: Option[Int]) extends Enrichment {
    * @param userAgent User agent of the event.
    * @return Attributes retrieved thanks to the user agent (if any), as self-describing JSON.
    */
-  def getYauaaContext(userAgent: String): SelfDescribingData[Json] =
-    SelfDescribingData(YauaaEnrichment.outputSchema, parseUserAgent(userAgent).asJson)
+  def getYauaaContext(userAgent: String, headers: List[String]): SelfDescribingData[Json] =
+    SelfDescribingData(YauaaEnrichment.outputSchema, analyzeUserAgent(userAgent, headers).asJson)
 
   /**
    * Gets the map of attributes retrieved by YAUAA from the user agent.
    * @return Map with all the fields extracted by YAUAA by parsing the user agent.
    *         If the input is null or empty, a map with just the DeviceClass set to Unknown is returned.
    */
-  def parseUserAgent(userAgent: String): Map[String, String] =
+  def analyzeUserAgent(userAgent: String, headers: List[String]): Map[String, String] =
     userAgent match {
       case null | "" =>
         YauaaEnrichment.DefaultResult
       case _ =>
-        val parsedUA = uaa.parse(userAgent)
+        val headerMap = headers
+          .map(_.split(": ", 2))
+          .collect {
+            case Array(key, value) => key -> value.replaceAll("^\\s+", "")
+          }
+          .toMap ++ Map("User-Agent" -> userAgent)
+        val parsedUA = uaa.parse(headerMap.asJava)
         parsedUA.getAvailableFieldNamesSorted.asScala
           .map(field => decapitalize(field) -> parsedUA.getValue(field))
           .toMap
-          .filter(_._1 != "__SyntaxError__")
+          .filterKeys(validFields)
     }
+
+  /** Yauaa 7.x added many new fields which are not in the 1-0-4 schema */
+  private val validFields = Set(
+    "deviceClass",
+    "deviceName",
+    "deviceBrand",
+    "deviceCpu",
+    "deviceCpuBits",
+    "deviceFirmwareVersion",
+    "deviceVersion",
+    "operatingSystemClass",
+    "operatingSystemName",
+    "operatingSystemVersion",
+    "operatingSystemNameVersion",
+    "operatingSystemVersionBuild",
+    "layoutEngineClass",
+    "layoutEngineName",
+    "layoutEngineVersion",
+    "layoutEngineVersionMajor",
+    "layoutEngineNameVersion",
+    "layoutEngineNameVersionMajor",
+    "layoutEngineBuild",
+    "agentClass",
+    "agentName",
+    "agentVersion",
+    "agentVersionMajor",
+    "agentNameVersion",
+    "agentNameVersionMajor",
+    "agentBuild",
+    "agentLanguage",
+    "agentLanguageCode",
+    "agentInformationEmail",
+    "agentInformationUrl",
+    "agentSecurity",
+    "agentUuid",
+    "webviewAppName",
+    "webviewAppVersion",
+    "webviewAppVersionMajor",
+    "webviewAppNameVersionMajor",
+    "facebookCarrier",
+    "facebookDeviceClass",
+    "facebookDeviceName",
+    "facebookDeviceVersion",
+    "facebookFBOP",
+    "facebookFBSS",
+    "facebookOperatingSystemName",
+    "facebookOperatingSystemVersion",
+    "anonymized",
+    "hackerAttackVector",
+    "hackerToolkit",
+    "koboAffiliate",
+    "koboPlatformId",
+    "iECompatibilityVersion",
+    "iECompatibilityVersionMajor",
+    "iECompatibilityNameVersion",
+    "iECompatibilityNameVersionMajor",
+    "carrier",
+    "gSAInstallationID",
+    "networkType",
+    "operatingSystemNameVersionMajor",
+    "operatingSystemVersionMajor"
+  )
 }

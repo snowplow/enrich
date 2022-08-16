@@ -49,8 +49,10 @@ class YauaaEnrichmentSpec extends Specification with ValidatedMatchers {
   val uaPlaystation4 = "Mozilla/5.0 (PlayStation 4 1.52) AppleWebKit/536.26 (KHTML, like Gecko)"
 
   // Browsers
-  val uaChrome =
+  val uaChrome13 =
     "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/535.1 (KHTML, like Gecko) Chrome/13.0.782.112 Safari/535.1"
+  val uaChrome106 =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36"
   val uaChromium =
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.22 (KHTML, like Gecko) Ubuntu Chromium/25.0.1364.160 Chrome/25.0.1364.160 Safari/537.22"
   val uaFirefox = "Mozilla/5.0 (Windows NT 6.1; rv:2.0b7pre) Gecko/20100921 Firefox/4.0b7pre"
@@ -65,11 +67,11 @@ class YauaaEnrichmentSpec extends Specification with ValidatedMatchers {
 
   "YAUAA enrichment should" >> {
     "return default value for null" >> {
-      yauaaEnrichment.parseUserAgent(null) shouldEqual YauaaEnrichment.DefaultResult
+      yauaaEnrichment.analyzeUserAgent(null, Nil) shouldEqual YauaaEnrichment.DefaultResult
     }
 
     "return default value for empty user agent" >> {
-      yauaaEnrichment.parseUserAgent("") shouldEqual YauaaEnrichment.DefaultResult
+      yauaaEnrichment.analyzeUserAgent("", Nil) shouldEqual YauaaEnrichment.DefaultResult
     }
 
     "detect correctly DeviceClass" >> {
@@ -125,8 +127,8 @@ class YauaaEnrichmentSpec extends Specification with ValidatedMatchers {
           uaNexusOne -> "Android",
           uaIphoneX -> "iOS",
           uaIpad -> "iOS",
-          uaSafari -> "Mac OS X",
-          uaGoogleBot -> "Google"
+          uaSafari -> "Mac OS",
+          uaGoogleBot -> "Google Cloud"
         ),
         UserAgent.OPERATING_SYSTEM_NAME
       )
@@ -135,7 +137,7 @@ class YauaaEnrichmentSpec extends Specification with ValidatedMatchers {
     "detect correctly LayoutEngineClass" >> {
       checkYauaaParsingForField(
         Map(
-          uaChrome -> "Browser",
+          uaChrome13 -> "Browser",
           uaIE -> "Browser",
           uaNexusOne -> "Browser",
           uaIphoneX -> "Browser",
@@ -167,7 +169,7 @@ class YauaaEnrichmentSpec extends Specification with ValidatedMatchers {
     "detect correctly AgentName" >> {
       checkYauaaParsingForField(
         Map(
-          uaChrome -> "Chrome",
+          uaChrome13 -> "Chrome",
           uaChromium -> "Chromium",
           uaFirefox -> "Firefox",
           uaIE -> "Internet Explorer",
@@ -182,7 +184,20 @@ class YauaaEnrichmentSpec extends Specification with ValidatedMatchers {
       )
     }
 
-    "create a JSON with the schema 1-0-1 and the data" >> {
+    "use client hint headers to aid parsing" >> {
+      val clientHintHeader =
+        """Sec-CH-UA-Full-Version-List: "Chromium";v="106.0.5249.119", "Google Chrome";v="106.0.5249.119", "Not;A=Brand";v="99.0.0.0""""
+      yauaaEnrichment.analyzeUserAgent(uaChrome106, Nil)("agentNameVersion") shouldEqual "Chrome 106"
+      yauaaEnrichment.analyzeUserAgent(uaChrome106, List(clientHintHeader))("agentNameVersion") shouldEqual "Chrome 106.0.5249.119"
+    }
+
+    /** Resembles the case when `ua` was sent as a field in the tp2 payload */
+    "Prioritize explicitly passed user agent over an http header" >> {
+      val headers = List("User-Agent: curl/7.54")
+      yauaaEnrichment.analyzeUserAgent(uaFirefox, headers)("agentName") shouldEqual "Firefox"
+    }
+
+    "create a JSON with the schema 1-0-4 and the data" >> {
       val expected =
         SelfDescribingData(
           YauaaEnrichment.outputSchema,
@@ -191,14 +206,20 @@ class YauaaEnrichmentSpec extends Specification with ValidatedMatchers {
             "deviceName":"Samsung SM-G960F",
             "layoutEngineNameVersion":"Blink 62.0",
             "operatingSystemNameVersion":"Android 8.0.0",
+            "agentInformationEmail" : "Unknown",
+            "networkType" : "Unknown",
             "operatingSystemVersionBuild":"R16NW",
+            "webviewAppNameVersionMajor" : "Unknown ??",
             "layoutEngineNameVersionMajor":"Blink 62",
             "operatingSystemName":"Android",
             "agentVersionMajor":"62",
             "layoutEngineVersionMajor":"62",
+            "webviewAppName" : "Unknown",
             "deviceClass":"Phone",
             "agentNameVersionMajor":"Chrome 62",
+            "webviewAppVersionMajor" : "??",
             "operatingSystemClass":"Mobile",
+            "webviewAppVersion" : "??",
             "layoutEngineName":"Blink",
             "agentName":"Chrome",
             "agentVersion":"62.0.3202.84",
@@ -211,7 +232,7 @@ class YauaaEnrichmentSpec extends Specification with ValidatedMatchers {
             "operatingSystemVersionMajor":"8"
           }"""
         )
-      val actual = yauaaEnrichment.getYauaaContext(uaGalaxyS9)
+      val actual = yauaaEnrichment.getYauaaContext(uaGalaxyS9, Nil)
       actual shouldEqual expected
 
       val defaultJson =
@@ -219,13 +240,13 @@ class YauaaEnrichmentSpec extends Specification with ValidatedMatchers {
           YauaaEnrichment.outputSchema,
           json"""{"deviceClass":"Unknown"}"""
         )
-      yauaaEnrichment.getYauaaContext("") shouldEqual defaultJson
+      yauaaEnrichment.getYauaaContext("", Nil) shouldEqual defaultJson
     }
 
     "never add __SyntaxError__ to the context" >> {
       val ua =
         "useragent=Mozilla/5.0 (Linux armv7l) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/38.0.2125.122 Safari/537.36 OPR/25.0.1620.0 OMI/4.3.18.7.Dominik.0 VSTVB MB100 HbbTV/1.2.1 (; PANASONIC; MB100; 0.1.34.28; ;) SmartTvA/3.0.0 UID (00:09:DF:A7:74:6B/MB100/PANASONIC/0.1.34.28)"
-      yauaaEnrichment.parseUserAgent(ua).contains("__SyntaxError__") shouldEqual false
+      yauaaEnrichment.analyzeUserAgent(ua, Nil).contains("__SyntaxError__") shouldEqual false
     }
   }
 
@@ -233,7 +254,7 @@ class YauaaEnrichmentSpec extends Specification with ValidatedMatchers {
   def checkYauaaParsingForField(expectedResults: Map[String, String], fieldName: String) =
     expectedResults.map {
       case (userAgent, expectedField) =>
-        yauaaEnrichment.parseUserAgent(userAgent)(decapitalize(fieldName)) shouldEqual expectedField
+        yauaaEnrichment.analyzeUserAgent(userAgent, Nil)(decapitalize(fieldName)) shouldEqual expectedField
     }.toList
 
   "decapitalize should" >> {

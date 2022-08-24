@@ -15,8 +15,20 @@
     # of events in memory at once. An event counts towards this limit starting from when it received
     # by the permutive library, until we ack it (after publishing to output). The value must be large
     # enough that it does not cause the sink to block whilst it is waiting for a batch to be
-    # completed.
+    # completed. The first of maxQueueSize and maxRequestBytes being reached will pause the consumption.
     "maxQueueSize": 3000
+
+    # Optional. Configures the "maximum outstanding request bytes" of PubSub subscriber.
+    # It puts an upper bound on the events' bytes that can be hold in memory at once before getting acked.
+    # The value must be large enough to not cause the sink to block whilst it is waiting for a batch to be
+    # completed.
+    # The first of maxQueueSize and maxRequestBytes being reached will pause the consumption.
+    # Default: 50 MB
+    "maxRequestBytes": 50000000
+
+    # Optional. Configures the maximum period a message ack deadline can be extended
+    # A zero duration disables auto deadline extension
+    "maxAckExtensionPeriod": 1 hour
   }
 
   "output": {

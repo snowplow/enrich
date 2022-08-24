@@ -14,6 +14,9 @@ package com.snowplowanalytics.snowplow.enrich.pubsub
 
 import cats.effect.{Blocker, Concurrent, ContextShift, Sync}
 
+import com.google.api.gax.batching.FlowControlSettings
+import com.google.api.gax.batching.FlowController.LimitExceededBehavior
+
 import com.permutive.pubsub.consumer.{ConsumerRecord, Model}
 import com.permutive.pubsub.consumer.grpc.{PubsubGoogleConsumer, PubsubGoogleConsumerConfig}
 
@@ -44,12 +47,24 @@ object Source {
   ): Stream[F, ConsumerRecord[F, Array[Byte]]] = {
     val onFailedTerminate: Throwable => F[Unit] =
       e => Sync[F].delay(System.err.println(s"Cannot terminate ${e.getMessage}"))
+
+    val flowControlSettings: FlowControlSettings =
+      FlowControlSettings
+        .newBuilder()
+        .setMaxOutstandingElementCount(input.maxQueueSize)
+        .setMaxOutstandingRequestBytes(input.maxRequestBytes)
+        .setLimitExceededBehavior(LimitExceededBehavior.Block)
+        .build()
+
     val pubSubConfig =
       PubsubGoogleConsumerConfig(
         onFailedTerminate = onFailedTerminate,
         parallelPullCount = input.parallelPullCount,
-        maxQueueSize = input.maxQueueSize
+        maxQueueSize = input.maxQueueSize,
+        maxAckExtensionPeriod = input.maxAckExtensionPeriod,
+        customizeSubscriber = Some(builder => builder.setFlowControlSettings(flowControlSettings))
       )
+
     val projectId = Model.ProjectId(input.project)
     val subscriptionId = Model.Subscription(input.name)
     val errorHandler: (PubsubMessage, Throwable, F[Unit], F[Unit]) => F[Unit] = // Should be useless

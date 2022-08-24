@@ -76,7 +76,9 @@ object io {
     case class PubSub private (
       subscription: String,
       parallelPullCount: Int,
-      maxQueueSize: Int
+      maxQueueSize: Int,
+      maxRequestBytes: Int,
+      maxAckExtensionPeriod: FiniteDuration
     ) extends Input {
       val (project, name) =
         subscription.split("/").toList match {
@@ -168,7 +170,7 @@ object io {
     implicit val inputDecoder: Decoder[Input] =
       deriveConfiguredDecoder[Input]
         .emap {
-          case s @ PubSub(sub, _, _) =>
+          case s @ PubSub(sub, _, _, _, _) =>
             sub.split("/").toList match {
               case List("projects", _, "subscriptions", _) =>
                 s.asRight
@@ -178,10 +180,14 @@ object io {
           case other => other.asRight
         }
         .emap {
-          case PubSub(_, p, _) if p < 0 =>
+          case PubSub(_, p, _, _, _) if p <= 0 =>
             "PubSub parallelPullCount must be > 0".asLeft
-          case PubSub(_, _, m) if m < 0 =>
+          case PubSub(_, _, m, _, _) if m <= 0 =>
             "PubSub maxQueueSize must be > 0".asLeft
+          case PubSub(_, _, _, m, _) if m <= 0 =>
+            "PubSub maxRequestBytes must be > 0".asLeft
+          case PubSub(_, _, _, _, m) if m < Duration.Zero =>
+            "PubSub maxAckExtensionPeriod must be >= 0".asLeft
           case other =>
             other.asRight
         }

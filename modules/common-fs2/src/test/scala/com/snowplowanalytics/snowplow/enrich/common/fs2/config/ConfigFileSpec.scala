@@ -35,7 +35,7 @@ class ConfigFileSpec extends Specification with CatsIO {
     "parse reference example for PubSub" in {
       val configPath = Paths.get(getClass.getResource("/config.pubsub.extended.hocon").toURI)
       val expected = ConfigFile(
-        io.Input.PubSub("projects/test-project/subscriptions/collector-payloads-sub", 1, 3000),
+        io.Input.PubSub("projects/test-project/subscriptions/collector-payloads-sub", 1, 3000, 50000000, 1.hour),
         io.Outputs(
           io.Output.PubSub("projects/test-project/topics/enriched", Some(Set("app_id")), 200.milliseconds, 1000, 8000000),
           Some(io.Output.PubSub("projects/test-project/topics/pii", None, 200.milliseconds, 1000, 8000000)),
@@ -193,7 +193,9 @@ class ConfigFileSpec extends Specification with CatsIO {
             "type": "PubSub",
             "subscription": "projects/test-project/subscriptions/inputSub",
             "parallelPullCount": 1,
-            "maxQueueSize": 3000
+            "maxQueueSize": 3000,
+            "maxRequestBytes": 50000000,
+            "maxAckExtensionPeriod": 1 hour
           },
           "output": {
             "good": {

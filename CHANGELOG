@@ -1,3 +1,7 @@
+3.3.0 (2022-08-30)
+------------------
+enrich-pubsub: Add flow control & maxAckExtensionPeriod to consumer (#681)
+
 3.2.5 (2022-08-15)
 ------------------
 Update Mailgun adapter to work with the new API (#665)

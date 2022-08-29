@@ -49,6 +49,13 @@ jobs:
       run: SBT_OPTS="-Xms1G -Xmx8G -Xss4M -XX:MaxMetaspaceSize=1024M" sbt coverage +test
       env:
         OER_KEY: ${{ secrets.OER_KEY }}
+    - name: Run integration tests
+      id: integrationTest
+      run: |
+        sbt "project kafka" "docker:publishLocal"
+        docker-compose -f integration-tests/enrich-kafka/docker-compose.yml up -d
+        sbt "project kafka" "it:test"
+        docker-compose -f integration-tests/enrich-kafka/docker-compose.yml down
     - name: Check Scala formatting
       if: ${{ always() }}
       run: sbt scalafmtCheckAll

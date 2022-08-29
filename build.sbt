@@ -155,8 +155,14 @@ lazy val kafka = project
   .in(file("modules/kafka"))
   .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
   .settings(kafkaBuildSettings)
-  .settings(libraryDependencies ++= kafkaDependencies)
+  .settings(libraryDependencies ++= kafkaDependencies ++ Seq(
+    // integration test dependencies
+    specs2CEIt,
+    specs2ScalacheckIt
+  ))
   .settings(excludeDependencies ++= exclusions)
+  .settings(Defaults.itSettings)
+  .configs(IntegrationTest)
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(commonFs2)
 

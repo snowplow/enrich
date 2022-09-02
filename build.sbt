@@ -130,16 +130,17 @@ lazy val kinesis = project
   .in(file("modules/kinesis"))
   .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
   .settings(kinesisBuildSettings)
-  .settings(libraryDependencies ++= (kinesisDependencies) ++ Seq(
-      // integration test dependencies
-      specs2CEIt,
-      specs2ScalacheckIt
+  .settings(libraryDependencies ++= kinesisDependencies ++ Seq(
+    // integration tests dependencies
+    specs2CEIt,
+    testContainersIt
   ))
   .settings(excludeDependencies ++= exclusions)
   .settings(addCompilerPlugin(betterMonadicFor))
   .settings(Defaults.itSettings)
   .configs(IntegrationTest)
   .dependsOn(commonFs2)
+  .settings((IntegrationTest / test) := (IntegrationTest / test).dependsOn(Docker / publishLocal).value)
 
 lazy val kinesisDistroless = project
   .in(file("modules/distroless/kinesis"))
@@ -156,9 +157,8 @@ lazy val kafka = project
   .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
   .settings(kafkaBuildSettings)
   .settings(libraryDependencies ++= kafkaDependencies ++ Seq(
-    // integration test dependencies
-    specs2CEIt,
-    specs2ScalacheckIt
+    // integration tests dependencies
+    specs2CEIt
   ))
   .settings(excludeDependencies ++= exclusions)
   .settings(Defaults.itSettings)

@@ -322,7 +322,7 @@ object BuildSettings {
     assemblySettings ++ dockerSettingsFocal ++
       Seq(Docker / packageName := "snowplow-enrich-kinesis") ++
     // Tests
-    scoverageSettings ++ noParallelTestExecution
+    scoverageSettings ++ noParallelTestExecution ++ Seq(Test / fork := true)
   }
 
   lazy val kinesisDistrolessBuildSettings = kinesisBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless

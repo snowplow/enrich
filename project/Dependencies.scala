@@ -99,12 +99,12 @@ object Dependencies {
     val specs2Cats        = "4.11.0"
     val specs2CE          = "0.4.1"
     val scalacheck        = "1.14.0"
+    val testcontainers    = "0.40.10"
     val jinJava           = "2.5.0"
     val parserCombinators = "2.1.1"
-
-    val sentry           = "1.7.30"
-    val grpc             = "1.32.2"
-    val macros           = "2.1.1"
+    val sentry            = "1.7.30"
+    val grpc              = "1.32.2"
+    val macros            = "2.1.1"
 
     val betterMonadicFor = "0.3.1"
   }
@@ -160,13 +160,13 @@ object Dependencies {
     val specs2             = "org.specs2"             %% "specs2-core"                   % V.specs2            % Test
     val specs2Cats         = "org.specs2"             %% "specs2-cats"                   % V.specs2Cats        % Test
     val specs2Scalacheck   = "org.specs2"             %% "specs2-scalacheck"             % V.specs2            % Test
-    val specs2ScalacheckIt = "org.specs2"             %% "specs2-scalacheck"             % V.specs2            % IntegrationTest
     val specs2Mock         = "org.specs2"             %% "specs2-mock"                   % V.specs2            % Test
     val specs2CE           = "com.codecommit"         %% "cats-effect-testing-specs2"    % V.specs2CE          % Test
     val specs2CEIt         = "com.codecommit"         %% "cats-effect-testing-specs2"    % V.specs2CE          % IntegrationTest
     val specsDiff          = "com.softwaremill.diffx" %% "diffx-specs2"                  % V.specsDiff         % Test
     val eventGen           = "com.snowplowanalytics"  %% "snowplow-event-generator-core" % V.eventGen          % Test
     val parserCombinators  = "org.scala-lang.modules" %% "scala-parser-combinators"      % V.parserCombinators % Test
+    val testContainersIt   = "com.dimafeng"           %% "testcontainers-scala-core"     % V.testcontainers    % IntegrationTest
 
     // Stream
     val kinesisSdk       = "com.amazonaws"                    %  "aws-java-sdk-kinesis"              % V.awsSdk
@@ -345,7 +345,6 @@ object Dependencies {
       sts,
       specs2
     )
- 
    val rabbitmqDependencies = Seq(
       fs2RabbitMQ
     )

@@ -159,7 +159,6 @@ object Run {
     environment: Resource[F, Environment[F, A]]
   ): F[ExitCode] =
     environment.use { env =>
-      val log = Logger[F].info("Running enrichment stream")
       val enrich = {
         //  env.remoteAdapterHttpClient is None in case there is no remote adapter
         //  env.httpClient is used as placeholder and not used at all, as there is no remote adapter
@@ -174,9 +173,9 @@ object Run {
       val reporting = env.metrics.report
       val metadata = env.metadata.report
       val flow = enrich.merge(updates).merge(reporting).merge(telemetry).merge(metadata)
-      log >> flow.compile.drain.as(ExitCode.Success).recoverWith {
+      flow.compile.drain.as(ExitCode.Success).recoverWith {
         case exception: Throwable =>
-          Logger[F].error(s"The Enrich job has stopped") >>
+          Logger[F].error(s"An error happened") >>
             Sync[F].raiseError[ExitCode](exception)
       }
     }

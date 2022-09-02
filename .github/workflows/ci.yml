@@ -34,34 +34,36 @@ jobs:
       with:
         java-version: 11
     - name: Start HTTP server to test API enrichment in Common Enrich
-      run: python integration-tests/sce-api-enrichment-test.py 8001 &
+      run: python integration-tests/common/api-enrichment-test.py 8001 &
     - name: Start HTTP server to test API enrichment in Common Fs2
-      run: python integration-tests/common-fs2-api-enrichment-test.py 8000 &
+      run: python integration-tests/common-fs2/api-enrichment-test.py 8000 &
     - name: Prepare data in Postgres to test SQL enrichment in Common Enrich
-      run: psql -h localhost -p 5432 -U enricher -d sql_enrichment_test < integration-tests/sce-sql-enrichment-test.sql
+      run: psql -h localhost -p 5432 -U enricher -d sql_enrichment_test < integration-tests/common/sql-enrichment-test.sql
       env:
         PGPASSWORD: supersecret1
     - name: Prepare data in Postgres to test SQL enrichment in Common Fs2
-      run: psql -h localhost -p 5432 -U enricher -d sql_enrichment_test < integration-tests/common-fs2-sql-enrichment-test.sql
+      run: psql -h localhost -p 5432 -U enricher -d sql_enrichment_test < integration-tests/common-fs2/sql-enrichment-test.sql
       env:
         PGPASSWORD: supersecret1
     - name: Run tests
       run: SBT_OPTS="-Xms1G -Xmx8G -Xss4M -XX:MaxMetaspaceSize=1024M" sbt coverage +test
       env:
         OER_KEY: ${{ secrets.OER_KEY }}
-    - name: Run integration tests
-      id: integrationTest
+    - name: Check Scala formatting
+      run: sbt scalafmtCheckAll
+    - name: Check assets can be published
+      run: sbt publishLocal
+    - name: Run integration tests for enrich-kinesis
+      run: sbt "project kinesis" IntegrationTest/test
+      env:
+        AWS_ACCESS_KEY_ID: foo
+        AWS_SECRET_ACCESS_KEY: bar
+    - name: Run integration tests for enrich-kafka
       run: |
         sbt "project kafka" "docker:publishLocal"
         docker-compose -f integration-tests/enrich-kafka/docker-compose.yml up -d
-        sbt "project kafka" "it:test"
+        sbt "project kafka" IntegrationTest/test
         docker-compose -f integration-tests/enrich-kafka/docker-compose.yml down
-    - name: Check Scala formatting
-      if: ${{ always() }}
-      run: sbt scalafmtCheckAll
-    - name: Check assets can be published
-      if: ${{ always() }}
-      run: sbt publishLocal
     - name: Generate coverage report
       run: sbt coverageReport
     - name: Aggregate coverage data

@@ -1,0 +1,40 @@
+{
+  "input": {
+    "type": "Kinesis"
+    "appName": ${APP_NAME}
+    "streamName": "raw"
+    "region": "eu-central-1"
+    "customEndpoint": "http://localstack:4566"
+    "dynamodbCustomEndpoint": "http://localstack:4566"
+    "cloudwatchCustomEndpoint": "http://localstack:4566"
+  }
+
+  "output": {
+    "good": {
+      "type": "Kinesis"
+      "streamName": "enriched"
+      "region": "eu-central-1"
+      "customEndpoint": "http://localstack:4566"
+    }
+
+    "bad": {
+      "type": "Kinesis"
+      "streamName": "bad-1"
+      "region": "eu-central-1"
+      "customEndpoint": "http://localstack:4566"
+    }
+  }
+
+  "monitoring": {
+    "metrics": {
+      "stdout": {
+        "period": "10 seconds"
+      }
+      "cloudwatch": true
+    }
+  }
+
+  "telemetry": {
+    "disable": true
+  }
+}

@@ -175,6 +175,7 @@ object Environment {
   ): Resource[F, Environment[F, A]] = {
     val file = parsedConfigs.configFile
     for {
+      _ <- Resource.make(Logger[F].info("Running Enrich"))(_ => Logger[F].info("Enrich stopped"))
       sentry <- mkSentry[F](file)
       good <- sinkGood
       bad <- sinkBad

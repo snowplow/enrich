@@ -60,11 +60,11 @@
 
     # Optional, endpoint url configuration to override aws dyanomdb endpoint for Kinesis checkpoints lease table
     # Can be used to specify local endpoint when using localstack
-    # "dynamodbCustomEndpoint": "http://localhost:4569"
+    # "dynamodbCustomEndpoint": "http://localhost:4566"
 
     # Optional, endpoint url configuration to override aws cloudwatch endpoint for metrics
     # Can be used to specify local endpoint when using localstack
-    # "cloudwatchCustomEndpoint": "http://localhost:4582"
+    # "cloudwatchCustomEndpoint": "http://localhost:4566"
   }
 
   "output": {

@@ -7,9 +7,7 @@
       {
         "name": "Iglu Central",
         "priority": 0,
-        "vendorPrefixes": [
-          "com.snowplowanalytics"
-        ],
+        "vendorPrefixes": [ "com.snowplowanalytics" ],
         "connection": {
           "http": {
             "uri": "http://iglucentral.com"

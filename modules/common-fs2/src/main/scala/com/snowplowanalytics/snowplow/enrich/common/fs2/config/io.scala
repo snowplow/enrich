@@ -25,11 +25,14 @@ import _root_.io.circe.{Decoder, DecodingFailure, Encoder}
 import _root_.io.circe.generic.extras.semiauto._
 import _root_.io.circe.config.syntax._
 import _root_.io.circe.DecodingFailure
+
 import org.http4s.{ParseFailure, Uri}
 
 import com.snowplowanalytics.snowplow.enrich.common.EtlPipeline.{FeatureFlags => CommonFeatureFlags}
 
 object io {
+
+  val putRecordsMaxRecords = 500
 
   import ConfigFile.finiteDurationEncoder
 
@@ -232,6 +235,7 @@ object io {
       partitionKey: Option[String],
       backoffPolicy: BackoffPolicy,
       recordLimit: Int,
+      byteLimit: Int,
       customEndpoint: Option[URI]
     ) extends Output
 
@@ -262,12 +266,14 @@ object io {
           case other => other.asRight
         }
         .emap {
-          case PubSub(_, _, d, _, _) if d < Duration.Zero =>
+          case p: PubSub if p.delayThreshold < Duration.Zero =>
             "PubSub delay threshold cannot be less than 0".asLeft
-          case PubSub(_, _, _, m, _) if m < 0 =>
+          case p: PubSub if p.maxBatchSize < 0 =>
             "PubSub max batch size cannot be less than 0".asLeft
-          case PubSub(_, _, _, _, m) if m < 0 =>
+          case p: PubSub if p.maxBatchBytes < 0 =>
             "PubSub max batch bytes cannot be less than 0".asLeft
+          case k: Kinesis if k.recordLimit > putRecordsMaxRecords =>
+            s"recordLimit can't be > $putRecordsMaxRecords".asLeft
           case other =>
             other.asRight
         }

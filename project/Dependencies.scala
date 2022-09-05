@@ -323,7 +323,8 @@ object Dependencies {
       fs2BlobS3,
       fs2Aws,
       kinesisClient2,
-      sts
+      sts,
+      specs2
     )
 
     // exclusions

@@ -61,11 +61,7 @@ object Sink {
             for {
               producer <- Resource.eval[F, AmazonKinesis](mkProducer(o, region))
               retryPolicy = getRetryPolicy[F](o.backoffPolicy)
-            } yield records =>
-              records
-                .grouped(o.recordLimit)
-                .toList
-                .parTraverse_(g => writeToKinesis(blocker, o, producer, toKinesisRecords(g), retryPolicy))
+            } yield records => writeToKinesis(blocker, o, producer, records, retryPolicy)
           case None =>
             Resource.eval(Sync[F].raiseError(new RuntimeException(s"Region not found in the config and in the runtime")))
         }
@@ -105,11 +101,58 @@ object Sink {
     capDelay[F](config.maxBackoff, fullJitter[F](config.minBackoff))
       .join(limitRetries(config.maxRetries))
 
+  private def writeToKinesis[F[_]: ContextShift: Parallel: Sync: Timer](
+    blocker: Blocker,
+    config: Output.Kinesis,
+    kinesis: AmazonKinesis,
+    records: List[AttributedData[Array[Byte]]],
+    retryPolicy: RetryPolicy[F]
+  ): F[Unit] =
+    group(toKinesisRecords(records), config.recordLimit, config.byteLimit, getRecordSize)
+      .parTraverse_(g => writeToKinesis(blocker, config, kinesis, g, retryPolicy))
+
+  /**
+   *  This function takes a list of records and splits it into several lists,
+   *  where each list is as big as possible with respecting the record limit and
+   *  the size limit.
+   */
+  private[kinesis] def group[A](
+    records: List[A],
+    recordLimit: Int,
+    sizeLimit: Int,
+    getRecordSize: A => Int
+  ): List[List[A]] = {
+    case class Batch(
+      size: Int,
+      count: Int,
+      records: List[A]
+    )
+
+    records
+      .foldLeft(List.empty[Batch]) {
+        case (acc, record) =>
+          val recordSize = getRecordSize(record)
+          acc match {
+            case head :: tail =>
+              if (head.count + 1 > recordLimit || head.size + recordSize > sizeLimit)
+                List(Batch(recordSize, 1, List(record))) ++ List(head) ++ tail
+              else
+                List(Batch(head.size + recordSize, head.count + 1, record :: head.records)) ++ tail
+            case Nil =>
+              List(Batch(recordSize, 1, List(record)))
+          }
+      }
+      .map(_.records)
+  }
+
+  private def getRecordSize(record: PutRecordsRequestEntry) =
+    record.getData.array.size + record.getPartitionKey.getBytes.size
+
   private def writeToKinesis[F[_]: ContextShift: Sync: Timer](
     blocker: Blocker,
     config: Output.Kinesis,
     kinesis: AmazonKinesis,
-    records: List[KinesisRecord],
+    records: List[PutRecordsRequestEntry],
     retryPolicy: RetryPolicy[F],
     retryStatus: RetryStatus = RetryStatus.NoRetriesYet
   ): F[Unit] = {
@@ -167,7 +210,7 @@ object Sink {
     } yield failuresRetried
   }
 
-  private def toKinesisRecords(records: List[AttributedData[Array[Byte]]]): List[KinesisRecord] =
+  private def toKinesisRecords(records: List[AttributedData[Array[Byte]]]): List[PutRecordsRequestEntry] =
     records.map { r =>
       val partitionKey =
         r.attributes.toList match { // there can be only one attribute : the partition key
@@ -175,24 +218,21 @@ object Sink {
           case _ => UUID.randomUUID().toString
         }
       val data = ByteBuffer.wrap(r.data)
-      KinesisRecord(data, partitionKey)
+      val prre = new PutRecordsRequestEntry()
+      prre.setPartitionKey(partitionKey)
+      prre.setData(data)
+      prre
     }
 
   private def putRecords(
     kinesis: AmazonKinesis,
     streamName: String,
-    records: List[KinesisRecord]
+    records: List[PutRecordsRequestEntry]
   ): PutRecordsResult = {
     val putRecordsRequest = {
       val prr = new PutRecordsRequest()
       prr.setStreamName(streamName)
-      val putRecordsRequestEntryList = records.map { r =>
-        val prre = new PutRecordsRequestEntry()
-        prre.setPartitionKey(r.partitionKey)
-        prre.setData(r.data)
-        prre
-      }
-      prr.setRecords(putRecordsRequestEntryList.asJava)
+      prr.setRecords(records.asJava)
       prr
     }
     kinesis.putRecords(putRecordsRequest)
@@ -217,5 +257,4 @@ object Sink {
       .toList
       .sequence_
 
-  private case class KinesisRecord(data: ByteBuffer, partitionKey: String)
 }

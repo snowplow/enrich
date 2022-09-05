@@ -34,6 +34,7 @@ object Dependencies {
     val jodaTime         = "2.10.1"
     val useragent        = "1.21"
     val uaParser         = "1.4.3"
+    val snakeYaml        = "1.31" // override transitive dependency to mitigate security vulnerabilities CVE-2022-25857
     val postgresDriver   = "42.2.26"
     val mysqlConnector   = "8.0.29"
     val hikariCP         = "5.0.1"
@@ -109,6 +110,7 @@ object Dependencies {
     val jodaTime         = "joda-time"                  %  "joda-time"                     % V.jodaTime
     val useragent        = "eu.bitwalker"               %  "UserAgentUtils"                % V.useragent
     val jacksonDatabind  = "com.fasterxml.jackson.core" %  "jackson-databind"              % V.jackson
+    val snakeYaml        = "org.yaml"                   %  "snakeyaml"                     % V.snakeYaml
     val uaParser         = "com.github.ua-parser"       %  "uap-java"                      % V.uaParser
     val postgresDriver   = "org.postgresql"             %  "postgresql"                    % V.postgresDriver
     val mysqlConnector   = "mysql"                      %  "mysql-connector-java"          % V.mysqlConnector
@@ -211,6 +213,7 @@ object Dependencies {
       useragent,
       jacksonDatabind,
       uaParser,
+      snakeYaml,
       postgresDriver,
       mysqlConnector,
       hikariCP,

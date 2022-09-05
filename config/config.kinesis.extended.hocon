@@ -101,7 +101,14 @@
 
       # Optional. Limits the number of events in a single PutRecords request.
       # Several requests are made in parallel
+      # Maximum allowed: 500
       "recordLimit": 500
+
+      # Optional. Limits the number of bytes in a single PutRecords request,
+      # including records and partition keys.
+      # Several requests are made in parallel
+      # Maximum allowed: 5 MB
+      "byteLimit": 5242880
 
       # Optional. Use a custom Kinesis endpoint.
       # Can be used for instance to work locally with localstack
@@ -141,7 +148,14 @@
 
       # Optional. Limits the number of events in a single PutRecords request.
       # Several requests are made in parallel
+      # Maximum allowed: 500
       "recordLimit": 500
+
+      # Optional. Limits the number of bytes in a single PutRecords request,
+      # including records and partition keys.
+      # Several requests are made in parallel
+      # Maximum allowed: 5 MB
+      "byteLimit": 5242880
 
       # Optional. Use a custom Kinesis endpoint.
       # Can be used for instance to work locally with localstack
@@ -173,7 +187,14 @@
 
       # Optional. Limits the number of events in a single PutRecords request.
       # Several requests are made in parallel
+      # Maximum allowed: 500
       "recordLimit": 500
+
+      # Optional. Limits the number of bytes in a single PutRecords request,
+      # including records and partition keys.
+      # Several requests are made in parallel
+      # Maximum allowed: 5 MB
+      "byteLimit": 5242880
 
       # Optional. Use a custom Kinesis endpoint.
       # Can be used for instance to work locally with localstack

@@ -114,6 +114,7 @@ class ConfigFileSpec extends Specification with CatsIO {
             None,
             io.Output.BackoffPolicy(100.millis, 10.seconds, 10),
             500,
+            5242880,
             None
           ),
           Some(
@@ -123,6 +124,7 @@ class ConfigFileSpec extends Specification with CatsIO {
               None,
               io.Output.BackoffPolicy(100.millis, 10.seconds, 10),
               500,
+              5242880,
               None
             )
           ),
@@ -132,6 +134,7 @@ class ConfigFileSpec extends Specification with CatsIO {
             None,
             io.Output.BackoffPolicy(100.millis, 10.seconds, 10),
             500,
+            5242880,
             None
           )
         ),

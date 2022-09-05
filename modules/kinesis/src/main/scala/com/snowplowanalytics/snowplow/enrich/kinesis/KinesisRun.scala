@@ -34,8 +34,8 @@ import com.snowplowanalytics.snowplow.enrich.kinesis.generated.BuildInfo
 
 object KinesisRun {
 
-  // Kinesis records must not exceed 1MB
-  private val MaxRecordSize = 1000000
+  // Kinesis records must not exceed 1 MB
+  private val MaxRecordSize = 1024 * 1024
 
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
     Slf4jLogger.getLogger[F]

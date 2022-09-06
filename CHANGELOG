@@ -1,3 +1,8 @@
+3.3.1 (2022-09-06)
+------------------
+Bump snake-yaml to 1.31 (#688)
+enrich-kinesis: never send batch of records > 5 MB with putRecords (#685)
+
 3.3.0 (2022-08-30)
 ------------------
 enrich-pubsub: Add flow control & maxAckExtensionPeriod to consumer (#681)

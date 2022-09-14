@@ -1,3 +1,8 @@
+3.3.2 (2022-09-14)
+------------------
+common: show the name of the misconfigured enrichment (#683) 
+common-fs2: retry EOF errors in blaze http client (#692)
+
 3.3.1 (2022-09-06)
 ------------------
 Bump snake-yaml to 1.31 (#688)

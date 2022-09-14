@@ -84,7 +84,7 @@ object ParsedConfigs {
              Logger[F].info(show"Parsed Iglu Client with following registries: ${client.resolver.repos.map(_.config.name).mkString(", ")}")
            )
       configs <- EitherT(EnrichmentRegistry.parse[F](enrichmentJsons, client, false).map(_.toEither)).leftMap { x =>
-                   show"Cannot decode enrichments ${x.mkString_(", ")}"
+                   show"Cannot decode enrichments - ${x.mkString_(", ")}"
                  }
       _ <- EitherT.liftF(Logger[F].info(show"Parsed following enrichments: ${configs.map(_.schemaKey.name).mkString(", ")}"))
     } yield ParsedConfigs(igluJson, configs, configFile, goodAttributes, piiAttributes)

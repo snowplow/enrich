@@ -116,9 +116,10 @@ jobs:
           - pubsub
           - kinesis
           - rabbitmq
-        - suffix: ""
-        - suffix: -experimental
-          app: rabbitmq
+        include:
+          - suffix: ""
+          - suffix: -experimental
+            app: rabbitmq
     steps:
     - uses: actions/checkout@v2
       if: startsWith(github.ref, 'refs/tags/')

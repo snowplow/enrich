@@ -736,6 +736,50 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       )
       enriched.value.map(_.useragent) must beRight("header-useragent")
     }
+
+    "accept user agent of HTTP header when it is not URL decodable" >> {
+      val parameters = Map(
+        "e" -> "pp",
+        "tv" -> "js-0.13.1",
+        "p" -> "web"
+      ).toOpt
+      val ua = "Mozilla/5.0 (X11; Linux x86_64; rv:75.0) Gecko/20100101 %1$s/%2$s Firefox/75.0"
+      val contextWithUa = context.copy(useragent = Some(ua))
+      val rawEvent = RawEvent(api, parameters, None, source, contextWithUa)
+      val enriched = EnrichmentManager.enrichEvent[Id](
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent,
+        AcceptInvalid.featureFlags,
+        AcceptInvalid.countInvalid
+      )
+      enriched.value.map(_.useragent) must beRight(ua)
+    }
+
+    "accept 'ua' in query string when it is not URL decodable" >> {
+      val qs_ua = "Mozilla/5.0 (X11; Linux x86_64; rv:75.0) Gecko/20100101 %1$s/%2$s Firefox/75.0"
+      val parameters = Map(
+        "e" -> "pp",
+        "tv" -> "js-0.13.1",
+        "ua" -> qs_ua,
+        "p" -> "web"
+      ).toOpt
+      val contextWithUa = context.copy(useragent = Some("header-useragent"))
+      val rawEvent = RawEvent(api, parameters, None, source, contextWithUa)
+      val enriched = EnrichmentManager.enrichEvent[Id](
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent,
+        AcceptInvalid.featureFlags,
+        AcceptInvalid.countInvalid
+      )
+      enriched.value.map(_.useragent) must beRight(qs_ua)
+      enriched.value.map(_.derived_contexts) must beRight((_: String).contains("\"agentName\":\"%1$S\""))
+    }
   }
 
   "getIabContext" should {

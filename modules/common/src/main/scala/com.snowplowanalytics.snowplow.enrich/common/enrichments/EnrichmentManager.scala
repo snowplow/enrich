@@ -265,13 +265,13 @@ object EnrichmentManager {
       .toOption
       .orNull // May be updated later by 'ip'
     // May be updated later if we have a `ua` parameter
-    val useragent = setUseragent(e, raw.context.useragent, raw.source.encoding).toValidatedNel
+    setUseragent(e, raw.context.useragent)
     // Validate that the collectorTstamp exists and is Redshift-compatible
     val collectorTstamp = setCollectorTstamp(e, raw.context.timestamp).toValidatedNel
     // Map/validate/transform input fields to enriched event fields
     val transformed = Transform.transform(raw, e)
 
-    (useragent |+| collectorTstamp |+| transformed)
+    (collectorTstamp |+| transformed)
       .leftMap { enrichmentFailures =>
         EnrichmentManager.buildEnrichmentFailuresBadRow(
           enrichmentFailures,
@@ -292,22 +292,13 @@ object EnrichmentManager {
 
   def setUseragent(
     event: EnrichedEvent,
-    useragent: Option[String],
-    encoding: String
-  ): Either[FailureDetails.EnrichmentFailure, Unit] =
+    useragent: Option[String]
+  ): Unit =
     useragent match {
       case Some(ua) =>
-        CU.decodeString(Charset.forName(encoding), ua)
-          .map { ua =>
-            event.useragent = ua
-          }
-          .leftMap(f =>
-            FailureDetails.EnrichmentFailure(
-              None,
-              FailureDetails.EnrichmentFailureMessage.Simple(f)
-            )
-          )
-      case None => ().asRight // No fields updated
+        val s = ua.replaceAll("(\\r|\\n)", "").replaceAll("\\t", "    ")
+        event.useragent = s
+      case None => () // No fields updated
     }
 
   // The load fails if the collector version is not set

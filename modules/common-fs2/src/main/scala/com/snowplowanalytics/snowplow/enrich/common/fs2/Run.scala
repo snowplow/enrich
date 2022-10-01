@@ -17,7 +17,6 @@ import cats.implicits._
 
 import fs2.Stream
 
-import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
 
 import cats.effect.{Blocker, Clock, Concurrent, ConcurrentEffect, ContextShift, ExitCode, Resource, Sync, Timer}
@@ -26,13 +25,12 @@ import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import retry.syntax.all._
-import retry.RetryPolicies._
 
 import com.snowplowanalytics.snowplow.badrows.Processor
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Input, Monitoring, Output, RetryCheckpointing}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{BackoffPolicy, Input, Monitoring, Output, RetryCheckpointing}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{CliConfig, ParsedConfigs}
-import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{FileSink, Source}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{FileSink, Retries, Source}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.Client
 
 import org.http4s.client.{Client => Http4sClient}
@@ -109,9 +107,7 @@ object Run {
                                 val checkpointing = input match {
                                   case retrySettings: RetryCheckpointing =>
                                     withRetries(
-                                      retrySettings.checkpointBackoff.minBackoff,
-                                      retrySettings.checkpointBackoff.maxBackoff,
-                                      retrySettings.checkpointBackoff.maxRetries,
+                                      retrySettings.checkpointBackoff,
                                       "Checkpointing failed",
                                       checkpoint
                                     )
@@ -186,13 +182,11 @@ object Run {
     }
 
   private def withRetries[F[_]: Sync: Timer, A, B](
-    minBackOff: FiniteDuration,
-    maxBackOff: FiniteDuration,
-    maxRetries: Int,
+    config: BackoffPolicy,
     errorMessage: String,
     f: A => F[B]
   ): A => F[B] = { a =>
-    val retryPolicy = capDelay[F](maxBackOff, fullJitter[F](minBackOff)).join(limitRetries(maxRetries))
+    val retryPolicy = Retries.fullJitter[F](config)
 
     f(a)
       .retryingOnAllErrors(

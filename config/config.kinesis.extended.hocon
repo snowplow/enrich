@@ -89,14 +89,17 @@
       # Otherwise, the partition key will be a random UUID.
       # "partitionKey": "user_id"
 
-      # Optional. Policy to retry if writing to kinesis fails.
-      # This policy is used in 2 places:
-      # - When the PutRecords request errors
-      # - When the requests succeeds but some records couldn't get inserted
+      # Optional. Policy to retry if writing to kinesis fails with unexepected errors
       "backoffPolicy": {
         "minBackoff": 100 milliseconds
         "maxBackoff": 10 seconds
         "maxRetries": 10
+      }
+
+      # Optional. Policy to retry if writing to kinesis exceeds the provisioned throughput.
+      "throttledBackoffPolicy": {
+        "minBackoff": 100 milliseconds
+        "maxBackoff": 1 second
       }
 
       # Optional. Limits the number of events in a single PutRecords request.
@@ -136,14 +139,17 @@
       # Otherwise, the partition key will be a random UUID.
       # "partitionKey": "user_id"
 
-      # Optional. Policy to retry if writing to kinesis fails.
-      # This policy is used in 2 places:
-      # - When the PutRecords request errors
-      # - When the requests succeeds but some records couldn't get inserted
+      # Optional. Policy to retry if writing to kinesis fails with unexepcted errors
       "backoffPolicy": {
         "minBackoff": 100 milliseconds
         "maxBackoff": 10 seconds
         "maxRetries": 10
+      }
+
+      # Optional. Policy to retry if writing to kinesis exceeds the provisioned throughput.
+      "throttledBackoffPolicy": {
+        "minBackoff": 100 milliseconds
+        "maxBackoff": 1 second
       }
 
       # Optional. Limits the number of events in a single PutRecords request.
@@ -175,14 +181,17 @@
       # https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/regions/providers/DefaultAwsRegionProviderChain.html
       "region": "eu-central-1"
 
-      # Optional. Policy to retry if writing to kinesis fails.
-      # This policy is used in 2 places:
-      # - When the PutRecords request errors
-      # - When the requests succeeds but some records couldn't get inserted
+      # Optional. Policy to retry if writing to kinesis fails with unexepcted errors
       "backoffPolicy": {
         "minBackoff": 100 milliseconds
         "maxBackoff": 10 seconds
         "maxRetries": 10
+      }
+
+      # Optional. Policy to retry if writing to kinesis exceeds the provisioned throughput.
+      "throttledBackoffPolicy": {
+        "minBackoff": 100 milliseconds
+        "maxBackoff": 1 second
       }
 
       # Optional. Limits the number of events in a single PutRecords request.

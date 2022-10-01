@@ -63,7 +63,7 @@ object io {
   case class BackoffPolicy(
     minBackoff: FiniteDuration,
     maxBackoff: FiniteDuration,
-    maxRetries: Int
+    maxRetries: Option[Int]
   )
   object BackoffPolicy {
     implicit def backoffPolicyDecoder: Decoder[BackoffPolicy] =
@@ -269,6 +269,7 @@ object io {
       region: Option[String],
       partitionKey: Option[String],
       backoffPolicy: BackoffPolicy,
+      throttledBackoffPolicy: BackoffPolicy,
       recordLimit: Int,
       byteLimit: Int,
       customEndpoint: Option[URI]

@@ -112,7 +112,7 @@ object ParsedConfigs {
             if (invalidAttributes.nonEmpty) NonEmptyList(invalidAttributes.head, invalidAttributes.tail.toList).invalid
             else output.valid
           }
-      case OutputConfig.Kinesis(_, _, Some(key), _, _, _, _) if !enrichedFieldsMap.contains(key) =>
+      case OutputConfig.Kinesis(_, _, Some(key), _, _, _, _, _) if !enrichedFieldsMap.contains(key) =>
         NonEmptyList.one(s"Partition key $key not valid").invalid
       case _ =>
         output.valid
@@ -126,7 +126,7 @@ object ParsedConfigs {
             attributes.contains(s)
         }
         attributesFromFields(fields)
-      case OutputConfig.Kinesis(_, _, Some(key), _, _, _, _) =>
+      case OutputConfig.Kinesis(_, _, Some(key), _, _, _, _, _) =>
         val fields = ParsedConfigs.enrichedFieldsMap.filter {
           case (s, _) =>
             s == key

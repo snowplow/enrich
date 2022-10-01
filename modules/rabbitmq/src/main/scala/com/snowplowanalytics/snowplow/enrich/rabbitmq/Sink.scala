@@ -13,7 +13,7 @@
 package com.snowplowanalytics.snowplow.enrich.rabbitmq
 
 import cats.implicits._
-import cats.{Applicative, Parallel}
+import cats.Parallel
 
 import cats.effect.{Blocker, ConcurrentEffect, ContextShift, Resource, Sync, Timer}
 
@@ -24,11 +24,10 @@ import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import retry.syntax.all._
-import retry.RetryPolicies._
-import retry.RetryPolicy
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.{AttributedByteSink, AttributedData, ByteSink}
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{BackoffPolicy, Output}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Output
+import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Retries
 
 object Sink {
 
@@ -75,7 +74,7 @@ object Sink {
                  .parTraverse_ { bytes =>
                    publisher(new String(bytes))
                      .retryingOnAllErrors(
-                       policy = getRetryPolicy[F](rawConfig.backoffPolicy),
+                       policy = Retries.fullJitter[F](rawConfig.backoffPolicy),
                        onError = (exception, retryDetails) =>
                          Logger[F]
                            .error(exception)(
@@ -85,7 +84,4 @@ object Sink {
                  }
     } yield sink
 
-  private def getRetryPolicy[F[_]: Applicative](backoffPolicy: BackoffPolicy): RetryPolicy[F] =
-    capDelay[F](backoffPolicy.maxBackoff, fullJitter[F](backoffPolicy.minBackoff))
-      .join(limitRetries(backoffPolicy.maxRetries))
 }

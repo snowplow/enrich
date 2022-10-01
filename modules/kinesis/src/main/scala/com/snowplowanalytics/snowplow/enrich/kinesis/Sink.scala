@@ -21,13 +21,14 @@ import cats.implicits._
 import cats.{Applicative, Parallel}
 
 import cats.effect.{Blocker, Concurrent, ContextShift, Resource, Sync, Timer}
+import cats.effect.concurrent.Ref
 
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import retry.syntax.all._
 import retry.RetryPolicies._
-import retry.{PolicyDecision, RetryPolicy, RetryStatus}
+import retry.RetryPolicy
 
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
 
@@ -60,8 +61,7 @@ object Sink {
           case Some(region) =>
             for {
               producer <- Resource.eval[F, AmazonKinesis](mkProducer(o, region))
-              retryPolicy = getRetryPolicy[F](o.backoffPolicy)
-            } yield records => writeToKinesis(blocker, o, producer, records, retryPolicy)
+            } yield records => writeToKinesis(blocker, o, producer, toKinesisRecords(records))
           case None =>
             Resource.eval(Sync[F].raiseError(new RuntimeException(s"Region not found in the config and in the runtime")))
         }
@@ -97,19 +97,47 @@ object Sink {
                 }
     } yield exists
 
-  private def getRetryPolicy[F[_]: Applicative](config: BackoffPolicy): RetryPolicy[F] =
+  private def getRetryPolicyForErrors[F[_]: Applicative](config: BackoffPolicy): RetryPolicy[F] =
     capDelay[F](config.maxBackoff, fullJitter[F](config.minBackoff))
       .join(limitRetries(config.maxRetries))
+
+  private def getRetryPolicyForThrottling[F[_]: Applicative](config: BackoffPolicy): RetryPolicy[F] =
+    capDelay[F](config.maxBackoff, fullJitter[F](config.minBackoff))
 
   private def writeToKinesis[F[_]: ContextShift: Parallel: Sync: Timer](
     blocker: Blocker,
     config: Output.Kinesis,
     kinesis: AmazonKinesis,
-    records: List[AttributedData[Array[Byte]]],
-    retryPolicy: RetryPolicy[F]
-  ): F[Unit] =
-    group(toKinesisRecords(records), config.recordLimit, config.byteLimit, getRecordSize)
-      .parTraverse_(g => writeToKinesis(blocker, config, kinesis, g, retryPolicy))
+    records: List[PutRecordsRequestEntry]
+  ): F[Unit] = {
+    val policyForErrors = getRetryPolicyForErrors[F](config.backoffPolicy)
+    val policyForThrottling = getRetryPolicyForThrottling[F](config.backoffPolicy)
+
+    def runOnce(ref: Ref[F, List[PutRecordsRequestEntry]]): F[List[PutRecordsRequestEntry]] =
+      for {
+        records <- ref.get
+        failures <- group(records, config.recordLimit, config.byteLimit, getRecordSize)
+                      .parTraverse(g => tryWriteToKinesis(blocker, config, kinesis, g, policyForErrors))
+        flattened = failures.flatten
+        _ <- ref.set(flattened)
+      } yield flattened
+
+    for {
+      ref <- Ref.of(records)
+      _ <- runOnce(ref)
+             .retryingOnFailures(
+               policy = policyForThrottling,
+               wasSuccessful = _.isEmpty,
+               onFailure = {
+                 case (result, retryDetails) =>
+                   Logger[F]
+                     .warn(
+                       s"${result.size} records failed writing to ${config.streamName} (${retryDetails.retriesSoFar} retries from cats-retry)"
+                     )
+               }
+             )
+    } yield ()
+  }
 
   /**
    *  This function takes a list of records and splits it into several lists,
@@ -148,67 +176,48 @@ object Sink {
   private def getRecordSize(record: PutRecordsRequestEntry) =
     record.getData.array.size + record.getPartitionKey.getBytes.size
 
-  private def writeToKinesis[F[_]: ContextShift: Sync: Timer](
+  /** Returns a list of the failures, i.e. when throttled */
+  private def tryWriteToKinesis[F[_]: ContextShift: Sync: Timer](
     blocker: Blocker,
     config: Output.Kinesis,
     kinesis: AmazonKinesis,
     records: List[PutRecordsRequestEntry],
-    retryPolicy: RetryPolicy[F],
-    retryStatus: RetryStatus = RetryStatus.NoRetriesYet
-  ): F[Unit] = {
-    val withoutRetry = blocker.blockOn(Sync[F].delay(putRecords(kinesis, config.streamName, records)))
-
-    val withRetry =
-      withoutRetry.retryingOnAllErrors(
-        policy = retryPolicy,
-        onError = (exception, retryDetails) =>
-          Logger[F]
-            .error(exception)(
-              s"Writing ${records.size} records to ${config.streamName} errored (${retryDetails.retriesSoFar} retries from cats-retry)"
-            )
-      )
-
-    for {
-      _ <- retryStatus match {
-             case RetryStatus.NoRetriesYet =>
-               Logger[F].debug(s"Writing ${records.size} records to ${config.streamName}")
-             case retry =>
-               Logger[F].debug(
-                 s"Waiting for ${retry.cumulativeDelay} and retrying to write ${records.size} records to ${config.streamName}"
-               ) *>
-                 Timer[F].sleep(retry.cumulativeDelay)
-           }
-      putRecordsResult <- withRetry
-      failuresRetried <- if (putRecordsResult.getFailedRecordCount != 0) {
-                           val failurePairs = records.zip(putRecordsResult.getRecords.asScala).filter(_._2.getErrorMessage != null)
-                           val (failedRecords, failedResults) = failurePairs.unzip
-                           val logging = logErrorsSummary(getErrorsSummary(failedResults))
-                           val maybeRetrying =
-                             for {
-                               nextRetry <- retryPolicy.decideNextRetry(retryStatus)
-                               maybeRetried <- nextRetry match {
-                                                 case PolicyDecision.DelayAndRetry(delay) =>
-                                                   writeToKinesis(
-                                                     blocker,
-                                                     config,
-                                                     kinesis,
-                                                     failedRecords,
-                                                     retryPolicy,
-                                                     retryStatus.addRetry(delay)
-                                                   )
-                                                 case PolicyDecision.GiveUp =>
-                                                   Sync[F].raiseError[Unit](
-                                                     new RuntimeException(
-                                                       s"Maximum number of retries reached for ${failedRecords.size} records"
-                                                     )
-                                                   )
-                                               }
-                             } yield maybeRetried
-                           logging *> maybeRetrying
-                         } else
-                           Sync[F].unit
-    } yield failuresRetried
-  }
+    retryPolicy: RetryPolicy[F]
+  ): F[List[PutRecordsRequestEntry]] =
+    Logger[F].debug(s"Writing ${records.size} records to ${config.streamName}") *>
+      blocker
+        .blockOn(Sync[F].delay(putRecords(kinesis, config.streamName, records)))
+        .retryingOnFailuresAndAllErrors(
+          policy = retryPolicy,
+          wasSuccessful = { result =>
+            // It's a success if _any_ record has a status which we want to handle ourselves.
+            // This includes if we got throttled by Kinesis.
+            result.getFailedRecordCount.toInt === 0 || result.getRecords.asScala
+              .flatMap(record => Option(record.getErrorCode))
+              .exists(_ === "ProvisionedThroughputExceededException")
+          },
+          onFailure = {
+            case (result, retryDetails) =>
+              val codes = result.getRecords.asScala.flatMap(record => Option(record.getErrorCode)).toSet.mkString(",")
+              Logger[F]
+                .error(
+                  s"Writing ${records.size} records to ${config.streamName} errored with codes [$codes] (${retryDetails.retriesSoFar} retries from cats-retry)"
+                )
+          },
+          onError = (exception, retryDetails) =>
+            Logger[F]
+              .error(exception)(
+                s"Writing ${records.size} records to ${config.streamName} errored (${retryDetails.retriesSoFar} retries from cats-retry)"
+              )
+        )
+        .flatMap { putRecordsResult =>
+          if (putRecordsResult.getFailedRecordCount.toInt =!= 0) {
+            val failurePairs = records.zip(putRecordsResult.getRecords.asScala).filter(_._2.getErrorMessage != null)
+            val (failedRecords, failedResults) = failurePairs.unzip
+            logErrorsSummary(getErrorsSummary(failedResults)).as(failedRecords)
+          } else
+            Sync[F].pure(Nil)
+        }
 
   private def toKinesisRecords(records: List[AttributedData[Array[Byte]]]): List[PutRecordsRequestEntry] =
     records.map { r =>
@@ -250,7 +259,7 @@ object Sink {
     errorsSummary
       .map {
         case (errorCode, (count, sampleMessage)) =>
-          Logger[F].error(
+          Logger[F].debug(
             s"$count records failed with error code ${errorCode}. Example error message: ${sampleMessage}"
           )
       }

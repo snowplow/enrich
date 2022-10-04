@@ -13,12 +13,9 @@
 package com.snowplowanalytics.snowplow.enrich.common.fs2.io
 
 import java.net.URI
-
-import cats.effect.{ConcurrentEffect, Resource}
-
+import cats.effect.{ConcurrentEffect, Resource, Timer}
 import fs2.Stream
-
-import org.http4s.{Request, Uri}
+import org.http4s.{Headers, Request, Uri}
 import org.http4s.client.defaults
 import org.http4s.client.{Client => Http4sClient}
 import org.http4s.client.blaze.BlazeClientBuilder
@@ -27,6 +24,10 @@ import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
 
 import Clients._
+import org.http4s.blaze.pipeline.Command
+import org.http4s.client.middleware.{Retry, RetryPolicy}
+import org.http4s.syntax.string._
+import org.http4s.util.CaseInsensitiveString
 
 case class Clients[F[_]: ConcurrentEffect](clients: List[Client[F]]) {
 
@@ -58,7 +59,7 @@ object Clients {
       }
     }
 
-  def mkHttp[F[_]: ConcurrentEffect](
+  def mkHttp[F[_]: ConcurrentEffect: Timer](
     connectionTimeout: FiniteDuration = defaults.ConnectTimeout,
     readTimeout: FiniteDuration = defaults.RequestTimeout,
     maxConnections: Int = 10, // http4s uses 10 by default
@@ -69,6 +70,25 @@ object Clients {
       .withRequestTimeout(readTimeout)
       .withMaxTotalConnections(maxConnections)
       .resource
+      .map(Retry[F](retryPolicy, redactHeadersWhen))
+
+  private def retryPolicy[F[_]] =
+    RetryPolicy[F](
+      backoff,
+      retriable = {
+        //EOF error has to be retried explicitly for blaze client, see https://github.com/snowplow/enrich/issues/692
+        case (_, Left(Command.EOF)) => true
+        case _ => false
+      }
+    )
+
+  //retry once after 100 mills
+  private def backoff(attemptNumber: Int): Option[FiniteDuration] =
+    if (attemptNumber > 1) None
+    else Some(100.millis)
+
+  private def redactHeadersWhen(header: CaseInsensitiveString) =
+    (Headers.SensitiveHeaders + "apikey".ci).contains(header)
 
   trait RetryableFailure extends Throwable
 

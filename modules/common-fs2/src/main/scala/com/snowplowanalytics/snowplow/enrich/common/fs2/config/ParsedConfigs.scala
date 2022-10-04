@@ -84,7 +84,7 @@ object ParsedConfigs {
              Logger[F].info(show"Parsed Iglu Client with following registries: ${client.resolver.repos.map(_.config.name).mkString(", ")}")
            )
       configs <- EitherT(EnrichmentRegistry.parse[F](enrichmentJsons, client, false).map(_.toEither)).leftMap { x =>
-                   show"Cannot decode enrichments ${x.mkString_(", ")}"
+                   show"Cannot decode enrichments - ${x.mkString_(", ")}"
                  }
       _ <- EitherT.liftF(Logger[F].info(show"Parsed following enrichments: ${configs.map(_.schemaKey.name).mkString(", ")}"))
     } yield ParsedConfigs(igluJson, configs, configFile, goodAttributes, piiAttributes)
@@ -109,7 +109,7 @@ object ParsedConfigs {
             if (invalidAttributes.nonEmpty) NonEmptyList(invalidAttributes.head, invalidAttributes.tail.toList).invalid
             else output.valid
           }
-      case OutputConfig.Kinesis(_, _, Some(key), _, _, _) if !enrichedFieldsMap.contains(key) =>
+      case OutputConfig.Kinesis(_, _, Some(key), _, _, _, _) if !enrichedFieldsMap.contains(key) =>
         NonEmptyList.one(s"Partition key $key not valid").invalid
       case _ =>
         output.valid
@@ -123,7 +123,7 @@ object ParsedConfigs {
             attributes.contains(s)
         }
         attributesFromFields(fields)
-      case OutputConfig.Kinesis(_, _, Some(key), _, _, _) =>
+      case OutputConfig.Kinesis(_, _, Some(key), _, _, _, _) =>
         val fields = ParsedConfigs.enrichedFieldsMap.filter {
           case (s, _) =>
             s == key

@@ -273,7 +273,7 @@ object Environment {
    * @param remoteAdaptersConfig List of configuration per remote adapter
    * @return An Http4sClient with a mapping of vendor-version and the adapter assigned for it
    */
-  def prepareRemoteAdapters[F[_]: ConcurrentEffect](
+  def prepareRemoteAdapters[F[_]: ConcurrentEffect: Timer](
     remoteAdapters: RemoteAdapterConfigs,
     ec: ExecutionContext,
     metrics: Metrics[F]

@@ -1,3 +1,32 @@
+3.4.0 (2022-09-27)
+------------------
+Add RabbitMQ asset (#679)
+
+3.3.2 (2022-09-15)
+------------------
+common: show the name of the misconfigured enrichment (#683) 
+common-fs2: retry EOF errors in blaze http client (#692)
+
+3.3.1 (2022-09-06)
+------------------
+Bump snake-yaml to 1.31 (#688)
+enrich-kinesis: never send batch of records > 5 MB with putRecords (#685)
+
+3.3.0 (2022-08-30)
+------------------
+enrich-pubsub: Add flow control & maxAckExtensionPeriod to consumer (#681)
+
+3.2.5 (2022-08-15)
+------------------
+Update Mailgun adapter to work with the new API (#665)
+Common: api_request_enrichment_config schema version 1-0-1 support (#669)
+Common: Explicitly set Accept header (#667)
+
+3.2.4 (2022-08-11)
+------------------
+Bump postgresql to 42.2.26 (#672)
+enrich-pubsub: Fix to sending output events in parallel (#673)
+
 3.2.3 (2022-08-08)
 ------------------
 Common: Get HttpClient to Set Authorization header and Content-Type (#660)

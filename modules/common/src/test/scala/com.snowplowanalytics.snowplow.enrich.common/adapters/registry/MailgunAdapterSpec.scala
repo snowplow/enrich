@@ -20,6 +20,7 @@ import com.snowplowanalytics.snowplow.badrows._
 import org.joda.time.DateTime
 import org.specs2.Specification
 import org.specs2.matcher.{DataTables, ValidatedMatchers}
+import io.circe.parser._
 
 import loaders._
 import utils.Clock._
@@ -32,17 +33,16 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
   toRawEvents must return a Success Nel if every event 'opened' in the payload is successful                   $e2
   toRawEvents must return a Success Nel if every event 'clicked' in the payload is successful                  $e3
   toRawEvents must return a Success Nel if every event 'unsubscribed' in the payload is successful             $e4
-  toRawEvents must return a Success Nel if the content type is 'multipart/form-data' and parsing is successful $e5
+  toRawEvents must return a Success Nel if the content type is 'application/json' and parsing is successful    $e5
   toRawEvents must return a Nel Failure if the request body is missing                                         $e6
   toRawEvents must return a Nel Failure if the content type is missing                                         $e7
   toRawEvents must return a Nel Failure if the content type is incorrect                                       $e8
   toRawEvents must return a Failure Nel if the request body is empty                                           $e9
-  toRawEvents must return a Failure if the request body could not be parsed                                    $e10
-  toRawEvents must return a Failure if the request body does not contain an event parameter                    $e11
-  toRawEvents must return a Failure if the event type is not recognized                                        $e12
-  payloadBodyToEvent must return a Failure if the event data is missing 'timestamp'                            $e13
-  payloadBodyToEvent must return a Failure if the event data is missing 'token'                                $e14
-  payloadBodyToEvent must return a Failure if the event data is missing 'signature'                            $e15
+  toRawEvents must return a Failure if the request body does not contain an event parameter                    $e10
+  toRawEvents must return a Failure if the event type is not recognized                                        $e11
+  payloadBodyToEvent must return a Failure if the event data is missing 'timestamp'                            $e12
+  payloadBodyToEvent must return a Failure if the event data is missing 'token'                                $e13
+  payloadBodyToEvent must return a Failure if the event data is missing 'signature'                            $e14
   """
 
   object Shared {
@@ -58,11 +58,12 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     )
   }
 
-  val ContentType = "application/x-www-form-urlencoded"
+  val ContentType = "application/json"
 
   def e1 = {
     val body =
-      "X-Mailgun-Sid=WyIxZjQzMiIsICJyb25ueUBrZGUub3JnIiwgIjliMjYwIl0%3D&domain=sandboxbcd3ccb1a529415db665622619a61616.mailgun.org&message-headers=%5B%5B%22Sender%22%2C+%22postmaster%40sandboxbcd3ccb1a529415db665622619a61616.mailgun.org%22%5D%2C+%5B%22Date%22%2C+%22Mon%2C+27+Jun+2016+15%3A19%3A02+%2B0000%22%5D%2C+%5B%22X-Mailgun-Sid%22%2C+%22WyIxZjQzMiIsICJyb25ueUBrZGUub3JnIiwgIjliMjYwIl0%3D%22%5D%2C+%5B%22Received%22%2C+%22by+luna.mailgun.net+with+HTTP%3B+Mon%2C+27+Jun+2016+15%3A19%3A01+%2B0000%22%5D%2C+%5B%22Message-Id%22%2C+%22%3C20160627151901.3295.78981.1336C636%40sandboxbcd3ccb1a529415db665622619a61616.mailgun.org%3E%22%5D%2C+%5B%22To%22%2C+%22Ronny+%3Ctest%40snowplowanalytics.com%3E%22%5D%2C+%5B%22From%22%2C+%22Mailgun+Sandbox+%3Cpostmaster%40sandboxbcd3ccb1a529415db665622619a61616.mailgun.org%3E%22%5D%2C+%5B%22Subject%22%2C+%22Hello+Ronny%22%5D%2C+%5B%22Content-Type%22%2C+%5B%22text%2Fplain%22%2C+%7B%22charset%22%3A+%22ascii%22%7D%5D%5D%2C+%5B%22Mime-Version%22%2C+%221.0%22%5D%2C+%5B%22Content-Transfer-Encoding%22%2C+%5B%227bit%22%2C+%7B%7D%5D%5D%5D&Message-Id=%3C20160627151901.3295.78981.1336C636%40sandboxbcd3ccb1a529415db665622619a61616.mailgun.org%3E&recipient=test%40snowplowanalytics.com&event=delivered&timestamp=1467040750&token=c2fc6a36198fa651243afb6042867b7490e480843198008c6b&signature=9387fb0e5ff02de5e159594173f02c95c55d7e681b40a7b930ed4d0a3cbbdd6e&body-plain="
+      """{"signature":{"token":"090e1ce3702378c8121f3765a8efe0ffb97c4e2ca2adda6729","timestamp":"1657907833","signature":"496413b238ab6affce021b850d3fc72c4832fb04f1aed6d4a2fda7d08e6e95a6"},"event-data":{"id":"CPgfbmQMTCKtHW6uIWtuVe","timestamp":1521472262.908181,"log-level":"info","event":"delivered","delivery-status":{"tls":true,"mx-host":"smtp-in.example.com","code":250,"description":"","session-seconds":0.4331989288330078,"utf8":true,"attempt-no":1,"message":"OK","certificate-verified":true},"flags":{"is-routed":false,"is-authenticated":true,"is-system-test":false,"is-test-mode":false},"envelope":{"transport":"smtp","sender":"bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org","sending-ip":"209.61.154.250","targets":"alice@example.com"},"message":{"headers":{"to":"Alice <alice@example.com>","message-id":"20130503182626.18666.16540@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org","from":"Bob <bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org>","subject":"Test delivered webhook"},"attachments":[],"size":111},"recipient":"alice@example.com","recipient-domain":"example.com","storage":{"url":"https://se.api.mailgun.net/v3/domains/sandbox22aee81b13674403a5335202df94f7e7.mailgun.org/messages/message_key","key":"message_key"},"campaigns":[],"tags":["my_tag_1","my_tag_2"],"user-variables":{"my_var_1":"Mailgun Variable #1","my-var-2":"awesome"}}}"""
+
     val payload = CollectorPayload(
       Shared.api,
       Nil,
@@ -73,26 +74,71 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     )
     val expectedJson =
       """|{
-          |"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
-          |"data":{
-            |"schema":"iglu:com.mailgun/message_delivered/jsonschema/1-0-0",
-            |"data":{
-              |"recipient":"test@snowplowanalytics.com",
-              |"timestamp":"2016-06-27T15:19:10.000Z",
-              |"xMailgunSid":"WyIxZjQzMiIsICJyb25ueUBrZGUub3JnIiwgIjliMjYwIl0=",
-              |"domain":"sandboxbcd3ccb1a529415db665622619a61616.mailgun.org",
-              |"signature":"9387fb0e5ff02de5e159594173f02c95c55d7e681b40a7b930ed4d0a3cbbdd6e",
-              |"messageHeaders":"[[\"Sender\", \"postmaster@sandboxbcd3ccb1a529415db665622619a61616.mailgun.org\"], [\"Date\", \"Mon, 27 Jun 2016 15:19:02 +0000\"], [\"X-Mailgun-Sid\", \"WyIxZjQzMiIsICJyb25ueUBrZGUub3JnIiwgIjliMjYwIl0=\"], [\"Received\", \"by luna.mailgun.net with HTTP; Mon, 27 Jun 2016 15:19:01 +0000\"], [\"Message-Id\", \"<20160627151901.3295.78981.1336C636@sandboxbcd3ccb1a529415db665622619a61616.mailgun.org>\"], [\"To\", \"Ronny <test@snowplowanalytics.com>\"], [\"From\", \"Mailgun Sandbox <postmaster@sandboxbcd3ccb1a529415db665622619a61616.mailgun.org>\"], [\"Subject\", \"Hello Ronny\"], [\"Content-Type\", [\"text/plain\", {\"charset\": \"ascii\"}]], [\"Mime-Version\", \"1.0\"], [\"Content-Transfer-Encoding\", [\"7bit\", {}]]]",
-              |"token":"c2fc6a36198fa651243afb6042867b7490e480843198008c6b",
-              |"messageId":"<20160627151901.3295.78981.1336C636@sandboxbcd3ccb1a529415db665622619a61616.mailgun.org>"
-            |}
-          |}
-        |}""".stripMargin.replaceAll("[\n\r]", "")
+         |  "schema": "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+         |  "data": {
+         |    "schema": "iglu:com.mailgun/message_delivered/jsonschema/1-0-0",
+         |    "data": {
+         |      "recipient": "alice@example.com",
+         |      "deliveryStatus": {
+         |        "certificateVerified": true,
+         |        "sessionSeconds": 0.4331989288330078,
+         |        "description": "",
+         |        "mxHost": "smtp-in.example.com",
+         |        "tls": true,
+         |        "code": 250,
+         |        "attemptNo": 1,
+         |        "utf8": true,
+         |        "message": "OK"
+         |      },
+         |      "timestamp": "2022-07-15T17:57:13.000Z",
+         |      "flags": {
+         |        "isRouted": false,
+         |        "isAuthenticated": true,
+         |        "isSystemTest": false,
+         |        "isTestMode": false
+         |      },
+         |      "tags": [
+         |        "my_tag_1",
+         |        "my_tag_2"
+         |      ],
+         |      "signature":"496413b238ab6affce021b850d3fc72c4832fb04f1aed6d4a2fda7d08e6e95a6",
+         |      "id": "CPgfbmQMTCKtHW6uIWtuVe",
+         |      "recipientDomain": "example.com",
+         |      "userVariables": {
+         |        "myVar1": "Mailgun Variable #1",
+         |        "myVar2": "awesome"
+         |      },
+         |      "token":"090e1ce3702378c8121f3765a8efe0ffb97c4e2ca2adda6729",
+         |      "message": {
+         |        "headers": {
+         |          "to": "Alice <alice@example.com>",
+         |          "messageId": "20130503182626.18666.16540@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org",
+         |          "from": "Bob <bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org>",
+         |          "subject": "Test delivered webhook"
+         |        },
+         |        "attachments": [],
+         |        "size": 111
+         |      },
+         |      "storage": {
+         |        "url": "https://se.api.mailgun.net/v3/domains/sandbox22aee81b13674403a5335202df94f7e7.mailgun.org/messages/message_key",
+         |        "key": "message_key"
+         |      },
+         |      "campaigns": [],
+         |      "envelope": {
+         |        "transport": "smtp",
+         |        "sender": "bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org",
+         |        "sendingIp": "209.61.154.250",
+         |        "targets": "alice@example.com"
+         |      },
+         |      "logLevel": "info"
+         |    }
+         |  }
+         |}""".stripMargin.replaceAll("[\n\r]", "")
 
     val expected = NonEmptyList.one(
       RawEvent(
         Shared.api,
-        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson).toOpt,
+        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> parse(expectedJson).map(_.noSpaces).right.get).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context
@@ -103,7 +149,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
 
   def e2 = {
     val body =
-      "city=San+Francisco&domain=sandboxbcd3ccb1a529415db665622619a61616.mailgun.org&device-type=desktop&my_var_1=Mailgun+Variable+%231&country=US&region=CA&client-name=Chrome&user-agent=Mozilla%2F5.0+%28X11%3B+Linux+x86_64%29+AppleWebKit%2F537.31+%28KHTML%2C+like+Gecko%29+Chrome%2F26.0.1410.43+Safari%2F537.31&client-os=Linux&my_var_2=awesome&ip=50.56.129.169&client-type=browser&recipient=alice%40example.com&event=opened&timestamp=1467297128&token=c2eecf923f9820812338de117346d6448ea2cf7e2e98cfa1a0&signature=9c70b687ef784ec5ed78f4d9442d641a9cfc7b909f9bf43d9ce7e44b3448cf97&body-plain="
+      """{"signature":{"token":"52ff6f6383a394343c4de6e5d4fd870f4ae67b5daeebe3eb86","timestamp":"1659551876","signature":"b2314a28591eccaef5ea88fdf46b99202d8be44e3d1f911abd7e8fe3db726120"},"event-data":{"id":"Ase7i2zsRYeDXztHGENqRA","timestamp":1521243339.873676,"log-level":"info","event":"opened","message":{"headers":{"message-id":"20130503182626.18666.16540@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org"}},"recipient":"alice@example.com","recipient-domain":"example.com","ip":"50.56.129.169","geolocation":{"country":"US","region":"CA","city":"San Francisco"},"client-info":{"client-os":"Linux","device-type":"desktop","client-name":"Chrome","client-type":"browser","user-agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.31 (KHTML, like Gecko) Chrome/26.0.1410.43 Safari/537.31"},"campaigns":[],"tags":["my_tag_1","my_tag_2"],"user-variables":{"my_var_1":"Mailgun Variable #1","my-var-2":"awesome"}}}"""
     val payload = CollectorPayload(
       Shared.api,
       Nil,
@@ -118,22 +164,40 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
           |"data":{
             |"schema":"iglu:com.mailgun/message_opened/jsonschema/1-0-0",
             |"data":{
-              |"recipient":"alice@example.com",
-              |"city":"San Francisco",
-              |"ip":"50.56.129.169",
-              |"timestamp":"2016-06-30T14:32:08.000Z",
-              |"domain":"sandboxbcd3ccb1a529415db665622619a61616.mailgun.org",
-              |"signature":"9c70b687ef784ec5ed78f4d9442d641a9cfc7b909f9bf43d9ce7e44b3448cf97",
-              |"deviceType":"desktop",
-              |"country":"US",
-              |"userAgent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.31 (KHTML, like Gecko) Chrome/26.0.1410.43 Safari/537.31",
-              |"myVar1":"Mailgun Variable #1",
-              |"clientType":"browser",
-              |"token":"c2eecf923f9820812338de117346d6448ea2cf7e2e98cfa1a0",
-              |"region":"CA",
-              |"clientName":"Chrome",
-              |"myVar2":"awesome",
-              |"clientOs":"Linux"
+            |  "recipient": "alice@example.com",
+            |  "ip": "50.56.129.169",
+            |  "timestamp": "2022-08-03T18:37:56.000Z",
+            |  "tags": [
+            |    "my_tag_1",
+            |    "my_tag_2"
+            |  ],
+            |  "clientInfo": {
+            |    "deviceType": "desktop",
+            |    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.31 (KHTML, like Gecko) Chrome/26.0.1410.43 Safari/537.31",
+            |    "clientType": "browser",
+            |    "clientName": "Chrome",
+            |    "clientOs": "Linux"
+            |  },
+            |  "signature":"b2314a28591eccaef5ea88fdf46b99202d8be44e3d1f911abd7e8fe3db726120",
+            |  "geolocation": {
+            |    "country": "US",
+            |    "region": "CA",
+            |    "city": "San Francisco"
+            |  },
+            |  "id": "Ase7i2zsRYeDXztHGENqRA",
+            |  "recipientDomain": "example.com",
+            |  "userVariables": {
+            |    "myVar1": "Mailgun Variable #1",
+            |    "myVar2": "awesome"
+            |  },
+            |  "token":"52ff6f6383a394343c4de6e5d4fd870f4ae67b5daeebe3eb86",
+            |  "message": {
+            |    "headers": {
+            |      "messageId": "20130503182626.18666.16540@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org"
+            |    }
+            |  },
+            |  "campaigns": [],
+            |  "logLevel": "info"
             |}
           |}
         |}""".stripMargin.replaceAll("[\n\r]", "")
@@ -141,7 +205,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     val expected = NonEmptyList.one(
       RawEvent(
         Shared.api,
-        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson).toOpt,
+        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> parse(expectedJson).map(_.noSpaces).right.get).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context
@@ -152,7 +216,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
 
   def e3 = {
     val body =
-      "city=San+Francisco&domain=sandboxbcd3ccb1a529415db665622619a61616.mailgun.org&device-type=desktop&my_var_1=Mailgun+Variable+%231&country=US&region=CA&client-name=Chrome&user-agent=Mozilla%2F5.0+%28X11%3B+Linux+x86_64%29+AppleWebKit%2F537.31+%28KHTML%2C+like+Gecko%29+Chrome%2F26.0.1410.43+Safari%2F537.31&client-os=Linux&my_var_2=awesome&url=http%3A%2F%2Fmailgun.net&ip=50.56.129.169&client-type=browser&recipient=alice%40example.com&event=clicked&timestamp=1467297069&token=cd89cd860be0e318371f4220b7e0f368b60ac9ab066354737f&signature=ffe2d315a1d937bd09d9f5c35ddac1eb448818e2203f5a41e3a7bd1fb47da385&body-plain="
+      """{"signature":{"token":"a80c92b02bf725bdd9ac58d681ed74a703ad616098b502f1cb","timestamp":"1659551885","signature":"eaf9de9689d7fbc8d39b90a19bb6cb837ec6451f8d1956d6bd9be09255e03af9"},"event-data":{"id":"Ase7i2zsRYeDXztHGENqRA","timestamp":1521243339.873676,"log-level":"info","event":"clicked","message":{"headers":{"message-id":"20130503182626.18666.16540@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org"}},"recipient":"alice@example.com","recipient-domain":"example.com","ip":"50.56.129.169","geolocation":{"country":"US","region":"CA","city":"San Francisco"},"client-info":{"client-os":"Linux","device-type":"desktop","client-name":"Chrome","client-type":"browser","user-agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.31 (KHTML, like Gecko) Chrome/26.0.1410.43 Safari/537.31"},"campaigns":[],"tags":["my_tag_1","my_tag_2"],"user-variables":{"my_var_1":"Mailgun Variable #1","my-var-2":"awesome"}}}"""
     val payload = CollectorPayload(
       Shared.api,
       Nil,
@@ -166,32 +230,14 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
           |"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
           |"data":{
             |"schema":"iglu:com.mailgun/message_clicked/jsonschema/1-0-0",
-            |"data":{
-              |"recipient":"alice@example.com",
-              |"city":"San Francisco",
-              |"ip":"50.56.129.169",
-              |"timestamp":"2016-06-30T14:31:09.000Z",
-              |"url":"http://mailgun.net",
-              |"domain":"sandboxbcd3ccb1a529415db665622619a61616.mailgun.org",
-              |"signature":"ffe2d315a1d937bd09d9f5c35ddac1eb448818e2203f5a41e3a7bd1fb47da385",
-              |"deviceType":"desktop",
-              |"country":"US",
-              |"userAgent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.31 (KHTML, like Gecko) Chrome/26.0.1410.43 Safari/537.31",
-              |"myVar1":"Mailgun Variable #1",
-              |"clientType":"browser",
-              |"token":"cd89cd860be0e318371f4220b7e0f368b60ac9ab066354737f",
-              |"region":"CA",
-              |"clientName":"Chrome",
-              |"myVar2":"awesome",
-              |"clientOs":"Linux"
-            |}
+            |"data":{"recipient":"alice@example.com","ip":"50.56.129.169","timestamp":"2022-08-03T18:38:05.000Z","tags":["my_tag_1","my_tag_2"],"clientInfo":{"deviceType":"desktop","userAgent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.31 (KHTML, like Gecko) Chrome/26.0.1410.43 Safari/537.31","clientType":"browser","clientName":"Chrome","clientOs":"Linux"},"signature":"eaf9de9689d7fbc8d39b90a19bb6cb837ec6451f8d1956d6bd9be09255e03af9","geolocation":{"country":"US","region":"CA","city":"San Francisco"},"id":"Ase7i2zsRYeDXztHGENqRA","recipientDomain":"example.com","userVariables":{"myVar1":"Mailgun Variable #1","myVar2":"awesome"},"token":"a80c92b02bf725bdd9ac58d681ed74a703ad616098b502f1cb","message":{"headers":{"messageId":"20130503182626.18666.16540@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org"}},"campaigns":[],"logLevel":"info"}
           |}
         |}""".stripMargin.replaceAll("[\n\r]", "")
 
     val expected = NonEmptyList.one(
       RawEvent(
         Shared.api,
-        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson).toOpt,
+        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> parse(expectedJson).map(_.noSpaces).right.get).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context
@@ -202,7 +248,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
 
   def e4 = {
     val body =
-      "ip=50.56.129.169&city=San+Francisco&domain=sandboxbcd3ccb1a529415db665622619a61616.mailgun.org&device-type=desktop&my_var_1=Mailgun+Variable+%231&country=US&region=CA&client-name=Chrome&user-agent=Mozilla%2F5.0+%28X11%3B+Linux+x86_64%29+AppleWebKit%2F537.31+%28KHTML%2C+like+Gecko%29+Chrome%2F26.0.1410.43+Safari%2F537.31&client-os=Linux&my_var_2=awesome&client-type=browser&tag=%2A&recipient=alice%40example.com&event=unsubscribed&timestamp=1467297059&token=45272007729d82a7f7471d17e21298ee1a3899df65ba4a63ff&signature=150f32facb18c47273cf890d4aa13354ea789ad7b076554e8b324be6f446e2ad&body-plain="
+      """{"signature":{"token":"136f8d92f5955101b0caf54c1c05d62742bae30cb583f4a2a8","timestamp":"1659551891","signature":"ba27e487214505e4da2b9def4d0b83bd99a8bec0cb8b91457a97f2bc3d93eda4"},"event-data":{"id":"Ase7i2zsRYeDXztHGENqRA","timestamp":1521243339.873676,"log-level":"info","event":"unsubscribed","message":{"headers":{"message-id":"20130503182626.18666.16540@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org"}},"recipient":"alice@example.com","recipient-domain":"example.com","ip":"50.56.129.169","geolocation":{"country":"US","region":"CA","city":"San Francisco"},"client-info":{"client-os":"Linux","device-type":"desktop","client-name":"Chrome","client-type":"browser","user-agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.31 (KHTML, like Gecko) Chrome/26.0.1410.43 Safari/537.31"},"campaigns":[],"tags":["my_tag_1","my_tag_2"],"user-variables":{"my_var_1":"Mailgun Variable #1","my-var-2":"awesome"}}}"""
     val payload = CollectorPayload(
       Shared.api,
       Nil,
@@ -216,25 +262,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
           |"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
           |"data":{
             |"schema":"iglu:com.mailgun/recipient_unsubscribed/jsonschema/1-0-0",
-            |"data":{
-              |"recipient":"alice@example.com",
-              |"city":"San Francisco",
-              |"ip":"50.56.129.169",
-              |"timestamp":"2016-06-30T14:30:59.000Z",
-              |"tag":"*",
-              |"domain":"sandboxbcd3ccb1a529415db665622619a61616.mailgun.org",
-              |"signature":"150f32facb18c47273cf890d4aa13354ea789ad7b076554e8b324be6f446e2ad",
-              |"deviceType":"desktop",
-              |"country":"US",
-              |"userAgent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.31 (KHTML, like Gecko) Chrome/26.0.1410.43 Safari/537.31",
-              |"myVar1":"Mailgun Variable #1",
-              |"clientType":"browser",
-              |"token":"45272007729d82a7f7471d17e21298ee1a3899df65ba4a63ff",
-              |"region":"CA",
-              |"clientName":"Chrome",
-              |"myVar2":"awesome",
-              |"clientOs":"Linux"
-            |}
+            |"data":{"recipient":"alice@example.com","ip":"50.56.129.169","timestamp":"2022-08-03T18:38:11.000Z","tags":["my_tag_1","my_tag_2"],"clientInfo":{"deviceType":"desktop","userAgent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.31 (KHTML, like Gecko) Chrome/26.0.1410.43 Safari/537.31","clientType":"browser","clientName":"Chrome","clientOs":"Linux"},"signature":"ba27e487214505e4da2b9def4d0b83bd99a8bec0cb8b91457a97f2bc3d93eda4","geolocation":{"country":"US","region":"CA","city":"San Francisco"},"id":"Ase7i2zsRYeDXztHGENqRA","recipientDomain":"example.com","userVariables":{"myVar1":"Mailgun Variable #1","myVar2":"awesome"},"token":"136f8d92f5955101b0caf54c1c05d62742bae30cb583f4a2a8","message":{"headers":{"messageId":"20130503182626.18666.16540@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org"}},"campaigns":[],"logLevel":"info"}
           |}
         |}""".stripMargin.replaceAll("[\n\r]", "")
 
@@ -252,44 +280,82 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
 
   def e5 = {
     val body =
-      "--353d603f-eede-4b49-97ac-724fbc54ea3c\nContent-Disposition: form-data; name=\"Message-Id\"\n\n<20130503192659.13651.20287@sandbox57070072075d4cfd9008d4332108734c.mailgun.org>\n--353d603f-eede-4b49-97ac-724fbc54ea3c\nContent-Disposition: form-data; name=\"X-Mailgun-Sid\"\n\nWyIwNzI5MCIsICJpZG91YnR0aGlzb25lZXhpc3RzQGdtYWlsLmNvbSIsICI2Il0=\n--353d603f-eede-4b49-97ac-724fbc54ea3c\nContent-Disposition: form-data; name=\"attachment-count\"\n\n1\n--353d603f-eede-4b49-97ac-724fbc54ea3c\nContent-Disposition: form-data; name=\"body-plain\"\n\n\n--353d603f-eede-4b49-97ac-724fbc54ea3c\nContent-Disposition: form-data; name=\"code\"\n\n605\n--353d603f-eede-4b49-97ac-724fbc54ea3c\nContent-Disposition: form-data; name=\"description\"\n\nNot delivering to previously bounced address\n--353d603f-eede-4b49-97ac-724fbc54ea3c\nContent-Disposition: form-data; name=\"domain\"\n\nsandbox57070072075d4cfd9008d4332108734c.mailgun.org\n--353d603f-eede-4b49-97ac-724fbc54ea3c\nContent-Disposition: form-data; name=\"event\"\n\ndropped\n--353d603f-eede-4b49-97ac-724fbc54ea3c\nContent-Disposition: form-data; name=\"message-headers\"\n\n[[\"Received\", \"by luna.mailgun.net with SMTP mgrt 8755546751405; Fri, 03 May 2013 19:26:59 +0000\"], [\"Content-Type\", [\"multipart/alternative\", {\"boundary\": \"23041bcdfae54aafb801a8da0283af85\"}]], [\"Mime-Version\", \"1.0\"], [\"Subject\", \"Test drop webhook\"], [\"From\", \"Bob <bob@sandbox57070072075d4cfd9008d4332108734c.mailgun.org>\"], [\"To\", \"Alice <alice@example.com>\"], [\"Message-Id\", \"<20130503192659.13651.20287@sandbox57070072075d4cfd9008d4332108734c.mailgun.org>\"], [\"List-Unsubscribe\", \"<mailto:u+na6tmy3ege4tgnldmyytqojqmfsdembyme3tmy3cha4wcndbgaydqyrgoi6wszdpovrhi5dinfzw63tfmv4gs43uomstimdhnvqws3bomnxw2jtuhusteqjgmq6tm@sandbox57070072075d4cfd9008d4332108734c.mailgun.org>\"], [\"X-Mailgun-Sid\", \"WyIwNzI5MCIsICJpZG91YnR0aGlzb25lZXhpc3RzQGdtYWlsLmNvbSIsICI2Il0=\"], [\"X-Mailgun-Variables\", \"{\\\"my_var_1\\\": \\\"Mailgun Variable #1\\\", \\\"my_var_2\\\": \\\"awesome\\\"}\"], [\"Date\", \"Fri, 03 May 2013 19:26:59 +0000\"], [\"Sender\", \"bob@sandbox57070072075d4cfd9008d4332108734c.mailgun.org\"]]\n--353d603f-eede-4b49-97ac-724fbc54ea3c\nContent-Disposition: form-data; name=\"my_var_2\"\n\nawesome\n--353d603f-eede-4b49-97ac-724fbc54ea3c\nContent-Disposition: form-data; name=\"my_var_1\"\n\nMailgun Variable #1\n--353d603f-eede-4b49-97ac-724fbc54ea3c\nContent-Disposition: form-data; name=\"reason\"\n\nhardfail\n--353d603f-eede-4b49-97ac-724fbc54ea3c\nContent-Disposition: form-data; name=\"recipient\"\n\nalice@example.com\n--353d603f-eede-4b49-97ac-724fbc54ea3c\nContent-Disposition: form-data; name=\"signature\"\n\n71f812485ae3fb398de8d1a86b139f24391d604fd94dab59e7c99cfcd506885c\n--353d603f-eede-4b49-97ac-724fbc54ea3c\nContent-Disposition: form-data; name=\"timestamp\"\n\n1510161862\n--353d603f-eede-4b49-97ac-724fbc54ea3c\nContent-Disposition: form-data; name=\"token\"\n\n9e3fffc7eba57e282e89f7afcf243563868e9de4ecfea78c09\n--353d603f-eede-4b49-97ac-724fbc54ea3c\nContent-Disposition: form-data; name=\"attachment-1\"; filename=\"message.mime\"\nContent-Type: application/octet-stream\nContent-Length: 1386\n\nReceived: by luna.mailgun.net with SMTP mgrt 8755546751405; Fri, 03 May 2013\n 19:26:59 +0000\nContent-Type: multipart/alternative; boundary=\"23041bcdfae54aafb801a8da0283af85\"\nMime-Version: 1.0\nSubject: Test drop webhook\nFrom: Bob <bob@sandbox57070072075d4cfd9008d4332108734c.mailgun.org>\nTo: Alice <alice@example.com>\nMessage-Id: <20130503192659.13651.20287@sandbox57070072075d4cfd9008d4332108734c.mailgun.org>\nList-Unsubscribe: <mailto:u+na6tmy3ege4tgnldmyytqojqmfsdembyme3tmy3cha4wcndbgaydqyrgoi6wszdpovrhi5dinfzw63tfmv4gs43uomstimdhnvqws3bomnxw2jtuhusteqjgmq6tm@sandbox57070072075d4cfd9008d4332108734c.mailgun.org>\nX-Mailgun-Sid: WyIwNzI5MCIsICJpZG91YnR0aGlzb25lZXhpc3RzQGdtYWlsLmNvbSIsICI2Il0=\nX-Mailgun-Variables: {\"my_var_1\": \"Mailgun Variable #1\", \"my_var_2\": \"awesome\"}\nDate: Fri, 03 May 2013 19:26:59 +0000\nSender: bob@sandbox57070072075d4cfd9008d4332108734c.mailgun.org\n\n--23041bcdfae54aafb801a8da0283af85\nMime-Version: 1.0\nContent-Type: text/plain; charset=\"ascii\"\nContent-Transfer-Encoding: 7bit\n\nHi Alice, I sent an email to this address but it was bounced.\n\n--23041bcdfae54aafb801a8da0283af85\nMime-Version: 1.0\nContent-Type: text/html; charset=\"ascii\"\nContent-Transfer-Encoding: 7bit\n\n<html>\n                            <body>Hi Alice, I sent an email to this address but it was bounced.\n                            <br>\n</body></html>\n--23041bcdfae54aafb801a8da0283af85--\n\n--353d603f-eede-4b49-97ac-724fbc54ea3c--"
+      """{"signature":{"token":"090e1ce3702378c8121f3765a8efe0ffb97c4e2ca2adda6729","timestamp":"1657907833","signature":"496413b238ab6affce021b850d3fc72c4832fb04f1aed6d4a2fda7d08e6e95a6"},"event-data":{"id":"CPgfbmQMTCKtHW6uIWtuVe","timestamp":1521472262.908181,"log-level":"info","event":"delivered","delivery-status":{"tls":true,"mx-host":"smtp-in.example.com","code":250,"description":"","session-seconds":0.4331989288330078,"utf8":true,"attempt-no":1,"message":"OK","certificate-verified":true},"flags":{"is-routed":false,"is-authenticated":true,"is-system-test":false,"is-test-mode":false},"envelope":{"transport":"smtp","sender":"bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org","sending-ip":"209.61.154.250","targets":"alice@example.com"},"message":{"headers":{"to":"Alice <alice@example.com>","message-id":"20130503182626.18666.16540@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org","from":"Bob <bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org>","subject":"Test delivered webhook"},"attachments":[],"size":111},"recipient":"alice@example.com","recipient-domain":"example.com","storage":{"url":"https://se.api.mailgun.net/v3/domains/sandbox22aee81b13674403a5335202df94f7e7.mailgun.org/messages/message_key","key":"message_key"},"campaigns":[],"tags":["my_tag_1","my_tag_2"],"user-variables":{"my_var_1":"Mailgun Variable #1","my-var-2":"awesome"}}}"""
     val payload = CollectorPayload(
       Shared.api,
       Nil,
-      Some("multipart/form-data; boundary=353d603f-eede-4b49-97ac-724fbc54ea3c"),
+      Some("application/json"),
       body.some,
       Shared.cljSource,
       Shared.context
     )
     val expectedJson =
-      """{
-      |"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
-        |"data":{
-          |"schema":"iglu:com.mailgun/message_dropped/jsonschema/1-0-0",
-          |"data":{
-            |"recipient":"alice@example.com",
-            |"timestamp":"2017-11-08T17:24:22.000Z",
-            |"xMailgunSid":"WyIwNzI5MCIsICJpZG91YnR0aGlzb25lZXhpc3RzQGdtYWlsLmNvbSIsICI2Il0=",
-            |"description":"Not delivering to previously bounced address",
-            |"domain":"sandbox57070072075d4cfd9008d4332108734c.mailgun.org",
-            |"signature":"71f812485ae3fb398de8d1a86b139f24391d604fd94dab59e7c99cfcd506885c",
-            |"reason":"hardfail",
-            |"messageHeaders":"[[\"Received\", \"by luna.mailgun.net with SMTP mgrt 8755546751405; Fri, 03 May 2013 19:26:59 +0000\"], [\"Content-Type\", [\"multipart/alternative\", {\"boundary\": \"23041bcdfae54aafb801a8da0283af85\"}]], [\"Mime-Version\", \"1.0\"], [\"Subject\", \"Test drop webhook\"], [\"From\", \"Bob <bob@sandbox57070072075d4cfd9008d4332108734c.mailgun.org>\"], [\"To\", \"Alice <alice@example.com>\"], [\"Message-Id\", \"<20130503192659.13651.20287@sandbox57070072075d4cfd9008d4332108734c.mailgun.org>\"], [\"List-Unsubscribe\", \"<mailto:u+na6tmy3ege4tgnldmyytqojqmfsdembyme3tmy3cha4wcndbgaydqyrgoi6wszdpovrhi5dinfzw63tfmv4gs43uomstimdhnvqws3bomnxw2jtuhusteqjgmq6tm@sandbox57070072075d4cfd9008d4332108734c.mailgun.org>\"], [\"X-Mailgun-Sid\", \"WyIwNzI5MCIsICJpZG91YnR0aGlzb25lZXhpc3RzQGdtYWlsLmNvbSIsICI2Il0=\"], [\"X-Mailgun-Variables\", \"{\\\"my_var_1\\\": \\\"Mailgun Variable #1\\\", \\\"my_var_2\\\": \\\"awesome\\\"}\"], [\"Date\", \"Fri, 03 May 2013 19:26:59 +0000\"], [\"Sender\", \"bob@sandbox57070072075d4cfd9008d4332108734c.mailgun.org\"]]",
-            |"code":"605",
-            |"myVar1":"Mailgun Variable #1",
-            |"attachment1":"Received: by luna.mailgun.net with SMTP mgrt 8755546751405; Fri, 03 May 2013\n 19:26:59 +0000\nContent-Type: multipart/alternative; boundary=\"23041bcdfae54aafb801a8da0283af85\"\nMime-Version: 1.0\nSubject: Test drop webhook\nFrom: Bob <bob@sandbox57070072075d4cfd9008d4332108734c.mailgun.org>\nTo: Alice <alice@example.com>\nMessage-Id: <20130503192659.13651.20287@sandbox57070072075d4cfd9008d4332108734c.mailgun.org>\nList-Unsubscribe: <mailto:u+na6tmy3ege4tgnldmyytqojqmfsdembyme3tmy3cha4wcndbgaydqyrgoi6wszdpovrhi5dinfzw63tfmv4gs43uomstimdhnvqws3bomnxw2jtuhusteqjgmq6tm@sandbox57070072075d4cfd9008d4332108734c.mailgun.org>\nX-Mailgun-Sid: WyIwNzI5MCIsICJpZG91YnR0aGlzb25lZXhpc3RzQGdtYWlsLmNvbSIsICI2Il0=\nX-Mailgun-Variables: {\"my_var_1\": \"Mailgun Variable #1\", \"my_var_2\": \"awesome\"}\nDate: Fri, 03 May 2013 19:26:59 +0000\nSender: bob@sandbox57070072075d4cfd9008d4332108734c.mailgun.org\n\n--23041bcdfae54aafb801a8da0283af85\nMime-Version: 1.0\nContent-Type: text/plain; charset=\"ascii\"\nContent-Transfer-Encoding: 7bit\n\nHi Alice, I sent an email to this address but it was bounced.\n\n--23041bcdfae54aafb801a8da0283af85\nMime-Version: 1.0\nContent-Type: text/html; charset=\"ascii\"\nContent-Transfer-Encoding: 7bit\n\n<html>\n                            <body>Hi Alice, I sent an email to this address but it was bounced.\n                            <br>\n</body></html>\n--23041bcdfae54aafb801a8da0283af85--",
-            |"token":"9e3fffc7eba57e282e89f7afcf243563868e9de4ecfea78c09",
-            |"messageId":"<20130503192659.13651.20287@sandbox57070072075d4cfd9008d4332108734c.mailgun.org>",
-            |"attachmentCount":1,
-            |"myVar2":"awesome"
-          |}
-        |}
-      |}""".stripMargin.replaceAll("[\n\r]", "")
+      """|{
+         |  "schema": "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+         |  "data": {
+         |    "schema": "iglu:com.mailgun/message_delivered/jsonschema/1-0-0",
+         |    "data": {
+         |      "recipient": "alice@example.com",
+         |      "deliveryStatus": {
+         |        "certificateVerified": true,
+         |        "sessionSeconds": 0.4331989288330078,
+         |        "description": "",
+         |        "mxHost": "smtp-in.example.com",
+         |        "tls": true,
+         |        "code": 250,
+         |        "attemptNo": 1,
+         |        "utf8": true,
+         |        "message": "OK"
+         |      },
+         |      "timestamp": "2022-07-15T17:57:13.000Z",
+         |      "flags": {
+         |        "isRouted": false,
+         |        "isAuthenticated": true,
+         |        "isSystemTest": false,
+         |        "isTestMode": false
+         |      },
+         |      "tags": [
+         |        "my_tag_1",
+         |        "my_tag_2"
+         |      ],
+         |      "signature":"496413b238ab6affce021b850d3fc72c4832fb04f1aed6d4a2fda7d08e6e95a6",
+         |      "id": "CPgfbmQMTCKtHW6uIWtuVe",
+         |      "recipientDomain": "example.com",
+         |      "userVariables": {
+         |        "myVar1": "Mailgun Variable #1",
+         |        "myVar2": "awesome"
+         |      },
+         |      "token":"090e1ce3702378c8121f3765a8efe0ffb97c4e2ca2adda6729",
+         |      "message": {
+         |        "headers": {
+         |          "to": "Alice <alice@example.com>",
+         |          "messageId": "20130503182626.18666.16540@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org",
+         |          "from": "Bob <bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org>",
+         |          "subject": "Test delivered webhook"
+         |        },
+         |        "attachments": [],
+         |        "size": 111
+         |      },
+         |      "storage": {
+         |        "url": "https://se.api.mailgun.net/v3/domains/sandbox22aee81b13674403a5335202df94f7e7.mailgun.org/messages/message_key",
+         |        "key": "message_key"
+         |      },
+         |      "campaigns": [],
+         |      "envelope": {
+         |        "transport": "smtp",
+         |        "sender": "bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org",
+         |        "sendingIp": "209.61.154.250",
+         |        "targets": "alice@example.com"
+         |      },
+         |      "logLevel": "info"
+         |    }
+         |  }
+         |}""".stripMargin.replaceAll("[\n\r]", "")
     val expected = NonEmptyList.one(
       RawEvent(
         Shared.api,
-        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson).toOpt,
-        Some("multipart/form-data; boundary=353d603f-eede-4b49-97ac-724fbc54ea3c"),
+        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> parse(expectedJson).map(_.noSpaces).right.get).toOpt,
+        Some("application/json"),
         Shared.cljSource,
         Shared.context
       )
@@ -317,7 +383,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
         FailureDetails.AdapterFailure.InputData(
           "contentType",
           None,
-          "no content type: expected one of application/x-www-form-urlencoded, multipart/form-data"
+          "no content type: expected application/json"
         )
       )
     )
@@ -325,7 +391,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
 
   def e8 = {
     val body = "body"
-    val ct = "application/json"
+    val ct = "multipart/form-data"
     val payload =
       CollectorPayload(Shared.api, Nil, ct.some, body.some, Shared.cljSource, Shared.context)
     MailgunAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
@@ -333,7 +399,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
         FailureDetails.AdapterFailure.InputData(
           "contentType",
           ct.some,
-          "expected one of application/x-www-form-urlencoded, multipart/form-data"
+          "expected application/json"
         )
       )
     )
@@ -358,29 +424,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
   }
 
   def e10 = {
-    val body =
-      "X-MailgunSid=WyIxZjQzMiIsICJyb25ueUBrZGUub3JnIiwgIjliMjYwIl0%3D&event=delivered&timestamp=1467040750&token=c2fc6a36198fa651243afb6042867b7490e480843198008c6b&signature=9387fb0e5ff02de5e159594173f02c95c55d7e681b40a7b930ed4d0a3cbbdd6e&recipient=<>"
-    val payload = CollectorPayload(
-      Shared.api,
-      Nil,
-      ContentType.some,
-      body.some,
-      Shared.cljSource,
-      Shared.context
-    )
-    val expected = NonEmptyList.one(
-      FailureDetails.AdapterFailure.InputData(
-        "body",
-        body.some,
-        "could not parse body: Illegal character in query at index 261: http://localhost/?X-MailgunSid=WyIxZjQzMiIsICJyb25ueUBrZGUub3JnIiwgIjliMjYwIl0%3D&event=delivered&timestamp=1467040750&token=c2fc6a36198fa651243afb6042867b7490e480843198008c6b&signature=9387fb0e5ff02de5e159594173f02c95c55d7e681b40a7b930ed4d0a3cbbdd6e&recipient=<>"
-      )
-    )
-    MailgunAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(expected)
-  }
-
-  def e11 = {
-    val body =
-      "X-MailgunSid=WyIxZjQzMiIsICJyb25ueUBrZGUub3JnIiwgIjliMjYwIl0%3D&timestamp=1467040750&token=c2fc6a36198fa651243afb6042867b7490e480843198008c6b&signature=9387fb0e5ff02de5e159594173f02c95c55d7e681b40a7b930ed4d0a3cbbdd6e"
+    val body = "{}"
     val payload = CollectorPayload(
       Shared.api,
       Nil,
@@ -399,9 +443,9 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     MailgunAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(expected)
   }
 
-  def e12 = {
+  def e11 = {
     val body =
-      "X-MailgunSid=WyIxZjQzMiIsICJyb25ueUBrZGUub3JnIiwgIjliMjYwIl0%3D&event=released&timestamp=1467040750&token=c2fc6a36198fa651243afb6042867b7490e480843198008c6b&signature=9387fb0e5ff02de5e159594173f02c95c55d7e681b40a7b930ed4d0a3cbbdd6e"
+      """{"signature":{"token":"090e1ce3702378c8121f3765a8efe0ffb97c4e2ca2adda6729","timestamp":"1657907833","signature":"496413b238ab6affce021b850d3fc72c4832fb04f1aed6d4a2fda7d08e6e95a6"},"event-data":{"id":"CPgfbmQMTCKtHW6uIWtuVe","timestamp":1521472262.908181,"log-level":"info","event":"released","delivery-status":{"tls":true,"mx-host":"smtp-in.example.com","code":250,"description":"","session-seconds":0.4331989288330078,"utf8":true,"attempt-no":1,"message":"OK","certificate-verified":true},"flags":{"is-routed":false,"is-authenticated":true,"is-system-test":false,"is-test-mode":false},"envelope":{"transport":"smtp","sender":"bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org","sending-ip":"209.61.154.250","targets":"alice@example.com"},"message":{"headers":{"to":"Alice <alice@example.com>","message-id":"20130503182626.18666.16540@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org","from":"Bob <bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org>","subject":"Test delivered webhook"},"attachments":[],"size":111},"recipient":"alice@example.com","recipient-domain":"example.com","storage":{"url":"https://se.api.mailgun.net/v3/domains/sandbox22aee81b13674403a5335202df94f7e7.mailgun.org/messages/message_key","key":"message_key"},"campaigns":[],"tags":["my_tag_1","my_tag_2"],"user-variables":{"my_var_1":"Mailgun Variable #1","my-var-2":"awesome"}}}"""
     val payload = CollectorPayload(
       Shared.api,
       Nil,
@@ -420,9 +464,9 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     MailgunAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(expected)
   }
 
-  def e13 = {
+  def e12 = {
     val body =
-      "X-Mailgun-Sid=WyIxZjQzMiIsICJyb25ueUBrZGUub3JnIiwgIjliMjYwIl0%3D&domain=sandboxbcd3ccb1a529415db665622619a61616.mailgun.org&message-headers=%5B%5B%22Sender%22%2C+%22postmaster%40sandboxbcd3ccb1a529415db665622619a61616.mailgun.org%22%5D%2C+%5B%22Date%22%2C+%22Mon%2C+27+Jun+2016+15%3A19%3A02+%2B0000%22%5D%2C+%5B%22X-Mailgun-Sid%22%2C+%22WyIxZjQzMiIsICJyb25ueUBrZGUub3JnIiwgIjliMjYwIl0%3D%22%5D%2C+%5B%22Received%22%2C+%22by+luna.mailgun.net+with+HTTP%3B+Mon%2C+27+Jun+2016+15%3A19%3A01+%2B0000%22%5D%2C+%5B%22Message-Id%22%2C+%22%3C20160627151901.3295.78981.1336C636%40sandboxbcd3ccb1a529415db665622619a61616.mailgun.org%3E%22%5D%2C+%5B%22To%22%2C+%22Ronny+%3Ctest%40snowplowanalytics.com%3E%22%5D%2C+%5B%22From%22%2C+%22Mailgun+Sandbox+%3Cpostmaster%40sandboxbcd3ccb1a529415db665622619a61616.mailgun.org%3E%22%5D%2C+%5B%22Subject%22%2C+%22Hello+Ronny%22%5D%2C+%5B%22Content-Type%22%2C+%5B%22text%2Fplain%22%2C+%7B%22charset%22%3A+%22ascii%22%7D%5D%5D%2C+%5B%22Mime-Version%22%2C+%221.0%22%5D%2C+%5B%22Content-Transfer-Encoding%22%2C+%5B%227bit%22%2C+%7B%7D%5D%5D%5D&Message-Id=%3C20160627151901.3295.78981.1336C636%40sandboxbcd3ccb1a529415db665622619a61616.mailgun.org%3E&recipient=test%40snowplowanalytics.com&event=delivered&token=c2fc6a36198fa651243afb6042867b7490e480843198008c6b&signature=9387fb0e5ff02de5e159594173f02c95c55d7e681b40a7b930ed4d0a3cbbdd6e&body-plain="
+      """{"signature":{"token":"090e1ce3702378c8121f3765a8efe0ffb97c4e2ca2adda6729","signature":"496413b238ab6affce021b850d3fc72c4832fb04f1aed6d4a2fda7d08e6e95a6"},"event-data":{"id":"CPgfbmQMTCKtHW6uIWtuVe","timestamp":1521472262.908181,"log-level":"info","event":"delivered","delivery-status":{"tls":true,"mx-host":"smtp-in.example.com","code":250,"description":"","session-seconds":0.4331989288330078,"utf8":true,"attempt-no":1,"message":"OK","certificate-verified":true},"flags":{"is-routed":false,"is-authenticated":true,"is-system-test":false,"is-test-mode":false},"envelope":{"transport":"smtp","sender":"bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org","sending-ip":"209.61.154.250","targets":"alice@example.com"},"message":{"headers":{"to":"Alice <alice@example.com>","message-id":"20130503182626.18666.16540@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org","from":"Bob <bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org>","subject":"Test delivered webhook"},"attachments":[],"size":111},"recipient":"alice@example.com","recipient-domain":"example.com","storage":{"url":"https://se.api.mailgun.net/v3/domains/sandbox22aee81b13674403a5335202df94f7e7.mailgun.org/messages/message_key","key":"message_key"},"campaigns":[],"tags":["my_tag_1","my_tag_2"],"user-variables":{"my_var_1":"Mailgun Variable #1","my-var-2":"awesome"}}}"""
     val payload = CollectorPayload(
       Shared.api,
       Nil,
@@ -439,9 +483,9 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     MailgunAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(expected)
   }
 
-  def e14 = {
+  def e13 = {
     val body =
-      "X-Mailgun-Sid=WyIxZjQzMiIsICJyb25ueUBrZGUub3JnIiwgIjliMjYwIl0%3D&domain=sandboxbcd3ccb1a529415db665622619a61616.mailgun.org&message-headers=%5B%5B%22Sender%22%2C+%22postmaster%40sandboxbcd3ccb1a529415db665622619a61616.mailgun.org%22%5D%2C+%5B%22Date%22%2C+%22Mon%2C+27+Jun+2016+15%3A19%3A02+%2B0000%22%5D%2C+%5B%22X-Mailgun-Sid%22%2C+%22WyIxZjQzMiIsICJyb25ueUBrZGUub3JnIiwgIjliMjYwIl0%3D%22%5D%2C+%5B%22Received%22%2C+%22by+luna.mailgun.net+with+HTTP%3B+Mon%2C+27+Jun+2016+15%3A19%3A01+%2B0000%22%5D%2C+%5B%22Message-Id%22%2C+%22%3C20160627151901.3295.78981.1336C636%40sandboxbcd3ccb1a529415db665622619a61616.mailgun.org%3E%22%5D%2C+%5B%22To%22%2C+%22Ronny+%3Ctest%40snowplowanalytics.com%3E%22%5D%2C+%5B%22From%22%2C+%22Mailgun+Sandbox+%3Cpostmaster%40sandboxbcd3ccb1a529415db665622619a61616.mailgun.org%3E%22%5D%2C+%5B%22Subject%22%2C+%22Hello+Ronny%22%5D%2C+%5B%22Content-Type%22%2C+%5B%22text%2Fplain%22%2C+%7B%22charset%22%3A+%22ascii%22%7D%5D%5D%2C+%5B%22Mime-Version%22%2C+%221.0%22%5D%2C+%5B%22Content-Transfer-Encoding%22%2C+%5B%227bit%22%2C+%7B%7D%5D%5D%5D&Message-Id=%3C20160627151901.3295.78981.1336C636%40sandboxbcd3ccb1a529415db665622619a61616.mailgun.org%3E&recipient=test%40snowplowanalytics.com&event=delivered&timestamp=1467040750&signature=9387fb0e5ff02de5e159594173f02c95c55d7e681b40a7b930ed4d0a3cbbdd6e&body-plain="
+      """{"signature":{"timestamp":"1657907833","signature":"496413b238ab6affce021b850d3fc72c4832fb04f1aed6d4a2fda7d08e6e95a6"},"event-data":{"id":"CPgfbmQMTCKtHW6uIWtuVe","timestamp":1521472262.908181,"log-level":"info","event":"delivered","delivery-status":{"tls":true,"mx-host":"smtp-in.example.com","code":250,"description":"","session-seconds":0.4331989288330078,"utf8":true,"attempt-no":1,"message":"OK","certificate-verified":true},"flags":{"is-routed":false,"is-authenticated":true,"is-system-test":false,"is-test-mode":false},"envelope":{"transport":"smtp","sender":"bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org","sending-ip":"209.61.154.250","targets":"alice@example.com"},"message":{"headers":{"to":"Alice <alice@example.com>","message-id":"20130503182626.18666.16540@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org","from":"Bob <bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org>","subject":"Test delivered webhook"},"attachments":[],"size":111},"recipient":"alice@example.com","recipient-domain":"example.com","storage":{"url":"https://se.api.mailgun.net/v3/domains/sandbox22aee81b13674403a5335202df94f7e7.mailgun.org/messages/message_key","key":"message_key"},"campaigns":[],"tags":["my_tag_1","my_tag_2"],"user-variables":{"my_var_1":"Mailgun Variable #1","my-var-2":"awesome"}}}"""
     val payload = CollectorPayload(
       Shared.api,
       Nil,
@@ -456,9 +500,9 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     MailgunAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(expected)
   }
 
-  def e15 = {
+  def e14 = {
     val body =
-      "X-Mailgun-Sid=WyIxZjQzMiIsICJyb25ueUBrZGUub3JnIiwgIjliMjYwIl0%3D&domain=sandboxbcd3ccb1a529415db665622619a61616.mailgun.org&message-headers=%5B%5B%22Sender%22%2C+%22postmaster%40sandboxbcd3ccb1a529415db665622619a61616.mailgun.org%22%5D%2C+%5B%22Date%22%2C+%22Mon%2C+27+Jun+2016+15%3A19%3A02+%2B0000%22%5D%2C+%5B%22X-Mailgun-Sid%22%2C+%22WyIxZjQzMiIsICJyb25ueUBrZGUub3JnIiwgIjliMjYwIl0%3D%22%5D%2C+%5B%22Received%22%2C+%22by+luna.mailgun.net+with+HTTP%3B+Mon%2C+27+Jun+2016+15%3A19%3A01+%2B0000%22%5D%2C+%5B%22Message-Id%22%2C+%22%3C20160627151901.3295.78981.1336C636%40sandboxbcd3ccb1a529415db665622619a61616.mailgun.org%3E%22%5D%2C+%5B%22To%22%2C+%22Ronny+%3Ctest%40snowplowanalytics.com%3E%22%5D%2C+%5B%22From%22%2C+%22Mailgun+Sandbox+%3Cpostmaster%40sandboxbcd3ccb1a529415db665622619a61616.mailgun.org%3E%22%5D%2C+%5B%22Subject%22%2C+%22Hello+Ronny%22%5D%2C+%5B%22Content-Type%22%2C+%5B%22text%2Fplain%22%2C+%7B%22charset%22%3A+%22ascii%22%7D%5D%5D%2C+%5B%22Mime-Version%22%2C+%221.0%22%5D%2C+%5B%22Content-Transfer-Encoding%22%2C+%5B%227bit%22%2C+%7B%7D%5D%5D%5D&Message-Id=%3C20160627151901.3295.78981.1336C636%40sandboxbcd3ccb1a529415db665622619a61616.mailgun.org%3E&recipient=test%40snowplowanalytics.com&event=delivered&timestamp=1467040750&token=c2fc6a36198fa651243afb6042867b7490e480843198008c6b&body-plain="
+      """{"signature":{"token":"090e1ce3702378c8121f3765a8efe0ffb97c4e2ca2adda6729","timestamp":"1657907833"},"event-data":{"id":"CPgfbmQMTCKtHW6uIWtuVe","timestamp":1521472262.908181,"log-level":"info","event":"delivered","delivery-status":{"tls":true,"mx-host":"smtp-in.example.com","code":250,"description":"","session-seconds":0.4331989288330078,"utf8":true,"attempt-no":1,"message":"OK","certificate-verified":true},"flags":{"is-routed":false,"is-authenticated":true,"is-system-test":false,"is-test-mode":false},"envelope":{"transport":"smtp","sender":"bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org","sending-ip":"209.61.154.250","targets":"alice@example.com"},"message":{"headers":{"to":"Alice <alice@example.com>","message-id":"20130503182626.18666.16540@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org","from":"Bob <bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org>","subject":"Test delivered webhook"},"attachments":[],"size":111},"recipient":"alice@example.com","recipient-domain":"example.com","storage":{"url":"https://se.api.mailgun.net/v3/domains/sandbox22aee81b13674403a5335202df94f7e7.mailgun.org/messages/message_key","key":"message_key"},"campaigns":[],"tags":["my_tag_1","my_tag_2"],"user-variables":{"my_var_1":"Mailgun Variable #1","my-var-2":"awesome"}}}"""
     val payload = CollectorPayload(
       Shared.api,
       Nil,

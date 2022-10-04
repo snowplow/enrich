@@ -34,7 +34,7 @@ class ParsedConfigsSpec extends Specification with CatsIO {
       val invalidAttr2 = "invalidAttr2"
 
       val configFile = ConfigFile(
-        io.Input.PubSub("projects/test-project/subscriptions/inputSub", 1, 3000),
+        io.Input.PubSub("projects/test-project/subscriptions/inputSub", 1, 3000, 50000000, 1.hour),
         io.Outputs(
           io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id", invalidAttr1)), 200.milliseconds, 1000, 10000000),
           Some(

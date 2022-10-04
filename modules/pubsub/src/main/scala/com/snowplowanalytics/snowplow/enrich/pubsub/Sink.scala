@@ -15,11 +15,13 @@ package com.snowplowanalytics.snowplow.enrich.pubsub
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
+import cats.Parallel
 import cats.implicits._
 
 import cats.effect.{Concurrent, ContextShift, Resource, Sync, Timer}
 
-import com.permutive.pubsub.producer.Model.{ProjectId, SimpleRecord, Topic}
+import com.permutive.pubsub.producer.PubsubProducer
+import com.permutive.pubsub.producer.Model.{ProjectId, Topic}
 import com.permutive.pubsub.producer.encoder.MessageEncoder
 import com.permutive.pubsub.producer.grpc.{GooglePubsubProducer, PubsubProducerConfig}
 
@@ -31,14 +33,14 @@ object Sink {
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
     Slf4jLogger.getLogger[F]
 
-  def init[F[_]: Concurrent: ContextShift: Timer](
+  def init[F[_]: Concurrent: ContextShift: Parallel: Timer](
     output: Output
   ): Resource[F, ByteSink[F]] =
     for {
       sink <- initAttributed(output)
     } yield records => sink(records.map(AttributedData(_, Map.empty)))
 
-  def initAttributed[F[_]: Concurrent: ContextShift: Timer](
+  def initAttributed[F[_]: Concurrent: ContextShift: Parallel: Timer](
     output: Output
   ): Resource[F, AttributedByteSink[F]] =
     output match {
@@ -48,7 +50,7 @@ object Sink {
         Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"Output $o is not PubSub")))
     }
 
-  private def pubsubSink[F[_]: Concurrent, A: MessageEncoder](
+  private def pubsubSink[F[_]: Concurrent: Parallel, A: MessageEncoder](
     output: Output.PubSub
   ): Resource[F, List[AttributedData[A]] => F[Unit]] = {
     val config = PubsubProducerConfig[F](
@@ -60,6 +62,11 @@ object Sink {
 
     GooglePubsubProducer
       .of[F, A](ProjectId(output.project), Topic(output.name), config)
-      .map(producer => records => producer.produceMany[List](records.map(r => SimpleRecord(r.data, r.attributes))).void)
+      .map(sinkBatch[F, A])
   }
+
+  private def sinkBatch[F[_]: Concurrent: Parallel, A](producer: PubsubProducer[F, A])(records: List[AttributedData[A]]): F[Unit] =
+    records.parTraverse_ { r =>
+      producer.produce(r.data, r.attributes)
+    }.void
 }

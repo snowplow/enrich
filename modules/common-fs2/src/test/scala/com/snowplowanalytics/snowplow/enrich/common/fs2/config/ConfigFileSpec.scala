@@ -19,6 +19,7 @@ import java.nio.file.Paths
 import scala.concurrent.duration._
 
 import cats.syntax.either._
+import cats.data.NonEmptyList
 
 import cats.effect.IO
 
@@ -35,7 +36,7 @@ class ConfigFileSpec extends Specification with CatsIO {
     "parse reference example for PubSub" in {
       val configPath = Paths.get(getClass.getResource("/config.pubsub.extended.hocon").toURI)
       val expected = ConfigFile(
-        io.Input.PubSub("projects/test-project/subscriptions/collector-payloads-sub", 1, 3000),
+        io.Input.PubSub("projects/test-project/subscriptions/collector-payloads-sub", 1, 3000, 50000000, 1.hour),
         io.Outputs(
           io.Output.PubSub("projects/test-project/topics/enriched", Some(Set("app_id")), 200.milliseconds, 1000, 8000000),
           Some(io.Output.PubSub("projects/test-project/topics/pii", None, 200.milliseconds, 1000, 8000000)),
@@ -102,7 +103,7 @@ class ConfigFileSpec extends Specification with CatsIO {
           io.Input.Kinesis.InitPosition.TrimHorizon,
           io.Input.Kinesis.Retrieval.Polling(10000),
           3,
-          io.CheckpointBackoff(100.milli, 10.second, 10),
+          io.BackoffPolicy(100.milli, 10.second, 10),
           None,
           None,
           None
@@ -112,8 +113,9 @@ class ConfigFileSpec extends Specification with CatsIO {
             "enriched",
             Some("eu-central-1"),
             None,
-            io.Output.BackoffPolicy(100.millis, 10.seconds, 10),
+            io.BackoffPolicy(100.millis, 10.seconds, 10),
             500,
+            5242880,
             None
           ),
           Some(
@@ -121,8 +123,9 @@ class ConfigFileSpec extends Specification with CatsIO {
               "pii",
               Some("eu-central-1"),
               None,
-              io.Output.BackoffPolicy(100.millis, 10.seconds, 10),
+              io.BackoffPolicy(100.millis, 10.seconds, 10),
               500,
+              5242880,
               None
             )
           ),
@@ -130,8 +133,9 @@ class ConfigFileSpec extends Specification with CatsIO {
             "bad",
             Some("eu-central-1"),
             None,
-            io.Output.BackoffPolicy(100.millis, 10.seconds, 10),
+            io.BackoffPolicy(100.millis, 10.seconds, 10),
             500,
+            5242880,
             None
           )
         ),
@@ -186,6 +190,116 @@ class ConfigFileSpec extends Specification with CatsIO {
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
     }
 
+    "parse reference example for RabbitMQ" in {
+      val configPath = Paths.get(getClass.getResource("/config.rabbitmq.extended.hocon").toURI)
+      val expected = ConfigFile(
+        io.Input.RabbitMQ(
+          io.RabbitMQConfig(
+            NonEmptyList.one(
+              io.RabbitMQNode("localhost", 5672)
+            ),
+            "guest",
+            "guest",
+            "/",
+            5,
+            false,
+            1000,
+            100,
+            true
+          ),
+          "raw",
+          io.BackoffPolicy(100.millis, 10.seconds, 10)
+        ),
+        io.Outputs(
+          io.Output.RabbitMQ(
+            io.RabbitMQConfig(
+              NonEmptyList.one(
+                io.RabbitMQNode("localhost", 5672)
+              ),
+              "guest",
+              "guest",
+              "/",
+              5,
+              false,
+              1000,
+              100,
+              true
+            ),
+            "enriched",
+            "enriched",
+            io.BackoffPolicy(100.millis, 10.seconds, 10)
+          ),
+          None,
+          io.Output.RabbitMQ(
+            io.RabbitMQConfig(
+              NonEmptyList.one(
+                io.RabbitMQNode("localhost", 5672)
+              ),
+              "guest",
+              "guest",
+              "/",
+              5,
+              false,
+              1000,
+              100,
+              true
+            ),
+            "bad-1",
+            "bad-1",
+            io.BackoffPolicy(100.millis, 10.seconds, 10)
+          )
+        ),
+        io.Concurrency(256, 3),
+        Some(7.days),
+        io.RemoteAdapterConfigs(
+          10.seconds,
+          45.seconds,
+          10,
+          List(
+            io.RemoteAdapterConfig("com.example", "v1", "https://remote-adapter.com")
+          )
+        ),
+        io.Monitoring(
+          Some(Sentry(URI.create("http://sentry.acme.com"))),
+          io.MetricsReporters(
+            Some(io.MetricsReporters.StatsD("localhost", 8125, Map("app" -> "enrich"), 10.seconds, None)),
+            Some(io.MetricsReporters.Stdout(10.seconds, None)),
+            true
+          )
+        ),
+        io.Telemetry(
+          false,
+          15.minutes,
+          "POST",
+          "collector-g.snowplowanalytics.com",
+          443,
+          true,
+          Some("my_pipeline"),
+          Some("hfy67e5ydhtrd"),
+          Some("665bhft5u6udjf"),
+          Some("enrich-rabbitmq-ce"),
+          Some("1.0.0")
+        ),
+        io.FeatureFlags(
+          false,
+          false
+        ),
+        Some(
+          io.Experimental(
+            Some(
+              io.Metadata(
+                Uri.uri("https://my_pipeline.my_domain.com/iglu"),
+                5.minutes,
+                UUID.fromString("c5f3a09f-75f8-4309-bec5-fea560f78455"),
+                UUID.fromString("75a13583-5c99-40e3-81fc-541084dfc784")
+              )
+            )
+          )
+        )
+      )
+      ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
+    }
+
     "parse valid 0 minutes as None" in {
       val input =
         """{
@@ -193,7 +307,9 @@ class ConfigFileSpec extends Specification with CatsIO {
             "type": "PubSub",
             "subscription": "projects/test-project/subscriptions/inputSub",
             "parallelPullCount": 1,
-            "maxQueueSize": 3000
+            "maxQueueSize": 3000,
+            "maxRequestBytes": 50000000,
+            "maxAckExtensionPeriod": 1 hour
           },
           "output": {
             "good": {

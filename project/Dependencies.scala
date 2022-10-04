@@ -34,7 +34,8 @@ object Dependencies {
     val jodaTime         = "2.10.1"
     val useragent        = "1.21"
     val uaParser         = "1.4.3"
-    val postgresDriver   = "42.2.25"
+    val snakeYaml        = "1.31" // override transitive dependency to mitigate security vulnerabilities CVE-2022-25857
+    val postgresDriver   = "42.2.26"
     val mysqlConnector   = "8.0.29"
     val hikariCP         = "5.0.1"
     val jaywayJsonpath   = "2.7.0"
@@ -88,6 +89,7 @@ object Dependencies {
     val catsRetry        = "2.1.0"
     val specsDiff        = "0.6.0"
     val eventGen         = "0.2.0"
+    val fs2RabbitMQ      = "3.0.1" // latest version without CE3
 
     val scopt            = "3.7.1"
     val pureconfig       = "0.11.0"
@@ -111,6 +113,7 @@ object Dependencies {
     val jodaTime         = "joda-time"                  %  "joda-time"                     % V.jodaTime
     val useragent        = "eu.bitwalker"               %  "UserAgentUtils"                % V.useragent
     val jacksonDatabind  = "com.fasterxml.jackson.core" %  "jackson-databind"              % V.jackson
+    val snakeYaml        = "org.yaml"                   %  "snakeyaml"                     % V.snakeYaml
     val uaParser         = "com.github.ua-parser"       %  "uap-java"                      % V.uaParser
     val postgresDriver   = "org.postgresql"             %  "postgresql"                    % V.postgresDriver
     val mysqlConnector   = "mysql"                      %  "mysql-connector-java"          % V.mysqlConnector
@@ -205,6 +208,7 @@ object Dependencies {
     val http4sServer     = "org.http4s"                       %% "http4s-blaze-server"                   % V.http4s          % Test
     val trackerCore      = "com.snowplowanalytics"            %% "snowplow-scala-tracker-core"           % V.snowplowTracker
     val emitterHttps     = "com.snowplowanalytics"            %% "snowplow-scala-tracker-emitter-http4s" % V.snowplowTracker
+    val fs2RabbitMQ      = "dev.profunktor"                   %% "fs2-rabbit"                            % V.fs2RabbitMQ
 
     // compiler plugins
     val betterMonadicFor = "com.olegpy" %% "better-monadic-for" % V.betterMonadicFor
@@ -215,6 +219,7 @@ object Dependencies {
       useragent,
       jacksonDatabind,
       uaParser,
+      snakeYaml,
       postgresDriver,
       mysqlConnector,
       hikariCP,
@@ -330,6 +335,11 @@ object Dependencies {
       dynamoDbClient2,
       sts,
       sts2
+      specs2
+    )
+ 
+   val rabbitmqDependencies = Seq(
+      fs2RabbitMQ
     )
 
     // exclusions

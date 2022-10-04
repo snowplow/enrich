@@ -18,6 +18,7 @@ import java.net.URI
 import java.util.UUID
 
 import cats.syntax.either._
+import cats.data.NonEmptyList
 
 import scala.concurrent.duration.{Duration, FiniteDuration}
 
@@ -25,11 +26,14 @@ import _root_.io.circe.{Decoder, DecodingFailure, Encoder}
 import _root_.io.circe.generic.extras.semiauto._
 import _root_.io.circe.config.syntax._
 import _root_.io.circe.DecodingFailure
+
 import org.http4s.{ParseFailure, Uri}
 
 import com.snowplowanalytics.snowplow.enrich.common.EtlPipeline.{FeatureFlags => CommonFeatureFlags}
 
 object io {
+
+  val putRecordsMaxRecords = 500
 
   import ConfigFile.finiteDurationEncoder
 
@@ -56,19 +60,47 @@ object io {
 
   import ConfigFile.finiteDurationEncoder
 
-  case class CheckpointBackoff(
+  case class BackoffPolicy(
     minBackoff: FiniteDuration,
     maxBackoff: FiniteDuration,
     maxRetries: Int
   )
-  implicit val checkpointBackoffDecoder: Decoder[CheckpointBackoff] = deriveConfiguredDecoder[CheckpointBackoff]
-  implicit val checkpointBackoffEncoder: Encoder[CheckpointBackoff] = deriveConfiguredEncoder[CheckpointBackoff]
-
-  sealed trait RetryCheckpointing {
-    val checkpointBackoff: CheckpointBackoff
+  object BackoffPolicy {
+    implicit def backoffPolicyDecoder: Decoder[BackoffPolicy] =
+      deriveConfiguredDecoder[BackoffPolicy]
+    implicit def backoffPolicyEncoder: Encoder[BackoffPolicy] =
+      deriveConfiguredEncoder[BackoffPolicy]
   }
 
-  /** Source of raw collector data (only PubSub supported atm) */
+  sealed trait RetryCheckpointing {
+    val checkpointBackoff: BackoffPolicy
+  }
+
+  case class RabbitMQNode(
+    host: String,
+    port: Int
+  )
+  object RabbitMQNode {
+    implicit val rabbitMQNodeDecoder: Decoder[RabbitMQNode] = deriveConfiguredDecoder[RabbitMQNode]
+    implicit val rabbitMQNodeEncoder: Encoder[RabbitMQNode] = deriveConfiguredEncoder[RabbitMQNode]
+  }
+
+  case class RabbitMQConfig(
+    nodes: NonEmptyList[RabbitMQNode],
+    username: String,
+    password: String,
+    virtualHost: String,
+    connectionTimeout: Int,
+    ssl: Boolean,
+    internalQueueSize: Int,
+    requestedHeartbeat: Int,
+    automaticRecovery: Boolean
+  )
+  object RabbitMQConfig {
+    implicit val rabbitMQConfigDecoder: Decoder[RabbitMQConfig] = deriveConfiguredDecoder[RabbitMQConfig]
+    implicit val rabbitMQConfigEncoder: Encoder[RabbitMQConfig] = deriveConfiguredEncoder[RabbitMQConfig]
+  }
+
   sealed trait Input
 
   object Input {
@@ -76,7 +108,9 @@ object io {
     case class PubSub private (
       subscription: String,
       parallelPullCount: Int,
-      maxQueueSize: Int
+      maxQueueSize: Int,
+      maxRequestBytes: Int,
+      maxAckExtensionPeriod: FiniteDuration
     ) extends Input {
       val (project, name) =
         subscription.split("/").toList match {
@@ -94,10 +128,16 @@ object io {
       initialPosition: Kinesis.InitPosition,
       retrievalMode: Kinesis.Retrieval,
       bufferSize: Int,
-      checkpointBackoff: CheckpointBackoff,
+      checkpointBackoff: BackoffPolicy,
       customEndpoint: Option[URI],
       dynamodbCustomEndpoint: Option[URI],
       cloudwatchCustomEndpoint: Option[URI]
+    ) extends Input
+        with RetryCheckpointing
+    case class RabbitMQ(
+      cluster: RabbitMQConfig,
+      queue: String,
+      checkpointBackoff: BackoffPolicy
     ) extends Input
         with RetryCheckpointing
 
@@ -168,7 +208,7 @@ object io {
     implicit val inputDecoder: Decoder[Input] =
       deriveConfiguredDecoder[Input]
         .emap {
-          case s @ PubSub(sub, _, _) =>
+          case s @ PubSub(sub, _, _, _, _) =>
             sub.split("/").toList match {
               case List("projects", _, "subscriptions", _) =>
                 s.asRight
@@ -178,10 +218,14 @@ object io {
           case other => other.asRight
         }
         .emap {
-          case PubSub(_, p, _) if p < 0 =>
+          case PubSub(_, p, _, _, _) if p <= 0 =>
             "PubSub parallelPullCount must be > 0".asLeft
-          case PubSub(_, _, m) if m < 0 =>
+          case PubSub(_, _, m, _, _) if m <= 0 =>
             "PubSub maxQueueSize must be > 0".asLeft
+          case PubSub(_, _, _, m, _) if m <= 0 =>
+            "PubSub maxRequestBytes must be > 0".asLeft
+          case PubSub(_, _, _, _, m) if m < Duration.Zero =>
+            "PubSub maxAckExtensionPeriod must be >= 0".asLeft
           case other =>
             other.asRight
         }
@@ -226,20 +270,15 @@ object io {
       partitionKey: Option[String],
       backoffPolicy: BackoffPolicy,
       recordLimit: Int,
+      byteLimit: Int,
       customEndpoint: Option[URI]
     ) extends Output
-
-    case class BackoffPolicy(
-      minBackoff: FiniteDuration,
-      maxBackoff: FiniteDuration,
-      maxRetries: Int
-    )
-    object BackoffPolicy {
-      implicit def backoffPolicyDecoder: Decoder[BackoffPolicy] =
-        deriveConfiguredDecoder[BackoffPolicy]
-      implicit def backoffPolicyEncoder: Encoder[BackoffPolicy] =
-        deriveConfiguredEncoder[BackoffPolicy]
-    }
+    case class RabbitMQ(
+      cluster: RabbitMQConfig,
+      exchange: String,
+      routingKey: String,
+      backoffPolicy: BackoffPolicy
+    ) extends Output
 
     implicit val outputDecoder: Decoder[Output] =
       deriveConfiguredDecoder[Output]
@@ -256,12 +295,14 @@ object io {
           case other => other.asRight
         }
         .emap {
-          case PubSub(_, _, d, _, _) if d < Duration.Zero =>
+          case p: PubSub if p.delayThreshold < Duration.Zero =>
             "PubSub delay threshold cannot be less than 0".asLeft
-          case PubSub(_, _, _, m, _) if m < 0 =>
+          case p: PubSub if p.maxBatchSize < 0 =>
             "PubSub max batch size cannot be less than 0".asLeft
-          case PubSub(_, _, _, _, m) if m < 0 =>
+          case p: PubSub if p.maxBatchBytes < 0 =>
             "PubSub max batch bytes cannot be less than 0".asLeft
+          case k: Kinesis if k.recordLimit > putRecordsMaxRecords =>
+            s"recordLimit can't be > $putRecordsMaxRecords".asLeft
           case other =>
             other.asRight
         }

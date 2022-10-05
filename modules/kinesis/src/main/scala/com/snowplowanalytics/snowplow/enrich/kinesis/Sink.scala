@@ -16,6 +16,7 @@ import java.nio.ByteBuffer
 import java.util.UUID
 
 import scala.collection.JavaConverters._
+import scala.concurrent.duration.DurationLong
 
 import cats.implicits._
 import cats.{Applicative, Monoid, Parallel, Semigroup, Show}
@@ -102,7 +103,7 @@ object Sink {
       .join(limitRetries(config.maxRetries))
 
   private def getRetryPolicyForThrottling[F[_]: Applicative](config: BackoffPolicy): RetryPolicy[F] =
-    capDelay[F](config.maxBackoff, fullJitter[F](config.minBackoff))
+    capDelay(1.second, fibonacciBackoff(config.minBackoff))
 
   private def writeToKinesis[F[_]: ContextShift: Parallel: Sync: Timer](
     blocker: Blocker,

@@ -16,10 +16,9 @@ import java.nio.ByteBuffer
 import java.util.UUID
 
 import scala.collection.JavaConverters._
-import scala.concurrent.duration.DurationLong
 
 import cats.implicits._
-import cats.{Applicative, Monoid, Parallel, Semigroup, Show}
+import cats.{Monoid, Parallel, Semigroup, Show}
 
 import cats.effect.{Blocker, Concurrent, ContextShift, Resource, Sync, Timer}
 import cats.effect.concurrent.Ref
@@ -28,7 +27,6 @@ import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import retry.syntax.all._
-import retry.RetryPolicies._
 import retry.RetryPolicy
 
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
@@ -37,7 +35,8 @@ import com.amazonaws.services.kinesis.model._
 import com.amazonaws.services.kinesis.{AmazonKinesis, AmazonKinesisClientBuilder}
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.{AttributedByteSink, AttributedData, ByteSink}
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{BackoffPolicy, Output}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Output
+import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Retries
 
 object Sink {
 
@@ -98,21 +97,14 @@ object Sink {
                 }
     } yield exists
 
-  private def getRetryPolicyForErrors[F[_]: Applicative](config: BackoffPolicy): RetryPolicy[F] =
-    capDelay[F](config.maxBackoff, fullJitter[F](config.minBackoff))
-      .join(limitRetries(config.maxRetries))
-
-  private def getRetryPolicyForThrottling[F[_]: Applicative](config: BackoffPolicy): RetryPolicy[F] =
-    capDelay(1.second, fibonacciBackoff(config.minBackoff))
-
   private def writeToKinesis[F[_]: ContextShift: Parallel: Sync: Timer](
     blocker: Blocker,
     config: Output.Kinesis,
     kinesis: AmazonKinesis,
     records: List[PutRecordsRequestEntry]
   ): F[Unit] = {
-    val policyForErrors = getRetryPolicyForErrors[F](config.backoffPolicy)
-    val policyForThrottling = getRetryPolicyForThrottling[F](config.backoffPolicy)
+    val policyForErrors = Retries.fullJitter[F](config.backoffPolicy)
+    val policyForThrottling = Retries.fibonacci[F](config.throttledBackoffPolicy)
 
     def runAndCaptureFailures(ref: Ref[F, List[PutRecordsRequestEntry]]): F[List[PutRecordsRequestEntry]] =
       for {

@@ -103,7 +103,7 @@ class ConfigFileSpec extends Specification with CatsIO {
           io.Input.Kinesis.InitPosition.TrimHorizon,
           io.Input.Kinesis.Retrieval.Polling(10000),
           3,
-          io.BackoffPolicy(100.milli, 10.second, 10),
+          io.BackoffPolicy(100.milli, 10.second, Some(10)),
           None,
           None,
           None
@@ -113,7 +113,8 @@ class ConfigFileSpec extends Specification with CatsIO {
             "enriched",
             Some("eu-central-1"),
             None,
-            io.BackoffPolicy(100.millis, 10.seconds, 10),
+            io.BackoffPolicy(100.millis, 10.seconds, Some(10)),
+            io.BackoffPolicy(100.millis, 1.second, None),
             500,
             5242880,
             None
@@ -123,7 +124,8 @@ class ConfigFileSpec extends Specification with CatsIO {
               "pii",
               Some("eu-central-1"),
               None,
-              io.BackoffPolicy(100.millis, 10.seconds, 10),
+              io.BackoffPolicy(100.millis, 10.seconds, Some(10)),
+              io.BackoffPolicy(100.millis, 1.second, None),
               500,
               5242880,
               None
@@ -133,7 +135,8 @@ class ConfigFileSpec extends Specification with CatsIO {
             "bad",
             Some("eu-central-1"),
             None,
-            io.BackoffPolicy(100.millis, 10.seconds, 10),
+            io.BackoffPolicy(100.millis, 10.seconds, Some(10)),
+            io.BackoffPolicy(100.millis, 1.second, None),
             500,
             5242880,
             None
@@ -208,7 +211,7 @@ class ConfigFileSpec extends Specification with CatsIO {
             true
           ),
           "raw",
-          io.BackoffPolicy(100.millis, 10.seconds, 10)
+          io.BackoffPolicy(100.millis, 10.seconds, Some(10))
         ),
         io.Outputs(
           io.Output.RabbitMQ(
@@ -227,7 +230,7 @@ class ConfigFileSpec extends Specification with CatsIO {
             ),
             "enriched",
             "enriched",
-            io.BackoffPolicy(100.millis, 10.seconds, 10)
+            io.BackoffPolicy(100.millis, 10.seconds, Some(10))
           ),
           None,
           io.Output.RabbitMQ(
@@ -246,7 +249,7 @@ class ConfigFileSpec extends Specification with CatsIO {
             ),
             "bad-1",
             "bad-1",
-            io.BackoffPolicy(100.millis, 10.seconds, 10)
+            io.BackoffPolicy(100.millis, 10.seconds, Some(10))
           )
         ),
         io.Concurrency(256, 3),

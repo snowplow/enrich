@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2022-2022 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -189,7 +189,7 @@ object Sink {
         .map(TryBatchResult.build(records, _))
         .retryingOnFailuresAndAllErrors(
           policy = retryPolicy,
-          wasSuccessful = _.wasSuccessful,
+          wasSuccessful = r => !r.shouldRetrySameBatch,
           onFailure = {
             case (result, retryDetails) =>
               val msg = failureMessageForInternalErrors(records, config.streamName, result)
@@ -202,10 +202,10 @@ object Sink {
               )
         )
         .flatMap { result =>
-          if (result.wasSuccessful)
-            result.toRetry.pure[F]
-          else
+          if (result.shouldRetrySameBatch)
             Sync[F].raiseError(new RuntimeException(failureMessageForInternalErrors(records, config.streamName, result)))
+          else
+            result.nextBatchAttempt.pure[F]
         }
 
   private def toKinesisRecords(records: List[AttributedData[Array[Byte]]]): List[PutRecordsRequestEntry] =
@@ -224,46 +224,52 @@ object Sink {
 
   /**
    * The result of trying to write a batch to kinesis
-   *  @param toRetry Records to retry, either because of throttling or an internal error
+   *  @param nextBatchAttempt Records to re-package into another batch, either because of throttling or an internal error
+   *  @param hadSuccess Whether one or more records in the batch were written successfully
    *  @param wasThrottled Whether at least one of retries is because of throttling
    *  @param exampleInternalError A message to help with logging
    */
   private case class TryBatchResult(
-    toRetry: Vector[PutRecordsRequestEntry],
+    nextBatchAttempt: Vector[PutRecordsRequestEntry],
+    hadSuccess: Boolean,
     wasThrottled: Boolean,
     exampleInternalError: Option[String]
   ) {
-    def wasSuccessful: Boolean =
-      toRetry.isEmpty || wasThrottled
+    def shouldRetrySameBatch: Boolean =
+      !wasThrottled && !hadSuccess
   }
 
   private object TryBatchResult {
 
     implicit private def tryBatchResultMonoid: Monoid[TryBatchResult] =
       new Monoid[TryBatchResult] {
-        override val empty: TryBatchResult = TryBatchResult(Vector.empty, false, None)
+        override val empty: TryBatchResult = TryBatchResult(Vector.empty, false, false, None)
         override def combine(x: TryBatchResult, y: TryBatchResult): TryBatchResult =
-          TryBatchResult(x.toRetry ++ y.toRetry, x.wasThrottled || y.wasThrottled, x.exampleInternalError.orElse(y.exampleInternalError))
+          TryBatchResult(
+            x.nextBatchAttempt ++ y.nextBatchAttempt,
+            x.hadSuccess || y.hadSuccess,
+            x.wasThrottled || y.wasThrottled,
+            x.exampleInternalError.orElse(y.exampleInternalError)
+          )
       }
 
     def build(records: List[PutRecordsRequestEntry], prr: PutRecordsResult): TryBatchResult =
       if (prr.getFailedRecordCount.toInt =!= 0)
         records
           .zip(prr.getRecords.asScala)
-          .map {
+          .foldMap {
             case (orig, recordResult) =>
               Option(recordResult.getErrorCode) match {
                 case None =>
-                  Monoid[TryBatchResult].empty
+                  TryBatchResult(Vector.empty, true, false, None)
                 case Some("ProvisionedThroughputExceededException") =>
-                  TryBatchResult(Vector(orig), true, None)
+                  TryBatchResult(Vector(orig), false, true, None)
                 case Some(_) =>
-                  TryBatchResult(Vector(orig), false, Option(recordResult.getErrorMessage))
+                  TryBatchResult(Vector(orig), false, false, Option(recordResult.getErrorMessage))
               }
           }
-          .combineAll
       else
-        Monoid[TryBatchResult].empty
+        TryBatchResult(Vector.empty, true, false, None)
   }
 
   private def putRecords(

@@ -1,3 +1,11 @@
+3.4.1 (2022-10-10)
+------------------
+enrich-rabbitmq: fix jar patch in Github worflow for releasing (#702)
+enrich-kinesis: add STS v2 to runtime dependencies (#643)
+Enrich-kinesis: improve sink retry policy for when throttled by kinesis (#697)
+common: use iglu-scala-client with improved caching (#699)
+Common: remove url decoding the user agent (#695)
+
 3.4.0 (2022-09-27)
 ------------------
 Add RabbitMQ asset (#679)

@@ -22,8 +22,6 @@ import com.snowplowanalytics.snowplow.badrows.{FailureDetails, Processor}
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
-import generated.ProjectSettings
-
 import utils.{ConversionUtils => CU}
 
 /** Miscellaneous enrichments which don't fit into one of the other modules. */
@@ -38,7 +36,7 @@ object MiscEnrichments {
    * @return the complete ETL version
    */
   def etlVersion(processor: Processor): String =
-    s"${processor.artifact}-${processor.version}-common-${ProjectSettings.version}"
+    s"${processor.artifact}-${processor.version}"
 
   /**
    * Validate the specified platform.

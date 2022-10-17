@@ -126,7 +126,7 @@ class RemoteAdapterIntegrationTest extends Specification with BeforeAfterAll {
         "",
         "",
         "cloudfront",
-        EnrichVersion,
+        v_etl,
         "",
         "fbc9cb674bbaeb0dfe13b743bc043790928931e1",
         "",

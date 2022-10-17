@@ -19,9 +19,10 @@ import java.util.regex.Pattern
 import scala.util.matching.Regex
 import cats.Id
 import com.snowplowanalytics.iglu.client.IgluCirceClient
+import com.snowplowanalytics.snowplow.badrows.Processor
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.{EnrichmentRegistry, MiscEnrichments}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, JsonUtils}
 import com.snowplowanalytics.snowplow.enrich.stream.model.{AWSCredentials, CloudAgnosticPlatformConfig, GCPCredentials, Kafka, Nsq, Stdin}
@@ -37,11 +38,7 @@ object SpecHelpers {
   implicit def stringToJustString(s: String) = JustString(s)
   implicit def regexToJustRegex(r: Regex) = JustRegex(r)
 
-  /**
-   * The Stream Enrich being used
-   */
-  val EnrichVersion =
-    s"sce-test-1.0.0-common-${generated.BuildInfo.commonEnrichVersion}"
+  val v_etl = MiscEnrichments.etlVersion(Processor(generated.BuildInfo.name, generated.BuildInfo.version))
 
   val TimestampRegex =
     "[0-9]{1,4}-[0-9]{1,2}-[0-9]{1,2} [0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}(\\.\\d{3})?".r

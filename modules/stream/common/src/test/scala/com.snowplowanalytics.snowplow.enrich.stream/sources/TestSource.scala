@@ -34,7 +34,7 @@ class TestSource(
   client: IgluCirceClient[Id],
   adapterRegistry: AdapterRegistry,
   enrichmentRegistry: EnrichmentRegistry[Id]
-) extends Source(client, adapterRegistry, enrichmentRegistry, Processor("sce-test", "1.0.0"), "", None) {
+) extends Source(client, adapterRegistry, enrichmentRegistry, Processor(generated.BuildInfo.name, generated.BuildInfo.version), "", None) {
 
   override val MaxRecordSize = None
 

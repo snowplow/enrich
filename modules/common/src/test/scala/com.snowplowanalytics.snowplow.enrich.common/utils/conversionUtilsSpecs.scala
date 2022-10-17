@@ -547,7 +547,7 @@ class GetPiiEventSpec extends MSpecification {
       e.event_format shouldEqual "jsonschema"
       e.event_name shouldEqual "pii_transformation"
       e.event_version shouldEqual "1-0-0"
-      e.v_etl must startWith("sce-test-suite-1.0.0-common-")
+      e.v_etl shouldEqual "sce-test-suite-1.0.0"
       e.contexts must contain(
         """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/parent_event/jsonschema/1-0-0","data":{"parentEventId":"""
       )

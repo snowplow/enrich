@@ -49,7 +49,7 @@ object BuildSettings {
     name := "snowplow-stream-enrich",
     moduleName := "snowplow-stream-enrich",
     description := "Common functionality for legacy streaming enrich applications",
-    buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description, "commonEnrichVersion" -> version.value),
+    buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
     buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.stream.generated"
   )
 

@@ -95,10 +95,12 @@ object Dependencies {
     val pureconfig013    = "0.13.0"
     val snowplowTracker  = "1.0.0"
 
-    val specs2           = "4.5.1"
-    val specs2CE         = "0.4.1"
-    val scalacheck       = "1.14.0"
-    val jinJava          = "2.5.0"
+    val specs2            = "4.17.0"
+    val specs2Cats        = "4.11.0"
+    val specs2CE          = "0.4.1"
+    val scalacheck        = "1.14.0"
+    val jinJava           = "2.5.0"
+    val parserCombinators = "2.1.1"
 
     val sentry           = "1.7.30"
     val grpc             = "1.32.2"
@@ -155,15 +157,16 @@ object Dependencies {
     val sentry           = "io.sentry"                  %  "sentry"                        % V.sentry
     val protobuf         = "com.google.protobuf"        %  "protobuf-java"                 % V.protobuf
 
-    val specs2             = "org.specs2"             %% "specs2-core"                   % V.specs2    % Test
-    val specs2Cats         = "org.specs2"             %% "specs2-cats"                   % V.specs2    % Test
-    val specs2Scalacheck   = "org.specs2"             %% "specs2-scalacheck"             % V.specs2    % Test
-    val specs2ScalacheckIt = "org.specs2"             %% "specs2-scalacheck"             % V.specs2    % IntegrationTest
-    val specs2Mock         = "org.specs2"             %% "specs2-mock"                   % V.specs2    % Test
-    val specs2CE           = "com.codecommit"         %% "cats-effect-testing-specs2"    % V.specs2CE  % Test
-    val specs2CEIt         = "com.codecommit"         %% "cats-effect-testing-specs2"    % V.specs2CE  % IntegrationTest
-    val specsDiff          = "com.softwaremill.diffx" %% "diffx-specs2"                  % V.specsDiff % Test
-    val eventGen           = "com.snowplowanalytics"  %% "snowplow-event-generator-core" % V.eventGen  % Test
+    val specs2             = "org.specs2"             %% "specs2-core"                   % V.specs2            % Test
+    val specs2Cats         = "org.specs2"             %% "specs2-cats"                   % V.specs2Cats        % Test
+    val specs2Scalacheck   = "org.specs2"             %% "specs2-scalacheck"             % V.specs2            % Test
+    val specs2ScalacheckIt = "org.specs2"             %% "specs2-scalacheck"             % V.specs2            % IntegrationTest
+    val specs2Mock         = "org.specs2"             %% "specs2-mock"                   % V.specs2            % Test
+    val specs2CE           = "com.codecommit"         %% "cats-effect-testing-specs2"    % V.specs2CE          % Test
+    val specs2CEIt         = "com.codecommit"         %% "cats-effect-testing-specs2"    % V.specs2CE          % IntegrationTest
+    val specsDiff          = "com.softwaremill.diffx" %% "diffx-specs2"                  % V.specsDiff         % Test
+    val eventGen           = "com.snowplowanalytics"  %% "snowplow-event-generator-core" % V.eventGen          % Test
+    val parserCombinators  = "org.scala-lang.modules" %% "scala-parser-combinators"      % V.parserCombinators % Test
 
     // Stream
     val kinesisSdk       = "com.amazonaws"                    %  "aws-java-sdk-kinesis"              % V.awsSdk
@@ -252,7 +255,8 @@ object Dependencies {
       specs2Cats,
       specs2Scalacheck,
       specs2Mock,
-      circeLiteral % Test
+      circeLiteral % Test,
+      parserCombinators
     )
 
     val streamCommonDependencies = Seq(

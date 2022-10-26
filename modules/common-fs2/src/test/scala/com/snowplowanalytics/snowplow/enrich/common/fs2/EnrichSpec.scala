@@ -224,6 +224,7 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
         val environment =
           test.env.copy(goodAttributes = { ee => Map("app_id" -> ee.app_id) }, piiAttributes = { ee => Map("platform" -> ee.platform) })
         val ee = new EnrichedEvent()
+        ee.event_id = "some_id"
         ee.app_id = "test_app"
         ee.platform = "web"
         ee.pii = "e30="
@@ -344,6 +345,7 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
     "serialize a pii event to the pii output" in {
       val ee = new EnrichedEvent()
       ee.pii = "eyJ4IjoieSJ9Cg=="
+      ee.event_id = "some_id"
 
       TestEnvironment.make(Stream.empty).use { test =>
         for {
@@ -362,6 +364,7 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
     "not generate a bad row for an over-sized pii event" in {
       val ee = new EnrichedEvent()
       ee.pii = "x" * 10000000
+      ee.event_id = "some_id"
 
       TestEnvironment.make(Stream.empty).use { test =>
         for {

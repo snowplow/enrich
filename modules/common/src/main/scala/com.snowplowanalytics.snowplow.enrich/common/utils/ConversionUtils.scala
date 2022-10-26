@@ -558,27 +558,27 @@ object ConversionUtils {
   private val eeTstampFormatter = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss.SSS")
 
   /** Creates a PII event from the pii field of an existing event. */
-  def getPiiEvent(processor: Processor, event: EnrichedEvent): Option[EnrichedEvent] =
-    Option(event.pii)
+  def getPiiEvent(processor: Processor, originalEvent: EnrichedEvent): Option[EnrichedEvent] =
+    Option(originalEvent.pii)
       .filter(_.nonEmpty)
       .map { pii =>
-        val ee = new EnrichedEvent
-        ee.unstruct_event = pii
-        ee.app_id = event.app_id
-        ee.platform = "srv"
-        ee.etl_tstamp = event.etl_tstamp
-        ee.collector_tstamp = event.collector_tstamp
-        ee.event = "pii_transformation"
-        ee.event_id = UUID.randomUUID().toString
-        ee.derived_tstamp = eeTstampFormatter.print(DateTime.now(DateTimeZone.UTC))
-        ee.true_tstamp = ee.derived_tstamp
-        ee.event_vendor = "com.snowplowanalytics.snowplow"
-        ee.event_format = "jsonschema"
-        ee.event_name = "pii_transformation"
-        ee.event_version = "1-0-0"
-        ee.v_etl = MiscEnrichments.etlVersion(processor)
-        ee.contexts = getContextParentEvent(ee.event_id).noSpaces
-        ee
+        val piiEvent = new EnrichedEvent
+        piiEvent.unstruct_event = pii
+        piiEvent.app_id = originalEvent.app_id
+        piiEvent.platform = "srv"
+        piiEvent.etl_tstamp = originalEvent.etl_tstamp
+        piiEvent.collector_tstamp = originalEvent.collector_tstamp
+        piiEvent.event = "pii_transformation"
+        piiEvent.event_id = UUID.randomUUID().toString
+        piiEvent.derived_tstamp = eeTstampFormatter.print(DateTime.now(DateTimeZone.UTC))
+        piiEvent.true_tstamp = piiEvent.derived_tstamp
+        piiEvent.event_vendor = "com.snowplowanalytics.snowplow"
+        piiEvent.event_format = "jsonschema"
+        piiEvent.event_name = "pii_transformation"
+        piiEvent.event_version = "1-0-0"
+        piiEvent.v_etl = MiscEnrichments.etlVersion(processor)
+        piiEvent.contexts = getContextParentEvent(originalEvent.event_id).noSpaces
+        piiEvent
       }
 
   private def getContextParentEvent(eventId: String): Json =

@@ -10,19 +10,19 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.kinesis.count
+package com.snowplowanalytics.snowplow.enrich.kinesis
 
 import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext
 
-import cats.Parallel
 import cats.data.Validated
 import cats.syntax.either._
 
 import io.circe.parser
 
-import cats.effect.{Blocker, Concurrent, ConcurrentEffect, ContextShift, Resource, Sync, Timer}
+import cats.effect.{Blocker, ContextShift, IO, Resource, Timer}
 
-import fs2.Stream
+import fs2.{Pipe, Stream}
 
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 
@@ -32,11 +32,12 @@ import com.snowplowanalytics.iglu.core.SelfDescribingData
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input
-import com.snowplowanalytics.snowplow.enrich.common.fs2.ByteSink
 
-import com.snowplowanalytics.snowplow.enrich.kinesis.{KinesisRun, Sink, Source}
+object utils {
 
-object Helpers {
+  private val executionContext: ExecutionContext = ExecutionContext.global
+  implicit val ioContextShift: ContextShift[IO] = IO.contextShift(executionContext)
+  implicit val ioTimer: Timer[IO] = IO.timer(executionContext)
 
   sealed trait OutputRow
   object OutputRow {
@@ -44,33 +45,29 @@ object Helpers {
     final case class Bad(badRow: BadRow) extends OutputRow
   }
 
-  final case class TestResources[F[_]](
-    writeInput: Stream[F, Unit],
-    readOutput: Stream[F, OutputRow]
-  )
-
-  def mkResources[F[_]: Concurrent: ConcurrentEffect: ContextShift: Parallel: Timer](
-    nbGood: Long,
-    nbBad: Long,
-    localstackPort: Int
-  ): Resource[F, TestResources[F]] =
+  def mkEnrichPipe(
+    localstackPort: Int,
+    uuid: String
+  ): Resource[IO, Pipe[IO, Array[Byte], OutputRow]] =
     for {
-      blocker <- Blocker[F]
-      rawSink <- Sink.init[F](blocker, KinesisConfigReadWrite.rawStreamConfig(port = localstackPort))
+      blocker <- Blocker[IO]
+      streams = KinesisConfig.getStreams(uuid)
+      rawSink <- Sink.init[IO](blocker, KinesisConfig.rawStreamConfig(localstackPort, streams.raw))
     } yield {
-      val goodSource = asGood(sourceStream[F](blocker, KinesisConfigReadWrite.enrichedStreamConfig(port = localstackPort)))
-      val badSource = asBad(sourceStream[F](blocker, KinesisConfigReadWrite.badStreamConfig(port = localstackPort)))
-      TestResources(
-        writeInput[F](rawSink, nbGood, nbBad),
-        goodSource.merge(badSource).interruptAfter(2.minutes)
-      )
+      val enriched = asGood(outputStream(blocker, KinesisConfig.enrichedStreamConfig(localstackPort, streams.enriched)))
+      val bad = asBad(outputStream(blocker, KinesisConfig.badStreamConfig(localstackPort, streams.bad)))
+
+      collectorPayloads =>
+        enriched.merge(bad)
+          .interruptAfter(3.minutes)
+          .concurrently(collectorPayloads.evalMap(bytes => rawSink(List(bytes))))
     }
 
-  private def sourceStream[F[_]: ConcurrentEffect: ContextShift: Timer](blocker: Blocker, config: Input.Kinesis): Stream[F, Array[Byte]] =
-    Source.init[F](blocker, config, KinesisConfigReadWrite.monitoring)
+  private def outputStream(blocker: Blocker, config: Input.Kinesis): Stream[IO, Array[Byte]] =
+    Source.init[IO](blocker, config, KinesisConfig.monitoring)
       .map(KinesisRun.getPayload)
 
-  private def asGood[F[_]](source: Stream[F, Array[Byte]]): Stream[F, OutputRow.Good] =
+  private def asGood(source: Stream[IO, Array[Byte]]): Stream[IO, OutputRow.Good] =
     source.map { bytes =>
       OutputRow.Good {
         val s = new String(bytes)
@@ -82,7 +79,7 @@ object Helpers {
       }
     }
 
-  private def asBad[F[_]](source: Stream[F, Array[Byte]]): Stream[F, OutputRow.Bad] =
+  private def asBad(source: Stream[IO, Array[Byte]]): Stream[IO, OutputRow.Bad] =
     source.map { bytes =>
       OutputRow.Bad {
         val s = new String(bytes)
@@ -94,14 +91,20 @@ object Helpers {
       }
     }
 
-  private def writeInput[F[_]: Sync](sink: ByteSink[F], nbGood: Long, nbBad: Long): Stream[F, Unit] =
-    CollectorPayloadGen.generate[F](nbGood, nbBad)
-      .evalMap(events => sink(List(events)))
-
   private def parseBadRow(s: String): Either[String, BadRow] =
     for {
       json <- parser.parse(s).leftMap(_.message)
       sdj <- SelfDescribingData.parse(json).leftMap(_.message("Can't decode JSON as SDJ"))
       br <- sdj.data.as[BadRow].leftMap(_.getMessage())
     } yield br
+
+  def parseOutput(output: List[OutputRow], testName: String): (List[Event], List[BadRow]) = {
+    val good = output.collect { case OutputRow.Good(e) => e}
+    println(s"[$testName] Bad rows:")
+    val bad = output.collect { case OutputRow.Bad(b) =>
+      println(s"[$testName] ${b.compact}")
+      b
+    }
+    (good, bad)
+  }
 }

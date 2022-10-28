@@ -54,7 +54,7 @@ jobs:
     - name: Check assets can be published
       run: sbt publishLocal
     - name: Run integration tests for enrich-kinesis
-      run: sbt "project kinesis" IntegrationTest/test
+      run: sbt "project kinesisDistroless" IntegrationTest/test
       env:
         AWS_ACCESS_KEY_ID: foo
         AWS_SECRET_ACCESS_KEY: bar

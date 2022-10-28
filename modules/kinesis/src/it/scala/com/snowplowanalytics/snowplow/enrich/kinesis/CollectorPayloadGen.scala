@@ -10,13 +10,11 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.kinesis.count
+package com.snowplowanalytics.snowplow.enrich.kinesis
 
 import fs2.Stream
 
-import cats.implicits._
-
-import cats.effect.Sync
+import cats.effect.IO
 
 import io.circe.syntax._
 import io.circe.{Encoder, Json, JsonObject}
@@ -36,13 +34,12 @@ import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 
 object CollectorPayloadGen {
 
-  private val serializer =  new TSerializer()
   private val base64Encoder = Base64.getEncoder()
 
-  def generate[F[_]: Sync](nbGoodEvents: Long, nbBadRows: Long): Stream[F, Array[Byte]] =
-    generateRaw(nbGoodEvents, nbBadRows).map(_.toThrift).map(serializer.serialize)
+  def generate(nbGoodEvents: Long, nbBadRows: Long = 0l): Stream[IO, Array[Byte]] =
+    generateRaw(nbGoodEvents, nbBadRows).map(_.toThrift).map(new TSerializer().serialize)
 
-  def generateRaw[F[_]: Sync](nbGoodEvents: Long, nbBadRows: Long): Stream[F, CollectorPayload] =
+  def generateRaw(nbGoodEvents: Long, nbBadRows: Long): Stream[IO, CollectorPayload] =
     Stream.repeatEval(runGen(collectorPayloadGen(true))).take(nbGoodEvents) ++ Stream.repeatEval(runGen(collectorPayloadGen(false))).take(nbBadRows)
 
   private def collectorPayloadGen(valid: Boolean): Gen[CollectorPayload] =
@@ -180,14 +177,14 @@ object CollectorPayloadGen {
   }
 
   /** Convert `Gen` into `IO` */
-  def runGen[F[_]: Sync, A](gen: Gen[A]): F[A] = {
+  def runGen[A](gen: Gen[A]): IO[A] = {
     val MAX_ATTEMPTS = 5
-    def go(attempt: Int): F[A] =
+    def go(attempt: Int): IO[A] =
       if (attempt >= MAX_ATTEMPTS)
-        Sync[F].raiseError(new RuntimeException(s"Couldn't generate an event after $MAX_ATTEMPTS attempts"))
+        IO.raiseError(new RuntimeException(s"Couldn't generate an event after $MAX_ATTEMPTS attempts"))
       else
-        Sync[F].delay(gen.sample).flatMap {
-          case Some(a) => Sync[F].pure(a)
+        IO(gen.sample).flatMap {
+          case Some(a) => IO.pure(a)
           case None => go(attempt + 1)
         }
     go(1)

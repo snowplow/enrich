@@ -12,18 +12,24 @@
  */
 package com.snowplowanalytics.snowplow.enrich.kinesis
 
+import java.util.UUID
+
 import scala.concurrent.duration._
 
 import cats.effect.IO
-
-import cats.implicits._
 
 import cats.effect.testing.specs2.CatsIO
 
 import org.specs2.mutable.Specification
 import org.specs2.specification.AfterAll
 
+import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
+
+import com.snowplowanalytics.snowplow.enrich.kinesis.enrichments._
+
 class EnrichKinesisSpec extends Specification with AfterAll with CatsIO {
+
+  implicit val concurrentIO = IO.ioConcurrentEffect
 
   override protected val Timeout = 10.minutes
 
@@ -31,45 +37,99 @@ class EnrichKinesisSpec extends Specification with AfterAll with CatsIO {
 
   "enrich-kinesis" should {
     "be able to parse the minimal config" in {
-      Containers.enrich[IO](
+      Containers.enrich(
         configPath = "config/config.kinesis.minimal.hocon",
-        loggerName = "minimal",
-        needsLocalstack = false
+        testName = "minimal",
+        needsLocalstack = false,
+        enrichments = Nil
       ).use { e =>
         IO(e.getLogs must contain("Running Enrich"))
       }
     }
 
     "emit the correct number of enriched events and bad rows" in {
-      import count.Helpers._
+      import utils._
 
-      val nbGood = 100l
-      val nbBad = 10l
+      val testName = "count"
+      val nbGood = 1000l
+      val nbBad = 100l
+      val uuid = UUID.randomUUID().toString
 
-      val testResources = Containers.enrich[IO](
-        configPath = "modules/kinesis/src/it/resources/enrich/enrich-localstack.hocon",
-        loggerName = "count",
-        needsLocalstack = true
-      ).flatMap(_ => mkResources[IO](nbGood, nbBad, localstackPort = Containers.localStackPort))
+      val resources = for {
+        _ <- Containers.enrich(
+          configPath = "modules/kinesis/src/it/resources/enrich/enrich-localstack.hocon",
+          testName = "count",
+          needsLocalstack = true,
+          enrichments = Nil,
+          uuid = uuid
+        )
+        enrichPipe <- mkEnrichPipe(Containers.localstackMappedPort, uuid)
+      } yield enrichPipe
 
-      testResources.use { r =>
+      val input = CollectorPayloadGen.generate(nbGood, nbBad)
+
+      resources.use { enrich =>
         for {
-          aggregates <- r.readOutput.concurrently(r.writeInput).compile.toList
-          good = aggregates.collect { case OutputRow.Good(e) => e}
-          bad = aggregates.collect { case OutputRow.Bad(b) => b}
-          _ <- IO(println(s"Bad rows:\n${bad.map(_.compact).mkString("\n")}"))
+          output <- enrich(input).compile.toList
+          (good, bad) = parseOutput(output, testName)
         } yield {
-          good.size.toLong === nbGood
-          bad.size.toLong === nbBad
+          good.size.toLong must beEqualTo(nbGood)
+          bad.size.toLong must beEqualTo(nbBad)
+        }
+      }
+    }
+
+    "run the enrichments and attach their context" in {
+      import utils._
+
+      val testName = "enrichments"
+      val nbGood = 1000l
+      val uuid = UUID.randomUUID().toString
+
+      val enrichments = List(
+        ApiRequest,
+        Javascript,
+        SqlQuery,
+        Yauaa
+      )
+
+      def containsEnrichmentsContexts(event: Event): Boolean =
+        enrichments.map(_.outputSchema).forall { schema =>
+          event.derived_contexts.data.map(_.schema).contains(schema)
+        }
+
+      val resources = for {
+        _ <- Containers.mysqlServer
+        _ <- Containers.httpServer
+        _ <- Containers.enrich(
+          configPath = "modules/kinesis/src/it/resources/enrich/enrich-localstack.hocon",
+          testName = "enrichments",
+          needsLocalstack = true,
+          enrichments = enrichments,
+          uuid = uuid
+        )
+        enrichPipe <- mkEnrichPipe(Containers.localstackMappedPort, uuid)
+      } yield enrichPipe
+
+      val input = CollectorPayloadGen.generate(nbGood)
+
+      resources.use { enrich =>
+        for {
+          output <- enrich(input).compile.toList
+          (good, bad) = parseOutput(output, testName)
+        } yield {
+          good.forall(containsEnrichmentsContexts) must beTrue
+          bad.size.toLong must beEqualTo(0l)
         }
       }
     }
 
     "shutdown when it receives a SIGTERM" in {
-      Containers.enrich[IO](
+      Containers.enrich(
         configPath = "modules/kinesis/src/it/resources/enrich/enrich-localstack.hocon",
-        loggerName = "stop",
+        testName = "stop",
         needsLocalstack = true,
+        enrichments = Nil,
         waitLogMessage = "enrich.metrics"
       ).use { enrich =>
         for {
@@ -77,7 +137,7 @@ class EnrichKinesisSpec extends Specification with AfterAll with CatsIO {
           _ <- IO(enrich.getDockerClient().killContainerCmd(enrich.getContainerId()).withSignal("TERM").exec())
           _ <- Containers.waitUntilStopped(enrich)
         } yield {
-          enrich.isRunning() === false
+          enrich.isRunning() must beFalse
           enrich.getLogs() must contain("Enrich stopped")
         }
       }

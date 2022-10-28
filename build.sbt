@@ -130,6 +130,16 @@ lazy val kinesis = project
   .in(file("modules/kinesis"))
   .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDockerPlugin)
   .settings(kinesisBuildSettings)
+  .settings(libraryDependencies ++= kinesisDependencies)
+  .settings(excludeDependencies ++= exclusions)
+  .settings(addCompilerPlugin(betterMonadicFor))
+  .dependsOn(commonFs2)
+
+lazy val kinesisDistroless = project
+  .in(file("modules/distroless/kinesis"))
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDistrolessDockerPlugin)
+  .settings(sourceDirectory := (kinesis / sourceDirectory).value)
+  .settings(kinesisDistrolessBuildSettings)
   .settings(libraryDependencies ++= kinesisDependencies ++ Seq(
     // integration tests dependencies
     specs2CEIt,
@@ -137,20 +147,11 @@ lazy val kinesis = project
   ))
   .settings(excludeDependencies ++= exclusions)
   .settings(addCompilerPlugin(betterMonadicFor))
+  .dependsOn(commonFs2)
   .settings(Defaults.itSettings)
   .configs(IntegrationTest)
-  .dependsOn(commonFs2)
   .settings((IntegrationTest / test) := (IntegrationTest / test).dependsOn(Docker / publishLocal).value)
-
-lazy val kinesisDistroless = project
-  .in(file("modules/distroless/kinesis"))
-  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDistrolessDockerPlugin)
-  .settings(sourceDirectory := (kinesis / sourceDirectory).value)
-  .settings(kinesisDistrolessBuildSettings)
-  .settings(libraryDependencies ++= kinesisDependencies)
-  .settings(excludeDependencies ++= exclusions)
-  .settings(addCompilerPlugin(betterMonadicFor))
-  .dependsOn(commonFs2)
+  .settings((IntegrationTest / testOnly) := (IntegrationTest / testOnly).dependsOn(Docker / publishLocal).evaluated)
 
 lazy val kafka = project
   .in(file("modules/kafka"))

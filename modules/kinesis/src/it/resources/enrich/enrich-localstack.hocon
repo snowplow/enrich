@@ -2,26 +2,26 @@
   "input": {
     "type": "Kinesis"
     "appName": ${APP_NAME}
-    "streamName": "raw"
-    "region": "eu-central-1"
-    "customEndpoint": "http://localstack:4566"
-    "dynamodbCustomEndpoint": "http://localstack:4566"
-    "cloudwatchCustomEndpoint": "http://localstack:4566"
+    "streamName": ${STREAM_RAW}
+    "region": ${REGION}
+    "customEndpoint": ${LOCALSTACK_ENDPOINT}
+    "dynamodbCustomEndpoint": ${LOCALSTACK_ENDPOINT}
+    "cloudwatchCustomEndpoint": ${LOCALSTACK_ENDPOINT}
   }
 
   "output": {
     "good": {
       "type": "Kinesis"
-      "streamName": "enriched"
-      "region": "eu-central-1"
-      "customEndpoint": "http://localstack:4566"
+      "streamName": ${STREAM_ENRICHED}
+      "region": ${REGION}
+      "customEndpoint": ${LOCALSTACK_ENDPOINT}
     }
 
     "bad": {
       "type": "Kinesis"
-      "streamName": "bad-1"
-      "region": "eu-central-1"
-      "customEndpoint": "http://localstack:4566"
+      "streamName": ${STREAM_BAD}
+      "region": ${REGION}
+      "customEndpoint": ${LOCALSTACK_ENDPOINT}
     }
   }
 

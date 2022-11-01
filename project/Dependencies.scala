@@ -196,7 +196,9 @@ object Dependencies {
     // FS2
     val decline          = "com.monovore"                     %% "decline"                               % V.decline
     val fs2PubSub        = "com.permutive"                    %% "fs2-google-pubsub-grpc"                % V.fs2PubSub
-    val fs2Aws           = ("io.laserdisc"                    %% "fs2-aws"                               % V.fs2Aws).exclude("com.amazonaws", "amazon-kinesis-producer")
+    val fs2Aws           = ("io.laserdisc"                    %% "fs2-aws"                               % V.fs2Aws)
+                           .exclude("com.amazonaws", "amazon-kinesis-producer")
+                           .exclude("software.amazon.kinesis", "amazon-kinesis-client")
     val fs2              = "co.fs2"                           %% "fs2-core"                              % V.fs2
     val fs2Io            = "co.fs2"                           %% "fs2-io"                                % V.fs2
     val fs2Kafka         = "com.github.fd4s"                  %% "fs2-kafka"                             % V.fs2Kafka
@@ -204,7 +206,9 @@ object Dependencies {
     val dynamoDbSdk2     = "software.amazon.awssdk"           %  "dynamodb"                              % V.awsSdk2
     val s3Sdk2           = "software.amazon.awssdk"           %  "s3"                                    % V.awsSdk2
     val cloudwatchSdk2   = "software.amazon.awssdk"           %  "cloudwatch"                            % V.awsSdk2
-    val kinesisClient2   = "software.amazon.kinesis"          %  "amazon-kinesis-client"                 % V.kinesisClient2
+    val kinesisClient2   = ("software.amazon.kinesis"         %  "amazon-kinesis-client"                 % V.kinesisClient2)
+                           .exclude("software.amazon.glue", "schema-registry-common")
+                           .exclude("software.amazon.glue", "schema-registry-serde")
     val stsSdk2          = "software.amazon.awssdk"           %  "sts"                                   % V.awsSdk2         % Runtime
     val http4sClient     = "org.http4s"                       %% "http4s-blaze-client"                   % V.http4s
     val http4sCirce      = "org.http4s"                       %% "http4s-circe"                          % V.http4s

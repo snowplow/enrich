@@ -43,7 +43,7 @@ object Dependencies {
     val iabClient        = "0.2.0"
     val yauaa            = "5.23"
     val guava            = "28.1-jre"
-    val slf4j            = "1.7.32"
+    val slf4j            = "2.0.3"
     val log4j            = "2.17.0" // CVE-2021-44228
     val thrift           = "0.15.0" // override transitive dependency to mitigate security vulnerabilities
     val sprayJson        = "1.3.6" // override transitive dependency to mitigate security vulnerabilities

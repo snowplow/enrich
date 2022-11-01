@@ -192,7 +192,7 @@ object Dependencies {
     // FS2
     val decline          = "com.monovore"                     %% "decline"                               % V.decline
     val fs2PubSub        = "com.permutive"                    %% "fs2-google-pubsub-grpc"                % V.fs2PubSub
-    val fs2Aws           = "io.laserdisc"                     %% "fs2-aws"                               % V.fs2Aws
+    val fs2Aws           = ("io.laserdisc"                    %% "fs2-aws"                               % V.fs2Aws).exclude("com.amazonaws", "amazon-kinesis-producer")
     val fs2              = "co.fs2"                           %% "fs2-core"                              % V.fs2
     val fs2Io            = "co.fs2"                           %% "fs2-io"                                % V.fs2
     val fs2Kafka         = "com.github.fd4s"                  %% "fs2-kafka"                             % V.fs2Kafka

@@ -69,7 +69,8 @@ object Dependencies {
     val awsSdk           = "1.12.129"
     val gcpSdk           = "2.7.2"
     val kinesisClient    = "1.14.5"
-    val awsSdk2          = "2.17.287"
+    val awsSdk2          = "2.18.7"
+    val kinesisClient2   = "2.4.3"
     val kafka            = "2.8.2"
     val mskAuth          = "1.1.4"
     val nsqClient        = "1.3.0"
@@ -200,6 +201,7 @@ object Dependencies {
     val dynamoDbSdk2     = "software.amazon.awssdk"           %  "dynamodb"                              % V.awsSdk2
     val s3Sdk2           = "software.amazon.awssdk"           %  "s3"                                    % V.awsSdk2
     val cloudwatchSdk2   = "software.amazon.awssdk"           %  "cloudwatch"                            % V.awsSdk2
+    val kinesisClient2   = "software.amazon.kinesis"          %  "amazon-kinesis-client"                 % V.kinesisClient2
     val stsSdk2          = "software.amazon.awssdk"           %  "sts"                                   % V.awsSdk2         % Runtime
     val http4sClient     = "org.http4s"                       %% "http4s-blaze-client"                   % V.http4s
     val http4sCirce      = "org.http4s"                       %% "http4s-circe"                          % V.http4s
@@ -341,6 +343,7 @@ object Dependencies {
       dynamoDbSdk2,
       s3Sdk2,
       cloudwatchSdk2,
+      kinesisClient2,
       stsSdk2,
       sts,
       specs2

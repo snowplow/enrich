@@ -31,6 +31,7 @@ object Dependencies {
   object V {
     // Java
     val commonsCodec     = "1.15"
+    val commonsText      = "1.10.0"
     val jodaTime         = "2.10.1"
     val useragent        = "1.21"
     val uaParser         = "1.4.3"
@@ -112,6 +113,7 @@ object Dependencies {
 
   object Libraries {
     val commonsCodec     = "commons-codec"              %  "commons-codec"                 % V.commonsCodec
+    val commonsText      = "org.apache.commons"         %  "commons-text"                  % V.commonsText
     val jodaTime         = "joda-time"                  %  "joda-time"                     % V.jodaTime
     val useragent        = "eu.bitwalker"               %  "UserAgentUtils"                % V.useragent
     val jacksonDatabind  = "com.fasterxml.jackson.core" %  "jackson-databind"              % V.jackson
@@ -223,6 +225,7 @@ object Dependencies {
     val commonDependencies = Seq(
       jodaTime,
       commonsCodec,
+      commonsText,
       useragent,
       jacksonDatabind,
       uaParser,

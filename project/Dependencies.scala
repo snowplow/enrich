@@ -48,7 +48,7 @@ object Dependencies {
     val thrift           = "0.15.0" // override transitive dependency to mitigate security vulnerabilities
     val sprayJson        = "1.3.6" // override transitive dependency to mitigate security vulnerabilities
     val netty            = "4.1.68.Final" // override transitive dependency to mitigate security vulnerabilities
-    val protobuf         = "3.19.4" // override transitive dependency to mitigate security vulnerabilities
+    val protobuf         = "3.21.9" // override transitive dependency to mitigate security vulnerabilities
 
     val refererParser    = "1.1.0"
     val maxmindIplookups = "0.7.1"

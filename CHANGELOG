@@ -1,3 +1,19 @@
+3.5.1 (2022-11-02)
+------------------
+enrich-kinesis: exclude aws glue libs from the build (#722)
+common: bump slf4j to 2.0.3 (#721)
+enrich-pubsub: bump GCP sdk to 2.14.0 (#719)
+common: bump netty to 4.1.84.Final (#718)
+common: bump protobuf-java to 3.21.9 (#717)
+common: bump jackson-databind to 2.13.4.2 (#716)
+common: bump commons-text to 1.10.0 (#715)
+enrich-kinsis: bump amazon-kinesis-client to 2.4.3 (#714)
+enrich-kinesis: exclude amazon-kinesis-producer from build (#713)
+enrich-kinesis: add integration tests with localstack and testcontainers (#706)
+common: use correct event id for PII event's parent context (#709)
+common: bump specs2 to 4.17.0 (#707)
+common: remove common info from v_etl (#704)
+
 3.5.0 (2022-10-17)
 ------------------
 Add enrich-kafka (#648)

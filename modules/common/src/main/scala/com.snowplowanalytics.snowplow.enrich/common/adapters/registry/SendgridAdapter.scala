@@ -111,10 +111,11 @@ object SendgridAdapter extends Adapter {
       case Right(json) =>
         json.asArray match {
           case Some(array) =>
-            array.toList.zipWithIndex.map {
+            val queryString = toMap(payload.querystring)
+            array.toSet // remove duplicates
+            .toList.zipWithIndex.map {
               case (item, index) =>
                 val eventType = item.hcursor.downField("event").as[String].toOption
-                val queryString = toMap(payload.querystring)
                 lookupSchema(eventType, index, EventSchemaMap).map { schema =>
                   RawEvent(
                     api = payload.api,

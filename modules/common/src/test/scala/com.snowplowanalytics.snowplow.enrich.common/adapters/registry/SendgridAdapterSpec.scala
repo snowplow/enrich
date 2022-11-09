@@ -469,5 +469,55 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers {
         )
       )
     }
+
+    "filter events if they are exact duplicates" in {
+      val inputJson =
+        """
+        [
+          {
+            "email":"example@test.com",
+            "timestamp":1446549615,
+            "smtp-id":"\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+            "event":"processed",
+            "category":"cat facts",
+            "sg_event_id":"sZROwMGMagFgnOEmSdvhig==",
+            "sg_message_id":"14c5d75ce93.dfd.64b469.filter0001.16648.5515E0B88.0",
+            "marketing_campaign_id":12345,
+            "marketing_campaign_name":"campaign name",
+            "marketing_campaign_version":"B",
+            "marketing_campaign_split_id":13471
+          },
+          {
+            "email":"example@test.com",
+            "timestamp":1446549615,
+            "smtp-id":"\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+            "event":"processed",
+            "category":"cat facts",
+            "sg_event_id":"sZROwMGMagFgnOEmSdvhig==",
+            "sg_message_id":"14c5d75ce93.dfd.64b469.filter0001.16648.5515E0B88.0",
+            "marketing_campaign_id":12345,
+            "marketing_campaign_name":"campaign name",
+            "marketing_campaign_version":"B",
+            "marketing_campaign_split_id":13471
+          }
+        ]
+        """
+
+      val payload =
+        CollectorPayload(
+          Shared.api,
+          Nil,
+          ContentType.some,
+          inputJson.some,
+          Shared.cljSource,
+          Shared.context
+        )
+
+      val res = SendgridAdapter.toRawEvents(payload, SpecHelpers.client)
+      res must beValid.like {
+        case nel: NonEmptyList[RawEvent] =>
+          nel.toList must have size 1
+      }
+    }
   }
 }

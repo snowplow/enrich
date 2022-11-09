@@ -112,26 +112,34 @@ object SendgridAdapter extends Adapter {
         json.asArray match {
           case Some(array) =>
             val queryString = toMap(payload.querystring)
-            array.toSet // remove duplicates
-            .toList.zipWithIndex.map {
-              case (item, index) =>
-                val eventType = item.hcursor.downField("event").as[String].toOption
-                lookupSchema(eventType, index, EventSchemaMap).map { schema =>
-                  RawEvent(
-                    api = payload.api,
-                    parameters = toUnstructEventParams(
-                      TrackerVersion,
-                      queryString,
-                      schema,
-                      cleanupJsonEventValues(item, eventType.map(("event", _)), List("timestamp")),
-                      "srv"
-                    ),
-                    contentType = payload.contentType,
-                    source = payload.source,
-                    context = payload.context
-                  )
-                }.toValidatedNel
-            }
+            array.zipWithIndex
+              .map {
+                case (item, index) =>
+                  val sgEventId: Option[String] = item.hcursor.downField("sg_event_id").as[String].toOption
+                  (sgEventId, (item, index))
+              }
+              .toMap // removes duplicate keys based of sg_event_id
+              .values
+              .toList
+              .map {
+                case (item, index) =>
+                  val eventType = item.hcursor.downField("event").as[String].toOption
+                  lookupSchema(eventType, index, EventSchemaMap).map { schema =>
+                    RawEvent(
+                      api = payload.api,
+                      parameters = toUnstructEventParams(
+                        TrackerVersion,
+                        queryString,
+                        schema,
+                        cleanupJsonEventValues(item, eventType.map(("event", _)), List("timestamp")),
+                        "srv"
+                      ),
+                      contentType = payload.contentType,
+                      source = payload.source,
+                      context = payload.context
+                    )
+                  }.toValidatedNel
+              }
           case None =>
             List(
               FailureDetails.AdapterFailure

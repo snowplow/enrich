@@ -22,7 +22,6 @@ import sbtbuildinfo.BuildInfoPlugin.autoImport.{BuildInfoKey, buildInfoKeys, bui
 import sbtdynver.DynVerPlugin.autoImport._
 import com.typesafe.sbt.SbtNativePackager.autoImport._
 import com.typesafe.sbt.packager.archetypes.jar.LauncherJarPlugin.autoImport.packageJavaLauncherJar
-import com.typesafe.sbt.packager.docker.DockerPermissionStrategy
 import com.typesafe.sbt.packager.docker.DockerPlugin.autoImport._
 import com.typesafe.sbt.packager.linux.LinuxPlugin.autoImport._
 import com.typesafe.sbt.packager.universal.UniversalPlugin.autoImport._
@@ -194,28 +193,14 @@ object BuildSettings {
   )
 
   lazy val dockerSettingsFocal = Seq(
-    Universal / javaOptions ++= Seq("-Dnashorn.args=--language=es6"),
-    Docker / maintainer := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
-    dockerBaseImage := "eclipse-temurin:11-jre-focal",
-    dockerRepository := Some("snowplow"),
-    Docker / daemonUser := "snowplow",
-    Docker / defaultLinuxInstallLocation := "/home/snowplow",
-    dockerUpdateLatest := true
+    Universal / javaOptions ++= Seq("-Dnashorn.args=--language=es6")
   )
 
   lazy val dockerSettingsDistroless = Seq(
-    Universal / javaOptions ++= Seq("-Dnashorn.args=--language=es6"),
-    Docker / maintainer := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
-    dockerBaseImage := "gcr.io/distroless/java11-debian11:nonroot",
-    Docker / daemonUser := "nonroot",
-    Docker / daemonGroup := "nonroot",
-    dockerRepository := Some("snowplow"),
-    Docker / daemonUserUid := None,
-    Docker / defaultLinuxInstallLocation := "/home/snowplow",
-    dockerEntrypoint := Seq("java", "-jar",s"/home/snowplow/lib/${(packageJavaLauncherJar / artifactPath).value.getName}"),
-    dockerPermissionStrategy := DockerPermissionStrategy.CopyChown,
-    dockerAlias := dockerAlias.value.copy(tag = dockerAlias.value.tag.map(t => s"$t-distroless")),
-    dockerUpdateLatest := false
+    dockerEntrypoint := {
+      val orig = dockerEntrypoint.value
+      orig.head +: "-Dnashorn.args=--language=es6" +: orig.tail
+    }
   )
 
   // TESTS

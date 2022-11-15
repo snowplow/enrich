@@ -41,7 +41,7 @@ lazy val streamCommon = project
 
 lazy val streamKinesis = project
   .in(file("modules/stream/kinesis"))
-  .enablePlugins(JavaAppPackaging, DockerPlugin)
+  .enablePlugins(JavaAppPackaging, SnowplowDockerPlugin)
   .settings(streamKinesisBuildSettings)
   .settings(libraryDependencies ++= streamKinesisDependencies)
   .settings(excludeDependencies ++= exclusions)
@@ -49,7 +49,7 @@ lazy val streamKinesis = project
 
 lazy val streamKinesisDistroless = project
   .in(file("modules/distroless/stream/kinesis"))
-  .enablePlugins(JavaAppPackaging, DockerPlugin, LauncherJarPlugin)
+  .enablePlugins(JavaAppPackaging, SnowplowDistrolessDockerPlugin)
   .settings(sourceDirectory := (streamKinesis / sourceDirectory).value)
   .settings(streamKinesisDistrolessBuildSettings)
   .settings(libraryDependencies ++= streamKinesisDependencies)
@@ -58,7 +58,7 @@ lazy val streamKinesisDistroless = project
 
 lazy val streamKafka = project
   .in(file("modules/stream/kafka"))
-  .enablePlugins(JavaAppPackaging, DockerPlugin)
+  .enablePlugins(JavaAppPackaging, SnowplowDockerPlugin)
   .settings(streamKafkaBuildSettings)
   .settings(libraryDependencies ++= streamKafkaDependencies)
   .settings(excludeDependencies ++= exclusions)
@@ -66,7 +66,7 @@ lazy val streamKafka = project
 
 lazy val streamKafkaDistroless = project
   .in(file("modules/distroless/stream/kafka"))
-  .enablePlugins(JavaAppPackaging, DockerPlugin, LauncherJarPlugin)
+  .enablePlugins(JavaAppPackaging, SnowplowDistrolessDockerPlugin)
   .settings(sourceDirectory := (streamKafka / sourceDirectory).value)
   .settings(streamKafkaDistrolessBuildSettings)
   .settings(libraryDependencies ++= streamKafkaDependencies)
@@ -75,7 +75,7 @@ lazy val streamKafkaDistroless = project
 
 lazy val streamNsq = project
   .in(file("modules/stream/nsq"))
-  .enablePlugins(JavaAppPackaging, DockerPlugin)
+  .enablePlugins(JavaAppPackaging, SnowplowDockerPlugin)
   .settings(streamNsqBuildSettings)
   .settings(libraryDependencies ++= streamNsqDependencies)
   .settings(excludeDependencies ++= exclusions)
@@ -83,7 +83,7 @@ lazy val streamNsq = project
 
 lazy val streamNsqDistroless = project
   .in(file("modules/distroless/stream/nsq"))
-  .enablePlugins(JavaAppPackaging, DockerPlugin, LauncherJarPlugin)
+  .enablePlugins(JavaAppPackaging, SnowplowDistrolessDockerPlugin)
   .settings(sourceDirectory := (streamNsq / sourceDirectory).value)
   .settings(streamNsqDistrolessBuildSettings)
   .settings(libraryDependencies ++= streamNsqDependencies)
@@ -108,7 +108,7 @@ lazy val commonFs2 = project
 
 lazy val pubsub = project
   .in(file("modules/pubsub"))
-  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDockerPlugin)
   .settings(pubsubBuildSettings)
   .settings(libraryDependencies ++= pubsubDependencies)
   .settings(excludeDependencies ++= exclusions)
@@ -117,7 +117,7 @@ lazy val pubsub = project
 
 lazy val pubsubDistroless = project
   .in(file("modules/distroless/pubsub"))
-  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin, LauncherJarPlugin)
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDistrolessDockerPlugin)
   .settings(sourceDirectory := (pubsub / sourceDirectory).value)
   .settings(pubsubDistrolessBuildSettings)
   .settings(libraryDependencies ++= pubsubDependencies)
@@ -128,7 +128,7 @@ lazy val pubsubDistroless = project
 
 lazy val kinesis = project
   .in(file("modules/kinesis"))
-  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDockerPlugin)
   .settings(kinesisBuildSettings)
   .settings(libraryDependencies ++= kinesisDependencies ++ Seq(
     // integration tests dependencies
@@ -144,7 +144,7 @@ lazy val kinesis = project
 
 lazy val kinesisDistroless = project
   .in(file("modules/distroless/kinesis"))
-  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin, LauncherJarPlugin)
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDistrolessDockerPlugin)
   .settings(sourceDirectory := (kinesis / sourceDirectory).value)
   .settings(kinesisDistrolessBuildSettings)
   .settings(libraryDependencies ++= kinesisDependencies)
@@ -154,7 +154,7 @@ lazy val kinesisDistroless = project
 
 lazy val kafka = project
   .in(file("modules/kafka"))
-  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDockerPlugin)
   .settings(kafkaBuildSettings)
   .settings(libraryDependencies ++= kafkaDependencies ++ Seq(
     // integration tests dependencies
@@ -168,7 +168,7 @@ lazy val kafka = project
 
 lazy val kafkaDistroless = project
   .in(file("modules/distroless/kafka"))
-  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin, LauncherJarPlugin)
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDistrolessDockerPlugin)
   .settings(sourceDirectory := (kafka / sourceDirectory).value)
   .settings(kafkaDistrolessBuildSettings)
   .settings(libraryDependencies ++= kafkaDependencies)
@@ -183,7 +183,7 @@ lazy val bench = project
 
 lazy val rabbitmq = project
   .in(file("modules/rabbitmq"))
-  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDockerPlugin)
   .settings(rabbitmqBuildSettings)
   .settings(libraryDependencies ++= rabbitmqDependencies)
   .settings(excludeDependencies ++= exclusions)
@@ -192,7 +192,7 @@ lazy val rabbitmq = project
 
 lazy val rabbitmqDistroless = project
   .in(file("modules/distroless/rabbitmq"))
-  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin, LauncherJarPlugin)
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDistrolessDockerPlugin)
   .settings(sourceDirectory := (rabbitmq / sourceDirectory).value)
   .settings(rabbitmqDistrolessBuildSettings)
   .settings(libraryDependencies ++= rabbitmqDependencies)

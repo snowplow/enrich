@@ -1,3 +1,9 @@
+3.6.0 (2022-11-18)
+------------------
+common: Prune system libs from distroless image (#728)
+common: remove duplicates from Sendgrid adapter payload (#725)
+Common: Upgrade yauaa to 7.x (#639)
+
 3.5.1 (2022-11-02)
 ------------------
 enrich-kinesis: exclude aws glue libs from the build (#722)

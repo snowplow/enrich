@@ -20,12 +20,11 @@ import scala.concurrent.duration._
 
 import cats.syntax.either._
 import cats.data.NonEmptyList
-
 import cats.effect.IO
 
 import cats.effect.testing.specs2.CatsIO
 
-import pureconfig.ConfigSource
+import com.typesafe.config.ConfigFactory
 
 import org.http4s.Uri
 
@@ -371,9 +370,74 @@ class ConfigFileSpec extends Specification with CatsIO {
           }
         }"""
 
-      ConfigFile.parse[IO](Base64Hocon(ConfigSource.string(input)).asLeft).value.map {
+      ConfigFile.parse[IO](Base64Hocon(ConfigFactory.parseString(input)).asLeft).value.map {
         case Left(message) => message must contain("assetsUpdatePeriod in config file cannot be less than 0")
         case _ => ko("Decoding should have failed")
+      }
+    }
+
+    "resolve parameter substitutions in hocon ${} syntax" in {
+      @annotation.nowarn("msg=possible missing interpolator")
+      val input =
+        """{
+          
+          "testSubstitutions": {
+            "a": "test-substituted-collector-uri"
+            "b": 42
+          }
+
+          "telemetry": {
+            #### SUBSTITUTED VALUES MUST GET PROPERLY RESOLVED: ####
+            ##
+            "collectorUri": ${testSubstitutions.a}
+            "collectorPort": ${testSubstitutions.b}
+            ##
+            ########################################################
+          }
+
+
+          "input": {
+            "type": "FileSystem"
+            "dir": "/path/to/input"
+          },
+          "output": {
+            "good": {
+              "type": "FileSystem"
+              "file": "/path/to/good"
+            },
+            "bad": {
+              "type": "FileSystem"
+              "file": "/path/to/bad"
+            }
+          },
+          "concurrency": {
+            "enrich": 256
+            "sink": 3
+          },
+          "remoteAdapters": {
+            "connectionTimeout": "10 seconds"
+            "readTimeout": "45 seconds"
+            "maxConnections": 10
+            "configs": []
+          },
+          "telemetry": {
+            "disable": false
+            "interval": "15 minutes"
+            "method": "POST"
+            "secure": true
+          },
+          "featureFlags" : {
+            "acceptInvalid": false,
+            "legacyEnrichmentOrder": false
+          }
+        }"""
+
+      ConfigFile.parse[IO](Base64Hocon(ConfigFactory.parseString(input)).asLeft).value.map { result =>
+        result must beRight.like {
+          case configFile =>
+            configFile.telemetry.collectorUri must_== "test-substituted-collector-uri"
+            configFile.telemetry.collectorPort must_== 42
+        }
       }
     }
 

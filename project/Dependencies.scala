@@ -96,7 +96,6 @@ object Dependencies {
 
     val scopt            = "3.7.1"
     val pureconfig       = "0.11.0"
-    val pureconfig013    = "0.13.0"
     val snowplowTracker  = "1.0.0"
 
     val specs2            = "4.17.0"
@@ -218,8 +217,6 @@ object Dependencies {
     val catsRetry        = "com.github.cb372"                 %% "cats-retry"                            % V.catsRetry
     val fs2BlobS3        = "com.github.fs2-blobstore"         %% "s3"                                    % V.fs2BlobStorage
     val fs2BlobGcs       = "com.github.fs2-blobstore"         %% "gcs"                                   % V.fs2BlobStorage
-    val pureconfigCats   = "com.github.pureconfig"            %% "pureconfig-cats-effect"                % V.pureconfig
-    val pureconfigCirce  = "com.github.pureconfig"            %% "pureconfig-circe"                      % V.pureconfig
     val http4sDsl        = "org.http4s"                       %% "http4s-dsl"                            % V.http4s          % Test
     val http4sServer     = "org.http4s"                       %% "http4s-blaze-server"                   % V.http4s          % Test
     val trackerCore      = "com.snowplowanalytics"            %% "snowplow-scala-tracker-core"           % V.snowplowTracker
@@ -321,9 +318,6 @@ object Dependencies {
       igluClientHttp4s,
       http4sClient,
       http4sCirce,
-      pureconfig.withRevision(Dependencies.V.pureconfig013),
-      pureconfigCats.withRevision(Dependencies.V.pureconfig013),
-      pureconfigCirce.withRevision(Dependencies.V.pureconfig013),
       trackerCore,
       emitterHttps,
       specs2,

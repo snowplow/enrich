@@ -13,15 +13,20 @@
 package com.snowplowanalytics.snowplow.enrich.common.fs2.config
 
 import java.util.Base64
+import java.nio.charset.StandardCharsets
 
 import cats.data.ValidatedNel
 import cats.implicits._
 
-import pureconfig.{ConfigObjectSource, ConfigSource}
+import _root_.io.circe.Decoder
+import _root_.io.circe.config.syntax._
+
+import com.typesafe.config.{ConfigFactory, Config => TSConfig}
 
 import com.monovore.decline.Argument
 
-final case class Base64Hocon(value: ConfigObjectSource) extends AnyVal
+// "unresolved" means that substitutions have not been performed yet
+final case class Base64Hocon(unresolved: TSConfig) extends AnyVal
 
 object Base64Hocon {
 
@@ -36,8 +41,17 @@ object Base64Hocon {
     }
 
   def parseHocon(str: String): Either[String, Base64Hocon] =
-    Either
-      .catchOnly[IllegalArgumentException](base64.decode(str))
-      .map(bytes => Base64Hocon(ConfigSource.string(new String(bytes))))
-      .leftMap(_.getMessage)
+    for {
+      bytes <- Either.catchOnly[IllegalArgumentException](base64.decode(str)).leftMap(_.getMessage)
+      tsConfig <- Either.catchNonFatal(ConfigFactory.parseString(new String(bytes, StandardCharsets.UTF_8))).leftMap(_.getMessage)
+    } yield Base64Hocon(tsConfig)
+
+  def resolve[A: Decoder](in: Base64Hocon, fallbacks: TSConfig => TSConfig): Either[String, A] = {
+    val either = for {
+      resolved <- Either.catchNonFatal(in.unresolved.resolve).leftMap(_.getMessage)
+      merged <- Either.catchNonFatal(fallbacks(resolved)).leftMap(_.getMessage)
+      parsed <- merged.as[A].leftMap(_.show)
+    } yield parsed
+    either.leftMap(e => s"Cannot parse base64 encoded hocon: $e")
+  }
 }

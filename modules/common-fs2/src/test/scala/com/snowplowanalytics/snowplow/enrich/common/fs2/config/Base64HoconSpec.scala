@@ -26,10 +26,10 @@ class Base64HoconSpec extends Specification {
       Argument[Base64Hocon].read(input).toEither must beRight
     }
 
-    "parse a plain string as a HOCON source" in {
-      val inputStr = "+"
+    "not parse any other base-64 encoded string as a HOCON source" in {
+      val inputStr = "xyz"
       val input = getEncoder.encodeToString(inputStr.getBytes())
-      Argument[Base64Hocon].read(input).toEither must beRight
+      Argument[Base64Hocon].read(input).toEither must beLeft
     }
   }
 }

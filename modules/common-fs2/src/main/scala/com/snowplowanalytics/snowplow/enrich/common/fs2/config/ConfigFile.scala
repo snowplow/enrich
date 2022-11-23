@@ -14,18 +14,15 @@ package com.snowplowanalytics.snowplow.enrich.common.fs2.config
 
 import scala.concurrent.duration.FiniteDuration
 
-import cats.data.EitherT
 import cats.implicits._
+import cats.data.EitherT
+import cats.effect.Sync
 
-import cats.effect.{Blocker, ContextShift, Sync}
-
-import _root_.io.circe.{Decoder, Encoder, Json}
+import _root_.io.circe.{Decoder, Encoder}
 import _root_.io.circe.config.syntax._
 import _root_.io.circe.generic.extras.semiauto.{deriveConfiguredDecoder, deriveConfiguredEncoder}
 
-import pureconfig.ConfigSource
-import pureconfig.module.catseffect.syntax._
-import pureconfig.module.circe._
+import com.typesafe.config.{Config => TSConfig, ConfigFactory}
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{
   Concurrency,
@@ -86,19 +83,16 @@ object ConfigFile {
   implicit val configFileEncoder: Encoder[ConfigFile] =
     deriveConfiguredEncoder[ConfigFile]
 
-  def parse[F[_]: Sync: ContextShift](in: EncodedHoconOrPath): EitherT[F, String, ConfigFile] = {
-    val cliSource = in.fold(_.value, ConfigSource.file(_))
-    val source = ConfigSource.default(cliSource.withFallback(ConfigSource.default))
+  /* Defines where to look for default values if they are not in the provided file
+   *
+   * Command line parameters have the highest priority.
+   * Then the provided file.
+   * Then the application.conf file.
+   */
+  private def configFileFallbacks(in: TSConfig): TSConfig =
+    ConfigFactory.load(in.withFallback(ConfigFactory.load()))
 
-    Blocker[F]
-      .use { blocker =>
-        source
-          .loadF[F, Json](blocker)
-          .map(_.as[ConfigFile].leftMap(f => show"Couldn't parse the config $f"))
-      }
-      .attemptT
-      .leftMap(_.getMessage)
-      .subflatMap(identity)
-  }
+  def parse[F[_]: Sync](raw: EncodedHoconOrPath): EitherT[F, String, ConfigFile] =
+    ParsedConfigs.parseEncodedOrPath(raw, configFileFallbacks)
 
 }

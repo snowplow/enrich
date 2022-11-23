@@ -17,12 +17,10 @@ import cats.effect.{Blocker, ContextShift, Resource, Sync, Timer}
 import cats.Applicative
 import cats.implicits._
 
-import io.circe.parser._
-import io.circe.syntax._
-import io.circe.Json
-
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
+
+import com.typesafe.config.{ConfigFactory, ConfigValueFactory}
 
 import retry.{RetryDetails, RetryPolicies, RetryPolicy, retryingOnSomeErrors}
 
@@ -35,10 +33,9 @@ import com.amazonaws.services.dynamodbv2.model.ScanRequest
 import com.amazonaws.services.dynamodbv2.document.DynamoDB
 import com.amazonaws.services.dynamodbv2.{AmazonDynamoDB, AmazonDynamoDBClientBuilder}
 
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
-import com.snowplowanalytics.iglu.core.circe.CirceIgluCodecs._
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{Base64Json, CliConfig, EncodedOrPath}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{Base64Hocon, CliConfig, EncodedHoconOrPath}
 
 object DynamoDbConfig {
 
@@ -67,9 +64,9 @@ object DynamoDbConfig {
 
   private def updateArg[F[_]: ContextShift: Sync: Timer](
     blocker: Blocker,
-    orig: EncodedOrPath,
-    getConfig: (Blocker, String, String, String) => F[Base64Json]
-  ): F[EncodedOrPath] =
+    orig: EncodedHoconOrPath,
+    getConfig: (Blocker, String, String, String) => F[Base64Hocon]
+  ): F[EncodedHoconOrPath] =
     orig match {
       case Left(encoded) => Sync[F].pure(Left(encoded))
       case Right(path) =>
@@ -84,7 +81,7 @@ object DynamoDbConfig {
     region: String,
     table: String,
     key: String
-  ): F[Base64Json] = {
+  ): F[Base64Hocon] = {
     val dynamoDBResource = for {
       client <- mkClient[F](region)
       api <- Resource.make(Sync[F].delay(new DynamoDB(client)))(a => Sync[F].delay(a.shutdown()))
@@ -99,14 +96,10 @@ object DynamoDbConfig {
                      case None =>
                        Sync[F].raiseError[String](new RuntimeException(s"Can't retrieve resolver in DynamoDB at $region/$table/$key"))
                    }
-        json <- parse(jsonStr) match {
-                  case Right(parsed) =>
-                    Sync[F].pure(parsed)
-                  case Left(err) =>
-                    Sync[F].raiseError[Json](new RuntimeException(s"Can't parse resolver. Error: $err"))
-                }
-        encoded = Base64Json(json)
-      } yield encoded
+        tsConfig <- Sync[F].delay(ConfigFactory.parseString(jsonStr)).adaptError {
+                      case e => new RuntimeException("Cannot parse resolver from dynamodb", e)
+                    }
+      } yield Base64Hocon(tsConfig)
     }
   }
 
@@ -115,7 +108,7 @@ object DynamoDbConfig {
     region: String,
     table: String,
     prefix: String
-  ): F[Base64Json] =
+  ): F[Base64Hocon] =
     mkClient[F](region).use { dynamoDBClient =>
       // Assumes that the table is small and contains only the config
       val scanRequest = new ScanRequest().withTableName(table)
@@ -126,16 +119,20 @@ object DynamoDbConfig {
                    case map if Option(map.get("id")).exists(_.getS.startsWith(prefix)) && map.containsKey("json") =>
                      map.get("json").getS()
                  }
-        jsons <- values.map(parse).toList.sequence match {
-                   case Left(decodingFailure) =>
-                     val msg = s"An error occured while parsing an enrichment config: ${decodingFailure.message}"
-                     Sync[F].raiseError(new RuntimeException(msg))
-                   case Right(parsed) =>
-                     Sync[F].pure(parsed)
-                 }
-        sdj = SelfDescribingData[Json](enrichmentSchema, Json.arr(jsons: _*))
-        encoded = Base64Json(sdj.asJson)
-      } yield encoded
+        hocons <- values.toList
+                    .traverse { jsonStr =>
+                      Sync[F].delay(ConfigFactory.parseString(jsonStr))
+                    }
+                    .adaptError {
+                      case e => new RuntimeException("Cannot parse enrichment config from dynamodb", e)
+                    }
+      } yield {
+        val tsConfig = ConfigFactory
+          .empty()
+          .withValue("schema", ConfigValueFactory.fromAnyRef(enrichmentSchema.toSchemaUri))
+          .withValue("data", ConfigValueFactory.fromIterable(hocons.map(_.root).asJava))
+        Base64Hocon(tsConfig)
+      }
     }
 
   private def mkClient[F[_]: Sync](region: String): Resource[F, AmazonDynamoDB] =

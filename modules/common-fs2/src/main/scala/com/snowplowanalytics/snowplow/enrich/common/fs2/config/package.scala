@@ -18,7 +18,6 @@ import _root_.io.circe.generic.extras.Configuration
 
 package object config {
 
-  type EncodedOrPath = Either[Base64Json, Path]
   type EncodedHoconOrPath = Either[Base64Hocon, Path]
 
   private[config] implicit def customCodecConfig: Configuration =

@@ -20,12 +20,11 @@ import scala.concurrent.duration._
 
 import cats.syntax.either._
 import cats.data.NonEmptyList
-
 import cats.effect.IO
 
 import cats.effect.testing.specs2.CatsIO
 
-import pureconfig.ConfigSource
+import com.typesafe.config.ConfigFactory
 
 import org.http4s.Uri
 
@@ -371,7 +370,7 @@ class ConfigFileSpec extends Specification with CatsIO {
           }
         }"""
 
-      ConfigFile.parse[IO](Base64Hocon(ConfigSource.string(input)).asLeft).value.map {
+      ConfigFile.parse[IO](Base64Hocon(ConfigFactory.parseString(input)).asLeft).value.map {
         case Left(message) => message must contain("assetsUpdatePeriod in config file cannot be less than 0")
         case _ => ko("Decoding should have failed")
       }

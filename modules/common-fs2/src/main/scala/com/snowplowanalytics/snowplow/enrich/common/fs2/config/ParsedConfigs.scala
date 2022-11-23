@@ -15,7 +15,7 @@ package com.snowplowanalytics.snowplow.enrich.common.fs2.config
 import java.lang.reflect.Field
 import java.util.UUID
 
-import _root_.io.circe.Json
+import _root_.io.circe.{Decoder, Json}
 import _root_.io.circe.syntax._
 
 import org.typelevel.log4cats.Logger
@@ -26,6 +26,8 @@ import cats.effect.{Async, Clock, ContextShift, Sync}
 import cats.implicits._
 import cats.data.{EitherT, NonEmptyList}
 import cats.Applicative
+
+import com.typesafe.config.{Config => TSConfig}
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
@@ -65,13 +67,13 @@ object ParsedConfigs {
   /** Decode base64-encoded configs, passed via CLI. Read files, validate and parse */
   def parse[F[_]: Async: Clock: ContextShift](config: CliConfig): Parsed[F, ParsedConfigs] =
     for {
-      igluJson <- config.resolver.fold(b => EitherT.rightT[F, String](b.value), p => FileSystem.readJson[F](p))
+      igluJson <- parseEncodedOrPath[F, Json](config.resolver, identity)
       enrichmentJsons <- config.enrichments match {
                            case Left(base64) =>
-                             EitherT.rightT[F, String](base64.value)
+                             Base64Hocon.resolve[Json](base64, identity).toEitherT[F]
                            case Right(path) =>
                              FileSystem
-                               .readJsonDir[F](path)
+                               .readJsonDir[F, Json](path)
                                .map(jsons => Json.arr(jsons: _*))
                                .map(json => SelfDescribingData(EnrichmentsKey, json).asJson)
                          }
@@ -96,6 +98,17 @@ object ParsedConfigs {
                  }
       _ <- EitherT.liftF(Logger[F].info(show"Parsed following enrichments: ${configs.map(_.schemaKey.name).mkString(", ")}"))
     } yield ParsedConfigs(igluJson, configs, configFile, goodPartitionKey, piiPartitionKey, goodAttributes, piiAttributes)
+
+  private[config] def parseEncodedOrPath[F[_]: Sync, A: Decoder](
+    in: EncodedHoconOrPath,
+    fallbacks: TSConfig => TSConfig
+  ): EitherT[F, String, A] =
+    in match {
+      case Left(v) =>
+        Base64Hocon.resolve[A](v, fallbacks).toEitherT
+      case Right(path) =>
+        FileSystem.readJson[F, A](path, fallbacks)
+    }
 
   private[config] def validateConfig[F[_]: Applicative](configFile: ConfigFile): EitherT[F, String, ConfigFile] = {
     val goodCheck: ValidationResult[OutputConfig] = validateAttributes(configFile.output.good)

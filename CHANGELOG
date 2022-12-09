@@ -1,3 +1,8 @@
+3.6.1 (2022-12-09)
+------------------
+common: bump iglu scala client to 1.3.0 (#734)
+common: Update Yauaa to 7.9.0 (#734)
+
 3.6.0 (2022-11-18)
 ------------------
 common: Prune system libs from distroless image (#728)

@@ -23,7 +23,7 @@ import cats.implicits._
 import io.circe.Json
 import io.circe.syntax._
 
-import ua_parser.{CachingParser, Parser}
+import ua_parser.Parser
 import ua_parser.Client
 
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
@@ -178,9 +178,9 @@ object CreateUaParser {
   private def constructParser(input: Option[InputStream]) =
     input match {
       case Some(is) =>
-        try new CachingParser(is)
+        try UaCachingParser.create(is)
         finally is.close()
-      case None => new Parser()
+      case None => UaCachingParser.create()
     }
 
   private def parser(file: Option[String]): Either[String, Parser] =

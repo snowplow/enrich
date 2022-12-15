@@ -11,27 +11,21 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
-import java.io.{FileInputStream, InputStream}
-import java.net.URI
-
-import cats.{Id, Monad}
+import cats.Monad
 import cats.data.{EitherT, NonEmptyList, ValidatedNel}
-
-import cats.effect.Sync
 import cats.implicits._
-
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
+import com.snowplowanalytics.lrumap.{CreateLruMap, LruMap}
+import com.snowplowanalytics.snowplow.badrows.FailureDetails
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.UaParserConf
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.UaParserEnrichment.UserAgentCache
+import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
 import io.circe.Json
 import io.circe.syntax._
+import ua_parser.{Client, Parser}
 
-import ua_parser.Parser
-import ua_parser.Client
-
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
-
-import com.snowplowanalytics.snowplow.badrows.FailureDetails
-
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.UaParserConf
-import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
+import java.io.{FileInputStream, InputStream}
+import java.net.URI
 
 /** Companion object. Lets us create a UaParserEnrichment from a Json. */
 object UaParserEnrichment extends ParseableEnrichment {
@@ -45,6 +39,7 @@ object UaParserEnrichment extends ParseableEnrichment {
   )
 
   private val localFile = "./ua-parser-rules.yml"
+  type UserAgentCache[F[_]] = LruMap[F, String, SelfDescribingData[Json]]
 
   override def parse(
     c: Json,
@@ -61,9 +56,8 @@ object UaParserEnrichment extends ParseableEnrichment {
    * @param conf Configuration for the ua parser enrichment
    * @return a ua parser enrichment
    */
-  def apply[F[_]: Monad: CreateUaParser](conf: UaParserConf): EitherT[F, String, UaParserEnrichment] =
-    EitherT(CreateUaParser[F].create(conf.uaDatabase.map(_._2)))
-      .map(p => UaParserEnrichment(conf.schemaKey, p))
+  def apply[F[_]: Monad: CreateUaParserEnrichment](conf: UaParserConf): EitherT[F, String, UaParserEnrichment[F]] =
+    EitherT(CreateUaParserEnrichment[F].create(conf))
 
   private def getCustomRules(conf: Json): ValidatedNel[String, Option[(URI, String)]] =
     if (conf.hcursor.downField("parameters").downField("uri").focus.isDefined)
@@ -79,7 +73,11 @@ object UaParserEnrichment extends ParseableEnrichment {
 }
 
 /** Config for an ua_parser_config enrichment. Uses uap-java library to parse client attributes */
-final case class UaParserEnrichment(schemaKey: SchemaKey, parser: Parser) extends Enrichment {
+final case class UaParserEnrichment[F[_]: Monad](
+  schemaKey: SchemaKey,
+  parser: Parser,
+  userAgentCache: UserAgentCache[F]
+) extends Enrichment {
   private val enrichmentInfo = FailureDetails.EnrichmentInformation(schemaKey, "ua-parser").some
 
   /** Adds a period in front of a not-null version element */
@@ -108,7 +106,22 @@ final case class UaParserEnrichment(schemaKey: SchemaKey, parser: Parser) extend
    * @param useragent to extract from. Should be encoded, i.e. not previously decoded.
    * @return the json or the message of the bad row details
    */
-  def extractUserAgent(useragent: String): Either[FailureDetails.EnrichmentFailure, SelfDescribingData[Json]] =
+  def extractUserAgent(useragent: String): F[Either[FailureDetails.EnrichmentFailure, SelfDescribingData[Json]]] =
+    userAgentCache.get(useragent).flatMap {
+      case Some(cachedValue) =>
+        Monad[F].pure(Right(cachedValue))
+      case None =>
+        evaluateUserAgentContext(useragent)
+          .pure[F]
+          .flatTap {
+            case Right(context) =>
+              userAgentCache.put(useragent, context)
+            case Left(_) =>
+              Monad[F].unit
+          }
+    }
+
+  private def evaluateUserAgentContext(useragent: String): Either[FailureDetails.EnrichmentFailure, SelfDescribingData[Json]] =
     Either
       .catchNonFatal(parser.parse(useragent))
       .leftMap { e =>
@@ -156,36 +169,34 @@ final case class UaParserEnrichment(schemaKey: SchemaKey, parser: Parser) extend
   }
 }
 
-trait CreateUaParser[F[_]] {
-  def create(uaFile: Option[String]): F[Either[String, Parser]]
+trait CreateUaParserEnrichment[F[_]] {
+  def create(conf: UaParserConf): F[Either[String, UaParserEnrichment[F]]]
 }
 
-object CreateUaParser {
-  def apply[F[_]](implicit ev: CreateUaParser[F]): CreateUaParser[F] = ev
+object CreateUaParserEnrichment {
+  def apply[F[_]](implicit ev: CreateUaParserEnrichment[F]): CreateUaParserEnrichment[F] = ev
 
-  implicit def syncCreateUaParser[F[_]: Sync]: CreateUaParser[F] =
-    new CreateUaParser[F] {
-      def create(uaFile: Option[String]): F[Either[String, Parser]] =
-        Sync[F].delay(parser(uaFile))
+  implicit def createUaParser[F[_]: Monad](implicit CLM: CreateLruMap[F, String, SelfDescribingData[Json]]): CreateUaParserEnrichment[F] =
+    new CreateUaParserEnrichment[F] {
+      def create(conf: UaParserConf): F[Either[String, UaParserEnrichment[F]]] =
+        CLM.create(5000).map { cache =>
+          initializeParser(conf.uaDatabase.map(_._2)).map { parser =>
+            UaParserEnrichment(conf.schemaKey, parser, cache)
+          }
+        }
     }
 
-  implicit def idCreateUaParser: CreateUaParser[Id] =
-    new CreateUaParser[Id] {
-      def create(uaFile: Option[String]): Id[Either[String, Parser]] =
-        parser(uaFile)
-    }
+  private def initializeParser(file: Option[String]): Either[String, Parser] =
+    (for {
+      input <- Either.catchNonFatal(file.map(new FileInputStream(_)))
+      parser <- Either.catchNonFatal(createParser(input))
+    } yield parser).leftMap(e => s"Failed to initialize ua parser: [${e.getMessage}]")
 
-  private def constructParser(input: Option[InputStream]) =
+  private def createParser(input: Option[InputStream]): Parser =
     input match {
       case Some(is) =>
         try new Parser(is)
         finally is.close()
       case None => new Parser()
     }
-
-  private def parser(file: Option[String]): Either[String, Parser] =
-    (for {
-      input <- Either.catchNonFatal(file.map(new FileInputStream(_)))
-      p <- Either.catchNonFatal(constructParser(input))
-    } yield p).leftMap(e => s"Failed to initialize ua parser: [${e.getMessage}]")
 }

@@ -453,16 +453,20 @@ object EnrichmentManager {
         }
     }
 
-  def getUaParser[F[_]: Applicative](uaParser: Option[UaParserEnrichment]): EStateT[F, Unit] =
-    EStateT.fromEither {
+  def getUaParser[F[_]: Monad](uaParser: Option[UaParserEnrichment[F]]): EStateT[F, Unit] =
+    EStateT.fromEitherF {
       case (event, _) =>
         uaParser match {
           case Some(uap) =>
             Option(event.useragent) match {
-              case Some(ua) => uap.extractUserAgent(ua).bimap(NonEmptyList.one(_), List(_))
-              case None => Nil.asRight // No fields updated
+              case Some(ua) =>
+                uap.extractUserAgent(ua).map {
+                  case Left(failure) => Left(NonEmptyList.one(failure))
+                  case Right(context) => Right(List(context))
+                }
+              case None => Monad[F].pure(Nil.asRight) // No fields updated
             }
-          case None => Nil.asRight
+          case None => Monad[F].pure(Nil.asRight)
         }
     }
 

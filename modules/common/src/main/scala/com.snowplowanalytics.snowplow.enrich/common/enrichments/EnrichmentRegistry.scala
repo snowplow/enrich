@@ -106,7 +106,7 @@ object EnrichmentRegistry {
 
   // todo: ValidatedNel?
   def build[
-    F[_]: Monad: CreateForex: CreateIabClient: CreateIpLookups: CreateOWM: CreateParser: CreateUaParser: sqlquery.CreateSqlQueryEnrichment: apirequest.CreateApiRequestEnrichment
+    F[_]: Monad: CreateForex: CreateIabClient: CreateIpLookups: CreateOWM: CreateParser: CreateUaParserEnrichment: sqlquery.CreateSqlQueryEnrichment: apirequest.CreateApiRequestEnrichment
   ](
     confs: List[EnrichmentConf],
     blocker: BlockerF[F]
@@ -251,7 +251,7 @@ final case class EnrichmentRegistry[F[_]](
   ipLookups: Option[IpLookupsEnrichment[F]] = None,
   javascriptScript: Option[JavascriptScriptEnrichment] = None,
   refererParser: Option[RefererParserEnrichment] = None,
-  uaParser: Option[UaParserEnrichment] = None,
+  uaParser: Option[UaParserEnrichment[F]] = None,
   userAgentUtils: Option[UserAgentUtilsEnrichment] = None,
   weather: Option[WeatherEnrichment[F]] = None,
   yauaa: Option[YauaaEnrichment] = None

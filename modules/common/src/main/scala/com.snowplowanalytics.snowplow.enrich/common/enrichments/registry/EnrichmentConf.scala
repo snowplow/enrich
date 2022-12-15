@@ -183,7 +183,7 @@ object EnrichmentConf {
 
   final case class UaParserConf(schemaKey: SchemaKey, uaDatabase: Option[(URI, String)]) extends EnrichmentConf {
     override val filesToCache: List[(URI, String)] = List(uaDatabase).flatten
-    def enrichment[F[_]: Monad: CreateUaParser]: EitherT[F, String, UaParserEnrichment] =
+    def enrichment[F[_]: Monad: CreateUaParserEnrichment]: EitherT[F, String, UaParserEnrichment[F]] =
       UaParserEnrichment[F](this)
   }
 

@@ -27,7 +27,7 @@ import ua_parser.Parser
 import ua_parser.Client
 
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
-
+import com.snowplowanalytics.lrumap.{CreateLruMap, LruMap}
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.UaParserConf
@@ -63,7 +63,10 @@ object UaParserEnrichment extends ParseableEnrichment {
    */
   def apply[F[_]: Monad: CreateUaParser](conf: UaParserConf): EitherT[F, String, UaParserEnrichment] =
     EitherT(CreateUaParser[F].create(conf.uaDatabase.map(_._2)))
-      .map(p => UaParserEnrichment(conf.schemaKey, p))
+      .map { p =>
+        val cache = CreateLruMap[Id, String, SelfDescribingData[Json]].create(1000)
+        UaParserEnrichment(conf.schemaKey, p, cache)
+      }
 
   private def getCustomRules(conf: Json): ValidatedNel[String, Option[(URI, String)]] =
     if (conf.hcursor.downField("parameters").downField("uri").focus.isDefined)
@@ -79,7 +82,11 @@ object UaParserEnrichment extends ParseableEnrichment {
 }
 
 /** Config for an ua_parser_config enrichment. Uses uap-java library to parse client attributes */
-final case class UaParserEnrichment(schemaKey: SchemaKey, parser: Parser) extends Enrichment {
+final case class UaParserEnrichment(
+  schemaKey: SchemaKey,
+  parser: Parser,
+  cache: LruMap[Id, String, SelfDescribingData[Json]]
+) extends Enrichment {
   private val enrichmentInfo = FailureDetails.EnrichmentInformation(schemaKey, "ua-parser").some
 
   /** Adds a period in front of a not-null version element */
@@ -109,18 +116,26 @@ final case class UaParserEnrichment(schemaKey: SchemaKey, parser: Parser) extend
    * @return the json or the message of the bad row details
    */
   def extractUserAgent(useragent: String): Either[FailureDetails.EnrichmentFailure, SelfDescribingData[Json]] =
-    Either
-      .catchNonFatal(parser.parse(useragent))
-      .leftMap { e =>
-        val msg = s"could not parse useragent: ${e.getMessage}"
-        val f = FailureDetails.EnrichmentFailureMessage.InputData(
-          "useragent",
-          useragent.some,
-          msg
-        )
-        FailureDetails.EnrichmentFailure(enrichmentInfo, f)
-      }
-      .map(assembleContext)
+    cache.get(useragent) match {
+      case Some(cachedValue) => Right(cachedValue)
+      case None =>
+        Either
+          .catchNonFatal(parser.parse(useragent))
+          .leftMap { e =>
+            val msg = s"could not parse useragent: ${e.getMessage}"
+            val f = FailureDetails.EnrichmentFailureMessage.InputData(
+              "useragent",
+              useragent.some,
+              msg
+            )
+            FailureDetails.EnrichmentFailure(enrichmentInfo, f)
+          }
+          .map { result =>
+            val context = assembleContext(result)
+            cache.put(useragent, context)
+            context
+          }
+    }
 
   /** Assembles ua_parser_context from a parsed user agent. */
   def assembleContext(c: Client): SelfDescribingData[Json] = {
@@ -178,9 +193,9 @@ object CreateUaParser {
   private def constructParser(input: Option[InputStream]) =
     input match {
       case Some(is) =>
-        try UaCachingParser.create(is)
+        try new Parser(is)
         finally is.close()
-      case None => UaCachingParser.create()
+      case None => new Parser()
     }
 
   private def parser(file: Option[String]): Either[String, Parser] =

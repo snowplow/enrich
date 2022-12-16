@@ -7,7 +7,7 @@ import ua_parser._
 import java.io.InputStream
 
 object UaCachingParser {
-  private val defaultCacheSize = 10000
+  private val defaultCacheSize = 1000
 
   def create(): Parser = {
     val cache = createCache()

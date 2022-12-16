@@ -64,7 +64,7 @@ object UaParserEnrichment extends ParseableEnrichment {
   def apply[F[_]: Monad: CreateUaParser](conf: UaParserConf): EitherT[F, String, UaParserEnrichment] =
     EitherT(CreateUaParser[F].create(conf.uaDatabase.map(_._2)))
       .map { p =>
-        val cache = CreateLruMap[Id, String, SelfDescribingData[Json]].create(10000)
+        val cache = CreateLruMap[Id, String, SelfDescribingData[Json]].create(5000)
         UaParserEnrichment(conf.schemaKey, p, cache)
       }
 

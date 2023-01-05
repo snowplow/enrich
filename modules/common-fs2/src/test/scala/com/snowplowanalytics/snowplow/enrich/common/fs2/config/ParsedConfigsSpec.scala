@@ -24,6 +24,8 @@ import org.http4s.Uri
 
 import org.specs2.mutable.Specification
 
+import com.typesafe.config.ConfigFactory
+
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
 class ParsedConfigsSpec extends Specification with CatsIO {
@@ -140,6 +142,30 @@ class ParsedConfigsSpec extends Specification with CatsIO {
       val result = ParsedConfigs.partitionKeyFromFields("app_id")(ee)
 
       result must beEqualTo("test_partitionKeyFromFields")
+    }
+  }
+
+  "parseHoconToJson" should {
+    "resolve hocon-syntax substitutions" in {
+
+      val hocon = """
+      {
+        "substitution": "xyz"
+        "abc": ${substitution}
+      }
+      """
+
+      val in = Base64Hocon(ConfigFactory.parseString(hocon))
+
+      ParsedConfigs.parseHoconToJson[IO](Left(in)).value.map { result =>
+        result must beRight.like {
+          case json =>
+            json.asObject must beSome.like {
+              case jsonObj =>
+                jsonObj("abc").flatMap(_.asString) must beSome("xyz")
+            }
+        }
+      }
     }
   }
 }

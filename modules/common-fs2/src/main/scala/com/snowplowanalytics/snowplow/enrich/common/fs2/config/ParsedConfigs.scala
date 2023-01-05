@@ -67,7 +67,7 @@ object ParsedConfigs {
   /** Decode base64-encoded configs, passed via CLI. Read files, validate and parse */
   def parse[F[_]: Async: Clock: ContextShift](config: CliConfig): Parsed[F, ParsedConfigs] =
     for {
-      igluJson <- parseEncodedOrPath[F, Json](config.resolver, identity)
+      igluJson <- parseHoconToJson[F](config.resolver)
       enrichmentJsons <- config.enrichments match {
                            case Left(base64) =>
                              Base64Hocon.resolve[Json](base64, identity).toEitherT[F]
@@ -99,13 +99,16 @@ object ParsedConfigs {
       _ <- EitherT.liftF(Logger[F].info(show"Parsed following enrichments: ${configs.map(_.schemaKey.name).mkString(", ")}"))
     } yield ParsedConfigs(igluJson, configs, configFile, goodPartitionKey, piiPartitionKey, goodAttributes, piiAttributes)
 
+  private[config] def parseHoconToJson[F[_]: Sync](in: EncodedHoconOrPath): EitherT[F, String, Json] =
+    parseEncodedOrPath(in, identity)
+
   private[config] def parseEncodedOrPath[F[_]: Sync, A: Decoder](
     in: EncodedHoconOrPath,
     fallbacks: TSConfig => TSConfig
   ): EitherT[F, String, A] =
     in match {
-      case Left(v) =>
-        Base64Hocon.resolve[A](v, fallbacks).toEitherT
+      case Left(hocon) =>
+        Base64Hocon.resolve[A](hocon, fallbacks).toEitherT
       case Right(path) =>
         FileSystem.readJson[F, A](path, fallbacks)
     }

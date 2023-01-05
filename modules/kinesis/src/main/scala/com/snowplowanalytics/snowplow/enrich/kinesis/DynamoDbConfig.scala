@@ -24,8 +24,6 @@ import com.typesafe.config.{ConfigFactory, ConfigValueFactory}
 
 import retry.{RetryDetails, RetryPolicies, RetryPolicy, retryingOnSomeErrors}
 
-import java.nio.file.Path
-
 import scala.collection.JavaConverters._
 import scala.concurrent.duration.DurationLong
 import scala.util.control.NonFatal
@@ -37,7 +35,7 @@ import com.amazonaws.services.dynamodbv2.{AmazonDynamoDB, AmazonDynamoDBClientBu
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{Base64Hocon, CliConfig}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{Base64Hocon, CliConfig, EncodedHoconOrPath}
 
 object DynamoDbConfig {
 
@@ -66,9 +64,9 @@ object DynamoDbConfig {
 
   private def updateArg[F[_]: ContextShift: Sync: Timer](
     blocker: Blocker,
-    orig: Either[Base64Hocon, Path],
+    orig: EncodedHoconOrPath,
     getConfig: (Blocker, String, String, String) => F[Base64Hocon]
-  ): F[Either[Base64Hocon, Path]] =
+  ): F[EncodedHoconOrPath] =
     orig match {
       case Left(encoded) => Sync[F].pure(Left(encoded))
       case Right(path) =>

@@ -12,28 +12,23 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery
 
-import scala.collection.immutable.IntMap
+import cats.Monad
+import cats.data.{EitherT, NonEmptyList, ValidatedNel}
+import cats.effect.Clock
+import cats.implicits._
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SelfDescribingData}
+import com.snowplowanalytics.snowplow.badrows.FailureDetails
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.SqlQueryConf
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{Enrichment, ParseableEnrichment}
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, CirceUtils, ResourceF}
+import io.circe._
+import io.circe.generic.semiauto._
+import org.slf4j.LoggerFactory
 
 import java.sql.Connection
 import javax.sql.DataSource
-
-import org.slf4j.LoggerFactory
-
-import cats.Monad
-import cats.data.{EitherT, NonEmptyList, ValidatedNel}
-import cats.implicits._
-
-import io.circe._
-import io.circe.generic.semiauto._
-
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SelfDescribingData}
-
-import com.snowplowanalytics.snowplow.badrows.FailureDetails
-
-import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, CirceUtils, ResourceF}
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.SqlQueryConf
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{Enrichment, ParseableEnrichment}
+import scala.collection.immutable.IntMap
 
 /** Lets us create an SqlQueryConf from a Json */
 object SqlQueryEnrichment extends ParseableEnrichment {
@@ -108,14 +103,13 @@ object SqlQueryEnrichment extends ParseableEnrichment {
  * @param cache actual mutable LRU cache
  * @param blocker Allows running blocking enrichments on a dedicated thread pool
  */
-final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor: ResourceF](
+final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor: ResourceF: Clock](
   schemaKey: SchemaKey,
   inputs: List[Input],
   db: Rdbms,
   query: SqlQueryEnrichment.Query,
   output: Output,
-  ttl: Int,
-  cache: SqlCache[F],
+  sqlQueryEvaluator: SqlQueryEvaluator[F],
   blocker: BlockerF[F],
   dataSource: DataSource
 ) extends Enrichment {
@@ -191,40 +185,19 @@ final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor: ResourceF](
     connection: Connection
   ): EitherT[F, NonEmptyList[String], List[SelfDescribingData[Json]]] =
     placeholders match {
-      case Some(m) =>
-        EitherT(get(connection, m))
+      case Some(intMap) =>
+        EitherT {
+          sqlQueryEvaluator.evaluateForKey(
+            intMap,
+            getResult = () => blocker.blockOn(query(connection, intMap).value)
+          )
+        }
           .leftMap { t =>
             NonEmptyList.of("Error while executing the query/getting the results", t.toString)
           }
       case None =>
         EitherT.rightT[F, NonEmptyList[String]](List.empty[SelfDescribingData[Json]])
     }
-
-  /**
-   * Get contexts from cache or perform query if nothing found and put result into cache
-   * @param intMap IntMap of extracted values
-   * @return validated list of Self-describing contexts
-   */
-  def get(connection: Connection, intMap: IntMap[Input.ExtractedValue]): F[Either[Throwable, List[SelfDescribingData[Json]]]] =
-    for {
-      gotten <- cache.get(intMap)
-      res <- gotten match {
-               case Some(response) =>
-                 if (System.currentTimeMillis() / 1000 - response._2 < ttl) Monad[F].pure(response._1)
-                 else put(connection, blocker, intMap)
-               case None => put(connection, blocker, intMap)
-             }
-    } yield res
-
-  private def put(
-    connection: Connection,
-    blocker: BlockerF[F],
-    intMap: IntMap[Input.ExtractedValue]
-  ): F[Either[Throwable, List[SelfDescribingData[Json]]]] =
-    for {
-      res <- blocker.blockOn(query(connection, intMap).value)
-      _ <- cache.put(intMap, (res, System.currentTimeMillis() / 1000))
-    } yield res
 
   /**
    * Perform SQL query and convert result to JSON object

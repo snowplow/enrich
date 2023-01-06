@@ -13,12 +13,16 @@
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery
 
 import cats.Monad
+import cats.effect.Clock
 import cats.implicits._
-
+import com.snowplowanalytics.iglu.core.SelfDescribingData
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.CachingEvaluator
 import com.zaxxer.hikari.HikariDataSource
-
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.SqlQueryConf
 import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, ResourceF}
+import io.circe.Json
+
+import scala.collection.immutable.IntMap
 
 /** Initialize resources, necessary for SQL Query enrichment: cache and connection */
 sealed trait CreateSqlQueryEnrichment[F[_]] {
@@ -29,24 +33,32 @@ object CreateSqlQueryEnrichment {
 
   def apply[F[_]](implicit ev: CreateSqlQueryEnrichment[F]): CreateSqlQueryEnrichment[F] = ev
 
-  implicit def createSqlQueryEnrichment[F[_]: DbExecutor: Monad: ResourceF](
+  implicit def createSqlQueryEnrichment[F[_]: DbExecutor: Monad: ResourceF: Clock](
     implicit CLM: SqlCacheInit[F]
   ): CreateSqlQueryEnrichment[F] =
     new CreateSqlQueryEnrichment[F] {
-      def create(conf: SqlQueryConf, blocker: BlockerF[F]): F[SqlQueryEnrichment[F]] =
-        for {
-          cache <- CLM.create(conf.cache.size)
-        } yield SqlQueryEnrichment(
-          conf.schemaKey,
-          conf.inputs,
-          conf.db,
-          conf.query,
-          conf.output,
-          conf.cache.ttl,
-          cache,
-          blocker,
-          getDataSource(conf.db)
+      def create(conf: SqlQueryConf, blocker: BlockerF[F]): F[SqlQueryEnrichment[F]] = {
+        val cacheConfig = CachingEvaluator.Config(
+          size = conf.cache.size,
+          successTtl = conf.cache.ttl,
+          errorTtl = conf.cache.ttl / 10
         )
+
+        CachingEvaluator
+          .create[F, IntMap[Input.ExtractedValue], List[SelfDescribingData[Json]]](cacheConfig)
+          .map { evaluator =>
+            SqlQueryEnrichment(
+              conf.schemaKey,
+              conf.inputs,
+              conf.db,
+              conf.query,
+              conf.output,
+              evaluator,
+              blocker,
+              getDataSource(conf.db)
+            )
+          }
+      }
     }
 
   private def getDataSource(rdbms: Rdbms): HikariDataSource = {

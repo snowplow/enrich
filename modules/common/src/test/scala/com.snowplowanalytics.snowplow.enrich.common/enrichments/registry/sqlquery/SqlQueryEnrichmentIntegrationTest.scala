@@ -20,6 +20,7 @@ import io.circe.parser._
 import cats.Id
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
+import com.snowplowanalytics.snowplow.enrich.common.utils.Clock.idClock
 
 import org.specs2.Specification
 

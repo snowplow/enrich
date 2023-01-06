@@ -132,7 +132,7 @@ object Environment {
     Slf4jLogger.getLogger[F]
 
   /** Registry with all allocated clients (MaxMind, IAB etc) and their original configs */
-  final case class Enrichments[F[_]](registry: EnrichmentRegistry[F], configs: List[EnrichmentConf]) {
+  final case class Enrichments[F[_]: Clock](registry: EnrichmentRegistry[F], configs: List[EnrichmentConf]) {
 
     /** Initialize same enrichments, specified by configs (in case DB files updated) */
     def reinitialize(blocker: BlockerF[F])(implicit A: Async[F], C: HttpClient[F]): F[Enrichments[F]] =
@@ -148,7 +148,7 @@ object Environment {
         } yield ref
       }
 
-    def buildRegistry[F[_]: Async: HttpClient](configs: List[EnrichmentConf], blocker: BlockerF[F]) =
+    def buildRegistry[F[_]: Async: HttpClient: Clock](configs: List[EnrichmentConf], blocker: BlockerF[F]) =
       EnrichmentRegistry.build[F](configs, blocker).value.flatMap {
         case Right(reg) => Async[F].pure(reg)
         case Left(error) => Async[F].raiseError[EnrichmentRegistry[F]](new RuntimeException(error))

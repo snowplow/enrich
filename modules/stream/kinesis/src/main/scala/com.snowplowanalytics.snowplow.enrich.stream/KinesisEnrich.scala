@@ -43,7 +43,7 @@ import io.circe.syntax._
 import config._
 import model.{Credentials, DualCloudCredentialsPair, Kinesis, NoCredentials, SentryConfig, StreamsConfig}
 import sources.KinesisSource
-import utils.getAWSCredentialsProvider
+import utils.{clockProvider, getAWSCredentialsProvider}
 
 /** The main entry point for Stream Enrich for Kinesis. */
 object KinesisEnrich extends Enrich {

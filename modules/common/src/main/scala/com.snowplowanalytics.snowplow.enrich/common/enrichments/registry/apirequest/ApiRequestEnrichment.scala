@@ -12,28 +12,28 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest
 
-import java.util.UUID
-
-import cats.{Id, Monad}
+import cats.Monad
 import cats.data.{EitherT, NonEmptyList, ValidatedNel}
+import cats.effect.Clock
 import cats.implicits._
-
-import cats.effect.Sync
-
+import com.snowplowanalytics.iglu.core.circe.implicits._
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SelfDescribingData}
+import com.snowplowanalytics.lrumap._
+import com.snowplowanalytics.snowplow.badrows.FailureDetails
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.ApiRequestConf
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest.ApiRequestEnrichment.ApiRequestEvaluator
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{CachingEvaluator, Enrichment, ParseableEnrichment}
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.utils.{CirceUtils, HttpClient}
 import io.circe._
 import io.circe.generic.auto._
 
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SelfDescribingData}
-import com.snowplowanalytics.iglu.core.circe.implicits._
-
-import com.snowplowanalytics.lrumap._
-import com.snowplowanalytics.snowplow.badrows.FailureDetails
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{Enrichment, ParseableEnrichment}
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.ApiRequestConf
-import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.{CirceUtils, HttpClient}
+import java.util.UUID
 
 object ApiRequestEnrichment extends ParseableEnrichment {
+
+  type ApiRequestEvaluator[F[_]] = CachingEvaluator[F, String, Json]
+
   override val supportedSchema =
     SchemaCriterion(
       "com.snowplowanalytics.snowplow.enrichments",
@@ -91,13 +91,12 @@ object ApiRequestEnrichment extends ParseableEnrichment {
     CreateApiRequestEnrichment[F].create(conf)
 }
 
-final case class ApiRequestEnrichment[F[_]: Monad: HttpClient](
+final case class ApiRequestEnrichment[F[_]: Monad: HttpClient: Clock](
   schemaKey: SchemaKey,
   inputs: List[Input],
   api: HttpApi,
   outputs: List[Output],
-  ttl: Int,
-  cache: LruMap[F, String, (Either[Throwable, Json], Long)]
+  apiRequestEvaluator: ApiRequestEvaluator[F]
 ) extends Enrichment {
   import ApiRequestEnrichment._
 
@@ -174,20 +173,12 @@ final case class ApiRequestEnrichment[F[_]: Monad: HttpClient](
     output: Output
   ): F[Either[Throwable, Json]] =
     for {
-      key <- Monad[F].pure(cacheKey(url, body))
-      gotten <- cache.get(key)
-      res <- gotten match {
-               case Some(response) =>
-                 if (System.currentTimeMillis() / 1000 - response._2 < ttl) Monad[F].pure(response._1)
-                 else put(key, url, body, output)
-               case None => put(key, url, body, output)
-             }
-      extracted = res.flatMap(output.extract)
+      result <- apiRequestEvaluator.evaluateForKey(key = cacheKey(url, body), getResult = () => callApi(url, body, output))
+      extracted = result.flatMap(output.extract)
       described = extracted.map(output.describeJson)
     } yield described
 
-  private def put(
-    key: String,
+  private def callApi(
     url: String,
     body: Option[String],
     output: Output
@@ -195,7 +186,6 @@ final case class ApiRequestEnrichment[F[_]: Monad: HttpClient](
     for {
       response <- api.perform[F](url, body)
       json = response.flatMap(output.parseResponse)
-      _ <- cache.put(key, (json, System.currentTimeMillis() / 1000))
     } yield json
 
   private def failureDetails(errors: NonEmptyList[String]) =
@@ -212,43 +202,28 @@ sealed trait CreateApiRequestEnrichment[F[_]] {
 object CreateApiRequestEnrichment {
   def apply[F[_]](implicit ev: CreateApiRequestEnrichment[F]): CreateApiRequestEnrichment[F] = ev
 
-  implicit def idCreateApiRequestEnrichment(
-    implicit CLM: CreateLruMap[Id, String, (Either[Throwable, Json], Long)],
-    HTTP: HttpClient[Id]
-  ): CreateApiRequestEnrichment[Id] =
-    new CreateApiRequestEnrichment[Id] {
-      override def create(conf: ApiRequestConf): Id[ApiRequestEnrichment[Id]] =
-        CLM
-          .create(conf.cache.size)
-          .map(c =>
-            ApiRequestEnrichment(
-              conf.schemaKey,
-              conf.inputs,
-              conf.api,
-              conf.outputs,
-              conf.cache.ttl,
-              c
-            )
-          )
-    }
-
-  implicit def syncCreateApiRequestEnrichment[F[_]: Sync](
-    implicit CLM: CreateLruMap[F, String, (Either[Throwable, Json], Long)],
-    HTTP: HttpClient[F]
+  implicit def instance[F[_]: Monad: HttpClient: Clock](
+    implicit CLM: CreateLruMap[F, String, CachingEvaluator.CachedItem[Json]]
   ): CreateApiRequestEnrichment[F] =
     new CreateApiRequestEnrichment[F] {
-      def create(conf: ApiRequestConf): F[ApiRequestEnrichment[F]] =
-        CLM
-          .create(conf.cache.size)
-          .map(c =>
+      def create(conf: ApiRequestConf): F[ApiRequestEnrichment[F]] = {
+        val cacheConfig = CachingEvaluator.Config(
+          size = conf.cache.size,
+          successTtl = conf.cache.ttl,
+          errorTtl = conf.cache.ttl / 10
+        )
+
+        CachingEvaluator
+          .create[F, String, Json](cacheConfig)
+          .map { evaluator =>
             ApiRequestEnrichment(
               conf.schemaKey,
               conf.inputs,
               conf.api,
               conf.outputs,
-              conf.cache.ttl,
-              c
+              evaluator
             )
-          )
+          }
+      }
     }
 }

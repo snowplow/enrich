@@ -363,6 +363,10 @@ object Dependencies {
       mskAuth
     )
 
+    val nsqDependencies = Seq(
+      nsqClient
+    )
+
     // exclusions
     val exclusions = Seq(
       "org.apache.tomcat.embed" % "tomcat-embed-core"

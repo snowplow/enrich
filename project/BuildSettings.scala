@@ -114,6 +114,14 @@ object BuildSettings {
     buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.kafka.generated"
   )
 
+  lazy val nsqProjectSettings = projectSettings ++ Seq(
+    name := "snowplow-enrich-nsq",
+    moduleName := "snowplow-enrich-nsq",
+    description := "High-performance streaming enrich app working with Nsq, built on top of functional streams",
+    buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
+    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.nsq.generated"
+  )
+
   /** Make package (build) metadata available within source code. */
   lazy val scalifiedSettings = Seq(
     Compile / sourceGenerators += Def.task {
@@ -333,6 +341,18 @@ object BuildSettings {
   }
 
   lazy val kafkaDistrolessBuildSettings = kafkaBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
+
+  lazy val nsqBuildSettings = {
+    // Project
+    nsqProjectSettings ++ buildSettings ++
+      // Build and publish
+      assemblySettings ++ dockerSettingsFocal ++
+      Seq(Docker / packageName := "snowplow-enrich-nsq") ++
+      // Tests
+      scoverageSettings ++ noParallelTestExecution
+  }
+
+  lazy val nsqDistrolessBuildSettings = nsqBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
 
   /** Fork a JVM per test in order to not reuse enrichment registries. */
   def oneJVMPerTest(tests: Seq[TestDefinition]): Seq[Tests.Group] =

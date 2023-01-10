@@ -24,6 +24,7 @@ import cats.effect.testing.specs2.CatsIO
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input.{Kafka => InKafka}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Output.{Kafka => OutKafka}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.test.CollectorPayloadGen
 
 
 class EnrichKafkaSpec extends Specification with CatsIO {

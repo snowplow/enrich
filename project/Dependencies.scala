@@ -362,6 +362,12 @@ object Dependencies {
       kafkaClients // override kafka-clients 2.8.1 from fs2Kafka to address https://security.snyk.io/vuln/SNYK-JAVA-ORGAPACHEKAFKA-3027430
     )
 
+    val nsqDependencies = Seq(
+      log4j,
+      log4jApi,
+      nsqClient
+    )
+
     // exclusions
     val exclusions = Seq(
       "org.apache.tomcat.embed" % "tomcat-embed-core"

@@ -1,0 +1,52 @@
+{
+  "input": {
+    "topic": "RawEvents"
+    "channel": "EnrichNsqChannel"
+    "lookupHost": "nsqlookupd"
+    "lookupPort": 4161
+  }
+
+  "output": {
+    "good": {
+      "topic": "EnrichedEvents"
+      "nsqdHost": "nsqd"
+      "nsqdPort": 4150
+    }
+
+    "bad": {
+      "topic": "BadEnrichedEvents"
+      "nsqdHost": "nsqd"
+      "nsqdPort": 4150
+    }
+  }
+
+  "monitoring": {
+
+    "sentry": {
+      "dsn": ""
+    }
+
+    # Optional, configure how metrics are reported
+    "metrics": {
+
+      # Optional. Log to stdout using Slf4j
+      "stdout": {
+        "period": "10 seconds"
+
+        # Optional, override the default metric prefix
+        # "prefix": "snowplow.enrich."
+      }
+
+      # Optional. Send KCL and KPL metrics to Cloudwatch
+      "cloudwatch": false
+    }
+  }
+
+  "telemetry": {
+    "disable": true
+  }
+
+  "featureFlags": {
+    "acceptInvalid": true
+  }
+}

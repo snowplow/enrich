@@ -1,0 +1,70 @@
+---
+version: '3'
+services:
+  nsqlookupd:
+    image: nsqio/nsq
+    command: /nsqlookupd --broadcast-address=nsqlookupd
+    ports:
+      - "4160:4160"
+      - "4161:4161"
+  nsqd:
+    image: nsqio/nsq
+    command: /nsqd --broadcast-address=nsqd --lookupd-tcp-address=nsqlookupd:4160
+    depends_on:
+      - nsqlookupd
+    ports:
+      - "4150:4150"
+      - "4151:4151"
+  # Integration test tries to access nsqd from outside of docker network
+  # therefore it can't access it with docker service name.
+  # Since nsqd broadcasts its address through nsqlookup, it is impossible to
+  # broadcast its address as localhost and docker service name at the same time
+  # therefore we've created second nsqq and nsqlookup instances that will be used by
+  # integration tests and NSQ messages sent to first nsqd instance will be replicated
+  # to second nsqd instance with nsq_to_nsq tool.
+  nsqlookupd2:
+    image: nsqio/nsq
+    command: /nsqlookupd --broadcast-address=nsqlookupd2
+    ports:
+      - "4260:4160"
+      - "4261:4161"
+  nsqd2:
+    image: nsqio/nsq
+    command: /nsqd --broadcast-address=127.0.0.1 --broadcast-http-port 4251 --broadcast-tcp-port 4250 --http-address 0.0.0.0:4251 --tcp-address 0.0.0.0:4250 --lookupd-tcp-address=nsqlookupd2:4160
+    depends_on:
+      - nsqlookupd2
+    ports:
+      - "4250:4250"
+      - "4251:4251"
+  nsqtonsq1:
+    image: nsqio/nsq
+    command: /nsq_to_nsq --nsqd-tcp-address nsqd:4150 --topic EnrichedEvents --destination-nsqd-tcp-address nsqd2:4250 --destination-topic EnrichedEventsMirror
+    depends_on:
+      - nsqd
+      - nsqd2
+  nsqtonsq2:
+    image: nsqio/nsq
+    command: /nsq_to_nsq --nsqd-tcp-address nsqd:4150 --topic BadEnrichedEvents --destination-nsqd-tcp-address nsqd2:4250 --destination-topic BadEnrichedEventsMirror
+    depends_on:
+      - nsqd
+      - nsqd2
+  enrich:
+    image: snowplow/snowplow-enrich-nsq:latest
+    container_name: enrich-nsq
+    depends_on:
+      - nsqlookupd
+      - nsqd
+    command: [
+      "--config", "/snowplow/config/enrich-nsq.hocon",
+      "--iglu-config", "/snowplow/config/iglu_resolver.json",
+      "--enrichments", "/snowplow/config/enrichments"
+    ]
+    restart: always
+    volumes:
+      - ./config:/snowplow/config/
+    logging:
+      options:
+        max-size: "10M"
+        max-file: "10"
+    environment:
+      - "JAVA_OPTS=-Xmx1G -Dlog4j2.formatMsgNoLookups=true"

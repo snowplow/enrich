@@ -33,6 +33,7 @@ import com.snowplowanalytics.iglu.core.circe.implicits._
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input
 import com.snowplowanalytics.snowplow.enrich.common.fs2.ByteSink
+import com.snowplowanalytics.snowplow.enrich.common.fs2.test.CollectorPayloadGen
 
 import com.snowplowanalytics.snowplow.enrich.kinesis.{KinesisRun, Sink, Source}
 

@@ -1,0 +1,22 @@
+{
+  "input": {
+    "topic": "collector-payloads"
+    "channel": "collector-payloads-channel"
+    "lookupHost": "127.0.0.1"
+    "lookupPort": 4161
+  }
+
+  "output": {
+    "good": {
+      "topic": "enriched"
+      "nsqdHost": "127.0.0.1"
+      "nsqdPort": 4150
+    }
+
+    "bad": {
+      "topic": "bad"
+      "nsqdHost": "127.0.0.1"
+      "nsqdPort": 4150
+    }
+  }
+}

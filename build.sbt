@@ -23,7 +23,7 @@ lazy val root = project.in(file("."))
   .settings(projectSettings)
   .settings(compilerSettings)
   .settings(resolverSettings)
-  .aggregate(common, commonFs2, pubsub, pubsubDistroless, kinesis, kinesisDistroless, streamCommon, streamKinesis, streamKinesisDistroless, streamKafka, streamKafkaDistroless, streamNsq, streamNsqDistroless, streamStdin, kafka, kafkaDistroless, rabbitmq, rabbitmqDistroless)
+  .aggregate(common, commonFs2, pubsub, pubsubDistroless, kinesis, kinesisDistroless, streamCommon, streamKinesis, streamKinesisDistroless, streamKafka, streamKafkaDistroless, streamNsq, streamNsqDistroless, streamStdin, kafka, kafkaDistroless, rabbitmq, rabbitmqDistroless, nsq, nsqDistroless)
 
 lazy val common = project
   .in(file("modules/common"))
@@ -102,6 +102,8 @@ lazy val commonFs2 = project
   .enablePlugins(BuildInfoPlugin)
   .settings(commonFs2BuildSettings)
   .settings(libraryDependencies ++= commonFs2Dependencies)
+  .settings(Defaults.itSettings)
+  .configs(IntegrationTest)
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(common)
 
@@ -147,7 +149,7 @@ lazy val kinesisDistroless = project
   ))
   .settings(excludeDependencies ++= exclusions)
   .settings(addCompilerPlugin(betterMonadicFor))
-  .dependsOn(commonFs2)
+  .dependsOn(commonFs2 % "compile->compile;it->it")
   .settings(Defaults.itSettings)
   .configs(IntegrationTest)
   .settings((IntegrationTest / test) := (IntegrationTest / test).dependsOn(Docker / publishLocal).value)
@@ -165,7 +167,7 @@ lazy val kafka = project
   .settings(Defaults.itSettings)
   .configs(IntegrationTest)
   .settings(addCompilerPlugin(betterMonadicFor))
-  .dependsOn(commonFs2)
+  .dependsOn(commonFs2 % "compile->compile;it->it")
 
 lazy val kafkaDistroless = project
   .in(file("modules/distroless/kafka"))
@@ -200,3 +202,30 @@ lazy val rabbitmqDistroless = project
   .settings(excludeDependencies ++= exclusions)
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(commonFs2)
+
+lazy val nsq = project
+  .in(file("modules/nsq"))
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDockerPlugin)
+  .settings(nsqBuildSettings)
+  .settings(libraryDependencies ++= nsqDependencies)
+  .settings(excludeDependencies ++= exclusions)
+  .settings(addCompilerPlugin(betterMonadicFor))
+  .dependsOn(commonFs2)
+
+lazy val nsqDistroless = project
+  .in(file("modules/distroless/nsq"))
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDistrolessDockerPlugin)
+  .settings(sourceDirectory := (nsq / sourceDirectory).value)
+  .settings(nsqDistrolessBuildSettings)
+  .settings(libraryDependencies ++= nsqDependencies ++ Seq(
+    // integration tests dependencies
+    specs2CEIt,
+    testContainersIt
+  ))
+  .settings(excludeDependencies ++= exclusions)
+  .settings(addCompilerPlugin(betterMonadicFor))
+  .dependsOn(commonFs2 % "compile->compile;it->it")
+  .settings(Defaults.itSettings)
+  .configs(IntegrationTest)
+  .settings((IntegrationTest / test) := (IntegrationTest / test).dependsOn(Docker / publishLocal).value)
+  .settings((IntegrationTest / testOnly) := (IntegrationTest / testOnly).dependsOn(Docker / publishLocal).evaluated)

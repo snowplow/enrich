@@ -26,6 +26,7 @@ import org.specs2.specification.AfterAll
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 
 import com.snowplowanalytics.snowplow.enrich.kinesis.enrichments._
+import com.snowplowanalytics.snowplow.enrich.common.fs2.test.CollectorPayloadGen
 
 class EnrichKinesisSpec extends Specification with AfterAll with CatsIO {
 

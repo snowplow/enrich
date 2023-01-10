@@ -10,7 +10,7 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.kafka.test
+package com.snowplowanalytics.snowplow.enrich.common.fs2.test
 
 import fs2.Stream
 
@@ -18,8 +18,8 @@ import cats.implicits._
 
 import cats.effect.Sync
 
-import io.circe.syntax._
-import io.circe.{Encoder, Json, JsonObject}
+import _root_.io.circe.syntax._
+import _root_.io.circe.{Encoder, Json, JsonObject}
 
 import org.scalacheck.{Arbitrary, Gen}
 
@@ -36,11 +36,10 @@ import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 
 object CollectorPayloadGen {
 
-  private val serializer =  new TSerializer()
   private val base64Encoder = Base64.getEncoder()
 
-  def generate[F[_]: Sync](nbGoodEvents: Long, nbBadRows: Long): Stream[F, Array[Byte]] =
-    generateRaw(nbGoodEvents, nbBadRows).map(_.toThrift).map(serializer.serialize)
+  def generate[F[_]: Sync](nbGoodEvents: Long, nbBadRows: Long = 0L): Stream[F, Array[Byte]] =
+    generateRaw(nbGoodEvents, nbBadRows).map(_.toThrift).map(new TSerializer().serialize)
 
   def generateRaw[F[_]: Sync](nbGoodEvents: Long, nbBadRows: Long): Stream[F, CollectorPayload] =
     Stream.repeatEval(runGen(collectorPayloadGen(true))).take(nbGoodEvents) ++ Stream.repeatEval(runGen(collectorPayloadGen(false))).take(nbBadRows)

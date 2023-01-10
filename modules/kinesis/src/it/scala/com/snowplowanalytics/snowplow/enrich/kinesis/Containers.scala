@@ -85,7 +85,7 @@ object Containers {
         "AWS_REGION" -> KinesisConfig.region,
         "AWS_ACCESS_KEY_ID" -> "foo",
         "AWS_SECRET_ACCESS_KEY" -> "bar",
-        "JAVA_OPTS" -> "-Dorg.slf4j.simpleLogger.defaultLogLevel=info",
+        "JDK_JAVA_OPTIONS" -> "-Dorg.slf4j.simpleLogger.defaultLogLevel=info",
         // appName must be unique in enrich config so that Kinesis consumers in tests don't interfere
         "APP_NAME" -> s"${testName}_$uuid",
         "REGION" -> KinesisConfig.region,

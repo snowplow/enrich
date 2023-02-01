@@ -41,7 +41,7 @@ object Dependencies {
     val hikariCP         = "5.0.1"
     val jaywayJsonpath   = "2.7.0"
     val iabClient        = "0.2.0"
-    val yauaa            = "7.9.0"
+    val yauaa            = "7.11.0"
     val log4jToSlf4j     = "2.18.0"
     val guava            = "28.1-jre"
     val slf4j            = "2.0.3"

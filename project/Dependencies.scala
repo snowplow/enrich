@@ -362,7 +362,8 @@ object Dependencies {
 
     val kafkaDependencies = Seq(
       fs2Kafka,
-      kafkaClients // override kafka-clients 2.8.1 from fs2Kafka to address https://security.snyk.io/vuln/SNYK-JAVA-ORGAPACHEKAFKA-3027430
+      kafkaClients, // override kafka-clients 2.8.1 from fs2Kafka to address https://security.snyk.io/vuln/SNYK-JAVA-ORGAPACHEKAFKA-3027430
+      mskAuth
     )
 
     // exclusions

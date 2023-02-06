@@ -53,5 +53,5 @@ limitations under the License.
 [coveralls]: https://coveralls.io/github/snowplow/enrich?branch=master
 [coveralls-image]: https://coveralls.io/repos/github/snowplow/enrich/badge.svg?branch=master
 
-[release-image]: https://img.shields.io/badge/release-3.6.0.1-blue.svg?style=flat
+[release-image]: https://img.shields.io/badge/release-3.6.0.2-blue.svg?style=flat
 [releases]: https://github.com/snowplow/enrich/releases

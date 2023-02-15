@@ -13,7 +13,7 @@
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery
 
 import cats.Monad
-import cats.data.{EitherT, NonEmptyList, ValidatedNel}
+import cats.data.{EitherT, NonEmptyList, Validated, ValidatedNel}
 import cats.effect.Clock
 import cats.implicits._
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SelfDescribingData}
@@ -38,7 +38,6 @@ object SqlQueryEnrichment extends ParseableEnrichment {
       "sql_query_enrichment_config",
       "jsonschema",
       1,
-      0,
       0
     )
 
@@ -73,8 +72,15 @@ object SqlQueryEnrichment extends ParseableEnrichment {
         CirceUtils.extract[Rdbms](c, "parameters", "database").toValidatedNel,
         CirceUtils.extract[Query](c, "parameters", "query").toValidatedNel,
         output,
-        CirceUtils.extract[Cache](c, "parameters", "cache").toValidatedNel
-      ).mapN(SqlQueryConf(schemaKey, _, _, _, _, _)).toEither
+        CirceUtils.extract[Cache](c, "parameters", "cache").toValidatedNel,
+        CirceUtils
+          .extract[Option[Boolean]](c, "parameters", "ignoreOnError")
+          .map {
+            case Some(value) => value
+            case None => false
+          }
+          .toValidatedNel
+      ).mapN(SqlQueryConf(schemaKey, _, _, _, _, _, _)).toEither
     }.toValidated
 
   def apply[F[_]: CreateSqlQueryEnrichment](conf: SqlQueryConf, blocker: BlockerF[F]): F[SqlQueryEnrichment[F]] =
@@ -111,7 +117,8 @@ final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor: ResourceF: Clock](
   output: Output,
   sqlQueryEvaluator: SqlQueryEvaluator[F],
   blocker: BlockerF[F],
-  dataSource: DataSource
+  dataSource: DataSource,
+  ignoreOnError: Boolean
 ) extends Enrichment {
   private val enrichmentInfo =
     FailureDetails.EnrichmentInformation(schemaKey, "sql-query").some
@@ -140,7 +147,10 @@ final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor: ResourceF: Clock](
       result <- EitherT(ResourceF[F].use(connection)(closeConnection)(lookup(event, derivedContexts, customContexts, unstructEvent, _)))
     } yield result
 
-    contexts.leftMap(failureDetails).value.map(_.toValidated)
+    contexts.leftMap(failureDetails).toValidated.map {
+      case Validated.Invalid(_) if ignoreOnError => Validated.Valid(List.empty)
+      case other => other
+    }
   }
 
   private def lookup(

@@ -35,7 +35,7 @@ class SqlQueryEnrichmentSpec extends Specification with ValidatedMatchers {
       "com.snowplowanalytics.snowplow.enrichments",
       "sql_query_enrichment_config",
       "jsonschema",
-      SchemaVer.Full(1, 0, 0)
+      SchemaVer.Full(1, 0, 1)
     )
 
   def e1 = {
@@ -68,7 +68,7 @@ class SqlQueryEnrichmentSpec extends Specification with ValidatedMatchers {
       "SELECT username, email_address, date_of_birth FROM tbl_users WHERE user = ? AND client = ? LIMIT 1"
     )
     val config =
-      SqlQueryConf(SCHEMA_KEY, inputs, db, query, Output(output, Output.AtMostOne), cache)
+      SqlQueryConf(SCHEMA_KEY, inputs, db, query, Output(output, Output.AtMostOne), cache, ignoreOnError = true)
 
     val configuration = parse(
       """
@@ -123,7 +123,8 @@ class SqlQueryEnrichmentSpec extends Specification with ValidatedMatchers {
           "cache": {
             "size": 3000,
             "ttl": 60
-          }
+          },
+          "ignoreOnError": true
         }
       }"""
     ).toOption.get

@@ -55,7 +55,8 @@ object CreateSqlQueryEnrichment {
               conf.output,
               evaluator,
               blocker,
-              getDataSource(conf.db)
+              getDataSource(conf.db),
+              conf.ignoreOnError
             )
           }
       }

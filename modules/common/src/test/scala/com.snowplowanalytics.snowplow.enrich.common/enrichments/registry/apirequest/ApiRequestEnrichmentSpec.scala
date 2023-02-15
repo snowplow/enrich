@@ -13,19 +13,17 @@
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest
 
 import cats.Id
+import cats.data.ValidatedNel
 import cats.syntax.either._
-
 import io.circe.Json
 import io.circe.literal._
 import io.circe.parser._
-
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
-
+import com.snowplowanalytics.snowplow.badrows.FailureDetails
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.ApiRequestConf
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.HttpClient
 import com.snowplowanalytics.snowplow.enrich.common.utils.Clock.idClock
-
 import org.specs2.Specification
 import org.specs2.matcher.ValidatedMatchers
 import org.specs2.mock.Mockito
@@ -37,6 +35,8 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
   skip incorrect input (both json and pojo) in configuration             $e3
   extract correct configuration for POST request and perform the request $e4
   parse API output with number field successfully                        $e5
+  return enrichment failure when API returns an error                    $e6
+  return empty list of contexts when API returns an error                $e7
   """
 
   val SCHEMA_KEY =
@@ -79,7 +79,7 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
     }
     val output = Output("iglu:com.acme/user/jsonschema/1-0-0", Some(JsonOutput("$.record")))
     val cache = Cache(3000, 60)
-    val config = ApiRequestConf(SCHEMA_KEY, inputs, api, List(output), cache)
+    val config = ApiRequestConf(SCHEMA_KEY, inputs, api, List(output), cache, ignoreOnError = false)
 
     val fakeEnrichedEvent = new EnrichedEvent {
       app_id = "some-fancy-app-id"
@@ -316,7 +316,7 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
     val output =
       Output(schema = "iglu:com.acme/user/jsonschema/1-0-0", json = Some(JsonOutput("$.record")))
     val cache = Cache(size = 3000, ttl = 60)
-    val config = ApiRequestConf(SCHEMA_KEY, inputs, api, List(output), cache)
+    val config = ApiRequestConf(SCHEMA_KEY, inputs, api, List(output), cache, ignoreOnError = false)
 
     val fakeEnrichedEvent = new EnrichedEvent {
       app_id = "some-fancy-app-id"
@@ -441,7 +441,7 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
     }
     val output = Output("iglu:com.acme/geo/jsonschema/1-0-0", Some(JsonOutput("$")))
     val cache = Cache(3000, 60)
-    val config = ApiRequestConf(SCHEMA_KEY, inputs, api, List(output), cache)
+    val config = ApiRequestConf(SCHEMA_KEY, inputs, api, List(output), cache, ignoreOnError = false)
 
     val expectedDerivation =
       SelfDescribingData(
@@ -452,5 +452,33 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
     val enrichedContextResult = config.enrichment[Id].lookup(new EnrichedEvent, Nil, Nil, None)
 
     enrichedContextResult must beValid(List(expectedDerivation))
+  }
+
+  def e6 =
+    failingLookup(ignoreOnError = false) must beInvalid
+
+  def e7 =
+    failingLookup(ignoreOnError = true) must beValid(List.empty)
+
+  private def failingLookup(ignoreOnError: Boolean): ValidatedNel[FailureDetails.EnrichmentFailure, List[SelfDescribingData[Json]]] = {
+    val inputs = List()
+    val api = HttpApi("GET", "unused", 1000, Authentication(None))
+    implicit val idHttpClient: HttpClient[Id] = new HttpClient[Id] {
+      override def getResponse(
+        uri: String,
+        authUser: Option[String],
+        authPassword: Option[String],
+        body: Option[String],
+        method: String,
+        connectionTimeout: Option[Long],
+        readTimeout: Option[Long]
+      ): Id[Either[Throwable, String]] =
+        Left(new RuntimeException("API failed!!!"))
+    }
+    val output = Output("unused", None)
+    val cache = Cache(3000, 60)
+    val config = ApiRequestConf(SCHEMA_KEY, inputs, api, List(output), cache, ignoreOnError)
+
+    config.enrichment[Id].lookup(new EnrichedEvent, Nil, Nil, None)
   }
 }

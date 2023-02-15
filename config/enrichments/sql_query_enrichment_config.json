@@ -1,5 +1,5 @@
 {
-	"schema": "iglu:com.snowplowanalytics.snowplow.enrichments/sql_query_enrichment_config/jsonschema/1-0-0",
+	"schema": "iglu:com.snowplowanalytics.snowplow.enrichments/sql_query_enrichment_config/jsonschema/1-0-1",
 
 	"data": {
 
@@ -53,7 +53,8 @@
 			"cache": {
 				"size": 3000,
 				"ttl": 60
-			}
+			},
+			"ignoreOnError": false
 		}
     }
 }

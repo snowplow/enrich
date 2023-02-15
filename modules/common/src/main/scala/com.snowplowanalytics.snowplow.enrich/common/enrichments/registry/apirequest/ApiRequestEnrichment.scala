@@ -13,7 +13,7 @@
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest
 
 import cats.Monad
-import cats.data.{EitherT, NonEmptyList, ValidatedNel}
+import cats.data.{EitherT, NonEmptyList, Validated, ValidatedNel}
 import cats.effect.Clock
 import cats.implicits._
 import com.snowplowanalytics.iglu.core.circe.implicits._
@@ -69,9 +69,16 @@ object ApiRequestEnrichment extends ParseableEnrichment {
           inputs,
           CirceUtils.extract[HttpApi](c, "parameters", "api", "http").toValidatedNel,
           CirceUtils.extract[List[Output]](c, "parameters", "outputs").toValidatedNel,
-          CirceUtils.extract[Cache](c, "parameters", "cache").toValidatedNel
-        ).mapN { (inputs, api, outputs, cache) =>
-          ApiRequestConf(schemaKey, inputs, api, outputs, cache)
+          CirceUtils.extract[Cache](c, "parameters", "cache").toValidatedNel,
+          CirceUtils
+            .extract[Option[Boolean]](c, "parameters", "ignoreOnError")
+            .map {
+              case Some(value) => value
+              case None => false
+            }
+            .toValidatedNel
+        ).mapN { (inputs, api, outputs, cache, ignoreOnError) =>
+          ApiRequestConf(schemaKey, inputs, api, outputs, cache, ignoreOnError)
         }.toEither
       }
       .toValidated
@@ -96,7 +103,8 @@ final case class ApiRequestEnrichment[F[_]: Monad: HttpClient: Clock](
   inputs: List[Input],
   api: HttpApi,
   outputs: List[Output],
-  apiRequestEvaluator: ApiRequestEvaluator[F]
+  apiRequestEvaluator: ApiRequestEvaluator[F],
+  ignoreOnError: Boolean
 ) extends Enrichment {
   import ApiRequestEnrichment._
 
@@ -137,7 +145,10 @@ final case class ApiRequestEnrichment[F[_]: Monad: HttpClient: Clock](
         outputs <- EitherT.fromEither[F](contexts)
       } yield outputs
 
-    contexts.leftMap(failureDetails).toValidated
+    contexts.leftMap(failureDetails).toValidated.map {
+      case Validated.Invalid(_) if ignoreOnError => Validated.Valid(List.empty)
+      case other => other
+    }
   }
 
   /**
@@ -221,7 +232,8 @@ object CreateApiRequestEnrichment {
               conf.inputs,
               conf.api,
               conf.outputs,
-              evaluator
+              evaluator,
+              conf.ignoreOnError
             )
           }
       }

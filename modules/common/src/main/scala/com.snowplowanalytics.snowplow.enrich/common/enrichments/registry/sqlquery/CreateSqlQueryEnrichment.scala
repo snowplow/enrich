@@ -64,7 +64,8 @@ object CreateSqlQueryEnrichment {
               evaluator,
               blocker,
               shifter,
-              getDataSource(conf.db)
+              getDataSource(conf.db),
+              conf.ignoreOnError
             )
           }
       }

@@ -54,7 +54,8 @@ object EnrichmentConf {
     inputs: List[apirequest.Input],
     api: HttpApi,
     outputs: List[apirequest.Output],
-    cache: apirequest.Cache
+    cache: apirequest.Cache,
+    ignoreOnError: Boolean
   ) extends EnrichmentConf {
     def enrichment[F[_]: CreateApiRequestEnrichment]: F[ApiRequestEnrichment[F]] =
       ApiRequestEnrichment[F](this)
@@ -76,7 +77,8 @@ object EnrichmentConf {
     db: Rdbms,
     query: SqlQueryEnrichment.Query,
     output: sqlquery.Output,
-    cache: SqlQueryEnrichment.Cache
+    cache: SqlQueryEnrichment.Cache,
+    ignoreOnError: Boolean
   ) extends EnrichmentConf {
     def enrichment[F[_]: Monad: CreateSqlQueryEnrichment](blocker: BlockerF[F], shifter: ShiftExecution[F]): F[SqlQueryEnrichment[F]] =
       SqlQueryEnrichment[F](this, blocker, shifter)

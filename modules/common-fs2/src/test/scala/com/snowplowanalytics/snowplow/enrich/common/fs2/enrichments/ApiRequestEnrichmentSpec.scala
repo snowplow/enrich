@@ -67,7 +67,8 @@ class ApiRequestEnrichmentSpec extends Specification with CatsIO {
         List(Input.Json("key1", "unstruct_event", SchemaCriterion("com.acme", "test", "jsonschema", 1), "$.path.id")),
         HttpApi("GET", "http://localhost:8080/enrichment/api/{{key1}}", 2000, Authentication(None)),
         List(RegistryOutput("iglu:com.acme/output/jsonschema/1-0-0", Some(JsonOutput("$")))),
-        Cache(1, 1000)
+        Cache(1, 1000),
+        ignoreOnError = false
       )
 
       val expected = Contexts(

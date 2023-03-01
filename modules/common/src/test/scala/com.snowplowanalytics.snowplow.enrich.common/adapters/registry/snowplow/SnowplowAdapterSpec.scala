@@ -326,7 +326,8 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
                   "required".some
                 )
               )
-            )
+            ),
+            None
           )
         )
       )
@@ -353,7 +354,8 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
                   "type".some
                 )
               )
-            )
+            ),
+            None
           )
         )
       ) |
@@ -381,7 +383,8 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
                   "required".some
                 )
               )
-            )
+            ),
+            None
           )
         )
       ) |
@@ -422,7 +425,8 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
                     "additionalProperties".some
                   )
                 )
-              )
+              ),
+              None
             )
           )
         ) |> { (_, json, expected) =>

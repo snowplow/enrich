@@ -234,12 +234,13 @@ object Tp2Adapter extends Adapter {
             )
       _ <- client
              .check(sd)
-             .leftMap(e =>
-               NonEmptyList.one(
-                 FailureDetails.TrackerProtocolViolation
-                   .IgluError(sd.schema, e)
-               )
-             )
+             .leftMap({
+               case (e, _) =>
+                 NonEmptyList.one(
+                   FailureDetails.TrackerProtocolViolation
+                     .IgluError(sd.schema, e)
+                 )
+             })
              .subflatMap { _ =>
                schemaCriterion.matches(sd.schema) match {
                  case true => ().asRight

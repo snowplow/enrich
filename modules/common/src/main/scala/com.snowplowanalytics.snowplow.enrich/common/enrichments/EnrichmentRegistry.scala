@@ -65,7 +65,7 @@ object EnrichmentRegistry {
             )
       _ <- client
              .check(sd)
-             .leftMap(e => NonEmptyList.one(e.asJson.noSpaces))
+             .leftMap({ case (e, _) => NonEmptyList.one(e.asJson.noSpaces) })
              .subflatMap { _ =>
                EnrichmentConfigSchemaCriterion.matches(sd.schema) match {
                  case true => ().asRight
@@ -92,9 +92,10 @@ object EnrichmentRegistry {
                              )
                        _ <- client
                               .check(sd)
-                              .leftMap(e =>
-                                NonEmptyList.one(s"Enrichment with key '${sd.schema.toSchemaUri}` is invalid - ${e.asJson.noSpaces}")
-                              )
+                              .leftMap({
+                                case (e, _) =>
+                                  NonEmptyList.one(s"Enrichment with key '${sd.schema.toSchemaUri}` is invalid - ${e.asJson.noSpaces}")
+                              })
                        conf <- EitherT.fromEither[F](
                                  buildEnrichmentConfig(sd.schema, sd.data, localMode).toEither
                                )

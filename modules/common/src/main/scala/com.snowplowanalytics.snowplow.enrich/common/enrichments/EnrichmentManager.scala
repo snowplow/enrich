@@ -80,10 +80,11 @@ object EnrichmentManager {
                                unstructEvent,
                                featureFlags.legacyEnrichmentOrder
                              )
-      _ <- EitherT.rightT[F, BadRow] {
-             if (enrichmentsContexts.nonEmpty)
-               enriched.derived_contexts = ME.formatDerivedContexts(enrichmentsContexts)
-           }
+      _ = {
+        ME.formatUnstructEvent(unstructEvent).foreach(e => enriched.unstruct_event = e)
+        ME.formatContexts(inputContexts).foreach(c => enriched.contexts = c)
+        ME.formatContexts(enrichmentsContexts).foreach(c => enriched.derived_contexts = c)
+      }
       _ <- IgluUtils
              .validateEnrichmentsContexts[F](client, enrichmentsContexts, raw, processor, enriched)
       _ <- EitherT.rightT[F, BadRow](

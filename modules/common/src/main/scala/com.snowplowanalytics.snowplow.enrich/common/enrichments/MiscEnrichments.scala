@@ -30,6 +30,9 @@ object MiscEnrichments {
   val ContextsSchema =
     SchemaKey("com.snowplowanalytics.snowplow", "contexts", "jsonschema", SchemaVer.Full(1, 0, 1))
 
+  val UnstructEventSchema =
+    SchemaKey("com.snowplowanalytics.snowplow", "unstruct_event", "jsonschema", SchemaVer.Full(1, 0, 0))
+
   /**
    * The version of this ETL. Appends this version to the supplied "host" ETL.
    * @param processor The version of the host ETL running this library
@@ -82,6 +85,11 @@ object MiscEnrichments {
     }
 
   /** Turn a list of custom contexts into a self-describing JSON property */
-  def formatDerivedContexts(derivedContexts: List[SelfDescribingData[Json]]): String =
-    SelfDescribingData(ContextsSchema, Json.arr(derivedContexts.map(_.normalize): _*)).asString
+  def formatContexts(contexts: List[SelfDescribingData[Json]]): Option[String] =
+    if (contexts.isEmpty) None
+    else Some(SelfDescribingData(ContextsSchema, Json.arr(contexts.map(_.normalize): _*)).asString)
+
+  /** Turn a unstruct event into a self-describing JSON property */
+  def formatUnstructEvent(unstructEvent: Option[SelfDescribingData[Json]]): Option[String] =
+    unstructEvent.map(e => SelfDescribingData(UnstructEventSchema, e.normalize).asString)
 }

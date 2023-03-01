@@ -18,6 +18,7 @@ import cats.Id
 import cats.implicits._
 import cats.data.NonEmptyList
 import io.circe.literal._
+import io.circe.parser.{parse => jparse}
 import org.joda.time.DateTime
 import com.snowplowanalytics.snowplow.badrows._
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer}
@@ -779,6 +780,166 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       )
       enriched.value.map(_.useragent) must beRight(qs_ua)
       enriched.value.map(_.derived_contexts) must beRight((_: String).contains("\"agentName\":\"%1$S\""))
+    }
+
+    "emit an EnrichedEvent with superseded schemas" >> {
+      val expectedContexts = jparse(
+        """
+        {
+          "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1",
+          "data": [
+            {
+              "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+              "data": {
+                "emailAddress": "hello@world.com",
+                "emailAddress2": "foo@bar.org"
+              }
+            },
+            {
+              "schema":"iglu:com.acme/superseding_example/jsonschema/1-0-1",
+              "data": {
+                "field_a": "value_a",
+                "field_b": "value_b"
+              }
+            },
+            {
+              "schema":"iglu:com.acme/superseding_example/jsonschema/1-0-1",
+              "data": {
+                "field_a": "value_a",
+                "field_b": "value_b",
+                "field_d": "value_d"
+              }
+            },
+            {
+              "schema":"iglu:com.acme/superseding_example/jsonschema/1-0-1",
+              "data": {
+                "field_a": "value_a",
+                "field_b": "value_b",
+                "field_c": "value_c",
+                "field_d": "value_d"
+              }
+            }
+          ]
+        }
+        """
+      ).toOption.get
+      val expectedDerivedContexts = jparse(
+        """
+        {
+          "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1",
+          "data": [
+            {
+              "schema":"iglu:com.snowplowanalytics.iglu/validation_info/jsonschema/1-0-0",
+              "data":{
+                "originalSchema":"iglu:com.acme/superseding_example/jsonschema/1-0-0",
+                "validatedWith":"1-0-1"
+              }
+            },
+            {
+              "schema":"iglu:com.snowplowanalytics.iglu/validation_info/jsonschema/1-0-0",
+              "data":{
+                "originalSchema":"iglu:com.acme/superseding_example/jsonschema/2-0-0",
+                "validatedWith":"2-0-1"
+              }
+            }
+          ]
+        }
+        """
+      ).toOption.get
+      val expectedUnstructEvent = jparse(
+        """
+        {
+          "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+          "data":{
+            "schema":"iglu:com.acme/superseding_example/jsonschema/2-0-1",
+            "data": {
+              "field_e": "value_e",
+              "field_f": "value_f",
+              "field_g": "value_g"
+            }
+          }
+        }
+        """
+      ).toOption.get
+      val parameters = Map(
+        "e" -> "ue",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "co" ->
+          """
+          {
+            "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
+            "data": [
+              {
+                "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+                "data": {
+                  "emailAddress": "hello@world.com",
+                  "emailAddress2": "foo@bar.org"
+                }
+              },
+              {
+                "schema":"iglu:com.acme/superseding_example/jsonschema/1-0-0",
+                "data": {
+                  "field_a": "value_a",
+                  "field_b": "value_b"
+                }
+              },
+              {
+                "schema":"iglu:com.acme/superseding_example/jsonschema/1-0-0",
+                "data": {
+                  "field_a": "value_a",
+                  "field_b": "value_b",
+                  "field_d": "value_d"
+                }
+              },
+              {
+                "schema":"iglu:com.acme/superseding_example/jsonschema/1-0-1",
+                "data": {
+                  "field_a": "value_a",
+                  "field_b": "value_b",
+                  "field_c": "value_c",
+                  "field_d": "value_d"
+                }
+              }
+            ]
+          }
+        """,
+        "ue_pr" ->
+          """
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data":{
+              "schema":"iglu:com.acme/superseding_example/jsonschema/2-0-0",
+              "data": {
+                "field_e": "value_e",
+                "field_f": "value_f",
+                "field_g": "value_g"
+              }
+            }
+          }"""
+      ).toOpt
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      val enriched = EnrichmentManager.enrichEvent[Id](
+        enrichmentReg.copy(yauaa = None),
+        client,
+        processor,
+        timestamp,
+        rawEvent,
+        AcceptInvalid.featureFlags,
+        AcceptInvalid.countInvalid
+      )
+
+      enriched.value must beRight.like {
+        case e: EnrichedEvent =>
+          val p = EnrichedEvent.toPartiallyEnrichedEvent(e)
+          val contextsJson = jparse(p.contexts.get).toOption.get
+          val derivedContextsJson = jparse(p.derived_contexts.get).toOption.get
+          val ueJson = jparse(p.unstruct_event.get).toOption.get
+          (contextsJson must beEqualTo(expectedContexts)) and
+            (derivedContextsJson must beEqualTo(expectedDerivedContexts)) and
+            (ueJson must beEqualTo(expectedUnstructEvent))
+        case _ => ko
+      }
     }
   }
 

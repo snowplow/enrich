@@ -27,6 +27,7 @@ import cats.data.Validated.{Invalid, Valid}
 
 import io.circe.Json
 import io.circe.syntax._
+import io.circe.parser.{parse => jparse}
 
 import org.apache.thrift.TSerializer
 
@@ -116,9 +117,17 @@ object BlackBoxTesting extends Specification with CatsIO {
 
   private def checkEnriched(enriched: EnrichedEvent, expectedFields: Map[String, String]) = {
     val asMap = getMap(enriched)
-    val r = expectedFields.map { case (k, v) => asMap.get(k) must beSome(v) }
+    val r = expectedFields.map {
+      case (k, v) if k == "unstruct_event" || k == "contexts" || k == "derived_contexts" =>
+        compareJsons(asMap.getOrElse(k, ""), v) must beTrue
+      case (k, v) =>
+        asMap.get(k) must beSome(v)
+    }
     r.toList.reduce(_ and _)
   }
+
+  private def compareJsons(j1: String, j2: String): Boolean =
+    j1 == j2 || jparse(j1).toOption.get == jparse(j2).toOption.get
 
   private val enrichedFields = classOf[EnrichedEvent].getDeclaredFields()
   enrichedFields.foreach(_.setAccessible(true))

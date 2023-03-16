@@ -51,6 +51,7 @@ object FileSystem {
       .subflatMap { text =>
         val either = for {
           tsConfig <- Either.catchNonFatal(ConfigFactory.parseString(text)).leftMap(_.getMessage)
+          tsConfig <- Either.catchNonFatal(tsConfig.resolve()).leftMap(e => s"Can't resolve config: ${e.getMessage}")
           tsConfig <- Either.catchNonFatal(fallbacks(tsConfig)).leftMap(_.getMessage)
           parsed <- tsConfig.as[A].leftMap(_.show)
         } yield parsed

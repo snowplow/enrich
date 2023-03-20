@@ -33,7 +33,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequ
   HttpApi
 }
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.{CreateSqlQueryEnrichment, Rdbms, SqlQueryEnrichment}
-import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, ShiftExecution}
 
 sealed trait EnrichmentConf {
 
@@ -78,8 +78,8 @@ object EnrichmentConf {
     output: sqlquery.Output,
     cache: SqlQueryEnrichment.Cache
   ) extends EnrichmentConf {
-    def enrichment[F[_]: Monad: CreateSqlQueryEnrichment](blocker: BlockerF[F]): F[SqlQueryEnrichment[F]] =
-      SqlQueryEnrichment[F](this, blocker)
+    def enrichment[F[_]: Monad: CreateSqlQueryEnrichment](blocker: BlockerF[F], shifter: ShiftExecution[F]): F[SqlQueryEnrichment[F]] =
+      SqlQueryEnrichment[F](this, blocker, shifter)
   }
 
   final case class AnonIpConf(

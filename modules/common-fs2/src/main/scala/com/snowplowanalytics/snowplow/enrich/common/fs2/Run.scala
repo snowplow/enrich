@@ -167,7 +167,7 @@ object Run {
       }
       val updates = {
         implicit val httpClient: Http4sClient[F] = env.httpClient
-        Assets.run[F, A](env.blocker, env.semaphore, env.assetsUpdatePeriod, env.assetsState, env.enrichments)
+        Assets.run[F, A](env.blocker, env.shifter, env.semaphore, env.assetsUpdatePeriod, env.assetsState, env.enrichments)
       }
       val telemetry = Telemetry.run[F, A](env)
       val reporting = env.metrics.report

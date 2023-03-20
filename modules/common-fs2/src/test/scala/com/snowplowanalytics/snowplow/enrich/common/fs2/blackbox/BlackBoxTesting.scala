@@ -40,7 +40,7 @@ import com.snowplowanalytics.iglu.client.resolver.registries.Registry
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
-import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, ShiftExecution}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 
@@ -140,7 +140,7 @@ object BlackBoxTesting extends Specification with CatsIO {
                      case Invalid(e) => IO.raiseError(new IllegalArgumentException(s"can't parse enrichmentsJson: $e"))
                      case Valid(list) => IO.pure(list)
                    }
-          built <- EnrichmentRegistry.build[IO](confs, BlockerF.noop).value
+          built <- EnrichmentRegistry.build[IO](confs, BlockerF.noop, ShiftExecution.noop).value
           registry <- built match {
                         case Left(e) => IO.raiseError(new IllegalArgumentException(s"can't build EnrichmentRegistry: $e"))
                         case Right(r) => IO.pure(r)

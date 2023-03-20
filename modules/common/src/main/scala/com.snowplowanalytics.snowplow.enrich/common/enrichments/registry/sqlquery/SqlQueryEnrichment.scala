@@ -135,7 +135,7 @@ final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor: ResourceF: Clock](
     unstructEvent: Option[SelfDescribingData[Json]]
   ): F[ValidatedNel[FailureDetails.EnrichmentFailure, List[SelfDescribingData[Json]]]] = {
     val contexts = for {
-      connection <- EitherT(DbExecutor.getConnection[F](dataSource))
+      connection <- EitherT(DbExecutor.getConnection[F](dataSource, blocker))
                       .leftMap(t => NonEmptyList.of("Error while getting the connection from the data source", t.toString))
       result <- EitherT(ResourceF[F].use(connection)(closeConnection)(lookup(event, derivedContexts, customContexts, unstructEvent, _)))
     } yield result

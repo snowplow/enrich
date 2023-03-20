@@ -19,14 +19,18 @@ import com.snowplowanalytics.iglu.core.SelfDescribingData
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.CachingEvaluator
 import com.zaxxer.hikari.HikariDataSource
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.SqlQueryConf
-import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, ResourceF}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, ResourceF, ShiftExecution}
 import io.circe.Json
 
 import scala.collection.immutable.IntMap
 
 /** Initialize resources, necessary for SQL Query enrichment: cache and connection */
 sealed trait CreateSqlQueryEnrichment[F[_]] {
-  def create(conf: SqlQueryConf, blocker: BlockerF[F]): F[SqlQueryEnrichment[F]]
+  def create(
+    conf: SqlQueryConf,
+    blocker: BlockerF[F],
+    shifter: ShiftExecution[F]
+  ): F[SqlQueryEnrichment[F]]
 }
 
 object CreateSqlQueryEnrichment {
@@ -37,7 +41,11 @@ object CreateSqlQueryEnrichment {
     implicit CLM: SqlCacheInit[F]
   ): CreateSqlQueryEnrichment[F] =
     new CreateSqlQueryEnrichment[F] {
-      def create(conf: SqlQueryConf, blocker: BlockerF[F]): F[SqlQueryEnrichment[F]] = {
+      def create(
+        conf: SqlQueryConf,
+        blocker: BlockerF[F],
+        shifter: ShiftExecution[F]
+      ): F[SqlQueryEnrichment[F]] = {
         val cacheConfig = CachingEvaluator.Config(
           size = conf.cache.size,
           successTtl = conf.cache.ttl,
@@ -55,6 +63,7 @@ object CreateSqlQueryEnrichment {
               conf.output,
               evaluator,
               blocker,
+              shifter,
               getDataSource(conf.db)
             )
           }

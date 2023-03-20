@@ -40,7 +40,7 @@ import com.snowplowanalytics.snowplow.badrows.BadRow
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
-import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, ShiftExecution}
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.{Assets, AttributedData, Enrich, EnrichSpec, Environment}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Environment.{Enrichments, StreamsSettings}
@@ -80,6 +80,7 @@ case class TestEnvironment[A](
       .run[IO, A](updatedEnv)
       .merge(
         Assets.run[IO, A](updatedEnv.blocker,
+                          updatedEnv.shifter,
                           updatedEnv.semaphore,
                           updatedEnv.assetsUpdatePeriod,
                           updatedEnv.assetsState,
@@ -136,9 +137,10 @@ object TestEnvironment extends CatsIO {
       clients = Clients.init[IO](http, Nil)
       sem <- Resource.eval(Semaphore[IO](1L))
       assetsState <- Resource.eval(Assets.State.make(blocker, sem, clients, enrichments.flatMap(_.filesToCache)))
+      shifter <- ShiftExecution.ofSingleThread
       enrichmentsRef <- {
         implicit val client: Http4sClient[IO] = http
-        Enrichments.make[IO](enrichments, BlockerF.ofBlocker(blocker))
+        Enrichments.make[IO](enrichments, BlockerF.ofBlocker(blocker), shifter)
       }
       goodRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
       piiRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
@@ -153,6 +155,7 @@ object TestEnvironment extends CatsIO {
                       http,
                       Some(http),
                       blocker,
+                      shifter,
                       source,
                       adapterRegistry,
                       g => goodRef.update(_ ++ g),

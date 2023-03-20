@@ -25,6 +25,7 @@ import cats.data.EitherT
 import cats.effect.{Bracket, Sync}
 import cats.implicits._
 
+import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.Input.ExtractedValue
 
 import scala.collection.immutable.IntMap
@@ -34,7 +35,7 @@ import scala.collection.immutable.IntMap
 trait DbExecutor[F[_]] {
 
   /** Get a connection from the Hikari data source */
-  def getConnection(dataSource: DataSource): F[Either[Throwable, Connection]]
+  def getConnection(dataSource: DataSource, blocker: BlockerF[F]): F[Either[Throwable, Connection]]
 
   /** Execute a SQL query */
   def execute(query: PreparedStatement): EitherT[F, Throwable, ResultSet]
@@ -82,8 +83,8 @@ object DbExecutor {
 
   implicit def syncDbExecutor[F[_]: Sync]: DbExecutor[F] =
     new DbExecutor[F] {
-      def getConnection(dataSource: DataSource): F[Either[Throwable, Connection]] =
-        Sync[F].delay(Either.catchNonFatal(dataSource.getConnection()))
+      def getConnection(dataSource: DataSource, blocker: BlockerF[F]): F[Either[Throwable, Connection]] =
+        blocker.blockOn(Sync[F].delay(Either.catchNonFatal(dataSource.getConnection())))
 
       def execute(query: PreparedStatement): EitherT[F, Throwable, ResultSet] =
         Sync[F].delay(query.executeQuery()).attemptT
@@ -127,7 +128,7 @@ object DbExecutor {
 
   implicit def idDbExecutor: DbExecutor[Id] =
     new DbExecutor[Id] {
-      def getConnection(dataSource: DataSource): Either[Throwable, Connection] =
+      def getConnection(dataSource: DataSource, blocker: BlockerF[Id]): Either[Throwable, Connection] =
         Either.catchNonFatal(dataSource.getConnection())
 
       def execute(query: PreparedStatement): EitherT[Id, Throwable, ResultSet] =
@@ -245,6 +246,6 @@ object DbExecutor {
       }
     }
 
-  def getConnection[F[_]: Monad: DbExecutor](dataSource: DataSource): F[Either[Throwable, Connection]] =
-    DbExecutor[F].getConnection(dataSource)
+  def getConnection[F[_]: Monad: DbExecutor](dataSource: DataSource, blocker: BlockerF[F]): F[Either[Throwable, Connection]] =
+    DbExecutor[F].getConnection(dataSource, blocker)
 }

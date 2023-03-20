@@ -23,8 +23,6 @@ import cats.effect.testing.specs2.CatsIO
 import org.specs2.mutable.Specification
 import org.specs2.specification.AfterAll
 
-import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
-
 import com.snowplowanalytics.snowplow.enrich.kinesis.enrichments._
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test.CollectorPayloadGen
 
@@ -94,10 +92,7 @@ class EnrichKinesisSpec extends Specification with AfterAll with CatsIO {
         Yauaa
       )
 
-      def containsEnrichmentsContexts(event: Event): Boolean =
-        enrichments.map(_.outputSchema).forall { schema =>
-          event.derived_contexts.data.map(_.schema).contains(schema)
-        }
+      val enrichmentsContexts = enrichments.map(_.outputSchema)
 
       val resources = for {
         _ <- Containers.mysqlServer
@@ -119,7 +114,10 @@ class EnrichKinesisSpec extends Specification with AfterAll with CatsIO {
           output <- enrich(input).compile.toList
           (good, bad) = parseOutput(output, testName)
         } yield {
-          good.forall(containsEnrichmentsContexts) must beTrue
+          good.size.toLong must beEqualTo(nbGood)
+          good.map { enriched =>
+            enriched.derived_contexts.data.map(_.schema) must containTheSameElementsAs(enrichmentsContexts)
+          }
           bad.size.toLong must beEqualTo(0l)
         }
       }

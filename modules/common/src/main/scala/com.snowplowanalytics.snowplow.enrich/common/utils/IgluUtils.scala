@@ -73,9 +73,8 @@ object IgluUtils {
                       .map(_.toValidatedNel)
       } yield (contexts, unstruct)
         .mapN { (c, ue) =>
-          val supersedingInfoContexts = (c.flatMap(_.supersedingInfo) ::: ue.flatMap(_.supersedingInfo).toList).distinct
-            .map(_.toSdj)
-          val contexts = c.map(_.sdj) ::: supersedingInfoContexts
+          val supersedingInfoContext = (c.flatMap(_.supersedingInfo) ::: ue.flatMap(_.supersedingInfo).toList).distinct.toSdj
+          val contexts = c.map(_.sdj) ++ supersedingInfoContext.toList
           val unstruct = ue.map(_.sdj)
           (contexts, unstruct)
         }
@@ -297,6 +296,18 @@ object IgluUtils {
 
     implicit val schemaSupersedingInfoEncoder: Encoder[SchemaSupersedingInfo] =
       deriveEncoder[SchemaSupersedingInfo]
+
+    implicit class SupersedingSchemaInfo(l: List[SchemaSupersedingInfo]) {
+      def toSdj: Option[SelfDescribingData[Json]] =
+        if (l.isEmpty) None
+        else
+          SelfDescribingData(
+            SchemaSupersedingInfo.schemaKey,
+            Json.obj(
+              "items" -> l.asJson
+            )
+          ).some
+    }
   }
 
   case class SdjExtractResult(sdj: SelfDescribingData[Json], supersedingInfo: Option[SchemaSupersedingInfo])

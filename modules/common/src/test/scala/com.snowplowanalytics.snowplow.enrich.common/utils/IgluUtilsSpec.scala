@@ -591,9 +591,13 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       input.setContexts(buildInputContexts(List(supersedingExample1, supersedingExample2)))
 
       val expectedSupersedingInfoContext = parse(
-        """ {
-          | "originalSchema" : "iglu:com.acme/superseding_example/jsonschema/1-0-0",
-          | "supersededBy" : "1-0-1"
+        """{
+          |"items": [
+          |  {
+          |    "originalSchema" : "iglu:com.acme/superseding_example/jsonschema/1-0-0",
+          |    "supersededBy" : "1-0-1"
+          |  }
+          |]
           |}""".stripMargin
       ).toOption.get
 

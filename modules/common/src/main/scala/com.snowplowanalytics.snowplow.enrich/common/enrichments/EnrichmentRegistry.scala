@@ -181,59 +181,54 @@ object EnrichmentRegistry {
     CirceUtils.extract[Boolean](enrichmentConfig, "enabled").toEither match {
       case Right(false) => None.validNel // Enrichment is disabled
       case _ =>
-        (for {
-          nm <- CirceUtils
-                  .extract[String](enrichmentConfig, "name")
-                  .toValidatedNel[String, String]
-                  .toEither
-          e = if (nm == "ip_lookups")
-                IpLookupsEnrichment.parse(enrichmentConfig, schemaKey, localMode).map(_.some)
-              else if (nm == "anon_ip")
-                AnonIpEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
-              else if (nm == "referer_parser")
-                RefererParserEnrichment.parse(enrichmentConfig, schemaKey, localMode).map(_.some)
-              else if (nm == "campaign_attribution")
-                CampaignAttributionEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
-              else if (nm == "user_agent_utils_config")
-                UserAgentUtilsEnrichmentConfig.parse(enrichmentConfig, schemaKey).map(_.some)
-              else if (nm == "ua_parser_config")
-                UaParserEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
-              else if (nm == "yauaa_enrichment_config")
-                YauaaEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
-              else if (nm == "currency_conversion_config")
-                CurrencyConversionEnrichment
-                  .parse(enrichmentConfig, schemaKey)
-                  .map(_.some)
-              else if (nm == "javascript_script_config")
-                JavascriptScriptEnrichment
-                  .parse(enrichmentConfig, schemaKey)
-                  .map(_.some)
-              else if (nm == "event_fingerprint_config")
-                EventFingerprintEnrichment
-                  .parse(enrichmentConfig, schemaKey)
-                  .map(_.some)
-              else if (nm == "cookie_extractor_config")
-                CookieExtractorEnrichment
-                  .parse(enrichmentConfig, schemaKey)
-                  .map(_.some)
-              else if (nm == "http_header_extractor_config")
-                HttpHeaderExtractorEnrichment
-                  .parse(enrichmentConfig, schemaKey)
-                  .map(_.some)
-              else if (nm == "weather_enrichment_config")
-                WeatherEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
-              else if (nm == "api_request_enrichment_config")
-                ApiRequestEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
-              else if (nm == "sql_query_enrichment_config")
-                SqlQueryEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
-              else if (nm == "pii_enrichment_config")
-                PiiPseudonymizerEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
-              else if (nm == "iab_spiders_and_robots_enrichment")
-                IabEnrichment.parse(enrichmentConfig, schemaKey, localMode).map(_.some)
-              else
-                None.validNel // Enrichment is not recognized
-          enrichment <- e.toEither
-        } yield enrichment).toValidated
+        schemaKey.name match {
+          case "ip_lookups" =>
+            IpLookupsEnrichment.parse(enrichmentConfig, schemaKey, localMode).map(_.some)
+          case "anon_ip" =>
+            AnonIpEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
+          case "referer_parser" =>
+            RefererParserEnrichment.parse(enrichmentConfig, schemaKey, localMode).map(_.some)
+          case "campaign_attribution" =>
+            CampaignAttributionEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
+          case "user_agent_utils_config" =>
+            UserAgentUtilsEnrichmentConfig.parse(enrichmentConfig, schemaKey).map(_.some)
+          case "ua_parser_config" =>
+            UaParserEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
+          case "yauaa_enrichment_config" =>
+            YauaaEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
+          case "currency_conversion_config" =>
+            CurrencyConversionEnrichment
+              .parse(enrichmentConfig, schemaKey)
+              .map(_.some)
+          case "javascript_script_config" =>
+            JavascriptScriptEnrichment
+              .parse(enrichmentConfig, schemaKey)
+              .map(_.some)
+          case "event_fingerprint_config" =>
+            EventFingerprintEnrichment
+              .parse(enrichmentConfig, schemaKey)
+              .map(_.some)
+          case "cookie_extractor_config" =>
+            CookieExtractorEnrichment
+              .parse(enrichmentConfig, schemaKey)
+              .map(_.some)
+          case "http_header_extractor_config" =>
+            HttpHeaderExtractorEnrichment
+              .parse(enrichmentConfig, schemaKey)
+              .map(_.some)
+          case "weather_enrichment_config" =>
+            WeatherEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
+          case "api_request_enrichment_config" =>
+            ApiRequestEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
+          case "sql_query_enrichment_config" =>
+            SqlQueryEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
+          case "pii_enrichment_config" =>
+            PiiPseudonymizerEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
+          case "iab_spiders_and_robots_enrichment" =>
+            IabEnrichment.parse(enrichmentConfig, schemaKey, localMode).map(_.some)
+          case _ =>
+            Option.empty[EnrichmentConf].validNel // Enrichment is not recognized
+        }
     }
 }
 

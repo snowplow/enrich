@@ -188,7 +188,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
 
       IgluUtils
         .extractAndValidateUnstructEvent(input, SpecHelpers.client) must beInvalid.like {
-        case FailureDetails.SchemaViolation.IgluError(_, ValidationError(_)) => ok
+        case FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)) => ok
         case ie: FailureDetails.SchemaViolation.IgluError =>
           ko(s"IgluError [$ie] is not ValidationError")
         case err => ko(s"[$err] is not IgluError")
@@ -201,7 +201,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
 
       IgluUtils
         .extractAndValidateUnstructEvent(input, SpecHelpers.client) must beInvalid.like {
-        case FailureDetails.SchemaViolation.IgluError(_, ValidationError(_)) => ok
+        case FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)) => ok
         case ie: FailureDetails.SchemaViolation.IgluError =>
           ko(s"IgluError [$ie] is not ValidationError")
         case err => ko(s"[$err] is not IgluError")
@@ -315,7 +315,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
 
       IgluUtils
         .extractAndValidateInputContexts(input, SpecHelpers.client) must beInvalid.like {
-        case NonEmptyList(FailureDetails.SchemaViolation.IgluError(_, ValidationError(_)), Nil) =>
+        case NonEmptyList(FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)), Nil) =>
           ok
         case NonEmptyList(ie: FailureDetails.SchemaViolation.IgluError, Nil) =>
           ko(s"IgluError [$ie] is not ValidationError")
@@ -329,7 +329,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
 
       IgluUtils
         .extractAndValidateInputContexts(input, SpecHelpers.client) must beInvalid.like {
-        case NonEmptyList(FailureDetails.SchemaViolation.IgluError(_, ValidationError(_)), Nil) =>
+        case NonEmptyList(FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)), Nil) =>
           ok
         case NonEmptyList(ie: FailureDetails.SchemaViolation.IgluError, Nil) =>
           ko(s"IgluError [$ie] is not ValidationError")
@@ -358,7 +358,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       IgluUtils
         .extractAndValidateInputContexts(input, SpecHelpers.client) must beInvalid.like {
         case NonEmptyList(
-              FailureDetails.SchemaViolation.IgluError(_, ValidationError(_)),
+              FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)),
               List(FailureDetails.SchemaViolation.IgluError(_, ResolutionError(_)))
             ) =>
           ok
@@ -429,7 +429,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
             case NonEmptyList(
                   FailureDetails.EnrichmentFailure(
                     _,
-                    FailureDetails.EnrichmentFailureMessage.IgluError(_, ValidationError(_))
+                    FailureDetails.EnrichmentFailureMessage.IgluError(_, ValidationError(_, _))
                   ),
                   _
                 ) =>
@@ -454,7 +454,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
             case NonEmptyList(
                   FailureDetails.EnrichmentFailure(
                     _,
-                    FailureDetails.EnrichmentFailureMessage.IgluError(_, ValidationError(_))
+                    FailureDetails.EnrichmentFailureMessage.IgluError(_, ValidationError(_, _))
                   ),
                   List(
                     FailureDetails.EnrichmentFailure(
@@ -487,7 +487,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
             case NonEmptyList(
                   FailureDetails.EnrichmentFailure(
                     _,
-                    FailureDetails.EnrichmentFailureMessage.IgluError(_, ValidationError(_))
+                    FailureDetails.EnrichmentFailureMessage.IgluError(_, ValidationError(_, _))
                   ),
                   Nil
                 ) =>

@@ -237,10 +237,7 @@ object IgluUtils {
   ): EitherT[F, (SchemaKey, ClientError), Option[SchemaVer.Full]] =
     client
       .check(sdj)
-      .leftMap({
-        case (e, None) => (sdj.schema, e)
-        case (e, Some(superseding)) => (sdj.schema.copy(version = superseding), e)
-      })
+      .leftMap((sdj.schema, _))
 
   /** Check a list of SDJs and merge the Iglu errors */
   private def checkList[F[_]: Monad: RegistryLookup: Clock](

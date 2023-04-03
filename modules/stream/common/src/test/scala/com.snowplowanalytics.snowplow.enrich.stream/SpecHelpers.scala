@@ -179,6 +179,8 @@ object SpecHelpers {
     s => s
   )
 
+  // Vendor and name are intentionally tweaked in the first enrichment
+  // to test that we are no longer validating them (users were confused about such validation)
   val enrichmentConfig =
     """|{
       |"schema": "iglu:com.snowplowanalytics.snowplow/enrichments/jsonschema/1-0-0",
@@ -186,8 +188,8 @@ object SpecHelpers {
         |{
           |"schema": "iglu:com.snowplowanalytics.snowplow/anon_ip/jsonschema/1-0-0",
           |"data": {
-            |"vendor": "com.snowplowanalytics.snowplow",
-            |"name": "anon_ip",
+            |"vendor": "com.snowplowanalytics.snowplow_custom",
+            |"name": "anon_ip_custom",
             |"enabled": true,
             |"parameters": {
               |"anonOctets": 1

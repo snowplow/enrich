@@ -34,7 +34,7 @@ import com.snowplowanalytics.weather.providers.openweather.CreateOWM
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf._
 
-import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, CirceUtils}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, CirceUtils, ShiftExecution}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry._
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest.ApiRequestEnrichment
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii.PiiPseudonymizerEnrichment
@@ -109,7 +109,8 @@ object EnrichmentRegistry {
     F[_]: Monad: CreateForex: CreateIabClient: CreateIpLookups: CreateOWM: CreateParser: CreateUaParserEnrichment: sqlquery.CreateSqlQueryEnrichment: apirequest.CreateApiRequestEnrichment
   ](
     confs: List[EnrichmentConf],
-    blocker: BlockerF[F]
+    blocker: BlockerF[F],
+    shifter: ShiftExecution[F]
   ): EitherT[F, String, EnrichmentRegistry[F]] =
     confs.foldLeft(EitherT.pure[F, String](EnrichmentRegistry[F]())) { (er, e) =>
       e match {
@@ -121,7 +122,7 @@ object EnrichmentRegistry {
         case c: PiiPseudonymizerConf => er.map(_.copy(piiPseudonymizer = c.enrichment.some))
         case c: SqlQueryConf =>
           for {
-            enrichment <- EitherT.right(c.enrichment[F](blocker))
+            enrichment <- EitherT.right(c.enrichment[F](blocker, shifter))
             registry <- er
           } yield registry.copy(sqlQuery = enrichment.some)
         case c: AnonIpConf => er.map(_.copy(anonIp = c.enrichment.some))

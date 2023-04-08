@@ -21,7 +21,7 @@ import com.snowplowanalytics.snowplow.badrows.FailureDetails
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.SqlQueryConf
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{Enrichment, ParseableEnrichment}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, CirceUtils, ResourceF}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, CirceUtils, ResourceF, ShiftExecution}
 import io.circe._
 import io.circe.generic.semiauto._
 import org.slf4j.LoggerFactory
@@ -77,8 +77,12 @@ object SqlQueryEnrichment extends ParseableEnrichment {
       ).mapN(SqlQueryConf(schemaKey, _, _, _, _, _)).toEither
     }.toValidated
 
-  def apply[F[_]: CreateSqlQueryEnrichment](conf: SqlQueryConf, blocker: BlockerF[F]): F[SqlQueryEnrichment[F]] =
-    CreateSqlQueryEnrichment[F].create(conf, blocker)
+  def apply[F[_]: CreateSqlQueryEnrichment](
+    conf: SqlQueryConf,
+    blocker: BlockerF[F],
+    ec: ShiftExecution[F]
+  ): F[SqlQueryEnrichment[F]] =
+    CreateSqlQueryEnrichment[F].create(conf, blocker, ec)
 
   /** Just a string with SQL, not escaped */
   final case class Query(sql: String) extends AnyVal
@@ -111,6 +115,7 @@ final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor: ResourceF: Clock](
   output: Output,
   sqlQueryEvaluator: SqlQueryEvaluator[F],
   blocker: BlockerF[F],
+  shifter: ShiftExecution[F],
   dataSource: DataSource
 ) extends Enrichment {
   private val enrichmentInfo =
@@ -189,7 +194,7 @@ final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor: ResourceF: Clock](
         EitherT {
           sqlQueryEvaluator.evaluateForKey(
             intMap,
-            getResult = () => blocker.blockOn(query(connection, intMap).value)
+            getResult = () => shifter.shift(query(connection, intMap).value)
           )
         }
           .leftMap { t =>

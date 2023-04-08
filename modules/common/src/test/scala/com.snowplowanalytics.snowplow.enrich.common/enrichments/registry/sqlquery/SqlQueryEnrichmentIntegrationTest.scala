@@ -457,7 +457,7 @@ class SqlQueryEnrichmentIntegrationTest extends Specification {
 
     context must beLeft.like {
       case NonEmptyList(one, two :: Nil)
-          if one.toString.contains("Error while getting the connection from the data source") &&
+          if one.toString.contains("Error while executing the sql lookup") &&
             two.toString.contains("FATAL: password authentication failed for user") =>
         ok
       case left => ko(s"error(s) don't contain the expected error messages: $left")

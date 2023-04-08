@@ -230,20 +230,16 @@ object DbExecutor {
   /**
    * Transform [[Input.PlaceholderMap]] to None if not enough input values were extracted
    * This prevents db from start building a statement while not failing event enrichment
-   * @param placeholderMap some IntMap with extracted values or None if it is known already that not
-   * all values were extracted
-   * @return Some unchanged value if all placeholders were filled, None otherwise
+   * @param intMap The extracted values from the event
+   * @return Whether all placeholders were filled
    */
-  def allPlaceholdersFilled(
+  def allPlaceholdersAreFilled(
     connection: Connection,
     sql: String,
-    placeholderMap: Input.PlaceholderMap
-  ): Either[Throwable, Input.PlaceholderMap] =
+    intMap: Input.ExtractedValueMap
+  ): Either[Throwable, Boolean] =
     getPlaceholderCount(connection, sql).map { placeholderCount =>
-      placeholderMap match {
-        case Some(intMap) if intMap.keys.size == placeholderCount => placeholderMap
-        case _ => None
-      }
+      if (intMap.keys.size == placeholderCount) true else false
     }
 
   def getConnection[F[_]: Monad: DbExecutor](dataSource: DataSource, blocker: BlockerF[F]): F[Either[Throwable, Connection]] =

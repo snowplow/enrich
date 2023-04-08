@@ -198,11 +198,13 @@ object Input {
    */
   type ExtractedValue = StatementPlaceholder#Value
 
+  type ExtractedValueMap = IntMap[ExtractedValue]
+
   /**
    * Optional Int-indexed Map of [[ExtractedValue]]s
    * None means some values were not found and SQL Enrichment shouldn't performed
    */
-  type PlaceholderMap = Option[IntMap[ExtractedValue]]
+  type PlaceholderMap = Option[ExtractedValueMap]
 
   /**
    * Get data out of all JSON contexts matching `schemaCriterion`

@@ -73,9 +73,9 @@ object IgluUtils {
                       .map(_.toValidatedNel)
       } yield (contexts, unstruct)
         .mapN { (c, ue) =>
-          val supersedingInfoContexts = (c.flatMap(_.supersedingInfo) ::: ue.flatMap(_.supersedingInfo).toList).distinct
+          val validationInfoContexts = (c.flatMap(_.validationInfo) ::: ue.flatMap(_.validationInfo).toList).distinct
             .map(_.toSdj)
-          val contexts = c.map(_.sdj) ::: supersedingInfoContexts
+          val contexts = c.map(_.sdj) ::: validationInfoContexts
           val unstruct = ue.map(_.sdj)
           (contexts, unstruct)
         }
@@ -268,35 +268,35 @@ object IgluUtils {
                                    .IgluError(schemaKey, clientError): FailureDetails.SchemaViolation
 
                              }
-      supersedingInfo = supersedingSchema.map(s => SchemaSupersedingInfo(sdj.schema, s))
-      sdjUpdated = replaceSchemaVersion(sdj, supersedingInfo)
-    } yield SdjExtractResult(sdjUpdated, supersedingInfo)
+      validationInfo = supersedingSchema.map(s => ValidationInfo(sdj.schema, s))
+      sdjUpdated = replaceSchemaVersion(sdj, validationInfo)
+    } yield SdjExtractResult(sdjUpdated, validationInfo)
 
   private def replaceSchemaVersion(
     sdj: SelfDescribingData[Json],
-    supersedingInfo: Option[SchemaSupersedingInfo]
+    validationInfo: Option[ValidationInfo]
   ): SelfDescribingData[Json] =
-    supersedingInfo match {
+    validationInfo match {
       case None => sdj
-      case Some(s) => sdj.copy(schema = sdj.schema.copy(version = s.supersededBy))
+      case Some(s) => sdj.copy(schema = sdj.schema.copy(version = s.validatedWith))
     }
 
-  case class SchemaSupersedingInfo(originalSchema: SchemaKey, supersededBy: SchemaVer.Full) {
+  case class ValidationInfo(originalSchema: SchemaKey, validatedWith: SchemaVer.Full) {
     def toSdj: SelfDescribingData[Json] =
-      SelfDescribingData(SchemaSupersedingInfo.schemaKey, (this: SchemaSupersedingInfo).asJson)
+      SelfDescribingData(ValidationInfo.schemaKey, (this: ValidationInfo).asJson)
   }
 
-  object SchemaSupersedingInfo {
-    val schemaKey = SchemaKey("com.snowplowanalytics.iglu", "superseding_info", "jsonschema", SchemaVer.Full(1, 0, 0))
+  object ValidationInfo {
+    val schemaKey = SchemaKey("com.snowplowanalytics.iglu", "validation_info", "jsonschema", SchemaVer.Full(1, 0, 0))
 
     implicit val schemaVerFullEncoder: Encoder[SchemaVer.Full] =
       Encoder.encodeString.contramap(v => v.asString)
 
-    implicit val schemaSupersedingInfoEncoder: Encoder[SchemaSupersedingInfo] =
-      deriveEncoder[SchemaSupersedingInfo]
+    implicit val validationInfoEncoder: Encoder[ValidationInfo] =
+      deriveEncoder[ValidationInfo]
   }
 
-  case class SdjExtractResult(sdj: SelfDescribingData[Json], supersedingInfo: Option[SchemaSupersedingInfo])
+  case class SdjExtractResult(sdj: SelfDescribingData[Json], validationInfo: Option[ValidationInfo])
 
   /** Build `BadRow.SchemaViolations` from a list of `FailureDetails.SchemaViolation`s */
   def buildSchemaViolationsBadRow(

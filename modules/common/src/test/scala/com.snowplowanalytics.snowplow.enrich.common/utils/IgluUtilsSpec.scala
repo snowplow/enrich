@@ -243,11 +243,11 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       val input2 = new EnrichedEvent
       input2.setUnstruct_event(buildUnstruct(supersedingExample2))
 
-      val expectedSupersedingInfo = IgluUtils.SchemaSupersedingInfo(supersedingExampleSchema100, supersedingExampleSchema101.version)
+      val expectedValidationInfo = IgluUtils.ValidationInfo(supersedingExampleSchema100, supersedingExampleSchema101.version)
 
       IgluUtils
         .extractAndValidateUnstructEvent(input1, SpecHelpers.client) must beValid.like {
-        case Some(IgluUtils.SdjExtractResult(sdj, Some(`expectedSupersedingInfo`))) if sdj.schema == supersedingExampleSchema101 => ok
+        case Some(IgluUtils.SdjExtractResult(sdj, Some(`expectedValidationInfo`))) if sdj.schema == supersedingExampleSchema101 => ok
         case Some(s) =>
           ko(
             s"unstructured event's schema [${s.sdj.schema}] does not match expected schema [${supersedingExampleSchema101}]"
@@ -258,7 +258,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       // input2 wouldn't be validated with 1-0-0. It would be validated with 1-0-1 only.
       IgluUtils
         .extractAndValidateUnstructEvent(input2, SpecHelpers.client) must beValid.like {
-        case Some(IgluUtils.SdjExtractResult(sdj, Some(`expectedSupersedingInfo`))) if sdj.schema == supersedingExampleSchema101 => ok
+        case Some(IgluUtils.SdjExtractResult(sdj, Some(`expectedValidationInfo`))) if sdj.schema == supersedingExampleSchema101 => ok
         case Some(s) =>
           ko(
             s"unstructured event's schema [${s.sdj.schema}] does not match expected schema [${supersedingExampleSchema101}]"
@@ -383,7 +383,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
 
       IgluUtils
         .extractAndValidateInputContexts(input, SpecHelpers.client) must beValid.like {
-        case sdjs if sdjs.size == 2 && sdjs.forall(i => i.sdj.schema == emailSentSchema && i.supersedingInfo.isEmpty) =>
+        case sdjs if sdjs.size == 2 && sdjs.forall(i => i.sdj.schema == emailSentSchema && i.validationInfo.isEmpty) =>
           ok
         case res =>
           ko(s"[$res] are not 2 SDJs with expected schema [${emailSentSchema.toSchemaUri}]")
@@ -590,10 +590,10 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       input.setUnstruct_event(buildUnstruct(supersedingExample1))
       input.setContexts(buildInputContexts(List(supersedingExample1, supersedingExample2)))
 
-      val expectedSupersedingInfoContext = parse(
+      val expectedValidationInfoContext = parse(
         """ {
           | "originalSchema" : "iglu:com.acme/superseding_example/jsonschema/1-0-0",
-          | "supersededBy" : "1-0-1"
+          | "validatedWith" : "1-0-1"
           |}""".stripMargin
       ).toOption.get
 
@@ -610,8 +610,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
               && sdj.schema == supersedingExampleSchema101
               && sdjs.count(_.schema == supersedingExampleSchema101) == 2
               && sdjs.count(s =>
-                s.schema == IgluUtils.SchemaSupersedingInfo.schemaKey
-                  && s.data == expectedSupersedingInfoContext
+                s.schema == IgluUtils.ValidationInfo.schemaKey
+                  && s.data == expectedValidationInfoContext
               ) == 1 =>
           ok
         case (list, opt) =>

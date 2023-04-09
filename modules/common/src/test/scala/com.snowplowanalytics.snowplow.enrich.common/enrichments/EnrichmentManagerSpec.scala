@@ -820,17 +820,17 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
               }
             },
             {
-              "schema":"iglu:com.snowplowanalytics.iglu/superseding_info/jsonschema/1-0-0",
+              "schema":"iglu:com.snowplowanalytics.iglu/validation_info/jsonschema/1-0-0",
               "data":{
                 "originalSchema":"iglu:com.acme/superseding_example/jsonschema/1-0-0",
-                "supersededBy":"1-0-1"
+                "validatedWith":"1-0-1"
               }
             },
             {
-              "schema":"iglu:com.snowplowanalytics.iglu/superseding_info/jsonschema/1-0-0",
+              "schema":"iglu:com.snowplowanalytics.iglu/validation_info/jsonschema/1-0-0",
               "data":{
                 "originalSchema":"iglu:com.acme/superseding_example/jsonschema/2-0-0",
-                "supersededBy":"2-0-1"
+                "validatedWith":"2-0-1"
               }
             }
           ]

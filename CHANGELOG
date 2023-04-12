@@ -1,3 +1,8 @@
+3.7.1 (2023-04-13)
+------------------
+Scan Docker images in Snyk Github action (#772)
+Bump net.minidev json-smart to 2.4.10 (#771)
+
 3.7.0 (2023-02-01)
 ------------------
 common: bump http4s to 0.21.34 (#744)

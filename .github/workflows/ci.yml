@@ -225,11 +225,11 @@ jobs:
         tags: ${{ steps.distroless-meta.outputs.tags }}
         push: true
     - name: Build local distroless image, which is needed to run Snyk
-      if: ${{ !contains(steps.ver.outputs.tag, 'rc') }}
+      if: ${{ contains(steps.ver.outputs.tag, 'rc') }}
       run: sbt "project ${{ matrix.app }}Distroless" docker:publishLocal
     - name: Run Snyk to check for vulnerabilities
       uses: snyk/actions/docker@master
-      if: ${{ !contains(steps.ver.outputs.tag, 'rc') }}
+      if: ${{ contains(steps.ver.outputs.tag, 'rc') }}
       with:
         image: "${{ steps.packageName.outputs.package_name }}:${{ steps.ver.outputs.tag }}-distroless"
         args: "--app-vulns --org=data-processing-new"

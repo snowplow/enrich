@@ -40,6 +40,7 @@ object Dependencies {
     val mysqlConnector   = "8.0.29"
     val hikariCP         = "5.0.1"
     val jaywayJsonpath   = "2.7.0"
+    val jsonsmart        = "2.4.10" // override transitive dependency to mitigate security vulnerabilities
     val iabClient        = "0.2.0"
     val yauaa            = "7.11.0"
     val log4jToSlf4j     = "2.18.0"
@@ -125,6 +126,7 @@ object Dependencies {
     val hikariCP         = ("com.zaxxer"                %  "HikariCP"                      % V.hikariCP)
                              .exclude("org.slf4j", "slf4j-api")
     val jaywayJsonpath   = "com.jayway.jsonpath"        %  "json-path"                     % V.jaywayJsonpath
+    val jsonsmart        = "net.minidev"                %  "json-smart"                    % V.jsonsmart
     val yauaa            = "nl.basjes.parse.useragent"  %  "yauaa"                         % V.yauaa
     val log4jToSlf4j     = "org.apache.logging.log4j"   % "log4j-to-slf4j"                 % V.log4jToSlf4j
     val guava            = "com.google.guava"           %  "guava"                         % V.guava
@@ -238,6 +240,7 @@ object Dependencies {
       mysqlConnector,
       hikariCP,
       jaywayJsonpath,
+      jsonsmart,
       iabClient,
       yauaa,
       log4jToSlf4j,

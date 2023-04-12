@@ -662,9 +662,12 @@ object EnrichmentManager {
     javascriptScript: Option[JavascriptScriptEnrichment]
   ): EStateT[F, Unit] =
     EStateT.fromEither {
-      case (event, _) =>
+      case (event, derivedContexts) =>
         javascriptScript match {
-          case Some(jse) => jse.process(event).leftMap(NonEmptyList.one(_))
+          case Some(jse) =>
+            if (derivedContexts.nonEmpty)
+              event.derived_contexts = ME.formatDerivedContexts(derivedContexts)
+            jse.process(event).leftMap(NonEmptyList.one(_))
           case None => Nil.asRight
         }
     }

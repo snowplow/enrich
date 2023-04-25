@@ -75,7 +75,8 @@ class ConfigFileSpec extends Specification with CatsIO {
         ),
         io.FeatureFlags(
           false,
-          false
+          false,
+          true
         ),
         Some(
           io.Experimental(
@@ -175,7 +176,8 @@ class ConfigFileSpec extends Specification with CatsIO {
         ),
         io.FeatureFlags(
           false,
-          false
+          false,
+          true
         ),
         Some(
           io.Experimental(
@@ -285,7 +287,8 @@ class ConfigFileSpec extends Specification with CatsIO {
         ),
         io.FeatureFlags(
           false,
-          false
+          false,
+          true
         ),
         Some(
           io.Experimental(
@@ -359,7 +362,8 @@ class ConfigFileSpec extends Specification with CatsIO {
           },
           "featureFlags" : {
             "acceptInvalid": false,
-            "legacyEnrichmentOrder": false
+            "legacyEnrichmentOrder": false,
+            "tryBase64Decoding": true
           },
           "experimental": {
             "metadata": {

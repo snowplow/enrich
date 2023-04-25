@@ -345,6 +345,9 @@
     # future version.
     # More details: https://github.com/snowplow/enrich/issues/619
     "legacyEnrichmentOrder": false
+
+    # Try to base64 decode event if initial Thrift serialization fail
+    "tryBase64Decoding": true
   }
 
   # Optional. Configuration for experimental/preview features

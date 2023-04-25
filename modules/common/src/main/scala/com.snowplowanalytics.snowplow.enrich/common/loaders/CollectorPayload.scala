@@ -77,7 +77,7 @@ final case class CollectorPayload(
 
   /**
    * Cast back to Thrift-generated `CollectorPayload` class, coming from collector
-   * Reverse of [[ThriftLoader.toCollectorPayload]]
+   * Reverse of ThriftLoader.toCollectorPayload
    * Used for tests and debugging
    */
   def toThrift: CollectorPayload1 = {

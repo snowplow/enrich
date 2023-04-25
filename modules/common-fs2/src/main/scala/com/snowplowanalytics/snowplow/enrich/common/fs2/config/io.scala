@@ -478,7 +478,8 @@ object io {
 
   case class FeatureFlags(
     acceptInvalid: Boolean,
-    legacyEnrichmentOrder: Boolean
+    legacyEnrichmentOrder: Boolean,
+    tryBase64Decoding: Boolean
   )
 
   object FeatureFlags {

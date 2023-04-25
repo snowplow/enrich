@@ -13,7 +13,7 @@
 package com.snowplowanalytics.snowplow.enrich.common.fs2
 
 import java.time.Instant
-import java.util.UUID
+import java.util.{Base64, UUID}
 
 import scala.concurrent.duration._
 
@@ -116,6 +116,64 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
             }
         }
       }.setParameters(Parameters(maxSize = 20, minTestsOk = 25))
+    }
+
+    "enrich a base64 encoded event" in {
+      val expected = minimalEvent
+        .copy(
+          etl_tstamp = Some(Instant.ofEpochMilli(SpecHelpers.StaticTime)),
+          v_etl = MiscEnrichments.etlVersion(EnrichSpec.processor),
+          user_ipaddress = Some("175.16.199.0"),
+          event = Some("page_view"),
+          event_vendor = Some("com.snowplowanalytics.snowplow"),
+          event_name = Some("page_view"),
+          event_format = Some("jsonschema"),
+          event_version = Some("1-0-0"),
+          derived_tstamp = Some(Instant.ofEpochMilli(0L))
+        )
+      implicit val c = TestEnvironment.http4sClient
+      createIgluClient(List(TestEnvironment.embeddedRegistry)).flatMap { igluClient =>
+        Enrich
+          .enrichWith(
+            TestEnvironment.enrichmentReg.pure[IO],
+            TestEnvironment.adapterRegistry,
+            igluClient,
+            None,
+            EnrichSpec.processor,
+            EnrichSpec.featureFlags.copy(tryBase64Decoding = true),
+            IO.unit
+          )(
+            Base64.getEncoder.encode(EnrichSpec.payload)
+          )
+          .map(normalizeResult)
+          .map {
+            case List(Validated.Valid(event)) => event must beEqualTo(expected)
+            case other => ko(s"Expected one valid event, got $other")
+          }
+      }
+    }
+
+    "return bad row when base64 decoding isn't enabled and base64 encoded event arrived" in {
+      implicit val c = TestEnvironment.http4sClient
+      createIgluClient(List(TestEnvironment.embeddedRegistry)).flatMap { igluClient =>
+        Enrich
+          .enrichWith(
+            TestEnvironment.enrichmentReg.pure[IO],
+            TestEnvironment.adapterRegistry,
+            igluClient,
+            None,
+            EnrichSpec.processor,
+            EnrichSpec.featureFlags,
+            IO.unit
+          )(
+            Base64.getEncoder.encode(EnrichSpec.payload)
+          )
+          .map(normalizeResult)
+          .map {
+            case List(Validated.Invalid(badRow)) => println(badRow); ok
+            case other => ko(s"Expected one bad row, got $other")
+          }
+      }
     }
   }
 
@@ -453,5 +511,5 @@ object EnrichSpec {
       derived_tstamp = Some(Instant.ofEpochMilli(0L))
     )
 
-  val featureFlags = FeatureFlags(acceptInvalid = false, legacyEnrichmentOrder = false)
+  val featureFlags = FeatureFlags(acceptInvalid = false, legacyEnrichmentOrder = false, tryBase64Decoding = false)
 }

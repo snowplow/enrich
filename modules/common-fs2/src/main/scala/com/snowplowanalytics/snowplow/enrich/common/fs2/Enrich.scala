@@ -123,7 +123,7 @@ object Enrich {
   )(
     row: Array[Byte]
   ): F[Result] = {
-    val payload = ThriftLoader.toCollectorPayload(row, processor)
+    val payload = ThriftLoader.toCollectorPayload(row, processor, featureFlags.tryBase64Decoding)
     val collectorTstamp = payload.toOption.flatMap(_.flatMap(_.context.timestamp).map(_.getMillis))
 
     val result =

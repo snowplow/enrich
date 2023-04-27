@@ -1,3 +1,7 @@
+3.6.0.3 (2023-04-27)
+------------------
+Try to base64 decode event if initial Thrift serialization fails (#777)
+
 3.6.0.2 (2023-03-06)
 ------------------
 common: bump yauaa to 7.11.0 (#741)

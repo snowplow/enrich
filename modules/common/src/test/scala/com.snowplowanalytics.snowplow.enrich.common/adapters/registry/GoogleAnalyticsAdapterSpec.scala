@@ -18,6 +18,8 @@ package registry
 import cats.data.NonEmptyList
 import cats.syntax.option._
 
+import cats.effect.testing.specs2.CatsIO
+
 import org.joda.time.DateTime
 
 import org.specs2.Specification
@@ -28,10 +30,11 @@ import com.snowplowanalytics.snowplow.badrows._
 import loaders._
 import GoogleAnalyticsAdapter._
 import utils.Clock._
+import utils.HttpClient._
 
 import SpecHelpers._
 
-class GoogleAnalyticsAdapterSpec extends Specification with DataTables with ValidatedMatchers {
+class GoogleAnalyticsAdapterSpec extends Specification with DataTables with ValidatedMatchers with CatsIO {
 
   def is = s2"""
   toRawEvents returns a failNel if the query string is empty               $e1
@@ -78,50 +81,55 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
   def e1 = {
     val payload = CollectorPayload(api, Nil, None, None, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
-    actual must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.AdapterFailure.InputData("body", None, "empty body")
+    toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure.InputData("body", None, "empty body")
+          )
+        )
       )
-    )
   }
 
   def e2 = {
     val body = "dl=docloc"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
-    actual must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.AdapterFailure.InputData(
-          "body",
-          "dl=docloc".some,
-          "no t parameter provided: cannot determine hit type"
+    toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure.InputData(
+              "body",
+              "dl=docloc".some,
+              "no t parameter provided: cannot determine hit type"
+            )
+          )
         )
       )
-    )
   }
 
   def e3 = {
     val body = "t=unknown&dl=docloc"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
-    actual must beInvalid(
-      NonEmptyList.of(
-        FailureDetails.AdapterFailure
-          .InputData("t", "unknown".some, "no matching hit type"),
-        FailureDetails.AdapterFailure.SchemaMapping(
-          "unknown".some,
-          unstructEventData.mapValues(_.schemaKey),
-          "no schema associated with the provided type parameter"
+    toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.of(
+            FailureDetails.AdapterFailure
+              .InputData("t", "unknown".some, "no matching hit type"),
+            FailureDetails.AdapterFailure.SchemaMapping(
+              "unknown".some,
+              unstructEventData.mapValues(_.schemaKey),
+              "no schema associated with the provided type parameter"
+            )
+          )
         )
       )
-    )
   }
 
   def e4 = {
     val body = "t=pageview&dh=host&dp=path"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
 
     val expectedJson =
       """|{
@@ -140,13 +148,12 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
            |"data":[${hitContext("pageview")}]
          |}""".stripMargin.replaceAll("[\n\r]", "")
     val expectedParams = static ++ Map("ue_pr" -> expectedJson, "co" -> expectedCO).toOpt
-    actual must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
+    toRawEvents(payload, SpecHelpers.client).map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
   }
 
   def e5 = {
     val body = "t=pageview&dh=host&cid=id&v=version"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
 
     val expectedUE =
       """|{
@@ -170,13 +177,12 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
            |}]
          |}""".stripMargin.replaceAll("[\n\r]", "")
     val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO).toOpt
-    actual must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
+    toRawEvents(payload, SpecHelpers.client).map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
   }
 
   def e6 = {
     val body = "t=pageview&dp=path&uip=ip"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
 
     val expectedUE =
       """|{
@@ -196,13 +202,12 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
            |}]
          |}""".stripMargin.replaceAll("[\n\r]", "")
     val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO, "ip" -> "ip").toOpt
-    actual must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
+    toRawEvents(payload, SpecHelpers.client).map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
   }
 
   def e7 = {
     val body = "t=item&in=name&ip=12.228&iq=12&aip=0"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
 
     val expectedUE =
       """|{
@@ -232,13 +237,12 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
       "ti_qu" -> "12",
       "ti_nm" -> "name"
     ).toOpt
-    actual must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
+    toRawEvents(payload, SpecHelpers.client).map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
   }
 
   def e8 = {
     val body = "t=exception&exd=desc&exf=1&dh=host"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
 
     val expectedUE =
       """|{
@@ -257,13 +261,12 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
            |}]
          |}""".stripMargin.replaceAll("[\n\r]", "")
     val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO).toOpt
-    actual must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
+    toRawEvents(payload, SpecHelpers.client).map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
   }
 
   def e9 = {
     val body = "t=transaction&ti=tr&cu=EUR&pr12id=ident&pr12cd42=val"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
 
     val expectedUE =
       """|{
@@ -290,13 +293,12 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
       "tr_cu" -> "EUR",
       "tr_id" -> "tr"
     ).toOpt
-    actual must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
+    toRawEvents(payload, SpecHelpers.client).map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
   }
 
   def e10 = {
     val body = "t=pageview&dp=path&il12pi42id=s&il12pi42cd36=dim"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
 
     val expectedUE =
       """|{
@@ -318,13 +320,12 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
            |}]
          |}""".stripMargin.replaceAll("[\n\r]", "")
     val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO).toOpt
-    actual must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
+    toRawEvents(payload, SpecHelpers.client).map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
   }
 
   def e11 = {
     val body = "t=screenview&cd=name&cd12=dim"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
 
     val expectedUE =
       """|{
@@ -343,13 +344,12 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
            |}]
          |}""".stripMargin.replaceAll("[\n\r]", "")
     val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO).toOpt
-    actual must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
+    toRawEvents(payload, SpecHelpers.client).map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
   }
 
   def e12 = {
     val body = "t=pageview&dp=path&pr1id=s1&pr2id=s2&pr1cd1=v1&pr1cd2=v2"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
 
     val expectedUE =
       """|{
@@ -377,13 +377,12 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
            |}]
          |}""".stripMargin.replaceAll("[\n\r]", "")
     val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO).toOpt
-    actual must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
+    toRawEvents(payload, SpecHelpers.client).map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
   }
 
   def e13 = {
     val body = "t=pageview&dp=path&promoa=action&promo12id=id"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
 
     val expectedUE =
       """|{
@@ -405,13 +404,12 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
            |}]
          |}""".stripMargin.replaceAll("[\n\r]", "")
     val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO).toOpt
-    actual must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
+    toRawEvents(payload, SpecHelpers.client).map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
   }
 
   def e14 = {
     val body = "t=pageview&dh=host&dp=path\nt=pageview&dh=host&dp=path"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
 
     val expectedJson =
       """|{
@@ -431,14 +429,13 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
          |}""".stripMargin.replaceAll("[\n\r]", "")
     val expectedParams = static ++ Map("ue_pr" -> expectedJson, "co" -> expectedCO).toOpt
     val event = RawEvent(api, expectedParams, None, source, context)
-    actual must beValid(NonEmptyList.of(event, event))
+    toRawEvents(payload, SpecHelpers.client).map(_ must beValid(NonEmptyList.of(event, event)))
   }
 
   def e15 = {
     val body =
       "t=pageview&dh=host&dp=path&cu=EUR&il1pi1pr=1&il1pi1nm=name1&il1pi1ps=1&il1pi1ca=cat1&il1pi1id=id1&il1pi1br=brand1&il1pi2pr=2&il1pi2nm=name2&il1pi2ps=2&il1pi2ca=cat2&il1pi2id=id2&il1pi2br=brand2&il2pi1pr=21&il2pi1nm=name21&il2pi1ps=21&il2pi1ca=cat21&il2pi1id=id21&il2pi1br=brand21"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
 
     val expectedJson =
       """|{
@@ -470,7 +467,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
       "co" -> expectedCO,
       "ti_cu" -> "EUR"
     ).toOpt
-    actual must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
+    toRawEvents(payload, SpecHelpers.client).map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
   }
 
   def e20 = {

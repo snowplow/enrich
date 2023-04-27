@@ -15,7 +15,7 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 import java.io.File
 import java.net.{InetAddress, URI}
 
-import cats.{Id, Monad}
+import cats.Monad
 import cats.data.{NonEmptyList, ValidatedNel}
 
 import cats.effect.Sync
@@ -187,16 +187,6 @@ object CreateIabClient {
         Sync[F].delay {
           new IabClient(new File(ipFile), new File(excludeUaFile), new File(includeUaFile))
         }
-    }
-
-  implicit def idCreateIabClient: CreateIabClient[Id] =
-    new CreateIabClient[Id] {
-      def create(
-        ipFile: String,
-        excludeUaFile: String,
-        includeUaFile: String
-      ): Id[IabClient] =
-        new IabClient(new File(ipFile), new File(excludeUaFile), new File(includeUaFile))
     }
 }
 

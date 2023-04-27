@@ -16,6 +16,7 @@ package registry
 
 import cats.data.NonEmptyList
 import cats.syntax.option._
+import cats.effect.testing.specs2.CatsIO
 import com.snowplowanalytics.snowplow.badrows._
 import org.joda.time.DateTime
 import org.specs2.matcher.ValidatedMatchers
@@ -23,10 +24,11 @@ import org.specs2.mutable.Specification
 
 import loaders._
 import utils.Clock._
+import utils.HttpClient._
 
 import SpecHelpers._
 
-class SendgridAdapterSpec extends Specification with ValidatedMatchers {
+class SendgridAdapterSpec extends Specification with ValidatedMatchers with CatsIO {
   object Shared {
     val api = CollectorPayload.Api("com.sendgrid", "v3")
     val cljSource = CollectorPayload.Source("clj-tomcat", "UTF-8", None)
@@ -223,7 +225,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers {
         Shared.cljSource,
         Shared.context
       )
-    val actual = SendgridAdapter.toRawEvents(payload, SpecHelpers.client)
+    val actual = SendgridAdapter.toRawEvents(payload, SpecHelpers.client).unsafeRunSync()
 
     "return the correct number of events" in {
       actual must beValid
@@ -267,9 +269,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers {
     "reject empty bodies" in {
       val invalidpayload =
         CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
-      val toBeRejected = SendgridAdapter.toRawEvents(invalidpayload, SpecHelpers.client)
-
-      toBeRejected must beInvalid
+      SendgridAdapter.toRawEvents(invalidpayload, SpecHelpers.client).map(_ must beInvalid)
     }
 
     "reject empty content type" in {
@@ -282,8 +282,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers {
           Shared.cljSource,
           Shared.context
         )
-      val toBeRejected = SendgridAdapter.toRawEvents(invalidpayload, SpecHelpers.client)
-      toBeRejected must beInvalid
+      SendgridAdapter.toRawEvents(invalidpayload, SpecHelpers.client).map(_ must beInvalid)
     }
 
     "reject unexpected content type" in {
@@ -296,7 +295,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers {
           Shared.cljSource,
           Shared.context
         )
-      SendgridAdapter.toRawEvents(invalidpayload, SpecHelpers.client) must beInvalid
+      SendgridAdapter.toRawEvents(invalidpayload, SpecHelpers.client).map(_ must beInvalid)
     }
 
     "accept content types with explicit charsets" in {
@@ -309,8 +308,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers {
           Shared.cljSource,
           Shared.context
         )
-      val res = SendgridAdapter.toRawEvents(payload, SpecHelpers.client)
-      res must beValid
+      SendgridAdapter.toRawEvents(payload, SpecHelpers.client).map(_ must beValid)
     }
 
     "reject unsupported event types" in {
@@ -339,7 +337,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers {
           Shared.context
         )
 
-      SendgridAdapter.toRawEvents(invalidpayload, SpecHelpers.client) must beInvalid
+      SendgridAdapter.toRawEvents(invalidpayload, SpecHelpers.client).map(_ must beInvalid)
     }
 
     "reject invalid/unparsable json" in {
@@ -355,7 +353,8 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers {
             Shared.context
           ),
           SpecHelpers.client
-        ) must beInvalid
+        )
+        .map(_ must beInvalid)
     }
 
     "reject valid json in incorrect format" in {
@@ -371,7 +370,8 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers {
             Shared.context
           ),
           SpecHelpers.client
-        ) must beInvalid
+        )
+        .map(_ must beInvalid)
     }
 
     "reject a payload with a some valid, some invalid events" in {
@@ -406,16 +406,19 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers {
           Shared.cljSource,
           Shared.context
         )
-      val actual = SendgridAdapter.toRawEvents(payload, SpecHelpers.client)
-      actual must beInvalid(
-        NonEmptyList.one(
-          FailureDetails.AdapterFailure.SchemaMapping(
-            None,
-            SendgridAdapter.EventSchemaMap,
-            "cannot determine event type: type parameter not provided at index 1"
+      SendgridAdapter
+        .toRawEvents(payload, SpecHelpers.client)
+        .map(
+          _ must beInvalid(
+            NonEmptyList.one(
+              FailureDetails.AdapterFailure.SchemaMapping(
+                None,
+                SendgridAdapter.EventSchemaMap,
+                "cannot determine event type: type parameter not provided at index 1"
+              )
+            )
           )
         )
-      )
     }
 
     "return correct json for sample event, including stripping out event keypair and fixing timestamp" in {
@@ -451,23 +454,26 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers {
       val expectedJson =
         """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.sendgrid/processed/jsonschema/2-0-0","data":{"timestamp":"2015-11-03T11:20:15.000Z","email":"example@test.com","marketing_campaign_name":"campaign name","sg_event_id":"sZROwMGMagFgnOEmSdvhig==","smtp-id":"\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e","marketing_campaign_version":"B","marketing_campaign_id":12345,"marketing_campaign_split_id":13471,"category":"cat facts","sg_message_id":"14c5d75ce93.dfd.64b469.filter0001.16648.5515E0B88.0"}}}"""
 
-      val actual = SendgridAdapter.toRawEvents(payload, SpecHelpers.client)
-      actual must beValid(
-        NonEmptyList.one(
-          RawEvent(
-            Shared.api,
-            Map(
-              "tv" -> "com.sendgrid-v3",
-              "e" -> "ue",
-              "p" -> "srv",
-              "ue_pr" -> expectedJson // NB this includes removing the "event" keypair as redundant
-            ).toOpt,
-            ContentType.some,
-            Shared.cljSource,
-            Shared.context
+      SendgridAdapter
+        .toRawEvents(payload, SpecHelpers.client)
+        .map(
+          _ must beValid(
+            NonEmptyList.one(
+              RawEvent(
+                Shared.api,
+                Map(
+                  "tv" -> "com.sendgrid-v3",
+                  "e" -> "ue",
+                  "p" -> "srv",
+                  "ue_pr" -> expectedJson // NB this includes removing the "event" keypair as redundant
+                ).toOpt,
+                ContentType.some,
+                Shared.cljSource,
+                Shared.context
+              )
+            )
           )
         )
-      )
     }
 
     "filter events if they are exact duplicates" in {
@@ -513,11 +519,12 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers {
           Shared.context
         )
 
-      val res = SendgridAdapter.toRawEvents(payload, SpecHelpers.client)
-      res must beValid.like {
-        case nel: NonEmptyList[RawEvent] =>
-          nel.toList must have size 1
-      }
+      SendgridAdapter
+        .toRawEvents(payload, SpecHelpers.client)
+        .map(_ must beValid.like {
+          case nel: NonEmptyList[RawEvent] =>
+            nel.toList must have size 1
+        })
     }
   }
 }

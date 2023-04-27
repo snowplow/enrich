@@ -15,12 +15,9 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlque
 import java.sql.{Connection, PreparedStatement, ResultSet, ResultSetMetaData}
 import javax.sql.DataSource
 
-import scala.collection.mutable.ListBuffer
-import scala.util.control.NonFatal
-
 import io.circe.Json
 
-import cats.{Id, Monad}
+import cats.Monad
 import cats.data.EitherT
 import cats.effect.{Bracket, Sync}
 import cats.implicits._
@@ -124,50 +121,6 @@ object DbExecutor {
             case None => Json.Null
           }
 
-    }
-
-  implicit def idDbExecutor: DbExecutor[Id] =
-    new DbExecutor[Id] {
-      def getConnection(dataSource: DataSource, blocker: BlockerF[Id]): Either[Throwable, Connection] =
-        Either.catchNonFatal(dataSource.getConnection())
-
-      def execute(query: PreparedStatement): EitherT[Id, Throwable, ResultSet] =
-        EitherT[Id, Throwable, ResultSet](Either.catchNonFatal(query.executeQuery()))
-
-      def convert(resultSet: ResultSet, names: JsonOutput.PropertyNameMode): EitherT[Id, Throwable, List[Json]] =
-        EitherT(
-          try {
-            val buffer = ListBuffer.empty[EitherT[Id, Throwable, Json]]
-            while (resultSet.next())
-              buffer += transform[Id](resultSet, names)(this, Monad[Id])
-            val parsedJsons = buffer.result().sequence
-            resultSet.close()
-            parsedJsons.value
-          } catch {
-            case NonFatal(error) => error.asLeft
-          }
-        )
-
-      def getMetaData(rs: ResultSet): EitherT[Id, Throwable, ResultSetMetaData] =
-        Either.catchNonFatal(rs.getMetaData).toEitherT[Id]
-
-      def getColumnCount(rsMeta: ResultSetMetaData): EitherT[Id, Throwable, Int] =
-        Either.catchNonFatal(rsMeta.getColumnCount).toEitherT[Id]
-
-      def getColumnLabel(column: Int, rsMeta: ResultSetMetaData): EitherT[Id, Throwable, String] =
-        Either.catchNonFatal(rsMeta.getColumnLabel(column)).toEitherT[Id]
-
-      def getColumnType(column: Int, rsMeta: ResultSetMetaData): EitherT[Id, Throwable, String] =
-        Either.catchNonFatal(rsMeta.getColumnClassName(column)).toEitherT[Id]
-
-      def getColumnValue(
-        datatype: String,
-        columnIdx: Int,
-        rs: ResultSet
-      ): EitherT[Id, Throwable, Json] =
-        EitherT[Id, Throwable, Json](for {
-          value <- Either.catchNonFatal(rs.getObject(columnIdx)).map(Option.apply)
-        } yield value.map(JsonOutput.getValue(_, datatype)).getOrElse(Json.Null))
     }
 
   /**

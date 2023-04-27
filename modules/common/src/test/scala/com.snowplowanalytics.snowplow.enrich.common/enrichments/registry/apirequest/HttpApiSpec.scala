@@ -12,19 +12,21 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest
 
-import cats.Id
+import cats.effect.IO
+import cats.effect.testing.specs2.CatsIO
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.ApiRequestConf
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.Clock.idClock
+import com.snowplowanalytics.snowplow.enrich.common.utils.Clock._
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
 
 import org.specs2.Specification
 import org.specs2.matcher.ValidatedMatchers
 import org.specs2.mock.Mockito
 
-class HttpApiSpec extends Specification with ValidatedMatchers with Mockito {
+class HttpApiSpec extends Specification with ValidatedMatchers with Mockito with CatsIO {
   def is = s2"""
   fail to build request string without all keys $e1
   build request string from template context    $e2
@@ -55,16 +57,16 @@ class HttpApiSpec extends Specification with ValidatedMatchers with Mockito {
 
   def e3 = {
     val schemaKey = SchemaKey("vendor", "name", "format", SchemaVer.Full(1, 0, 0))
-    val enrichment = ApiRequestConf(
-      schemaKey,
-      Nil,
-      HttpApi("GET", "http://thishostdoesntexist31337:8123/endpoint", 1000, Authentication(None)),
-      List(Output("", Some(JsonOutput("")))),
-      Cache(1, 1)
-    ).enrichment[Id]
-
-    val event = new EnrichedEvent
-    val request = enrichment.lookup(event, Nil, Nil, None)
-    request must beInvalid
+    for {
+      enrichment <- ApiRequestConf(
+                      schemaKey,
+                      Nil,
+                      HttpApi("GET", "http://thishostdoesntexist31337:8123/endpoint", 1000, Authentication(None)),
+                      List(Output("", Some(JsonOutput("")))),
+                      Cache(1, 1)
+                    ).enrichment[IO]
+      event = new EnrichedEvent
+      request <- enrichment.lookup(event, Nil, Nil, None)
+    } yield request must beInvalid
   }
 }

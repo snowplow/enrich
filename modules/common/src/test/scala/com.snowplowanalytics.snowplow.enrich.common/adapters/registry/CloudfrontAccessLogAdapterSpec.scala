@@ -14,19 +14,25 @@ package com.snowplowanalytics.snowplow.enrich.common
 package adapters
 package registry
 
-import cats.data.{NonEmptyList, Validated}
+import java.time.Instant
+import cats.data.{NonEmptyList, Validated, ValidatedNel}
 import cats.syntax.option._
+import cats.syntax.either._
+import cats.syntax.validated._
+import cats.effect.testing.specs2.CatsIO
 import com.snowplowanalytics.snowplow.badrows._
+import com.snowplowanalytics.snowplow.badrows.{Payload => BadrowPayload}
 import org.joda.time.DateTime
 import org.specs2.Specification
 import org.specs2.matcher.{DataTables, ValidatedMatchers}
 
-import loaders._
+import loaders.CollectorPayload
 import utils.Clock._
+import utils.HttpClient._
 
 import SpecHelpers._
 
-class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with ValidatedMatchers {
+class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with ValidatedMatchers with CatsIO {
   val processor = Processor("CloudfrontAccessLogAdapterSpec", "v1")
 
   def is = s2"""
@@ -41,7 +47,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
   toRawEvents should return a Validation Failure if the line contains an unparseable field $e9
   """
 
-  val loader = new TsvLoader("com.amazon.aws.cloudfront/wd_access_log")
+  val loader = CloudfrontAccessLogAdapterSpec.TsvLoader("com.amazon.aws.cloudfront/wd_access_log")
 
   val doubleEncodedUa =
     "Mozilla/5.0%2520(Macintosh;%2520Intel%2520Mac%2520OS%2520X%252010_9_2)%2520AppleWebKit/537.36%2520(KHTML,%2520like%2520Gecko)%2520Chrome/34.0.1847.131%2520Safari/537.36"
@@ -87,7 +93,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
     val payload = loader.toCollectorPayload(input, processor)
 
     val actual = payload.map(
-      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client))
+      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client).unsafeRunSync())
     )
 
     val expectedJson =
@@ -135,7 +141,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
     val payload = loader.toCollectorPayload(input, processor)
 
     val actual = payload.map(
-      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client))
+      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client).unsafeRunSync())
     )
 
     val expectedJson =
@@ -186,7 +192,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
     val payload = loader.toCollectorPayload(input, processor)
 
     val actual = payload.map(
-      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client))
+      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client).unsafeRunSync())
     )
 
     val expectedJson =
@@ -240,7 +246,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
     val payload = loader.toCollectorPayload(input, processor)
 
     val actual = payload.map(
-      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client))
+      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client).unsafeRunSync())
     )
 
     val expectedJson =
@@ -295,7 +301,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
     val payload = loader.toCollectorPayload(input, processor)
 
     val actual = payload.map(
-      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client))
+      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client).unsafeRunSync())
     )
 
     val expectedJson =
@@ -354,7 +360,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
     val payload = loader.toCollectorPayload(input, processor)
 
     val actual = payload.map(
-      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client))
+      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client).unsafeRunSync())
     )
 
     val expectedJson =
@@ -414,7 +420,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
     val payload = loader.toCollectorPayload(input, processor)
 
     val actual = payload.map(
-      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client))
+      _.map(CloudfrontAccessLogAdapter.toRawEvents(_, SpecHelpers.client).unsafeRunSync())
     )
 
     val expectedJson =
@@ -480,18 +486,21 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
         Shared.source,
         Shared.context
       )
-    val actual = CloudfrontAccessLogAdapter.toRawEvents(payload, SpecHelpers.client)
 
-    actual must beInvalid(
-      NonEmptyList
-        .one(
-          FailureDetails.AdapterFailure.InputData(
-            "body",
-            "2013-10-07	23:35:30	c		".some,
-            "access log contained 5 fields, expected 12, 15, 18, 19, 23, 24 or 26"
-          )
+    CloudfrontAccessLogAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList
+            .one(
+              FailureDetails.AdapterFailure.InputData(
+                "body",
+                "2013-10-07	23:35:30	c		".some,
+                "access log contained 5 fields, expected 12, 15, 18, 19, 23, 24 or 26"
+              )
+            )
         )
-    )
+      )
   }
 
   def e9 = {
@@ -505,18 +514,57 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
         Shared.source,
         Shared.context
       )
-    val actual = CloudfrontAccessLogAdapter.toRawEvents(payload, SpecHelpers.client)
 
-    actual must beInvalid(
-      NonEmptyList.of(
-        FailureDetails.AdapterFailure.InputData(
-          "dateTime",
-          "a b".some,
-          """could not convert access log timestamp: Invalid format: "aTb+00:00""""
-        ),
-        FailureDetails.AdapterFailure
-          .InputData("scBytes", "d".some, "cannot be converted to Int")
+    CloudfrontAccessLogAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.of(
+            FailureDetails.AdapterFailure.InputData(
+              "dateTime",
+              "a b".some,
+              """could not convert access log timestamp: Invalid format: "aTb+00:00""""
+            ),
+            FailureDetails.AdapterFailure
+              .InputData("scBytes", "d".some, "cannot be converted to Int")
+          )
+        )
       )
-    )
+  }
+}
+
+object CloudfrontAccessLogAdapterSpec {
+
+  final case class TsvLoader(adapter: String) {
+    private val CollectorName = "tsv"
+    private val CollectorEncoding = "UTF-8"
+
+    /**
+     * Converts the source TSV into a ValidatedMaybeCollectorPayload.
+     *
+     * @param line A TSV
+     * @return either a set of validation errors or an Option-boxed CanonicalInput object, wrapped in
+     *         a ValidatedNel.
+     */
+    def toCollectorPayload(line: String, processor: Processor): ValidatedNel[BadRow.CPFormatViolation, Option[CollectorPayload]] =
+      // Throw away the first two lines of Cloudfront web distribution access logs
+      if (line.startsWith("#Version:") || line.startsWith("#Fields:"))
+        None.valid
+      else
+        CollectorPayload
+          .parseApi(adapter)
+          .map { api =>
+            val source = CollectorPayload.Source(CollectorName, CollectorEncoding, None)
+            val context = CollectorPayload.Context(None, None, None, None, Nil, None)
+            CollectorPayload(api, Nil, None, Some(line), source, context).some
+          }
+          .leftMap(f =>
+            BadRow.CPFormatViolation(
+              processor,
+              Failure.CPFormatViolation(Instant.now(), CollectorName, f),
+              BadrowPayload.RawPayload(line)
+            )
+          )
+          .toValidatedNel
   }
 }

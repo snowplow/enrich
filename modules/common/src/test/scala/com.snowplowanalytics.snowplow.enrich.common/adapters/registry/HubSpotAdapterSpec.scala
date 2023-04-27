@@ -17,6 +17,7 @@ package registry
 
 import cats.data.NonEmptyList
 import cats.syntax.option._
+import cats.effect.testing.specs2.CatsIO
 import com.snowplowanalytics.snowplow.badrows._
 import io.circe.literal._
 import org.joda.time.DateTime
@@ -25,10 +26,11 @@ import org.specs2.matcher.{DataTables, ValidatedMatchers}
 
 import loaders._
 import utils.Clock._
+import utils.HttpClient._
 
 import SpecHelpers._
 
-class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMatchers {
+class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMatchers with CatsIO {
   def is = s2"""
   payloadBodyToEvents must return a Success list of event JSON's from a valid payload body $e1
   payloadBodyToEvents must return a Failure Nel for an invalid payload body being passed   $e2
@@ -99,7 +101,7 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
         Shared.context
       )
     )
-    HubSpotAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
+    HubSpotAdapter.toRawEvents(payload, SpecHelpers.client).map(_ must beValid(expected))
   }
 
   def e4 = {
@@ -118,34 +120,46 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
       HubSpotAdapter.EventSchemaMap,
       "no schema associated with the provided type parameter at index 0"
     )
-    HubSpotAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
-      NonEmptyList.one(expected)
-    )
+    HubSpotAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(expected)
+        )
+      )
   }
 
   def e5 = {
     val payload =
       CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
-    HubSpotAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.AdapterFailure
-          .InputData("body", None, "empty body: not events to process")
+    HubSpotAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure
+              .InputData("body", None, "empty body: not events to process")
+          )
+        )
       )
-    )
   }
 
   def e6 = {
     val payload =
       CollectorPayload(Shared.api, Nil, None, "stub".some, Shared.cljSource, Shared.context)
-    HubSpotAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.AdapterFailure.InputData(
-          "contentType",
-          None,
-          "no content type: expected application/json"
+    HubSpotAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure.InputData(
+              "contentType",
+              None,
+              "no content type: expected application/json"
+            )
+          )
         )
       )
-    )
   }
 
   def e7 = {
@@ -158,11 +172,15 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
       Shared.cljSource,
       Shared.context
     )
-    HubSpotAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.AdapterFailure
-          .InputData("contentType", ct, "expected application/json")
+    HubSpotAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure
+              .InputData("contentType", ct, "expected application/json")
+          )
+        )
       )
-    )
   }
 }

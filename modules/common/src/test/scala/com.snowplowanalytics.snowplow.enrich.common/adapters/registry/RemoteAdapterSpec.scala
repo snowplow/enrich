@@ -20,9 +20,10 @@ import java.util.concurrent.TimeUnit
 
 import scala.concurrent.duration.Duration
 
+import cats.implicits._
 import cats.data.NonEmptyList
-import cats.syntax.either._
-import cats.syntax.option._
+
+import cats.effect.testing.specs2.CatsIO
 
 import com.snowplowanalytics.snowplow.badrows._
 
@@ -44,7 +45,7 @@ import utils.Clock._
 
 import SpecHelpers._
 
-class RemoteAdapterSpec extends Specification with ValidatedMatchers {
+class RemoteAdapterSpec extends Specification with ValidatedMatchers with CatsIO {
 
   def is =
     sequential ^ s2"""
@@ -85,7 +86,6 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers {
       s"/$basePath",
       new HttpHandler {
         def handle(exchange: HttpExchange): Unit = {
-
           val response = MockRemoteAdapter.handle(getBodyAsString(exchange.getRequestBody))
           if (response != "\"server error\"")
             exchange.sendResponseHeaders(200, 0)
@@ -198,8 +198,9 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers {
         )
       }
 
-    val they = testAdapter.toRawEvents(payload, SpecHelpers.client)
-    they must beValid(expected)
+    testAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(_ must beValid(expected))
   }
 
   def e2 = {
@@ -212,7 +213,7 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers {
         "empty body: not a valid remote adapter http://localhost:8091/myEnrichment payload"
       )
     )
-    testAdapter.toRawEvents(emptyListPayload, SpecHelpers.client) must beInvalid(expected)
+    testAdapter.toRawEvents(emptyListPayload, SpecHelpers.client).map(_ must beInvalid(expected))
   }
 
   def e3 = {
@@ -225,7 +226,7 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers {
         "empty body: not a valid remote adapter http://localhost:8091/myEnrichment payload"
       )
     )
-    testAdapter.toRawEvents(bodylessPayload, SpecHelpers.client) must beInvalid(expected)
+    testAdapter.toRawEvents(bodylessPayload, SpecHelpers.client).map(_ must beInvalid(expected))
   }
 
   def e4 = {

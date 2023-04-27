@@ -17,6 +17,8 @@ package registry
 import cats.data.NonEmptyList
 import cats.syntax.option._
 
+import cats.effect.testing.specs2.CatsIO
+
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
 import io.circe.literal._
@@ -28,10 +30,11 @@ import org.specs2.matcher.{DataTables, ValidatedMatchers}
 
 import loaders._
 import utils.Clock._
+import utils.HttpClient._
 
 import SpecHelpers._
 
-class PingdomAdapterSpec extends Specification with DataTables with ValidatedMatchers {
+class PingdomAdapterSpec extends Specification with DataTables with ValidatedMatchers with CatsIO {
   def is = s2"""
   reformatParameters should return either an updated JSON without the 'action' field or the same JSON $e1
   reformatMapParams must return a Failure Nel for any Python Unicode wrapped values                   $e2
@@ -91,9 +94,13 @@ class PingdomAdapterSpec extends Specification with DataTables with ValidatedMat
       Shared.cljSource,
       Shared.context
     )
-    PingdomAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(
-      NonEmptyList.one(expected)
-    )
+    PingdomAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beValid(
+          NonEmptyList.one(expected)
+        )
+      )
   }
 
   def e4 = {
@@ -104,9 +111,13 @@ class PingdomAdapterSpec extends Specification with DataTables with ValidatedMat
         None,
         "empty querystring: no events to process"
       )
-    PingdomAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
-      NonEmptyList.one(expected)
-    )
+    PingdomAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(expected)
+        )
+      )
   }
 
   def e5 = {
@@ -119,8 +130,12 @@ class PingdomAdapterSpec extends Specification with DataTables with ValidatedMat
         "p=apps".some,
         "no `message` parameter provided"
       )
-    PingdomAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
-      NonEmptyList.one(expected)
-    )
+    PingdomAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(expected)
+        )
+      )
   }
 }

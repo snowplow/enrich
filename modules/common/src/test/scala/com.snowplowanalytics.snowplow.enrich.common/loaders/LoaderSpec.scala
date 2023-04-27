@@ -48,24 +48,6 @@ object LoaderSpec {
 class LoaderSpec extends Specification with DataTables with ValidatedMatchers {
   import LoaderSpec._
 
-  "getLoader" should {
-    "return the CloudfrontLoader" in {
-      Loader.getLoader("cloudfront") must beRight(CloudfrontLoader)
-    }
-
-    "return the CljTomcatLoader" in {
-      Loader.getLoader("clj-tomcat") must beRight(CljTomcatLoader)
-    }
-
-    "return the ThriftLoader" in {
-      Loader.getLoader("thrift") must beRight(ThriftLoader)
-    }
-
-    "return the NDJSON loader" in {
-      Loader.getLoader("ndjson/example.test/v1") must beRight(NdjsonLoader("example.test/v1"))
-    }
-  }
-
   "extractGetPayload" should {
     val Encoding = UTF_8
     // TODO: add more tests

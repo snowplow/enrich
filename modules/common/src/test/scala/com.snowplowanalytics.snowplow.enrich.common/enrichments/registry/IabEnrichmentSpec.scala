@@ -14,8 +14,8 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.net.InetAddress
 
-import cats.Id
-import cats.syntax.functor._
+import cats.effect.IO
+import cats.effect.testing.specs2.CatsIO
 
 import io.circe.literal._
 
@@ -26,7 +26,7 @@ import inet.ipaddr.HostName
 import org.specs2.Specification
 import org.specs2.matcher.DataTables
 
-class IabEnrichmentSpec extends Specification with DataTables {
+class IabEnrichmentSpec extends Specification with DataTables with CatsIO {
 
   def is = s2"""
   performCheck should correctly perform IAB checks on valid input $e1
@@ -80,7 +80,7 @@ class IabEnrichmentSpec extends Specification with DataTables {
         expectedReason,
         expectedPrimaryImpact
       ) =>
-        validConfig.enrichment[Id].map { e =>
+        validConfig.enrichment[IO].map { e =>
           e.performCheck(userAgent, ipAddress, DateTime.now()) must beRight.like {
             case check =>
               check.spiderOrRobot must_== expectedSpiderOrRobot and
@@ -98,9 +98,10 @@ class IabEnrichmentSpec extends Specification with DataTables {
         json"""{"spiderOrRobot": false, "category": "BROWSER", "reason": "PASSED_ALL", "primaryImpact": "NONE"}"""
       )
     validConfig
-      .enrichment[Id]
-      .map(_.getIabContext("Xdroid", "192.168.0.1".ip, DateTime.now())) must
-      beRight(responseJson)
+      .enrichment[IO]
+      .map { e =>
+        e.getIabContext("Xdroid", "192.168.0.1".ip, DateTime.now()) must beRight(responseJson)
+      }
   }
 
   private implicit class IpOps(s: String) {

@@ -13,16 +13,8 @@
 package com.snowplowanalytics.snowplow.enrich.common
 package utils
 
-import java.util.concurrent.TimeUnit
-
-import cats.Id
-import cats.effect.{Clock => CEClock}
+import cats.effect.{Clock => CEClock, IO}
 
 object Clock {
-  implicit val idClock: CEClock[Id] = new CEClock[Id] {
-    final def realTime(unit: TimeUnit): Id[Long] =
-      unit.convert(System.currentTimeMillis(), TimeUnit.MILLISECONDS)
-    final def monotonic(unit: TimeUnit): Id[Long] =
-      unit.convert(System.nanoTime(), TimeUnit.NANOSECONDS)
-  }
+  implicit val ioClock: CEClock[IO] = CEClock.create[IO]
 }

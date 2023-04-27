@@ -16,6 +16,7 @@ package registry
 
 import cats.data.NonEmptyList
 import cats.syntax.option._
+import cats.effect.testing.specs2.CatsIO
 import com.snowplowanalytics.snowplow.badrows._
 import org.joda.time.DateTime
 import org.specs2.Specification
@@ -23,10 +24,11 @@ import org.specs2.matcher.{DataTables, ValidatedMatchers}
 
 import loaders._
 import utils.Clock._
+import utils.HttpClient._
 
 import SpecHelpers._
 
-class VeroAdapterSpec extends Specification with DataTables with ValidatedMatchers {
+class VeroAdapterSpec extends Specification with DataTables with ValidatedMatchers with CatsIO {
   def is = s2"""
   toRawEvents must return a success for a valid "sent" type payload body being passed                $e1
   toRawEvents must return a success for a valid "delivered" type payload body being passed           $e2
@@ -80,7 +82,9 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
         Shared.context
       )
     )
-    VeroAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
+    VeroAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(_ must beValid(expected))
   }
 
   def e2 = {
@@ -108,7 +112,9 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
         Shared.context
       )
     )
-    VeroAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
+    VeroAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(_ must beValid(expected))
   }
 
   def e3 = {
@@ -136,7 +142,9 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
         Shared.context
       )
     )
-    VeroAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
+    VeroAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(_ must beValid(expected))
   }
 
   def e4 = {
@@ -164,7 +172,9 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
         Shared.context
       )
     )
-    VeroAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
+    VeroAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(_ must beValid(expected))
   }
 
   def e5 = {
@@ -192,7 +202,9 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
         Shared.context
       )
     )
-    VeroAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
+    VeroAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(_ must beValid(expected))
   }
 
   def e6 = {
@@ -220,7 +232,9 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
         Shared.context
       )
     )
-    VeroAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
+    VeroAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(_ must beValid(expected))
   }
 
   def e7 = {
@@ -248,7 +262,9 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
         Shared.context
       )
     )
-    VeroAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
+    VeroAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(_ must beValid(expected))
   }
 
   def e8 = {
@@ -276,7 +292,9 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
         Shared.context
       )
     )
-    VeroAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
+    VeroAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(_ must beValid(expected))
   }
 
   def e9 =
@@ -300,28 +318,35 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
       )
       val expectedJson =
         "{\"schema\":\"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0\",\"data\":{\"schema\":\"" + expected + "\",\"data\":{}}}"
-      val actual = VeroAdapter.toRawEvents(payload, SpecHelpers.client)
-      actual must beValid(
-        NonEmptyList.one(
-          RawEvent(
-            Shared.api,
-            Map("tv" -> "com.getvero-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson).toOpt,
-            ContentType.some,
-            Shared.cljSource,
-            Shared.context
+      VeroAdapter
+        .toRawEvents(payload, SpecHelpers.client)
+        .map(
+          _ must beValid(
+            NonEmptyList.one(
+              RawEvent(
+                Shared.api,
+                Map("tv" -> "com.getvero-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson).toOpt,
+                ContentType.some,
+                Shared.cljSource,
+                Shared.context
+              )
+            )
           )
         )
-      )
     }
 
   def e10 = {
     val payload =
       CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
-    VeroAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.AdapterFailure
-          .InputData("body", None, "empty body: no events to process")
+    VeroAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure
+              .InputData("body", None, "empty body: no events to process")
+          )
+        )
       )
-    )
   }
 }

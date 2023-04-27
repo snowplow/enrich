@@ -16,6 +16,7 @@ package registry
 
 import cats.data.NonEmptyList
 import cats.syntax.option._
+import cats.effect.testing.specs2.CatsIO
 import com.snowplowanalytics.snowplow.badrows._
 import org.joda.time.DateTime
 import org.specs2.Specification
@@ -23,10 +24,11 @@ import org.specs2.matcher.{DataTables, ValidatedMatchers}
 
 import loaders._
 import utils.Clock._
+import utils.HttpClient._
 
 import SpecHelpers._
 
-class MarketoAdapterSpec extends Specification with DataTables with ValidatedMatchers {
+class MarketoAdapterSpec extends Specification with DataTables with ValidatedMatchers with CatsIO {
   def is = s2"""
   toRawEvents must return a success for a valid "event" type payload body being passed                $e1
   toRawEvents must return a Failure Nel if the payload body is empty                                  $e2
@@ -72,17 +74,21 @@ class MarketoAdapterSpec extends Specification with DataTables with ValidatedMat
         Shared.context
       )
     )
-    MarketoAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
+    MarketoAdapter.toRawEvents(payload, SpecHelpers.client).map(_ must beValid(expected))
   }
 
   def e2 = {
     val payload =
       CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
-    MarketoAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.AdapterFailure
-          .InputData("body", None, "empty body: no events to process")
+    MarketoAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure
+              .InputData("body", None, "empty body: no events to process")
+          )
+        )
       )
-    )
   }
 }

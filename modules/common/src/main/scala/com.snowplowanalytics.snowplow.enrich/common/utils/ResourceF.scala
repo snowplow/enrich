@@ -12,8 +12,6 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.utils
 
-import cats.Id
-
 import cats.effect.{Resource, Sync}
 
 trait ResourceF[F[_]] {
@@ -28,12 +26,5 @@ object ResourceF {
     new ResourceF[F] {
       def use[A, B](resource: A)(release: A => Unit)(use: A => F[B]): F[B] =
         Resource.make(Sync[F].pure(resource))(a => Sync[F].delay(release(a))).use(a => use(a))
-    }
-
-  implicit def idResource: ResourceF[Id] =
-    new ResourceF[Id] {
-      def use[A, B](resource: A)(release: A => Unit)(use: A => B): B =
-        try use(resource)
-        finally release(resource)
     }
 }

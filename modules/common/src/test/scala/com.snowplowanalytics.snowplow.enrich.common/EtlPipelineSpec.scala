@@ -12,9 +12,11 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common
 
-import cats.Id
 import cats.data.Validated
 import cats.syntax.validated._
+
+import cats.effect.IO
+import cats.effect.testing.specs2.CatsIO
 
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.Resolver
@@ -36,9 +38,10 @@ import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.loaders._
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.Clock._
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
+import com.snowplowanalytics.snowplow.enrich.common.utils.HttpClient._
 
-class EtlPipelineSpec extends Specification with ValidatedMatchers {
+class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsIO {
   def is = s2"""
   EtlPipeline should always produce either bad or good row for each event of the payload   $e1
   Processing of events with malformed query string should be supported                     $e2
@@ -47,81 +50,94 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers {
   """
 
   val adapterRegistry = new AdapterRegistry()
-  val enrichmentReg = EnrichmentRegistry[Id]()
+  val enrichmentReg = EnrichmentRegistry[IO]()
   val igluCentral = Registry.IgluCentral
-  val client = IgluCirceClient.fromResolver[Id](Resolver(List(igluCentral), None), cacheSize = 0)
+  val client = IgluCirceClient.fromResolver[IO](Resolver(List(igluCentral), None), cacheSize = 0).unsafeRunSync()
   val processor = Processor("sce-test-suite", "1.0.0")
   val dateTime = DateTime.now()
 
   def e1 = {
     val collectorPayloadBatched = EtlPipelineSpec.buildBatchedPayload()
-    val output = EtlPipeline.processEvents[Id](
-      adapterRegistry,
-      enrichmentReg,
-      client,
-      processor,
-      dateTime,
-      Some(collectorPayloadBatched).validNel,
-      AcceptInvalid.featureFlags,
-      AcceptInvalid.countInvalid
-    )
-    output must be like {
-      case a :: b :: c :: d :: Nil =>
-        (a must beValid).and(b must beInvalid).and(c must beInvalid).and(d must beInvalid)
-    }
+    EtlPipeline
+      .processEvents[IO](
+        adapterRegistry,
+        enrichmentReg,
+        client,
+        processor,
+        dateTime,
+        Some(collectorPayloadBatched).validNel,
+        AcceptInvalid.featureFlags,
+        IO.unit
+      )
+      .map { output =>
+        output must be like {
+          case a :: b :: c :: d :: Nil =>
+            (a must beValid).and(b must beInvalid).and(c must beInvalid).and(d must beInvalid)
+        }
+      }
   }
 
   def e2 = {
     val thriftBytesMalformedQS = EtlPipelineSpec.buildThriftBytesMalformedQS()
-    ThriftLoader
+    val collectorPayload = ThriftLoader
       .toCollectorPayload(thriftBytesMalformedQS, processor)
       .map(_.get)
-      .map(collectorPayload =>
-        EtlPipeline.processEvents[Id](
-          adapterRegistry,
-          enrichmentReg,
-          client,
-          processor,
-          dateTime,
-          Some(collectorPayload).validNel,
-          AcceptInvalid.featureFlags,
-          AcceptInvalid.countInvalid
-        )
-      ) must beValid.like {
-      case Validated.Valid(_: EnrichedEvent) :: Nil => ok
-      case res => ko(s"[$res] doesn't contain one enriched event")
-    }
+      .toOption
+      .get
+    EtlPipeline
+      .processEvents[IO](
+        adapterRegistry,
+        enrichmentReg,
+        client,
+        processor,
+        dateTime,
+        Some(collectorPayload).validNel,
+        AcceptInvalid.featureFlags,
+        IO.unit
+      )
+      .map { output =>
+        output must beLike {
+          case Validated.Valid(_: EnrichedEvent) :: Nil => ok
+          case res => ko(s"[$res] doesn't contain one enriched event")
+        }
+      }
   }
 
   def e3 = {
     val invalidCollectorPayload = ThriftLoader.toCollectorPayload(Array(1.toByte), processor)
-    EtlPipeline.processEvents[Id](
-      adapterRegistry,
-      enrichmentReg,
-      client,
-      processor,
-      dateTime,
-      invalidCollectorPayload,
-      AcceptInvalid.featureFlags,
-      AcceptInvalid.countInvalid
-    ) must be like {
-      case Validated.Invalid(_: BadRow.CPFormatViolation) :: Nil => ok
-      case other => ko(s"One invalid CPFormatViolation expected, got ${other}")
-    }
+    EtlPipeline
+      .processEvents[IO](
+        adapterRegistry,
+        enrichmentReg,
+        client,
+        processor,
+        dateTime,
+        invalidCollectorPayload,
+        AcceptInvalid.featureFlags,
+        IO.unit
+      )
+      .map { output =>
+        output must be like {
+          case Validated.Invalid(_: BadRow.CPFormatViolation) :: Nil => ok
+          case other => ko(s"One invalid CPFormatViolation expected, got ${other}")
+        }
+      }
   }
 
   def e4 = {
     val collectorPayload: Option[CollectorPayload] = None
-    EtlPipeline.processEvents[Id](
-      adapterRegistry,
-      enrichmentReg,
-      client,
-      processor,
-      dateTime,
-      collectorPayload.validNel[BadRow],
-      AcceptInvalid.featureFlags,
-      AcceptInvalid.countInvalid
-    ) must beEqualTo(Nil)
+    EtlPipeline
+      .processEvents[IO](
+        adapterRegistry,
+        enrichmentReg,
+        client,
+        processor,
+        dateTime,
+        collectorPayload.validNel[BadRow],
+        AcceptInvalid.featureFlags,
+        IO.unit
+      )
+      .map(output => output must beEqualTo(Nil))
   }
 }
 

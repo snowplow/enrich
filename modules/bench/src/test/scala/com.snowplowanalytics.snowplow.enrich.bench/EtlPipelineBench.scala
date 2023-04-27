@@ -16,7 +16,6 @@ import org.openjdk.jmh.annotations._
 
 import java.util.concurrent.TimeUnit
 
-import cats.Id
 import cats.data.Validated
 
 import cats.effect.{IO, Clock}

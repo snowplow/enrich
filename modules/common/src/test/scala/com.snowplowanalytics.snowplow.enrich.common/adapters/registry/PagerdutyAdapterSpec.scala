@@ -16,6 +16,7 @@ package registry
 
 import cats.data.NonEmptyList
 import cats.syntax.option._
+import cats.effect.testing.specs2.CatsIO
 import com.snowplowanalytics.snowplow.badrows._
 import io.circe.literal._
 import org.joda.time.DateTime
@@ -24,10 +25,11 @@ import org.specs2.matcher.{DataTables, ValidatedMatchers}
 
 import loaders._
 import utils.Clock._
+import utils.HttpClient._
 
 import SpecHelpers._
 
-class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedMatchers {
+class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedMatchers with CatsIO {
   def is = s2"""
   reformatParameters must return an updated JSON whereby all null Strings have been replaced by null $e1
   reformatParameters must return an updated JSON where 'incident.xxx' is replaced by xxx             $e2
@@ -135,7 +137,7 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
         Shared.context
       )
     )
-    PagerdutyAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
+    PagerdutyAdapter.toRawEvents(payload, SpecHelpers.client).map(_ must beValid(expected))
   }
 
   def e7 = {
@@ -154,34 +156,46 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
       PagerdutyAdapter.EventSchemaMap,
       "no schema associated with the provided type parameter at index 0"
     )
-    PagerdutyAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
-      NonEmptyList.one(expected)
-    )
+    PagerdutyAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(expected)
+        )
+      )
   }
 
   def e8 = {
     val payload =
       CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
-    PagerdutyAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.AdapterFailure
-          .InputData("body", None, "empty body: no events to process")
+    PagerdutyAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure
+              .InputData("body", None, "empty body: no events to process")
+          )
+        )
       )
-    )
   }
 
   def e9 = {
     val payload =
       CollectorPayload(Shared.api, Nil, None, "stub".some, Shared.cljSource, Shared.context)
-    PagerdutyAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.AdapterFailure.InputData(
-          "contentType",
-          None,
-          "no content type: expected application/json"
+    PagerdutyAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure.InputData(
+              "contentType",
+              None,
+              "no content type: expected application/json"
+            )
+          )
         )
       )
-    )
   }
 
   def e10 = {
@@ -194,11 +208,15 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
       Shared.cljSource,
       Shared.context
     )
-    PagerdutyAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.AdapterFailure
-          .InputData("contentType", ct, "expected application/json")
+    PagerdutyAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure
+              .InputData("contentType", ct, "expected application/json")
+          )
+        )
       )
-    )
   }
 }

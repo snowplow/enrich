@@ -44,38 +44,6 @@ object BuildSettings {
     description := "Common functionality for enriching raw Snowplow events"
   )
 
-  lazy val streamCommonProjectSettings = projectSettings ++ Seq(
-    name := "snowplow-stream-enrich",
-    moduleName := "snowplow-stream-enrich",
-    description := "Common functionality for legacy streaming enrich applications",
-    buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
-    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.stream.generated"
-  )
-
-  lazy val streamKinesisProjectSettings = projectSettings ++ Seq(
-    name := "snowplow-stream-enrich-kinesis",
-    moduleName := "snowplow-stream-enrich-kinesis",
-    description := "Legacy streaming enrich app with Kinesis source"
-  )
-
-  lazy val streamKafkaProjectSettings = projectSettings ++ Seq(
-    name := "snowplow-stream-enrich-kafka",
-    moduleName := "snowplow-stream-enrich-kafka",
-    description := "Legacy streaming enrich app with Kafka source"
-  )
-
-  lazy val streamNsqProjectSettings = projectSettings ++ Seq(
-    name := "snowplow-stream-enrich-nsq",
-    moduleName := "snowplow-stream-enrich-nsq",
-    description := "Legacy streaming enrich app with NSQ source"
-  )
-
-  lazy val streamStdinProjectSettings = projectSettings ++ Seq(
-    name := "snowplow-stream-enrich-stdin",
-    moduleName := "snowplow-stream-enrich-stdin",
-    description := "Legacy streaming enrich app with stdin source (for testing)"
-  )
-
   lazy val commonFs2ProjectSettings = projectSettings ++ Seq(
     name := "snowplow-enrich-common-fs2",
     moduleName := "snowplow-enrich-common-fs2",
@@ -242,51 +210,6 @@ object BuildSettings {
     publishSettings ++
     // Tests
     scoverageSettings ++ noParallelTestExecution
-  }
-
-  lazy val streamCommonBuildSettings = {
-    // Project
-    streamCommonProjectSettings ++ buildSettings ++
-    // Tests
-    scoverageSettings ++
-      Seq(coverageMinimumStmtTotal := 20) // override value from scoverageSettings
-  }
-
-  lazy val streamKinesisBuildSettings = {
-    // Project
-    streamKinesisProjectSettings ++ buildSettings ++
-    // Build and publish
-    assemblySettings ++ dockerSettingsFocal ++
-      Seq(Docker / packageName := "stream-enrich-kinesis")
-  }
-
-  lazy val streamKinesisDistrolessBuildSettings = streamKinesisBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
-
-  lazy val streamKafkaBuildSettings = {
-    // Project
-    streamKafkaProjectSettings ++ buildSettings ++
-    // Build and publish
-    assemblySettings ++ dockerSettingsFocal ++
-      Seq(Docker / packageName := "stream-enrich-kafka")
-  }
-
-  lazy val streamKafkaDistrolessBuildSettings = streamKafkaBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
-
-  lazy val streamNsqBuildSettings = {
-    // Project
-    streamNsqProjectSettings ++ buildSettings ++
-    // Build and publish
-    assemblySettings ++ dockerSettingsFocal ++
-      Seq(Docker / packageName := "stream-enrich-nsq")
-  }
-
-  lazy val streamNsqDistrolessBuildSettings = streamNsqBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
-
-  lazy val streamStdinBuildSettings = {
-    // Project
-    streamStdinProjectSettings ++ buildSettings ++
-    // Build and publish
-    assemblySettings
   }
 
   lazy val commonFs2BuildSettings = {

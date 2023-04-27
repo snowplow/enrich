@@ -14,9 +14,10 @@ package com.snowplowanalytics.snowplow.enrich.common
 package adapters
 package registry
 
-import cats.Id
 import cats.data.NonEmptyList
 import cats.syntax.option._
+
+import cats.effect.testing.specs2.CatsIO
 
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup._
 import com.snowplowanalytics.snowplow.badrows._
@@ -27,8 +28,11 @@ import org.specs2.matcher.{DataTables, ValidatedMatchers}
 import loaders._
 import SpecHelpers._
 import utils.Clock._
+import utils.HttpClient._
 
-class CallrailAdapterSpec extends Specification with DataTables with ValidatedMatchers {
+import SpecHelpers._
+
+class CallrailAdapterSpec extends Specification with DataTables with ValidatedMatchers with CatsIO {
   def is = s2"""
   toRawEvents should return a NEL containing one RawEvent if the querystring is correctly populated $e1
   toRawEvents should return a Validation Failure if there are no parameters on the querystring      $e2
@@ -97,7 +101,6 @@ class CallrailAdapterSpec extends Specification with DataTables with ValidatedMa
       "nuid" -> "-"
     )
     val payload = CollectorPayload(Shared.api, params, None, None, Shared.source, Shared.context)
-    val actual = CallrailAdapter.toRawEvents[Id](payload, SpecHelpers.client)
 
     val expectedJson =
       """|{
@@ -144,29 +147,36 @@ class CallrailAdapterSpec extends Specification with DataTables with ValidatedMa
             |}
           |}""".stripMargin.replaceAll("[\n\r]", "")
 
-    actual must beValid(
-      NonEmptyList.one(
-        RawEvent(
-          Shared.api,
-          Expected.static ++ Map("ue_pr" -> expectedJson, "nuid" -> "-").toOpt,
-          None,
-          Shared.source,
-          Shared.context
+    CallrailAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beValid(
+          NonEmptyList.one(
+            RawEvent(
+              Shared.api,
+              Expected.static ++ Map("ue_pr" -> expectedJson, "nuid" -> "-").toOpt,
+              None,
+              Shared.source,
+              Shared.context
+            )
+          )
         )
       )
-    )
   }
 
   def e2 = {
     val params = toNameValuePairs()
     val payload = CollectorPayload(Shared.api, params, None, None, Shared.source, Shared.context)
-    val actual = CallrailAdapter.toRawEvents[Id](payload, SpecHelpers.client)
 
-    actual must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.AdapterFailure
-          .InputData("querystring", None, "empty querystring")
+    CallrailAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure
+              .InputData("querystring", None, "empty querystring")
+          )
+        )
       )
-    )
   }
 }

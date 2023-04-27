@@ -90,39 +90,4 @@ abstract class Loader[T] {
           msg
         )
       }
-
-  /**
-   * Checks whether a String field is a hyphen "-", which is used by CloudFront to signal a null.
-   * @param field The field to check
-   * @return True if the String was a hyphen "-"
-   */
-  private[loaders] def toOption(field: String): Option[String] =
-    Option(field) match {
-      case Some("-") => None
-      case Some("") => None
-      case s => s // Leaves any other Some(x) or None as-is
-    }
-}
-
-/** Companion object to the CollectorLoader. Contains factory methods. */
-object Loader {
-  private val TsvRegex = "^tsv/(.*)$".r
-  private val NdjsonRegex = "^ndjson/(.*)$".r
-
-  /**
-   * Factory to return a CollectorLoader based on the supplied collector identifier (e.g.
-   * "cloudfront" or "clj-tomcat").
-   * @param collectorOrProtocol Identifier for the event collector
-   * @return either a CollectorLoader object or an an error message
-   */
-  def getLoader(collectorOrProtocol: String): Either[String, Loader[_]] =
-    collectorOrProtocol match {
-      case "cloudfront" => CloudfrontLoader.asRight
-      case "clj-tomcat" => CljTomcatLoader.asRight
-      // a data protocol rather than a piece of software
-      case "thrift" => ThriftLoader.asRight
-      case TsvRegex(f) => TsvLoader(f).asRight
-      case NdjsonRegex(f) => NdjsonLoader(f).asRight
-      case c => s"[$c] is not a recognised Snowplow event collector".asLeft
-    }
 }

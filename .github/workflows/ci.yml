@@ -91,10 +91,7 @@ jobs:
       run: echo "::set-output name=tag::${GITHUB_REF#refs/tags/}"
     - name: Assemble fat jars
       run: |
-        sbt "project streamKinesis; set assembly / test := {}; assembly" \
-            "project streamKafka; set assembly / test := {}; assembly" \
-            "project streamNsq; set assembly / test := {}; assembly" \
-            "project pubsub; set assembly / test := {}; assembly" \
+        sbt "project pubsub; set assembly / test := {}; assembly" \
             "project kinesis; set assembly / test := {}; assembly" \
             "project rabbitmq; set assembly / test := {}; assembly" \
             "project kafka; set assembly / test := {}; assembly" \
@@ -107,9 +104,6 @@ jobs:
         name: ${{ steps.ver.outputs.tag }}
         tag_name: ${{ steps.ver.outputs.tag }}
         files: |
-          modules/stream/kinesis/target/scala-2.12/snowplow-stream-enrich-kinesis-${{ steps.ver.outputs.tag }}.jar
-          modules/stream/kafka/target/scala-2.12/snowplow-stream-enrich-kafka-${{ steps.ver.outputs.tag }}.jar
-          modules/stream/nsq/target/scala-2.12/snowplow-stream-enrich-nsq-${{ steps.ver.outputs.tag }}.jar
           modules/pubsub/target/scala-2.12/snowplow-enrich-pubsub-${{ steps.ver.outputs.tag }}.jar
           modules/kinesis/target/scala-2.12/snowplow-enrich-kinesis-${{ steps.ver.outputs.tag }}.jar
           modules/rabbitmq/target/scala-2.12/snowplow-enrich-rabbitmq-${{ steps.ver.outputs.tag }}.jar
@@ -125,9 +119,6 @@ jobs:
     strategy:
       matrix:
         app:
-          - streamKinesis
-          - streamKafka
-          - streamNsq
           - pubsub
           - kinesis
           - kafka

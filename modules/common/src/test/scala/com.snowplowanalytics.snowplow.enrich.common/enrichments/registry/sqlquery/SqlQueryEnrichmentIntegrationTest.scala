@@ -17,12 +17,14 @@ import io.circe._
 import io.circe.literal._
 import io.circe.parser._
 
-import cats.Id
+import cats.effect.IO
+import cats.effect.testing.specs2.CatsIO
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
-import com.snowplowanalytics.snowplow.enrich.common.utils.Clock.idClock
+import com.snowplowanalytics.snowplow.enrich.common.utils.Clock._
 
 import org.specs2.Specification
+import org.specs2.matcher.ValidatedMatchers
 
 import outputs.EnrichedEvent
 import utils.{BlockerF, ShiftExecution}
@@ -37,7 +39,7 @@ object SqlQueryEnrichmentIntegrationTest {
 }
 
 import SqlQueryEnrichmentIntegrationTest._
-class SqlQueryEnrichmentIntegrationTest extends Specification {
+class SqlQueryEnrichmentIntegrationTest extends Specification with ValidatedMatchers with CatsIO {
   def is =
     skipAllUnless(continuousIntegration) ^ s2"""
   Basic case        $e1
@@ -93,8 +95,8 @@ class SqlQueryEnrichmentIntegrationTest extends Specification {
 
     val event = new EnrichedEvent
 
-    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[Id](BlockerF.noop, ShiftExecution.noop))
-    val context = config.toEither.flatMap(_.lookup(event, Nil, Nil, None).toEither)
+    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[IO](BlockerF.noop, ShiftExecution.noop)).toOption.get
+    val context = config.flatMap(_.lookup(event, Nil, Nil, None))
 
     val correctContext =
       SelfDescribingData(
@@ -102,9 +104,9 @@ class SqlQueryEnrichmentIntegrationTest extends Specification {
         json"""{"singleColumn": 42}"""
       )
 
-    context must beRight.like {
+    context.map(_ must beValid.like {
       case List(json) => json must beEqualTo(correctContext)
-    }
+    })
   }
 
   /**
@@ -317,47 +319,48 @@ class SqlQueryEnrichmentIntegrationTest extends Specification {
       json""" {"applicationName": "ue_test_london"} """
     )
 
-    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).toEither.map(_.enrichment[Id](BlockerF.noop, ShiftExecution.noop))
+    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[IO](BlockerF.noop, ShiftExecution.noop)).toOption.get
 
-    val context1 =
-      config.flatMap(_.lookup(event1, List(weatherContext1), List(geoContext1), Some(ue1)).toEither)
+    val context1 = config.flatMap(_.lookup(event1, List(weatherContext1), List(geoContext1), Some(ue1)))
     val result_context1 =
       SelfDescribingData(
         SchemaKey("com.acme", "demographic", "jsonschema", SchemaVer.Full(1, 0, 0)),
         json"""{"city": "Krasnoyarsk", "country": "Russia", "pk": 1}"""
       )
 
-    val context2 =
-      config.flatMap(_.lookup(event2, List(weatherContext2), List(geoContext2), Some(ue2)).toEither)
+    val context2 = config.flatMap(_.lookup(event2, List(weatherContext2), List(geoContext2), Some(ue2)))
     val result_context2 =
       SelfDescribingData(
         SchemaKey("com.acme", "demographic", "jsonschema", SchemaVer.Full(1, 0, 0)),
         json"""{"city": "London", "country": "England", "pk": 2 }"""
       )
 
-    val context3 =
-      config.flatMap(_.lookup(event3, List(weatherContext3), List(geoContext3), Some(ue3)).toEither)
+    val context3 = config.flatMap(_.lookup(event3, List(weatherContext3), List(geoContext3), Some(ue3)))
     val result_context3 =
       SelfDescribingData(
         SchemaKey("com.acme", "demographic", "jsonschema", SchemaVer.Full(1, 0, 0)),
         json"""{"city": "New York", "country": "USA", "pk": 3} """
       )
 
-    val context4 = config.flatMap(
-      _.lookup(event4, List(weatherContext4), List(geoContext4, clientSession4), Some(ue4)).toEither
-    )
+    val context4 = config.flatMap(_.lookup(event4, List(weatherContext4), List(geoContext4, clientSession4), Some(ue4)))
     val result_context4 =
       SelfDescribingData(
         SchemaKey("com.acme", "demographic", "jsonschema", SchemaVer.Full(1, 0, 0)),
         json"""{"city": "London", "country": "England", "pk": 2 } """
       )
 
-    val res1 = context1 must beRight(List(result_context1))
-    val res2 = context2 must beRight(List(result_context2))
-    val res3 = context3 must beRight(List(result_context3))
-    val res4 = context4 must beRight(List(result_context4))
-
-    res1 and res2 and res3 and res4
+    for {
+      c1 <- context1
+      c2 <- context2
+      c3 <- context3
+      c4 <- context4
+    } yield {
+      val res1 = c1 must beValid(List(result_context1))
+      val res2 = c2 must beValid(List(result_context2))
+      val res3 = c3 must beValid(List(result_context3))
+      val res4 = c4 must beValid(List(result_context4))
+      res1 and res2 and res3 and res4
+    }
   }
 
   def e3 = {
@@ -408,10 +411,10 @@ class SqlQueryEnrichmentIntegrationTest extends Specification {
     val event = new EnrichedEvent
     event.user_id = null
 
-    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[Id](BlockerF.noop, ShiftExecution.noop))
-    val context = config.toEither.flatMap(_.lookup(event, Nil, Nil, None).toEither)
+    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[IO](BlockerF.noop, ShiftExecution.noop)).toOption.get
+    val context = config.flatMap(_.lookup(event, Nil, Nil, None))
 
-    context must beRight(Nil)
+    context.map(_ must beValid(Nil))
   }
 
   def e4 = {
@@ -452,15 +455,15 @@ class SqlQueryEnrichmentIntegrationTest extends Specification {
       """
 
     val event = new EnrichedEvent
-    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[Id](BlockerF.noop, ShiftExecution.noop))
-    val context = config.toEither.flatMap(_.lookup(event, Nil, Nil, None).toEither)
+    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[IO](BlockerF.noop, ShiftExecution.noop)).toOption.get
+    val context = config.flatMap(_.lookup(event, Nil, Nil, None))
 
-    context must beLeft.like {
+    context.map(_ must beInvalid.like {
       case NonEmptyList(one, two :: Nil)
           if one.toString.contains("Error while executing the sql lookup") &&
             two.toString.contains("FATAL: password authentication failed for user") =>
         ok
       case left => ko(s"error(s) don't contain the expected error messages: $left")
-    }
+    })
   }
 }

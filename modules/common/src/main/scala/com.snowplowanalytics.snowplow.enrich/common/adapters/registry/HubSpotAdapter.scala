@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2014-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -10,9 +10,7 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package adapters
-package registry
+package com.snowplowanalytics.snowplow.enrich.common.adapters.registry
 
 import cats.Monad
 import cats.data.{Kleisli, ValidatedNel}
@@ -20,6 +18,7 @@ import cats.instances.option._
 import cats.syntax.either._
 import cats.syntax.option._
 import cats.syntax.validated._
+import io.circe._
 
 import cats.effect.Clock
 
@@ -27,13 +26,13 @@ import org.joda.time.DateTime
 
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
+
 import com.snowplowanalytics.snowplow.badrows._
 
-import io.circe._
-
-import loaders.CollectorPayload
-import utils.{HttpClient, JsonUtils}
-import Adapter.Adapted
+import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
+import com.snowplowanalytics.snowplow.enrich.common.utils.JsonUtils
+import com.snowplowanalytics.snowplow.enrich.common.adapters._
+import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.Adapter.Adapted
 
 /**
  * Transforms a collector payload which conforms to a known version of the HubSpot webhook
@@ -67,7 +66,7 @@ case class HubSpotAdapter(schemas: HubspotSchemas) extends Adapter {
    * @param client The Iglu client used for schema lookup and validation
    * @return a Validation boxing either a NEL of RawEvents on Success, or a NEL of Failure Strings
    */
-  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
+  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock](
     payload: CollectorPayload,
     client: IgluCirceClient[F]
   ): F[Adapted] =

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -10,8 +10,7 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package utils
+package com.snowplowanalytics.snowplow.enrich.common.utils
 
 import java.lang.{Byte => JByte, Integer => JInteger}
 import java.lang.reflect.Field
@@ -29,12 +28,6 @@ import scala.util.control.NonFatal
 import cats.syntax.either._
 import cats.syntax.option._
 
-import com.snowplowanalytics.iglu.core.circe.implicits._
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
-import com.snowplowanalytics.snowplow.badrows.{FailureDetails, Processor}
-import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.MiscEnrichments
-
 import inet.ipaddr.HostName
 
 import io.circe.Json
@@ -47,6 +40,15 @@ import org.apache.commons.codec.binary.Base64
 import org.apache.http.client.utils.URLEncodedUtils
 import org.joda.time.{DateTime, DateTimeZone}
 import org.joda.time.format.DateTimeFormat
+
+import com.snowplowanalytics.iglu.core.circe.implicits._
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
+
+import com.snowplowanalytics.snowplow.badrows.{FailureDetails, Processor}
+
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.MiscEnrichments
+import com.snowplowanalytics.snowplow.enrich.common.QueryStringParameters
 
 /** General-purpose utils to help the ETL process along. */
 object ConversionUtils {

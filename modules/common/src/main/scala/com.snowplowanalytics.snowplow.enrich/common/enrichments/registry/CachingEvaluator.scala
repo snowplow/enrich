@@ -15,10 +15,11 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 import cats.Monad
 import cats.effect.Clock
 import cats.implicits._
-import com.snowplowanalytics.lrumap.{CreateLruMap, LruMap}
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.CachingEvaluator.{Cache, CachedItem, GetResult, Value}
-
 import java.util.concurrent.TimeUnit
+
+import com.snowplowanalytics.lrumap.{CreateLruMap, LruMap}
+
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.CachingEvaluator.{Cache, CachedItem, GetResult, Value}
 
 final class CachingEvaluator[F[_], K, V](
   cache: Cache[F, K, V],

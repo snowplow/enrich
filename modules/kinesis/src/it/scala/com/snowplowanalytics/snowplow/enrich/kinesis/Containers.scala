@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2022-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -15,7 +15,6 @@ package com.snowplowanalytics.snowplow.enrich.kinesis
 import java.util.UUID
 
 import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext
 
 import org.slf4j.LoggerFactory
 
@@ -24,7 +23,9 @@ import retry.RetryPolicies
 
 import cats.syntax.flatMap._
 
-import cats.effect.{IO, Resource, Timer}
+import cats.effect.{IO, Resource}
+
+import cats.effect.testing.specs2.CatsIO
 
 import org.testcontainers.containers.{BindMode, GenericContainer => JGenericContainer, Network}
 import org.testcontainers.containers.wait.strategy.Wait
@@ -35,10 +36,7 @@ import com.dimafeng.testcontainers.GenericContainer
 import com.snowplowanalytics.snowplow.enrich.kinesis.enrichments.{Enrichment, Enrichments}
 import com.snowplowanalytics.snowplow.enrich.kinesis.generated.BuildInfo
 
-object Containers {
-
-  private val executionContext: ExecutionContext = ExecutionContext.global
-  implicit val ioTimer: Timer[IO] = IO.timer(executionContext)
+object Containers extends CatsIO {
 
   private val network = Network.newNetwork()
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -15,7 +15,7 @@ package com.snowplowanalytics.snowplow.enrich.common.adapters.registry
 import cats.data.NonEmptyList
 import cats.syntax.option._
 
-import com.snowplowanalytics.snowplow.badrows._
+import cats.effect.testing.specs2.CatsIO
 
 import io.circe._
 import io.circe.literal._
@@ -25,14 +25,15 @@ import org.joda.time.DateTime
 import org.specs2.Specification
 import org.specs2.matcher.{DataTables, ValidatedMatchers}
 
+import com.snowplowanalytics.snowplow.badrows._
+
 import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
-import com.snowplowanalytics.snowplow.enrich.common.loaders._
-import com.snowplowanalytics.snowplow.enrich.common.utils.Clock._
+import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
 
-class MailchimpAdapterSpec extends Specification with DataTables with ValidatedMatchers {
+class MailchimpAdapterSpec extends Specification with DataTables with ValidatedMatchers with CatsIO {
   def is = s2"""
   toKeys should return a valid List of Keys from a string containing braces (or not)                $e1
   toNestedJson should return a valid JField nested to contain all keys and then the supplied value  $e2
@@ -119,8 +120,7 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
         "type" -> "subscribe",
         "id" -> "some_id"
       ).toOpt |> { (_, params, expected) =>
-      val actual = adapterWithDefaultSchemas.reformatParameters(params)
-      actual mustEqual expected
+      adapterWithDefaultSchemas.reformatParameters(params) mustEqual expected
     }
 
   def e6 = {
@@ -149,18 +149,21 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
             |}
           |}""".stripMargin.replaceAll("[\n\r]", "")
 
-    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
-    actual must beValid(
-      NonEmptyList.one(
-        RawEvent(
-          Shared.api,
-          Map("tv" -> "com.mailchimp-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson).toOpt,
-          ContentType.some,
-          Shared.cljSource,
-          Shared.context
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beValid(
+          NonEmptyList.one(
+            RawEvent(
+              Shared.api,
+              Map("tv" -> "com.mailchimp-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson).toOpt,
+              ContentType.some,
+              Shared.cljSource,
+              Shared.context
+            )
+          )
         )
       )
-    )
   }
 
   def e7 = {
@@ -190,18 +193,21 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
             |}
           |}""".stripMargin.replaceAll("[\n\r]", "")
 
-    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
-    actual must beValid(
-      NonEmptyList.one(
-        RawEvent(
-          Shared.api,
-          Map("tv" -> "com.mailchimp-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson).toOpt,
-          ContentType.some,
-          Shared.cljSource,
-          Shared.context
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beValid(
+          NonEmptyList.one(
+            RawEvent(
+              Shared.api,
+              Map("tv" -> "com.mailchimp-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson).toOpt,
+              ContentType.some,
+              Shared.cljSource,
+              Shared.context
+            )
+          )
         )
       )
-    )
   }
 
   def e8 =
@@ -223,18 +229,21 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
       )
       val expectedJson =
         "{\"schema\":\"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0\",\"data\":{\"schema\":\"" + expected + "\",\"data\":{\"type\":\"" + schema + "\"}}}"
-      val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
-      actual must beValid(
-        NonEmptyList.one(
-          RawEvent(
-            Shared.api,
-            Map("tv" -> "com.mailchimp-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson).toOpt,
-            ContentType.some,
-            Shared.cljSource,
-            Shared.context
+      adapterWithDefaultSchemas
+        .toRawEvents(payload, SpecHelpers.client)
+        .map(
+          _ must beValid(
+            NonEmptyList.one(
+              RawEvent(
+                Shared.api,
+                Map("tv" -> "com.mailchimp-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> expectedJson).toOpt,
+                ContentType.some,
+                Shared.cljSource,
+                Shared.context
+              )
+            )
           )
         )
-      )
     }
 
   def e9 =
@@ -258,8 +267,7 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
         Shared.cljSource,
         Shared.context
       )
-      val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
-      actual must beInvalid(NonEmptyList.one(expected))
+      adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client).map(_ must beInvalid(NonEmptyList.one(expected)))
     }
 
   def e10 = {
@@ -301,51 +309,60 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
             |}
           |}""".stripMargin.replaceAll("[\n\r]", "")
 
-    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
-    actual must beValid(
-      NonEmptyList.one(
-        RawEvent(
-          Shared.api,
-          Map(
-            "tv" -> "com.mailchimp-v1",
-            "e" -> "ue",
-            "p" -> "srv",
-            "ue_pr" -> expectedJson,
-            "nuid" -> "123"
-          ).toOpt,
-          ContentType.some,
-          Shared.cljSource,
-          Shared.context
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beValid(
+          NonEmptyList.one(
+            RawEvent(
+              Shared.api,
+              Map(
+                "tv" -> "com.mailchimp-v1",
+                "e" -> "ue",
+                "p" -> "srv",
+                "ue_pr" -> expectedJson,
+                "nuid" -> "123"
+              ).toOpt,
+              ContentType.some,
+              Shared.cljSource,
+              Shared.context
+            )
+          )
         )
       )
-    )
   }
 
   def e11 = {
     val payload =
       CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
-    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
-    actual must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.AdapterFailure
-          .InputData("body", None, "empty body: no events to process")
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure
+              .InputData("body", None, "empty body: no events to process")
+          )
+        )
       )
-    )
   }
 
   def e12 = {
     val payload =
       CollectorPayload(Shared.api, Nil, None, "stub".some, Shared.cljSource, Shared.context)
-    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
-    actual must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.AdapterFailure.InputData(
-          "contentType",
-          None,
-          "no content type: expected application/x-www-form-urlencoded"
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure.InputData(
+              "contentType",
+              None,
+              "no content type: expected application/x-www-form-urlencoded"
+            )
+          )
         )
       )
-    )
   }
 
   def e13 = {
@@ -357,16 +374,19 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
       Shared.cljSource,
       Shared.context
     )
-    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
-    actual must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.AdapterFailure.InputData(
-          "contentType",
-          "application/json".some,
-          "expected application/x-www-form-urlencoded"
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure.InputData(
+              "contentType",
+              "application/json".some,
+              "expected application/x-www-form-urlencoded"
+            )
+          )
         )
       )
-    )
   }
 
   def e14 = {
@@ -379,15 +399,18 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
       Shared.cljSource,
       Shared.context
     )
-    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
-    actual must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.AdapterFailure.InputData(
-          "body",
-          "fired_at=2014-10-22+13%3A10%3A40".some,
-          "no `type` parameter provided: cannot determine event type"
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure.InputData(
+              "body",
+              "fired_at=2014-10-22+13%3A10%3A40".some,
+              "no `type` parameter provided: cannot determine event type"
+            )
+          )
         )
       )
-    )
   }
 }

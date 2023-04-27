@@ -30,6 +30,8 @@ import org.http4s.syntax.all._
 
 import cats.effect.testing.specs2.CatsIO
 
+import com.snowplowanalytics.snowplow.enrich.common.fs2.SpecHelpers
+
 /**
  * Embedded HTTP Server for testing, mostly for assets refresh,
  * but can serve
@@ -89,7 +91,7 @@ object HttpServer extends CatsIO {
   def resource: Resource[IO, Unit] =
     for {
       counter <- Resource.eval(Ref.of[IO, Int](0))
-      _ <- BlazeServerBuilder[IO](concurrent.ExecutionContext.global)
+      _ <- BlazeServerBuilder[IO](SpecHelpers.blockingEC)
              .bindHttp(8080)
              .withHttpApp(routes(counter).orNotFound)
              .withoutBanner

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2021 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2021-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -32,8 +32,6 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{BackoffPolicy
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{CliConfig, ParsedConfigs}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{FileSink, Retries, Source}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.Client
-
-import org.http4s.client.{Client => Http4sClient}
 
 object Run {
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
@@ -159,16 +157,8 @@ object Run {
     environment: Resource[F, Environment[F, A]]
   ): F[ExitCode] =
     environment.use { env =>
-      val enrich = {
-        //  env.remoteAdapterHttpClient is None in case there is no remote adapter
-        //  env.httpClient is used as placeholder and not used at all, as there is no remote adapter
-        implicit val remoteAdapterHttpClient: Http4sClient[F] = env.remoteAdapterHttpClient.getOrElse(env.httpClient)
-        Enrich.run[F, A](env)
-      }
-      val updates = {
-        implicit val httpClient: Http4sClient[F] = env.httpClient
-        Assets.run[F, A](env.blocker, env.shifter, env.semaphore, env.assetsUpdatePeriod, env.assetsState, env.enrichments)
-      }
+      val enrich = Enrich.run[F, A](env)
+      val updates = Assets.run[F, A](env.blocker, env.shifter, env.semaphore, env.assetsUpdatePeriod, env.assetsState, env.enrichments)
       val telemetry = Telemetry.run[F, A](env)
       val reporting = env.metrics.report
       val metadata = env.metadata.report

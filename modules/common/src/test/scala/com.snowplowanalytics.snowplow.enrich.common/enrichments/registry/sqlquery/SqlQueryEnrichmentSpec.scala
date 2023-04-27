@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -15,13 +15,13 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlque
 import io.circe.parser._
 import io.circe.literal._
 
+import org.specs2.Specification
+import org.specs2.matcher.ValidatedMatchers
+
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer}
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.SqlQueryConf
 import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
-
-import org.specs2.Specification
-import org.specs2.matcher.ValidatedMatchers
 
 class SqlQueryEnrichmentSpec extends Specification with ValidatedMatchers {
   def is = s2"""

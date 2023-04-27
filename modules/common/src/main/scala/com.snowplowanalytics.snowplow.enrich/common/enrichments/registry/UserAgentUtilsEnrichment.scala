@@ -1,4 +1,4 @@
-/*Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+/*Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -19,6 +19,8 @@ import cats.syntax.option._
 
 import io.circe._
 
+import org.slf4j.LoggerFactory
+
 import eu.bitwalker.useragentutils._
 
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey}
@@ -26,8 +28,6 @@ import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey}
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.UserAgentUtilsConf
-
-import org.slf4j.LoggerFactory
 
 object UserAgentUtilsEnrichmentConfig extends ParseableEnrichment {
   override val supportedSchema =

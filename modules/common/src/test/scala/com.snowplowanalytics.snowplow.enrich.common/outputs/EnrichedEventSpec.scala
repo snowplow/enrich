@@ -20,8 +20,9 @@ import java.lang.{Float => JFloat}
 import java.lang.{Byte => JByte}
 import java.math.{BigDecimal => JBigDecimal}
 
-import com.snowplowanalytics.snowplow.badrows.Payload.PartiallyEnrichedEvent
 import org.specs2.mutable.Specification
+
+import com.snowplowanalytics.snowplow.badrows.Payload.PartiallyEnrichedEvent
 
 class EnrichedEventSpec extends Specification {
   import EnrichedEventSpec._

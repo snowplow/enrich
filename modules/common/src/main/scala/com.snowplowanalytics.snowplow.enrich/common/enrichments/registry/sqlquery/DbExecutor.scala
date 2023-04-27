@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -12,30 +12,27 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery
 
+import scala.collection.immutable.IntMap
+
 import java.sql.{Connection, PreparedStatement, ResultSet, ResultSetMetaData}
 import javax.sql.DataSource
 
-import scala.collection.mutable.ListBuffer
-import scala.util.control.NonFatal
-
 import io.circe.Json
 
-import cats.{Id, Monad}
+import cats.Monad
 import cats.data.EitherT
-import cats.effect.{Bracket, Sync}
 import cats.implicits._
 
-import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.Input.ExtractedValue
+import cats.effect.{Async, Blocker, Bracket, ContextShift, Resource, Sync}
 
-import scala.collection.immutable.IntMap
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.Input.ExtractedValue
 
 // DbExecutor must have much smaller interface, ideally without any JDBC types
 /** Side-effecting ability to connect to database */
 trait DbExecutor[F[_]] {
 
   /** Get a connection from the Hikari data source */
-  def getConnection(dataSource: DataSource, blocker: BlockerF[F]): F[Either[Throwable, Connection]]
+  def getConnection(dataSource: DataSource, blocker: Blocker): Resource[F, Connection]
 
   /** Execute a SQL query */
   def execute(query: PreparedStatement): EitherT[F, Throwable, ResultSet]
@@ -77,14 +74,14 @@ trait DbExecutor[F[_]] {
 
 object DbExecutor {
 
-  // TYPE CLASS
-
   def apply[F[_]](implicit ev: DbExecutor[F]): DbExecutor[F] = ev
 
-  implicit def syncDbExecutor[F[_]: Sync]: DbExecutor[F] =
+  def async[F[_]: Async: ContextShift]: DbExecutor[F] = sync[F]
+
+  def sync[F[_]: ContextShift: Sync]: DbExecutor[F] =
     new DbExecutor[F] {
-      def getConnection(dataSource: DataSource, blocker: BlockerF[F]): F[Either[Throwable, Connection]] =
-        blocker.blockOn(Sync[F].delay(Either.catchNonFatal(dataSource.getConnection())))
+      def getConnection(dataSource: DataSource, blocker: Blocker): Resource[F, Connection] =
+        Resource.fromAutoCloseable(blocker.blockOn(Sync[F].delay(dataSource.getConnection())))
 
       def execute(query: PreparedStatement): EitherT[F, Throwable, ResultSet] =
         Sync[F].delay(query.executeQuery()).attemptT
@@ -124,50 +121,6 @@ object DbExecutor {
             case None => Json.Null
           }
 
-    }
-
-  implicit def idDbExecutor: DbExecutor[Id] =
-    new DbExecutor[Id] {
-      def getConnection(dataSource: DataSource, blocker: BlockerF[Id]): Either[Throwable, Connection] =
-        Either.catchNonFatal(dataSource.getConnection())
-
-      def execute(query: PreparedStatement): EitherT[Id, Throwable, ResultSet] =
-        EitherT[Id, Throwable, ResultSet](Either.catchNonFatal(query.executeQuery()))
-
-      def convert(resultSet: ResultSet, names: JsonOutput.PropertyNameMode): EitherT[Id, Throwable, List[Json]] =
-        EitherT(
-          try {
-            val buffer = ListBuffer.empty[EitherT[Id, Throwable, Json]]
-            while (resultSet.next())
-              buffer += transform[Id](resultSet, names)(this, Monad[Id])
-            val parsedJsons = buffer.result().sequence
-            resultSet.close()
-            parsedJsons.value
-          } catch {
-            case NonFatal(error) => error.asLeft
-          }
-        )
-
-      def getMetaData(rs: ResultSet): EitherT[Id, Throwable, ResultSetMetaData] =
-        Either.catchNonFatal(rs.getMetaData).toEitherT[Id]
-
-      def getColumnCount(rsMeta: ResultSetMetaData): EitherT[Id, Throwable, Int] =
-        Either.catchNonFatal(rsMeta.getColumnCount).toEitherT[Id]
-
-      def getColumnLabel(column: Int, rsMeta: ResultSetMetaData): EitherT[Id, Throwable, String] =
-        Either.catchNonFatal(rsMeta.getColumnLabel(column)).toEitherT[Id]
-
-      def getColumnType(column: Int, rsMeta: ResultSetMetaData): EitherT[Id, Throwable, String] =
-        Either.catchNonFatal(rsMeta.getColumnClassName(column)).toEitherT[Id]
-
-      def getColumnValue(
-        datatype: String,
-        columnIdx: Int,
-        rs: ResultSet
-      ): EitherT[Id, Throwable, Json] =
-        EitherT[Id, Throwable, Json](for {
-          value <- Either.catchNonFatal(rs.getObject(columnIdx)).map(Option.apply)
-        } yield value.map(JsonOutput.getValue(_, datatype)).getOrElse(Json.Null))
     }
 
   /**
@@ -242,6 +195,6 @@ object DbExecutor {
       if (intMap.keys.size == placeholderCount) true else false
     }
 
-  def getConnection[F[_]: Monad: DbExecutor](dataSource: DataSource, blocker: BlockerF[F]): F[Either[Throwable, Connection]] =
+  def getConnection[F[_]: Monad: DbExecutor](dataSource: DataSource, blocker: Blocker): Resource[F, Connection] =
     DbExecutor[F].getConnection(dataSource, blocker)
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -16,7 +16,6 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Paths
 
 import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext
 
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
@@ -39,17 +38,16 @@ import com.snowplowanalytics.snowplow.badrows.BadRow
 
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
+import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
-import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, ShiftExecution}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, ShiftExecution}
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.{Assets, AttributedData, Enrich, EnrichSpec, Environment}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Environment.{Enrichments, StreamsSettings}
-import com.snowplowanalytics.snowplow.enrich.common.fs2.SpecHelpers.{createIgluClient, filesResource, ioClock}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.SpecHelpers
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Concurrency, Telemetry}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients
-import org.http4s.client.{Client => Http4sClient}
-import org.http4s.dsl.Http4sDsl
 
 case class TestEnvironment[A](
   env: Environment[IO, A],
@@ -76,7 +74,6 @@ case class TestEnvironment[A](
     T: Timer[IO]
   ): IO[(Vector[BadRow], Vector[Event], Vector[Event])] = {
     val updatedEnv = updateEnv(env)
-    implicit val client: Http4sClient[IO] = updatedEnv.httpClient
     val stream = Enrich
       .run[IO, A](updatedEnv)
       .merge(
@@ -103,24 +100,15 @@ case class TestEnvironment[A](
 
 object TestEnvironment extends CatsIO {
 
-  val logger: Logger[IO] =
-    Slf4jLogger.getLogger[IO]
+  val logger: Logger[IO] = Slf4jLogger.getLogger[IO]
 
-  val enrichmentReg: EnrichmentRegistry[IO] =
-    EnrichmentRegistry[IO]()
-  val enrichments: Environment.Enrichments[IO] =
-    Environment.Enrichments(enrichmentReg, Nil)
+  val enrichmentReg: EnrichmentRegistry[IO] = EnrichmentRegistry[IO]()
 
   val ioBlocker: Resource[IO, Blocker] = Blocker[IO]
 
   val embeddedRegistry = Registry.EmbeddedRegistry
 
-  val adapterRegistry = new AdapterRegistry(adaptersSchemas = adaptersSchemas)
-
-  val http4sClient: Http4sClient[IO] = Http4sClient[IO] { _ =>
-    val dsl = new Http4sDsl[IO] {}; import dsl._
-    Resource.eval(Ok(""))
-  }
+  val adapterRegistry = new AdapterRegistry(Map.empty[(String, String), RemoteAdapter[IO]], adaptersSchemas)
 
   /**
    * A dummy test environment without enrichment and with noop sinks and sources
@@ -128,33 +116,30 @@ object TestEnvironment extends CatsIO {
    */
   def make(source: Stream[IO, Array[Byte]], enrichments: List[EnrichmentConf] = Nil): Resource[IO, TestEnvironment[Array[Byte]]] =
     for {
-      http <- Clients.mkHttp[IO](ec = ExecutionContext.global)
+      http4s <- Clients.mkHttp[IO](ec = SpecHelpers.blockingEC)
+      http = HttpClient.fromHttp4sClient(http4s)
       blocker <- ioBlocker
-      _ <- filesResource(blocker, enrichments.flatMap(_.filesToCache).map(p => Paths.get(p._2)))
+      _ <- SpecHelpers.filesResource(blocker, enrichments.flatMap(_.filesToCache).map(p => Paths.get(p._2)))
       counter <- Resource.eval(Counter.make[IO])
-      metrics = Counter.mkCounterMetrics[IO](counter)(Monad[IO], ioClock)
+      metrics = Counter.mkCounterMetrics[IO](counter)(Monad[IO], SpecHelpers.ioClock)
       aggregates <- Resource.eval(AggregatesSpec.init[IO])
       metadata = AggregatesSpec.metadata[IO](aggregates)
-      clients = Clients.init[IO](http, Nil)
+      clients = Clients.init[IO](http4s, Nil)
       sem <- Resource.eval(Semaphore[IO](1L))
       assetsState <- Resource.eval(Assets.State.make(blocker, sem, clients, enrichments.flatMap(_.filesToCache)))
       shifter <- ShiftExecution.ofSingleThread
-      enrichmentsRef <- {
-        implicit val client: Http4sClient[IO] = http
-        Enrichments.make[IO](enrichments, BlockerF.ofBlocker(blocker), shifter)
-      }
+      enrichmentsRef <- Enrichments.make[IO](enrichments, blocker, shifter, http)
       goodRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
       piiRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
       badRef <- Resource.eval(Ref.of[IO, Vector[Array[Byte]]](Vector.empty))
-      igluClient <- Resource.eval(createIgluClient(List(embeddedRegistry)))
+      igluClient <- Resource.eval(SpecHelpers.createIgluClient(List(embeddedRegistry)))
       environment = Environment[IO, Array[Byte]](
                       igluClient,
-                      Http4sRegistryLookup(http),
+                      Http4sRegistryLookup(http4s),
                       enrichmentsRef,
                       sem,
                       assetsState,
-                      http,
-                      Some(http),
+                      http4s,
                       blocker,
                       shifter,
                       source,

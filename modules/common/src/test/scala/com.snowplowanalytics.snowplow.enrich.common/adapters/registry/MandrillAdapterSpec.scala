@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -10,24 +10,25 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package adapters
-package registry
+package com.snowplowanalytics.snowplow.enrich.common.adapters.registry
 
 import cats.data.NonEmptyList
 import cats.syntax.option._
-import com.snowplowanalytics.snowplow.badrows._
+import cats.effect.testing.specs2.CatsIO
 import io.circe.literal._
 import org.joda.time.DateTime
 import org.specs2.Specification
 import org.specs2.matcher.{DataTables, ValidatedMatchers}
 
-import loaders._
-import utils.Clock._
+import com.snowplowanalytics.snowplow.badrows._
 
-import SpecHelpers._
+import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
+import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 
-class MandrillAdapterSpec extends Specification with DataTables with ValidatedMatchers {
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
+
+class MandrillAdapterSpec extends Specification with DataTables with ValidatedMatchers with CatsIO {
   def is = s2"""
   payloadBodyToEvents must return a Success List[JValue] for a valid events string                      $e1
   payloadBodyToEvents must return a Failure String if the mapped events string is not in a valid format $e2
@@ -215,7 +216,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
         Shared.context
       )
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client).map(_ must beValid(expected))
   }
 
   def e5 = { // Spec for nine seperate events where two have incorrect event names and one does not have event as a parameter
@@ -246,33 +247,41 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
         "cannot determine event type: type parameter not provided at index 2"
       )
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(expected)
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client).map(_ must beInvalid(expected))
   }
 
   def e6 = {
     val payload =
       CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.AdapterFailure
-          .InputData("body", None, "empty body: no events to process")
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure
+              .InputData("body", None, "empty body: no events to process")
+          )
+        )
       )
-    )
   }
 
   def e7 = {
     val body = "mandrill_events=%5B%7B%22event%22%3A%20%22subscribe%22%7D%5D"
     val payload =
       CollectorPayload(Shared.api, Nil, None, body.some, Shared.cljSource, Shared.context)
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.AdapterFailure.InputData(
-          "contentType",
-          None,
-          "no content type: expected application/x-www-form-urlencoded"
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure.InputData(
+              "contentType",
+              None,
+              "no content type: expected application/x-www-form-urlencoded"
+            )
+          )
         )
       )
-    )
   }
 
   def e8 = {
@@ -280,11 +289,15 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
     val ct = "application/x-www-form-urlencoded; charset=utf-8".some
     val payload =
       CollectorPayload(Shared.api, Nil, ct, body.some, Shared.cljSource, Shared.context)
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.AdapterFailure
-          .InputData("contentType", ct, "expected application/x-www-form-urlencoded")
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure
+              .InputData("contentType", ct, "expected application/x-www-form-urlencoded")
+          )
+        )
       )
-    )
   }
 }

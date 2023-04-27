@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -20,14 +20,16 @@ import cats.Monad
 import cats.data.{EitherT, NonEmptyList, ValidatedNel}
 import cats.implicits._
 
+import cats.effect.Async
+
 import io.circe._
+
+import org.joda.money.CurrencyUnit
+import org.joda.time.DateTime
 
 import com.snowplowanalytics.forex.{CreateForex, Forex}
 import com.snowplowanalytics.forex.model._
 import com.snowplowanalytics.forex.errors.OerResponseError
-
-import org.joda.money.CurrencyUnit
-import org.joda.time.DateTime
 
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey}
 
@@ -81,17 +83,15 @@ object CurrencyConversionEnrichment extends ParseableEnrichment {
       }
       .toValidated
 
-  /**
-   * Creates a CurrencyConversionEnrichment from a CurrencyConversionConf
-   * @param conf Configuration for the currency conversion enrichment
-   * @return a currency conversion enrichment
-   */
-  def apply[F[_]: Monad: CreateForex](conf: CurrencyConversionConf): F[CurrencyConversionEnrichment[F]] =
+  def create[F[_]: Async](
+    schemaKey: SchemaKey,
+    apiKey: String,
+    accountType: AccountType,
+    baseCurrency: CurrencyUnit
+  ): F[CurrencyConversionEnrichment[F]] =
     CreateForex[F]
-      .create(
-        ForexConfig(conf.apiKey, conf.accountType, baseCurrency = conf.baseCurrency)
-      )
-      .map(f => CurrencyConversionEnrichment(conf.schemaKey, f, conf.baseCurrency))
+      .create(ForexConfig(apiKey, accountType, baseCurrency = baseCurrency))
+      .map(f => CurrencyConversionEnrichment(schemaKey, f, baseCurrency))
 }
 
 /**

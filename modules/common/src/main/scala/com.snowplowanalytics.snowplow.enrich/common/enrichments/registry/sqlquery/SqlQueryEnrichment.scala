@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -12,22 +12,29 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery
 
-import cats.Monad
-import cats.data.{EitherT, NonEmptyList, Validated, ValidatedNel}
-import cats.effect.Clock
-import cats.implicits._
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SelfDescribingData}
-import com.snowplowanalytics.snowplow.badrows.FailureDetails
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.SqlQueryConf
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{Enrichment, ParseableEnrichment}
-import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, CirceUtils, ResourceF, ShiftExecution}
-import io.circe._
-import io.circe.generic.semiauto._
-import org.slf4j.LoggerFactory
-
 import java.sql.Connection
 import javax.sql.DataSource
+
+import scala.collection.immutable.IntMap
+
+import com.zaxxer.hikari.HikariDataSource
+
+import io.circe._
+import io.circe.generic.semiauto._
+
+import cats.data.{EitherT, NonEmptyList, Validated, ValidatedNel}
+import cats.implicits._
+
+import cats.effect.{Async, Blocker, Clock, ContextShift}
+
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SelfDescribingData}
+
+import com.snowplowanalytics.snowplow.badrows.FailureDetails
+
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.SqlQueryConf
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{CachingEvaluator, Enrichment, ParseableEnrichment}
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.utils.{CirceUtils, ShiftExecution}
 
 /** Lets us create an SqlQueryConf from a Json */
 object SqlQueryEnrichment extends ParseableEnrichment {
@@ -82,13 +89,6 @@ object SqlQueryEnrichment extends ParseableEnrichment {
       ).mapN(SqlQueryConf(schemaKey, _, _, _, _, _, _)).toEither
     }.toValidated
 
-  def apply[F[_]: CreateSqlQueryEnrichment](
-    conf: SqlQueryConf,
-    blocker: BlockerF[F],
-    ec: ShiftExecution[F]
-  ): F[SqlQueryEnrichment[F]] =
-    CreateSqlQueryEnrichment[F].create(conf, blocker, ec)
-
   /** Just a string with SQL, not escaped */
   final case class Query(sql: String) extends AnyVal
 
@@ -100,6 +100,51 @@ object SqlQueryEnrichment extends ParseableEnrichment {
 
   implicit val cacheCirceDecoder: Decoder[Cache] =
     deriveDecoder[Cache]
+
+  def create[F[_]: Async: Clock: ContextShift](
+    schemaKey: SchemaKey,
+    inputs: List[Input],
+    db: Rdbms,
+    query: Query,
+    output: Output,
+    cache: Cache,
+    ignoreOnError: Boolean,
+    blocker: Blocker,
+    shifter: ShiftExecution[F]
+  ): F[SqlQueryEnrichment[F]] = {
+    val cacheConfig = CachingEvaluator.Config(
+      size = cache.size,
+      successTtl = cache.ttl,
+      errorTtl = cache.ttl / 10
+    )
+
+    val executor: DbExecutor[F] = DbExecutor.async[F]
+
+    CachingEvaluator
+      .create[F, IntMap[Input.ExtractedValue], List[SelfDescribingData[Json]]](cacheConfig)
+      .map { evaluator =>
+        SqlQueryEnrichment(
+          schemaKey,
+          inputs,
+          db,
+          query,
+          output,
+          evaluator,
+          executor,
+          blocker,
+          shifter,
+          getDataSource(db),
+          ignoreOnError
+        )
+      }
+  }
+
+  private def getDataSource(rdbms: Rdbms): HikariDataSource = {
+    val source = new HikariDataSource()
+    source.setJdbcUrl(rdbms.connectionString)
+    source.setMaximumPoolSize(1) // see https://github.com/snowplow/enrich/issues/549
+    source
+  }
 }
 
 /**
@@ -112,22 +157,21 @@ object SqlQueryEnrichment extends ParseableEnrichment {
  * @param cache actual mutable LRU cache
  * @param blocker Allows running blocking enrichments on a dedicated thread pool
  */
-final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor: ResourceF: Clock](
+final case class SqlQueryEnrichment[F[_]: Async: Clock](
   schemaKey: SchemaKey,
   inputs: List[Input],
   db: Rdbms,
   query: SqlQueryEnrichment.Query,
   output: Output,
   sqlQueryEvaluator: SqlQueryEvaluator[F],
-  blocker: BlockerF[F],
+  dbExecutor: DbExecutor[F],
+  blocker: Blocker,
   shifter: ShiftExecution[F],
   dataSource: DataSource,
   ignoreOnError: Boolean
 ) extends Enrichment {
   private val enrichmentInfo =
     FailureDetails.EnrichmentInformation(schemaKey, "sql-query").some
-
-  private val logger = LoggerFactory.getLogger(getClass)
 
   /**
    * Primary function of the enrichment. Failure means connection failure, failed unexpected
@@ -171,13 +215,13 @@ final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor: ResourceF: Clock](
         EitherT.rightT(Nil)
     }
 
-  private def runLookup(intMap: Input.ExtractedValueMap): F[Either[Throwable, List[SelfDescribingData[Json]]]] = {
-    val eitherT = for {
-      connection <- EitherT(DbExecutor.getConnection[F](dataSource, blocker))
-      result <- EitherT(ResourceF[F].use(connection)(closeConnection)(maybeRunWithConnection(_, intMap)))
-    } yield result
-    eitherT.value
-  }
+  private def runLookup(intMap: Input.ExtractedValueMap): F[Either[Throwable, List[SelfDescribingData[Json]]]] =
+    dbExecutor
+      .getConnection(dataSource, blocker)
+      .use { connection =>
+        maybeRunWithConnection(connection, intMap)
+      }
+      .handleError(Left(_))
 
   // We now have a connection.  But time has passed since we last checked the cache, and another
   // fiber might have run a query while we were waiting for the connection. So we check the cache
@@ -202,8 +246,8 @@ final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor: ResourceF: Clock](
       case true =>
         for {
           sqlQuery <- DbExecutor.createStatement(connection, query.sql, intMap).toEitherT[F]
-          resultSet <- DbExecutor[F].execute(sqlQuery)
-          context <- DbExecutor[F].convert(resultSet, output.json.propertyNames)
+          resultSet <- dbExecutor.execute(sqlQuery)
+          context <- dbExecutor.convert(resultSet, output.json.propertyNames)
           result <- output.envelope(context).toEitherT[F]
         } yield result
     }
@@ -229,13 +273,5 @@ final case class SqlQueryEnrichment[F[_]: Monad: DbExecutor: ResourceF: Clock](
     errors.map { error =>
       val message = FailureDetails.EnrichmentFailureMessage.Simple(error)
       FailureDetails.EnrichmentFailure(enrichmentInfo, message)
-    }
-
-  private def closeConnection(connection: Connection): Unit =
-    Either.catchNonFatal(connection.close()) match {
-      case Left(err) =>
-        logger.error("Can't close the connection", err)
-      case _ =>
-        ()
     }
 }

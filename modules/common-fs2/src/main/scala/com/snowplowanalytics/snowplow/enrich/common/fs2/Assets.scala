@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -33,7 +33,7 @@ import fs2.io.file.{exists, move, readAll, tempFileResource, writeAll}
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
-import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, HttpClient, ShiftExecution}
+import com.snowplowanalytics.snowplow.enrich.common.utils.ShiftExecution
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients
 
@@ -132,7 +132,7 @@ object Assets {
   )
 
   /** Initializes the [[updateStream]] if refresh period is specified. */
-  def run[F[_]: ConcurrentEffect: ContextShift: HttpClient: Parallel: Timer, A](
+  def run[F[_]: ConcurrentEffect: ContextShift: Parallel: Timer, A](
     blocker: Blocker,
     shifter: ShiftExecution[F],
     sem: Semaphore[F],
@@ -155,7 +155,7 @@ object Assets {
    * Creates an update stream that periodically checks if new versions of assets are available.
    * If that's the case, updates them locally for the enrichments and updates the state.
    */
-  def updateStream[F[_]: ConcurrentEffect: ContextShift: Parallel: Timer: HttpClient](
+  def updateStream[F[_]: ConcurrentEffect: ContextShift: Parallel: Timer](
     blocker: Blocker,
     shifter: ShiftExecution[F],
     sem: Semaphore[F],
@@ -223,7 +223,7 @@ object Assets {
    * 2. Updates the state of the assets with new hash(es)
    * 3. Updates the enrichments config
    */
-  def update[F[_]: ConcurrentEffect: ContextShift: HttpClient](
+  def update[F[_]: ConcurrentEffect: ContextShift](
     blocker: Blocker,
     shifter: ShiftExecution[F],
     state: State[F],
@@ -243,7 +243,7 @@ object Assets {
 
       _ <- Logger[F].info("Reinitializing enrichments")
       old <- enrichments.get
-      fresh <- old.reinitialize(BlockerF.ofBlocker(blocker), shifter)
+      fresh <- old.reinitialize(blocker, shifter)
       _ <- enrichments.set(fresh)
     } yield ()
 

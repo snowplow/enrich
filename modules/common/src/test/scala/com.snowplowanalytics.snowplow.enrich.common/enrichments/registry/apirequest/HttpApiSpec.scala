@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -12,19 +12,21 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest
 
-import cats.Id
-
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
-
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.ApiRequestConf
-import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.Clock.idClock
+import cats.effect.IO
+import cats.effect.testing.specs2.CatsIO
 
 import org.specs2.Specification
 import org.specs2.matcher.ValidatedMatchers
 import org.specs2.mock.Mockito
 
-class HttpApiSpec extends Specification with ValidatedMatchers with Mockito {
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.ApiRequestConf
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
+
+class HttpApiSpec extends Specification with ValidatedMatchers with Mockito with CatsIO {
   def is = s2"""
   fail to build request string without all keys $e1
   build request string from template context    $e2
@@ -55,17 +57,19 @@ class HttpApiSpec extends Specification with ValidatedMatchers with Mockito {
 
   def e3 = {
     val schemaKey = SchemaKey("vendor", "name", "format", SchemaVer.Full(1, 0, 0))
-    val enrichment = ApiRequestConf(
-      schemaKey,
-      Nil,
-      HttpApi("GET", "http://thishostdoesntexist31337:8123/endpoint", 1000, Authentication(None)),
-      List(Output("", Some(JsonOutput("")))),
-      Cache(1, 1),
-      ignoreOnError = false
-    ).enrichment[Id]
-
-    val event = new EnrichedEvent
-    val request = enrichment.lookup(event, Nil, Nil, None)
-    request must beInvalid
+    SpecHelpers.httpClient.use { http =>
+      for {
+        enrichment <- ApiRequestConf(
+                        schemaKey,
+                        Nil,
+                        HttpApi("GET", "http://thishostdoesntexist31337:8123/endpoint", 1000, Authentication(None)),
+                        List(Output("", Some(JsonOutput("")))),
+                        Cache(1, 1),
+                        ignoreOnError = false
+                      ).enrichment[IO](http)
+        event = new EnrichedEvent
+        request <- enrichment.lookup(event, Nil, Nil, None)
+      } yield request must beInvalid
+    }
   }
 }

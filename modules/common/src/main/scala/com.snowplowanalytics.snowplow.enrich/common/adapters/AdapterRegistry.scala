@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -28,14 +28,13 @@ import com.snowplowanalytics.snowplow.badrows._
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry._
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.snowplow.{RedirectAdapter, Tp1Adapter, Tp2Adapter}
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
-import com.snowplowanalytics.snowplow.enrich.common.utils.HttpClient
 
 /**
  * The AdapterRegistry lets us convert a CollectorPayload into one or more RawEvents, using a given
  * adapter.
  */
-class AdapterRegistry(
-  remoteAdapters: Map[(String, String), RemoteAdapter] = Map.empty,
+class AdapterRegistry[F[_]: Clock: Monad: RegistryLookup](
+  remoteAdapters: Map[(String, String), RemoteAdapter[F]],
   adaptersSchemas: AdaptersSchemas
 ) {
   val adapters: Map[(String, String), Adapter] = Map(
@@ -59,7 +58,7 @@ class AdapterRegistry(
     (Vendor.Marketo, "v1") -> MarketoAdapter(adaptersSchemas.marketo),
     (Vendor.Vero, "v1") -> VeroAdapter(adaptersSchemas.vero),
     (Vendor.HubSpot, "v1") -> HubSpotAdapter(adaptersSchemas.hubspot)
-  ) ++ remoteAdapters
+  )
 
   private object Vendor {
     val Snowplow = "com.snowplowanalytics.snowplow"
@@ -91,20 +90,26 @@ class AdapterRegistry(
    * @return a Validation boxing either a NEL of RawEvents on Success, or a NEL of Strings on
    * Failure
    */
-  def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
+  def toRawEvents(
     payload: CollectorPayload,
     client: IgluCirceClient[F],
     processor: Processor
   ): F[Validated[BadRow, NonEmptyList[RawEvent]]] =
     (adapters.get((payload.api.vendor, payload.api.version)) match {
-      case Some(adapter) => adapter.toRawEvents(payload, client)
+      case Some(adapter) =>
+        adapter.toRawEvents(payload, client)
       case None =>
-        val f = FailureDetails.AdapterFailure.InputData(
-          "vendor/version",
-          Some(s"${payload.api.vendor}/${payload.api.version}"),
-          "vendor/version combination is not supported"
-        )
-        Monad[F].pure(f.invalidNel[NonEmptyList[RawEvent]])
+        remoteAdapters.get((payload.api.vendor, payload.api.version)) match {
+          case Some(adapter) =>
+            adapter.toRawEvents(payload, client)
+          case None =>
+            val f = FailureDetails.AdapterFailure.InputData(
+              "vendor/version",
+              Some(s"${payload.api.vendor}/${payload.api.version}"),
+              "vendor/version combination is not supported"
+            )
+            Monad[F].pure(f.invalidNel[NonEmptyList[RawEvent]])
+        }
     }).map(_.leftMap(enrichFailure(_, payload, payload.api.vendor, payload.api.version, processor)))
 
   private def enrichFailure(

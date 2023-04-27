@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -10,23 +10,26 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments.registry.sqlquery
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery
 
 import io.circe._
 import io.circe.literal._
 import io.circe.parser._
 
-import cats.Id
+import cats.data.NonEmptyList
 
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
-import com.snowplowanalytics.snowplow.enrich.common.utils.Clock.idClock
+import cats.effect.{Blocker, IO}
+import cats.effect.testing.specs2.CatsIO
 
 import org.specs2.Specification
+import org.specs2.matcher.ValidatedMatchers
 
-import outputs.EnrichedEvent
-import utils.{BlockerF, ShiftExecution}
-import cats.data.NonEmptyList
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
+
+import com.snowplowanalytics.snowplow.enrich.common.utils.ShiftExecution
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 
 object SqlQueryEnrichmentIntegrationTest {
   def continuousIntegration: Boolean =
@@ -37,7 +40,9 @@ object SqlQueryEnrichmentIntegrationTest {
 }
 
 import SqlQueryEnrichmentIntegrationTest._
-class SqlQueryEnrichmentIntegrationTest extends Specification {
+class SqlQueryEnrichmentIntegrationTest extends Specification with ValidatedMatchers with CatsIO {
+  val blocker: Blocker = Blocker.liftExecutionContext(SpecHelpers.blockingEC)
+
   def is =
     skipAllUnless(continuousIntegration) ^ s2"""
   Basic case                      $e1
@@ -92,19 +97,19 @@ class SqlQueryEnrichmentIntegrationTest extends Specification {
       }
       """
 
-    val event = new EnrichedEvent
-
-    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[Id](BlockerF.noop, ShiftExecution.noop))
-    val context = config.toEither.flatMap(_.lookup(event, Nil, Nil, None).toEither)
-
-    val correctContext =
+    val expected =
       SelfDescribingData(
         SchemaKey("com.acme", "singleColumn", "jsonschema", SchemaVer.Full(1, 0, 0)),
         json"""{"singleColumn": 42}"""
       )
 
-    context must beRight.like {
-      case List(json) => json must beEqualTo(correctContext)
+    ShiftExecution.ofSingleThread[IO].use { shift =>
+      for {
+        enrichment <- SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[IO](blocker, shift)).toOption.get
+        contexts <- enrichment.lookup(new EnrichedEvent, Nil, Nil, None)
+      } yield contexts must beValid.like {
+        case List(json) => json must beEqualTo(expected)
+      }
     }
   }
 
@@ -318,47 +323,43 @@ class SqlQueryEnrichmentIntegrationTest extends Specification {
       json""" {"applicationName": "ue_test_london"} """
     )
 
-    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).toEither.map(_.enrichment[Id](BlockerF.noop, ShiftExecution.noop))
-
-    val context1 =
-      config.flatMap(_.lookup(event1, List(weatherContext1), List(geoContext1), Some(ue1)).toEither)
-    val result_context1 =
+    val expected1 =
       SelfDescribingData(
         SchemaKey("com.acme", "demographic", "jsonschema", SchemaVer.Full(1, 0, 0)),
         json"""{"city": "Krasnoyarsk", "country": "Russia", "pk": 1}"""
       )
 
-    val context2 =
-      config.flatMap(_.lookup(event2, List(weatherContext2), List(geoContext2), Some(ue2)).toEither)
-    val result_context2 =
+    val expected2 =
       SelfDescribingData(
         SchemaKey("com.acme", "demographic", "jsonschema", SchemaVer.Full(1, 0, 0)),
         json"""{"city": "London", "country": "England", "pk": 2 }"""
       )
 
-    val context3 =
-      config.flatMap(_.lookup(event3, List(weatherContext3), List(geoContext3), Some(ue3)).toEither)
-    val result_context3 =
+    val expected3 =
       SelfDescribingData(
         SchemaKey("com.acme", "demographic", "jsonschema", SchemaVer.Full(1, 0, 0)),
         json"""{"city": "New York", "country": "USA", "pk": 3} """
       )
 
-    val context4 = config.flatMap(
-      _.lookup(event4, List(weatherContext4), List(geoContext4, clientSession4), Some(ue4)).toEither
-    )
-    val result_context4 =
+    val expected4 =
       SelfDescribingData(
         SchemaKey("com.acme", "demographic", "jsonschema", SchemaVer.Full(1, 0, 0)),
         json"""{"city": "London", "country": "England", "pk": 2 } """
       )
 
-    val res1 = context1 must beRight(List(result_context1))
-    val res2 = context2 must beRight(List(result_context2))
-    val res3 = context3 must beRight(List(result_context3))
-    val res4 = context4 must beRight(List(result_context4))
-
-    res1 and res2 and res3 and res4
+    ShiftExecution.ofSingleThread[IO].use { shift =>
+      for {
+        enrichment <- SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[IO](blocker, shift)).toOption.get
+        actual1 <- enrichment.lookup(event1, List(weatherContext1), List(geoContext1), Some(ue1))
+        res1 = actual1 must beValid(List(expected1))
+        actual2 <- enrichment.lookup(event2, List(weatherContext2), List(geoContext2), Some(ue2))
+        res2 = actual2 must beValid(List(expected2))
+        actual3 <- enrichment.lookup(event3, List(weatherContext3), List(geoContext3), Some(ue3))
+        res3 = actual3 must beValid(List(expected3))
+        actual4 <- enrichment.lookup(event4, List(weatherContext4), List(geoContext4, clientSession4), Some(ue4))
+        res4 = actual4 must beValid(List(expected4))
+      } yield res1 and res2 and res3 and res4
+    }
   }
 
   def e3 = {
@@ -409,25 +410,27 @@ class SqlQueryEnrichmentIntegrationTest extends Specification {
     val event = new EnrichedEvent
     event.user_id = null
 
-    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[Id](BlockerF.noop, ShiftExecution.noop))
-    val context = config.toEither.flatMap(_.lookup(event, Nil, Nil, None).toEither)
-
-    context must beRight(Nil)
+    ShiftExecution.ofSingleThread[IO].use { shift =>
+      for {
+        enrichment <- SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[IO](blocker, shift)).toOption.get
+        contexts <- enrichment.lookup(event, Nil, Nil, None)
+      } yield contexts must beValid(Nil)
+    }
   }
 
   def e4 = {
     val result = invalidCreds(ignoreOnError = false)
-    result must beLeft.like {
+    result.map(_ must beLeft.like {
       case NonEmptyList(one, two :: Nil)
           if one.toString.contains("Error while executing the sql lookup") &&
             two.toString.contains("FATAL: password authentication failed for user") =>
         ok
       case left => ko(s"error(s) don't contain the expected error messages: $left")
-    }
+    })
   }
 
   def e5 =
-    invalidCreds(ignoreOnError = true) must beRight(List.empty)
+    invalidCreds(ignoreOnError = true).map(_ must beRight(List.empty))
 
   private def invalidCreds(ignoreOnError: Boolean) = {
     val configuration =
@@ -469,7 +472,12 @@ class SqlQueryEnrichmentIntegrationTest extends Specification {
       """
 
     val event = new EnrichedEvent
-    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[Id](BlockerF.noop, ShiftExecution.noop))
-    config.toEither.flatMap(_.lookup(event, Nil, Nil, None).toEither)
+
+    ShiftExecution.ofSingleThread[IO].use { shift =>
+      for {
+        enrichment <- SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[IO](blocker, shift)).toOption.get
+        contexts <- enrichment.lookup(event, Nil, Nil, None)
+      } yield contexts.toEither
+    }
   }
 }

@@ -1,4 +1,4 @@
-/*Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+/*Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -14,18 +14,22 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 import cats.Monad
 import cats.data.{EitherT, NonEmptyList, ValidatedNel}
 import cats.implicits._
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
-import com.snowplowanalytics.lrumap.{CreateLruMap, LruMap}
-import com.snowplowanalytics.snowplow.badrows.FailureDetails
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.UaParserConf
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.UaParserEnrichment.UserAgentCache
-import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
+import cats.effect.Async
 import io.circe.Json
 import io.circe.syntax._
 import ua_parser.{Client, Parser}
-
 import java.io.{FileInputStream, InputStream}
 import java.net.URI
+
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
+
+import com.snowplowanalytics.lrumap.{CreateLruMap, LruMap}
+
+import com.snowplowanalytics.snowplow.badrows.FailureDetails
+
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.UaParserConf
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.UaParserEnrichment.UserAgentCache
+import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
 
 /** Companion object. Lets us create a UaParserEnrichment from a Json. */
 object UaParserEnrichment extends ParseableEnrichment {
@@ -51,14 +55,6 @@ object UaParserEnrichment extends ParseableEnrichment {
       rules <- getCustomRules(c).toEither
     } yield UaParserConf(schemaKey, rules)).toValidated
 
-  /**
-   * Creates a UaParserEnrichment from a UaParserConf
-   * @param conf Configuration for the ua parser enrichment
-   * @return a ua parser enrichment
-   */
-  def apply[F[_]: Monad: CreateUaParserEnrichment](conf: UaParserConf): EitherT[F, String, UaParserEnrichment[F]] =
-    EitherT(CreateUaParserEnrichment[F].create(conf))
-
   private def getCustomRules(conf: Json): ValidatedNel[String, Option[(URI, String)]] =
     if (conf.hcursor.downField("parameters").downField("uri").focus.isDefined)
       (for {
@@ -70,6 +66,32 @@ object UaParserEnrichment extends ParseableEnrichment {
       } yield (source, localFile)).toValidated.map(_.some)
     else
       None.validNel
+
+  def create[F[_]: Async](
+    schemaKey: SchemaKey,
+    databasePath: Option[String]
+  ): EitherT[F, String, UaParserEnrichment[F]] =
+    EitherT(
+      CreateLruMap[F, String, SelfDescribingData[Json]].create(5000).map { cache =>
+        initializeParser(databasePath).map { parser =>
+          UaParserEnrichment(schemaKey, parser, cache)
+        }
+      }
+    )
+
+  private def initializeParser(file: Option[String]): Either[String, Parser] =
+    (for {
+      input <- Either.catchNonFatal(file.map(new FileInputStream(_)))
+      parser <- Either.catchNonFatal(createParser(input))
+    } yield parser).leftMap(e => s"Failed to initialize ua parser: [${e.getMessage}]")
+
+  private def createParser(input: Option[InputStream]): Parser =
+    input match {
+      case Some(is) =>
+        try new Parser(is)
+        finally is.close()
+      case None => new Parser()
+    }
 }
 
 /** Config for an ua_parser_config enrichment. Uses uap-java library to parse client attributes */
@@ -167,36 +189,4 @@ final case class UaParserEnrichment[F[_]: Monad](
       )
     )
   }
-}
-
-trait CreateUaParserEnrichment[F[_]] {
-  def create(conf: UaParserConf): F[Either[String, UaParserEnrichment[F]]]
-}
-
-object CreateUaParserEnrichment {
-  def apply[F[_]](implicit ev: CreateUaParserEnrichment[F]): CreateUaParserEnrichment[F] = ev
-
-  implicit def createUaParser[F[_]: Monad](implicit CLM: CreateLruMap[F, String, SelfDescribingData[Json]]): CreateUaParserEnrichment[F] =
-    new CreateUaParserEnrichment[F] {
-      def create(conf: UaParserConf): F[Either[String, UaParserEnrichment[F]]] =
-        CLM.create(5000).map { cache =>
-          initializeParser(conf.uaDatabase.map(_._2)).map { parser =>
-            UaParserEnrichment(conf.schemaKey, parser, cache)
-          }
-        }
-    }
-
-  private def initializeParser(file: Option[String]): Either[String, Parser] =
-    (for {
-      input <- Either.catchNonFatal(file.map(new FileInputStream(_)))
-      parser <- Either.catchNonFatal(createParser(input))
-    } yield parser).leftMap(e => s"Failed to initialize ua parser: [${e.getMessage}]")
-
-  private def createParser(input: Option[InputStream]): Parser =
-    input match {
-      case Some(is) =>
-        try new Parser(is)
-        finally is.close()
-      case None => new Parser()
-    }
 }

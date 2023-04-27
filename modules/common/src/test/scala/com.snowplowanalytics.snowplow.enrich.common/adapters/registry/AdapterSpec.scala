@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -10,9 +10,7 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package adapters
-package registry
+package com.snowplowanalytics.snowplow.enrich.common.adapters.registry
 
 import cats.Monad
 import cats.data.{NonEmptyList, Validated}
@@ -21,11 +19,6 @@ import cats.syntax.validated._
 
 import cats.effect.Clock
 
-import com.snowplowanalytics.iglu.client.IgluCirceClient
-import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
-import com.snowplowanalytics.snowplow.badrows._
-
 import io.circe._
 import io.circe.literal._
 
@@ -33,9 +26,17 @@ import org.joda.time.DateTime
 import org.specs2.Specification
 import org.specs2.matcher.{DataTables, ValidatedMatchers}
 
-import loaders._
-import SpecHelpers._
-import utils.HttpClient
+import com.snowplowanalytics.iglu.client.IgluCirceClient
+import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
+
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+
+import com.snowplowanalytics.snowplow.badrows._
+
+import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
+import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
+
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
 
 class AdapterSpec extends Specification with DataTables with ValidatedMatchers {
   def is = s2"""
@@ -54,7 +55,7 @@ class AdapterSpec extends Specification with DataTables with ValidatedMatchers {
   // TODO: add test for buildFormatter()
 
   object BaseAdapter extends Adapter {
-    override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](payload: CollectorPayload, client: IgluCirceClient[F]) = {
+    override def toRawEvents[F[_]: Monad: RegistryLookup: Clock](payload: CollectorPayload, client: IgluCirceClient[F]) = {
       val _ = client
       Monad[F].pure(
         FailureDetails.AdapterFailure

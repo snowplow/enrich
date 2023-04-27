@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -12,26 +12,29 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
-import cats.Id
+import java.math.BigDecimal
+
+import org.joda.money.CurrencyUnit
+import org.joda.time.DateTime
+
+import org.specs2.Specification
+
 import cats.data.{NonEmptyList, Validated, ValidatedNel}
 import cats.implicits._
 
-import com.snowplowanalytics.forex.CreateForex._
+import cats.effect.IO
+
+import cats.effect.testing.specs2.CatsIO
+
 import com.snowplowanalytics.forex.model._
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
+
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.CurrencyConversionConf
 
-import org.joda.money.CurrencyUnit
-import org.joda.time.DateTime
-
-import java.math.BigDecimal
-
-import org.specs2.Specification
-
-class CurrencyConversionEnrichmentSpec extends Specification {
+class CurrencyConversionEnrichmentSpec extends Specification with CatsIO {
   import CurrencyConversionEnrichmentSpec._
 
   def is =
@@ -79,8 +82,7 @@ class CurrencyConversionEnrichmentSpec extends Specification {
         )
       )
     )
-    val actual = runEnrichment(input)
-    actual must beEqualTo(expected)
+    runEnrichment(input).map(_ must beEqualTo(expected))
   }
 
   def e2 = {
@@ -101,8 +103,7 @@ class CurrencyConversionEnrichmentSpec extends Specification {
         "Unknown currency 'HUL'"
       )
     ).invalidNel
-    val actual = runEnrichment(input)
-    actual must beEqualTo(expected)
+    runEnrichment(input).map(_ must beEqualTo(expected))
   }
 
   def e3 = {
@@ -122,8 +123,7 @@ class CurrencyConversionEnrichmentSpec extends Specification {
         "Open Exchange Rates error, type: [OtherErrors], message: [invalid_app_id]"
       )
     ).invalidNel
-    val actual = runEnrichment(input, wrongKey)
-    actual must beEqualTo(expected)
+    runEnrichment(input, wrongKey).map(_ must beEqualTo(expected))
   }
 
   def e4 = {
@@ -145,8 +145,7 @@ class CurrencyConversionEnrichmentSpec extends Specification {
           "missing"
         )
       ).invalidNel
-    val actual = runEnrichment(input)
-    actual must beEqualTo(expected)
+    runEnrichment(input).map(_ must beEqualTo(expected))
   }
 
   def e5 = {
@@ -165,8 +164,7 @@ class CurrencyConversionEnrichmentSpec extends Specification {
         FailureDetails.EnrichmentFailureMessage
           .InputData("collector_tstamp", None, "missing")
       ).invalidNel
-    val actual = runEnrichment(input)
-    actual must beEqualTo(expected)
+    runEnrichment(input).map(_ must beEqualTo(expected))
   }
 
   def e6 = {
@@ -181,8 +179,7 @@ class CurrencyConversionEnrichmentSpec extends Specification {
         Some(coTstamp)
       )
     val expected: Result = (Some(new BigDecimal("12.75")), None, None, None).valid
-    val actual = runEnrichment(input)
-    actual must beEqualTo(expected)
+    runEnrichment(input).map(_ must beEqualTo(expected))
   }
 
   def e7 = {
@@ -197,8 +194,7 @@ class CurrencyConversionEnrichmentSpec extends Specification {
         Some(coTstamp)
       )
     val expected: Result = (None, Some(new BigDecimal("3.09")), Some(new BigDecimal("0.00")), None).valid
-    val actual = runEnrichment(input)
-    actual must beEqualTo(expected)
+    runEnrichment(input).map(_ must beEqualTo(expected))
   }
 
   def e8 = {
@@ -213,8 +209,7 @@ class CurrencyConversionEnrichmentSpec extends Specification {
         Some(coTstamp)
       )
     val expected: Result = (None, None, None, Some(new BigDecimal("15.05"))).valid
-    val actual = runEnrichment(input)
-    actual must beEqualTo(expected)
+    runEnrichment(input).map(_ must beEqualTo(expected))
   }
 
   def e9 = {
@@ -229,8 +224,7 @@ class CurrencyConversionEnrichmentSpec extends Specification {
         Some(coTstamp)
       )
     val expected: Result = (Some(new BigDecimal("12.75")), Some(new BigDecimal("3.09")), Some(new BigDecimal("0.00")), None).valid
-    val actual = runEnrichment(input)
-    actual must beEqualTo(expected)
+    runEnrichment(input).map(_ must beEqualTo(expected))
   }
 
   def e10 = {
@@ -246,8 +240,7 @@ class CurrencyConversionEnrichmentSpec extends Specification {
       )
     val expected: Result =
       (None, None, None, Some(new BigDecimal("12.74"))).valid
-    val actual = runEnrichment(input)
-    actual must beEqualTo(expected)
+    runEnrichment(input).map(_ must beEqualTo(expected))
   }
 
   def e11 = {
@@ -262,8 +255,7 @@ class CurrencyConversionEnrichmentSpec extends Specification {
         Some(coTstamp)
       )
     val expected: Result = (None, None, None, None).valid
-    val actual = runEnrichment(input)
-    actual must beEqualTo(expected)
+    runEnrichment(input).map(_ must beEqualTo(expected))
   }
 
   def e12 = {
@@ -284,8 +276,7 @@ class CurrencyConversionEnrichmentSpec extends Specification {
         Some(new BigDecimal("0.00")),
         Some(new BigDecimal("12.99"))
       ).valid
-    val actual = runEnrichment(input)
-    actual must beEqualTo(expected)
+    runEnrichment(input).map(_ must beEqualTo(expected))
   }
 
   def e13 = {
@@ -300,8 +291,7 @@ class CurrencyConversionEnrichmentSpec extends Specification {
         Some(coTstamp)
       )
     val expected: Result = (Some(new BigDecimal("18.54")), Some(new BigDecimal("3.09")), Some(new BigDecimal("0.00")), None).valid
-    val actual = runEnrichment(input)
-    actual must beEqualTo(expected)
+    runEnrichment(input).map(_ must beEqualTo(expected))
   }
 }
 
@@ -342,7 +332,7 @@ object CurrencyConversionEnrichmentSpec {
   ) =
     for {
       e <- CurrencyConversionConf(schemaKey, DeveloperAccount, apiKey, CurrencyUnit.EUR)
-             .enrichment[Id]
+             .enrichment[IO]
       res <- e.convertCurrencies(
                input.trCurrency,
                input.trTotal,

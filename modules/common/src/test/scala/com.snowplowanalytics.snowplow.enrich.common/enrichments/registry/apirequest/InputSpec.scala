@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -12,22 +12,25 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest
 
-import cats.Id
 import cats.data.ValidatedNel
 import cats.syntax.option._
 
+import cats.effect.IO
+import cats.effect.testing.specs2.CatsIO
+
 import io.circe.literal._
+
+import org.specs2.Specification
+import org.specs2.matcher.ValidatedMatchers
 
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.ApiRequestConf
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.Clock.idClock
 
-import org.specs2.Specification
-import org.specs2.matcher.ValidatedMatchers
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 
-class InputSpec extends Specification with ValidatedMatchers {
+class InputSpec extends Specification with ValidatedMatchers with CatsIO {
   def is = s2"""
   create template context from POJO inputs              $e1
   create template context from JSON inputs              $e2
@@ -247,20 +250,23 @@ class InputSpec extends Specification with ValidatedMatchers {
     val input2 = Input.Pojo("time", "true_tstamp")
     val uriTemplate = "http://thishostdoesntexist31337:8123/{{  user }}/foo/{{ time}}/{{user}}"
     val schemaKey = SchemaKey("vendor", "name", "format", SchemaVer.Full(1, 0, 0))
-    val enrichment = ApiRequestConf(
-      schemaKey,
-      List(input1, input2),
-      HttpApi("GET", uriTemplate, 1000, Authentication(None)),
-      List(Output("iglu:someschema", JsonOutput("$").some)),
-      Cache(10, 5),
-      ignoreOnError = false
-    ).enrichment[Id]
-    val event = new EnrichedEvent
-    event.setUser_id("chuwy")
-    // time in true_tstamp won't be found
-    val request = enrichment.lookup(event, Nil, Nil, None)
-    request must beValid.like {
-      case response => response must be(Nil)
+    SpecHelpers.httpClient.use { http =>
+      for {
+        enrichment <- ApiRequestConf(
+                        schemaKey,
+                        List(input1, input2),
+                        HttpApi("GET", uriTemplate, 1000, Authentication(None)),
+                        List(Output("iglu:someschema", JsonOutput("$").some)),
+                        Cache(10, 5),
+                        ignoreOnError = false
+                      ).enrichment[IO](http)
+        event = new EnrichedEvent
+        _ = event.setUser_id("chuwy")
+        // time in true_tstamp won't be found
+        request <- enrichment.lookup(event, Nil, Nil, None)
+      } yield request must beValid.like {
+        case response => response must be(Nil)
+      }
     }
   }
 

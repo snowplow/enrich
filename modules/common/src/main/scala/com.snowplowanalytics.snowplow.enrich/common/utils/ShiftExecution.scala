@@ -49,13 +49,4 @@ object ShiftExecution {
       def shift[A](f: F[A]): F[A] =
         ContextShift[F].evalOn(ec)(f)
     }
-
-  // Shifting is not needed in stream-enrich, because all enrichment operations run sequentially on
-  // the same thread.
-  def noop[F[_]]: ShiftExecution[F] =
-    new ShiftExecution[F] {
-      override def shift[A](f: F[A]): F[A] =
-        f
-    }
-
 }

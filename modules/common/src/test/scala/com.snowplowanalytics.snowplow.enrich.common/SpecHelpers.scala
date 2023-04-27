@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -12,14 +12,16 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common
 
-import cats.Id
+import java.util.concurrent.Executors
+
+import scala.concurrent.ExecutionContext
+
 import cats.implicits._
+import cats.effect.IO
 
-import com.snowplowanalytics.iglu.client.IgluCirceClient
-import com.snowplowanalytics.iglu.core.SelfDescribingData
-import com.snowplowanalytics.iglu.core.circe.implicits._
+import org.http4s.client.blaze.BlazeClientBuilder
 
-import com.snowplowanalytics.lrumap.CreateLruMap._
+import cats.effect.testing.specs2.CatsIO
 
 import io.circe.Json
 import io.circe.literal._
@@ -27,10 +29,17 @@ import io.circe.literal._
 import org.apache.http.NameValuePair
 import org.apache.http.message.BasicNameValuePair
 
-import com.snowplowanalytics.snowplow.enrich.common.adapters._
-import com.snowplowanalytics.snowplow.enrich.common.utils.JsonUtils
+import com.snowplowanalytics.iglu.client.IgluCirceClient
 
-object SpecHelpers {
+import com.snowplowanalytics.iglu.core.SelfDescribingData
+import com.snowplowanalytics.iglu.core.circe.implicits._
+
+import com.snowplowanalytics.lrumap.CreateLruMap._
+
+import com.snowplowanalytics.snowplow.enrich.common.adapters._
+import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, JsonUtils}
+
+object SpecHelpers extends CatsIO {
 
   // Standard Iglu configuration
   private val igluConfig = json"""{
@@ -63,10 +72,15 @@ object SpecHelpers {
   }"""
 
   /** Builds an Iglu client from the above Iglu configuration. */
-  val client: IgluCirceClient[Id] = IgluCirceClient
-    .parseDefault[Id](igluConfig)
+  val client: IgluCirceClient[IO] = IgluCirceClient
+    .parseDefault[IO](igluConfig)
     .value
+    .unsafeRunSync()
     .getOrElse(throw new RuntimeException("invalid resolver configuration"))
+
+  val blockingEC = ExecutionContext.fromExecutorService(Executors.newCachedThreadPool)
+  private val http4sClient = BlazeClientBuilder[IO](blockingEC).resource
+  val httpClient = http4sClient.map(HttpClient.fromHttp4sClient[IO])
 
   private type NvPair = (String, String)
 

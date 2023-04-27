@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2014-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -20,13 +20,14 @@ import io.circe.parser._
 import org.apache.commons.codec.binary.Base64
 import org.joda.money.CurrencyUnit
 
+import org.specs2.matcher.{DataTables, ValidatedMatchers}
+import org.specs2.mutable.Specification
+
 import com.snowplowanalytics.forex.model._
+
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer}
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf._
-
-import org.specs2.matcher.{DataTables, ValidatedMatchers}
-import org.specs2.mutable.Specification
 
 class EnrichmentConfigsSpec extends Specification with ValidatedMatchers with DataTables {
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -27,10 +27,12 @@ import cats.effect.{Blocker, IO, Resource}
 import cats.effect.concurrent.Semaphore
 
 import cats.effect.testing.specs2.CatsIO
-import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, ShiftExecution}
+
+import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, ShiftExecution}
+
+import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test._
-import org.http4s.client.{Client => Http4sClient}
 
 class AssetsSpec extends Specification with CatsIO with ScalaCheck {
 
@@ -115,23 +117,25 @@ class AssetsSpec extends Specification with CatsIO with ScalaCheck {
     "update an asset that has been updated after initialization" in {
       val uri = URI.create("http://localhost:8080/maxmind/GeoIP2-City.mmdb")
       val filename = "maxmind"
-      implicit val c: Http4sClient[IO] = TestEnvironment.http4sClient
       Stream
         .resource(SpecHelpers.refreshState(List(uri -> filename)))
         .flatMap { state =>
           val resources =
             for {
               blocker <- Blocker[IO]
+              shiftExecution <- ShiftExecution.ofSingleThread
               sem <- Resource.eval(Semaphore[IO](1L))
-              enrichments <- Environment.Enrichments.make[IO](List(), BlockerF.noop, ShiftExecution.noop)
+              http4s <- Clients.mkHttp[IO](ec = SpecHelpers.blockingEC)
+              http = HttpClient.fromHttp4sClient(http4s)
+              enrichments <- Environment.Enrichments.make[IO](List(), blocker, shiftExecution, http)
               _ <- SpecHelpers.filesResource(blocker, TestFiles)
-            } yield (blocker, sem, enrichments)
+            } yield (blocker, shiftExecution, sem, enrichments)
 
           val update = Stream
             .resource(resources)
             .flatMap {
-              case (blocker, sem, enrichments) =>
-                Assets.updateStream[IO](blocker, ShiftExecution.noop, sem, state, enrichments, 1.second, List(uri -> filename))
+              case (blocker, shift, sem, enrichments) =>
+                Assets.updateStream[IO](blocker, shift, sem, state, enrichments, 1.second, List(uri -> filename))
             }
             .haltAfter(2.second)
 

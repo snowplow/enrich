@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -10,20 +10,20 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package utils
+package com.snowplowanalytics.snowplow.enrich.common.utils
 
 import scala.beans.BeanProperty
 
 import cats.syntax.either._
-import com.snowplowanalytics.snowplow.badrows._
 import org.apache.commons.lang3.builder.ToStringBuilder
 import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.specs2.matcher.ValidatedMatchers
 import org.specs2.mutable.Specification
 
-import enrichments.{ClientEnrichments, MiscEnrichments}
-import MapTransformer._
+import com.snowplowanalytics.snowplow.badrows._
+
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.{ClientEnrichments, MiscEnrichments}
+import com.snowplowanalytics.snowplow.enrich.common.utils.MapTransformer._
 
 // Test Bean
 final class TargetBean {

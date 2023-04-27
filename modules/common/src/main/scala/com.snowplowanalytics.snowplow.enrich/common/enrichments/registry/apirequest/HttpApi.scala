@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -10,15 +10,14 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments.registry.apirequest
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest
 
 import java.net.URLEncoder
 
 import cats.syntax.option._
 import io.circe.syntax._
 
-import utils.HttpClient
+import com.snowplowanalytics.snowplow.enrich.common.utils.HttpClient
 
 /**
  * API client able to make HTTP requests
@@ -52,19 +51,18 @@ final case class HttpApi(
    * @param body optional request body
    * @return self-describing JSON ready to be attached to event contexts
    */
-  def perform[F[_]: HttpClient](
+  def perform[F[_]](
+    httpClient: HttpClient[F],
     url: String,
     body: Option[String]
   ): F[Either[Throwable, String]] =
-    HttpClient[F]
+    httpClient
       .getResponse(
         url,
         authUser = authUser,
         authPassword = authPassword,
         body,
-        method,
-        None,
-        None
+        method
       )
 
   /**

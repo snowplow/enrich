@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2022-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -35,7 +35,6 @@ class Tp2AdapterSpec extends Specification with CatsIO {
         body = Tp2AdapterSpec.body.some,
         contentType = "application/json".some
       )
-      implicit val c = TestEnvironment.http4sClient
       createIgluClient(List(TestEnvironment.embeddedRegistry)).flatMap { igluClient =>
         Enrich
           .enrichWith(

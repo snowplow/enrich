@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -39,7 +39,7 @@ import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdap
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, HttpClient, ShiftExecution}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, ShiftExecution}
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{ConfigFile, ParsedConfigs}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{
@@ -103,11 +103,10 @@ final case class Environment[F[_], A](
   semaphore: Semaphore[F],
   assetsState: Assets.State[F],
   httpClient: Http4sClient[F],
-  remoteAdapterHttpClient: Option[Http4sClient[F]],
   blocker: Blocker,
   shifter: ShiftExecution[F],
   source: Stream[F, A],
-  adapterRegistry: AdapterRegistry,
+  adapterRegistry: AdapterRegistry[F],
   sinkGood: AttributedByteSink[F],
   sinkPii: Option[AttributedByteSink[F]],
   sinkBad: ByteSink[F],
@@ -135,32 +134,38 @@ object Environment {
     Slf4jLogger.getLogger[F]
 
   /** Registry with all allocated clients (MaxMind, IAB etc) and their original configs */
-  final case class Enrichments[F[_]: Clock](registry: EnrichmentRegistry[F], configs: List[EnrichmentConf]) {
+  final case class Enrichments[F[_]: Async: Clock: ContextShift](
+    registry: EnrichmentRegistry[F],
+    configs: List[EnrichmentConf],
+    httpClient: HttpClient[F]
+  ) {
 
     /** Initialize same enrichments, specified by configs (in case DB files updated) */
-    def reinitialize(blocker: BlockerF[F], shifter: ShiftExecution[F])(implicit A: Async[F], C: HttpClient[F]): F[Enrichments[F]] =
-      Enrichments.buildRegistry(configs, blocker, shifter).map(registry => Enrichments(registry, configs))
+    def reinitialize(blocker: Blocker, shifter: ShiftExecution[F]): F[Enrichments[F]] =
+      Enrichments.buildRegistry(configs, blocker, shifter, httpClient).map(registry => Enrichments(registry, configs, httpClient))
   }
 
   object Enrichments {
-    def make[F[_]: Async: Clock: HttpClient](
+    def make[F[_]: Async: Clock: ContextShift](
       configs: List[EnrichmentConf],
-      blocker: BlockerF[F],
-      shifter: ShiftExecution[F]
+      blocker: Blocker,
+      shifter: ShiftExecution[F],
+      httpClient: HttpClient[F]
     ): Resource[F, Ref[F, Enrichments[F]]] =
       Resource.eval {
         for {
-          registry <- buildRegistry[F](configs, blocker, shifter)
-          ref <- Ref.of(Enrichments[F](registry, configs))
+          registry <- buildRegistry[F](configs, blocker, shifter, httpClient)
+          ref <- Ref.of(Enrichments[F](registry, configs, httpClient))
         } yield ref
       }
 
-    def buildRegistry[F[_]: Async: HttpClient: Clock](
+    def buildRegistry[F[_]: Async: Clock: ContextShift](
       configs: List[EnrichmentConf],
-      blocker: BlockerF[F],
-      shifter: ShiftExecution[F]
+      blocker: Blocker,
+      shifter: ShiftExecution[F],
+      httpClient: HttpClient[F]
     ) =
-      EnrichmentRegistry.build[F](configs, blocker, shifter).value.flatMap {
+      EnrichmentRegistry.build[F](configs, blocker, shifter, httpClient).value.flatMap {
         case Right(reg) => Async[F].pure(reg)
         case Left(error) => Async[F].raiseError[EnrichmentRegistry[F]](new RuntimeException(error))
       }
@@ -191,30 +196,27 @@ object Environment {
       good <- sinkGood
       bad <- sinkBad
       pii <- sinkPii.sequence
-      http <- Clients.mkHttp(ec = ec)
-      clts <- clients.map(Clients.init(http, _))
+      http4s <- Clients.mkHttp(ec = ec)
+      http = HttpClient.fromHttp4sClient(http4s)
+      clts <- clients.map(Clients.init(http4s, _))
       igluClient <- IgluCirceClient.parseDefault[F](parsedConfigs.igluJson).resource
       remoteAdaptersEnabled = file.remoteAdapters.configs.nonEmpty
       metrics <- Resource.eval(Metrics.build[F](blocker, file.monitoring.metrics, remoteAdaptersEnabled))
-      metadata <- Resource.eval(metadataReporter[F](file, processor.artifact, http))
+      metadata <- Resource.eval(metadataReporter[F](file, processor.artifact, http4s))
       assets = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
-      (remoteAdaptersHttpClient, remoteAdapters) <- prepareRemoteAdapters[F](file.remoteAdapters, ec, metrics)
+      remoteAdapters <- prepareRemoteAdapters[F](file.remoteAdapters, ec, metrics)
       adapterRegistry = new AdapterRegistry(remoteAdapters, file.adaptersSchemas)
       sem <- Resource.eval(Semaphore(1L))
       assetsState <- Resource.eval(Assets.State.make[F](blocker, sem, clts, assets))
       shifter <- ShiftExecution.ofSingleThread[F]
-      enrichments <- {
-        implicit val C: Http4sClient[F] = http
-        Enrichments.make[F](parsedConfigs.enrichmentConfigs, BlockerF.ofBlocker(blocker), shifter)
-      }
+      enrichments <- Enrichments.make[F](parsedConfigs.enrichmentConfigs, blocker, shifter, http)
     } yield Environment[F, A](
       igluClient,
-      Http4sRegistryLookup(http),
+      Http4sRegistryLookup(http4s),
       enrichments,
       sem,
       assetsState,
-      http,
-      remoteAdaptersHttpClient,
+      http4s,
       blocker,
       shifter,
       source,
@@ -286,27 +288,25 @@ object Environment {
         None
     }
 
-  /**
-   * Sets up the Remote adapters for the ETL
-   * @param remoteAdaptersConfig List of configuration per remote adapter
-   * @return An Http4sClient with a mapping of vendor-version and the adapter assigned for it
-   */
   def prepareRemoteAdapters[F[_]: ConcurrentEffect: Timer](
     remoteAdapters: RemoteAdapterConfigs,
     ec: ExecutionContext,
     metrics: Metrics[F]
-  ): Resource[F, (Option[Http4sClient[F]], Map[(String, String), RemoteAdapter])] = {
-    val preparedRemoteAdapters =
-      remoteAdapters.configs.map { config =>
-        (config.vendor, config.version) -> RemoteAdapter(config.url, None, None)
-      }.toMap
-    if (preparedRemoteAdapters.nonEmpty)
-      Clients
-        .mkHttp(remoteAdapters.connectionTimeout, remoteAdapters.readTimeout, remoteAdapters.maxConnections, ec)
-        .map(enableRemoteAdapterMetrics(metrics))
-        .map(c => (c.some, preparedRemoteAdapters))
-    else Resource.pure[F, (Option[Http4sClient[F]], Map[(String, String), RemoteAdapter])]((None, preparedRemoteAdapters))
-  }
+  ): Resource[F, Map[(String, String), RemoteAdapter[F]]] =
+    remoteAdapters.configs match {
+      case adapters if adapters.nonEmpty =>
+        Clients
+          .mkHttp(remoteAdapters.connectionTimeout, remoteAdapters.readTimeout, remoteAdapters.maxConnections, ec)
+          .map(enableRemoteAdapterMetrics(metrics))
+          .map { client =>
+            val http = HttpClient.fromHttp4sClient(client)
+            adapters.map { config =>
+              (config.vendor, config.version) -> RemoteAdapter[F](http, config.url)
+            }.toMap
+          }
+      case _ =>
+        Resource.pure[F, Map[(String, String), RemoteAdapter[F]]](Map.empty)
+    }
 
   def enableRemoteAdapterMetrics[F[_]: Sync](metrics: Metrics[F])(inner: Http4sClient[F]): Http4sClient[F] =
     Http4sClient { req =>

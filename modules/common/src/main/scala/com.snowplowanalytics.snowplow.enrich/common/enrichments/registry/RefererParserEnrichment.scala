@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2014-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -14,9 +14,10 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.net.URI
 
-import cats.Monad
 import cats.data.{EitherT, NonEmptyList, ValidatedNel}
 import cats.implicits._
+
+import cats.effect.Sync
 
 import io.circe.Json
 
@@ -69,15 +70,10 @@ object RefererParserEnrichment extends ParseableEnrichment {
     else
       (uri, localFile)
 
-  /**
-   * Creates a RefererParserEnrichment from a RefererParserConf
-   * @param conf Configuration for the referer parser enrichment
-   * @return a referer parser enrichment
-   */
-  def apply[F[_]: Monad: CreateParser](conf: RefererParserConf): EitherT[F, String, RefererParserEnrichment] =
-    EitherT(CreateParser[F].create(conf.refererDatabase._2))
+  def create[F[_]: Sync](filePath: String, internalDomains: List[String]): EitherT[F, String, RefererParserEnrichment] =
+    EitherT(CreateParser[F].create(filePath))
       .leftMap(_.getMessage)
-      .map(p => RefererParserEnrichment(p, conf.internalDomains))
+      .map(p => RefererParserEnrichment(p, internalDomains))
 }
 
 /**

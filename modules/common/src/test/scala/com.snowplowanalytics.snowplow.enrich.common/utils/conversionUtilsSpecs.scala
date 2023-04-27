@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -10,8 +10,7 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package utils
+package com.snowplowanalytics.snowplow.enrich.common.utils
 
 import java.net.{Inet6Address, InetAddress, URI}
 import java.nio.ByteBuffer
@@ -23,12 +22,13 @@ import cats.syntax.option._
 import org.scalacheck.Gen
 import org.scalacheck.Arbitrary._
 
-import com.snowplowanalytics.snowplow.badrows._
-import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-
 import org.specs2.{ScalaCheck, Specification}
 import org.specs2.mutable.{Specification => MSpecification}
 import org.specs2.matcher.DataTables
+
+import com.snowplowanalytics.snowplow.badrows._
+
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
 class StringToUriSpec extends MSpecification with DataTables {
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2016-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -10,9 +10,7 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package adapters
-package registry
+package com.snowplowanalytics.snowplow.enrich.common.adapters.registry
 
 import java.net.URI
 import java.nio.charset.StandardCharsets.UTF_8
@@ -29,19 +27,21 @@ import cats.syntax.validated._
 
 import cats.effect.Clock
 
-import com.snowplowanalytics.iglu.client.IgluCirceClient
-import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-import com.snowplowanalytics.snowplow.badrows.FailureDetails
-
 import io.circe._
 import io.circe.optics.JsonPath._
 
 import org.apache.http.client.utils.URLEncodedUtils
 import org.joda.time.DateTime
 
-import loaders.CollectorPayload
-import utils.{HttpClient, JsonUtils => JU}
-import Adapter.Adapted
+import com.snowplowanalytics.iglu.client.IgluCirceClient
+import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
+
+import com.snowplowanalytics.snowplow.badrows.FailureDetails
+
+import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
+import com.snowplowanalytics.snowplow.enrich.common.utils.{JsonUtils => JU}
+import com.snowplowanalytics.snowplow.enrich.common.adapters._
+import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.Adapter.Adapted
 
 /**
  * Transforms a collector payload which conforms to a known version of the Olark Tracking webhook
@@ -67,7 +67,7 @@ case class OlarkAdapter(schemas: OlarkSchemas) extends Adapter {
    * @param client The Iglu client used for schema lookup and validation
    * @return a Validation boxing either a NEL of RawEvents on Success, or a NEL of Failure Strings
    */
-  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
+  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock](
     payload: CollectorPayload,
     client: IgluCirceClient[F]
   ): F[Adapted] =

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -15,7 +15,7 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments
 import cats.Monad
 import cats.data.{EitherT, NonEmptyList, ValidatedNel}
 
-import cats.effect.Clock
+import cats.effect.{Async, Blocker, Clock, ContextShift}
 import cats.implicits._
 
 import io.circe._
@@ -27,14 +27,9 @@ import com.snowplowanalytics.iglu.core.circe.implicits._
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 
-import com.snowplowanalytics.forex.CreateForex
-import com.snowplowanalytics.maxmind.iplookups.CreateIpLookups
-import com.snowplowanalytics.refererparser.CreateParser
-import com.snowplowanalytics.weather.providers.openweather.CreateOWM
-
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf._
 
-import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, CirceUtils, ShiftExecution}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{CirceUtils, HttpClient, ShiftExecution}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry._
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest.ApiRequestEnrichment
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii.PiiPseudonymizerEnrichment
@@ -105,18 +100,17 @@ object EnrichmentRegistry {
     } yield configs).toValidated
 
   // todo: ValidatedNel?
-  def build[
-    F[_]: Monad: CreateForex: CreateIabClient: CreateIpLookups: CreateOWM: CreateParser: CreateUaParserEnrichment: sqlquery.CreateSqlQueryEnrichment: apirequest.CreateApiRequestEnrichment
-  ](
+  def build[F[_]: Async: Clock: ContextShift](
     confs: List[EnrichmentConf],
-    blocker: BlockerF[F],
-    shifter: ShiftExecution[F]
+    blocker: Blocker,
+    shifter: ShiftExecution[F],
+    httpClient: HttpClient[F]
   ): EitherT[F, String, EnrichmentRegistry[F]] =
     confs.foldLeft(EitherT.pure[F, String](EnrichmentRegistry[F]())) { (er, e) =>
       e match {
         case c: ApiRequestConf =>
           for {
-            enrichment <- EitherT.right(c.enrichment[F])
+            enrichment <- EitherT.right(c.enrichment[F](httpClient))
             registry <- er
           } yield registry.copy(apiRequest = enrichment.some)
         case c: PiiPseudonymizerConf => er.map(_.copy(piiPseudonymizer = c.enrichment.some))

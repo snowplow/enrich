@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -10,8 +10,7 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package loaders
+package com.snowplowanalytics.snowplow.enrich.common.loaders
 
 import java.nio.charset.StandardCharsets.UTF_8
 import java.time.Instant
@@ -19,11 +18,12 @@ import java.time.Instant
 import cats.data.ValidatedNel
 import cats.syntax.option._
 import cats.syntax.validated._
-import com.snowplowanalytics.snowplow.badrows._
 import org.specs2.mutable.Specification
 import org.specs2.matcher.{DataTables, ValidatedMatchers}
 
-import SpecHelpers._
+import com.snowplowanalytics.snowplow.badrows._
+
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
 
 object LoaderSpec {
   val processor = Processor("LoaderSpec", "v1")
@@ -47,24 +47,6 @@ object LoaderSpec {
 
 class LoaderSpec extends Specification with DataTables with ValidatedMatchers {
   import LoaderSpec._
-
-  "getLoader" should {
-    "return the CloudfrontLoader" in {
-      Loader.getLoader("cloudfront") must beRight(CloudfrontLoader)
-    }
-
-    "return the CljTomcatLoader" in {
-      Loader.getLoader("clj-tomcat") must beRight(CljTomcatLoader)
-    }
-
-    "return the ThriftLoader" in {
-      Loader.getLoader("thrift") must beRight(ThriftLoader)
-    }
-
-    "return the NDJSON loader" in {
-      Loader.getLoader("ndjson/example.test/v1") must beRight(NdjsonLoader("example.test/v1"))
-    }
-  }
 
   "extractGetPayload" should {
     val Encoding = UTF_8

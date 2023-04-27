@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2021 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -25,6 +25,7 @@ import com.snowplowanalytics.snowplow.enrich.common.loaders._
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent.toPartiallyEnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
+import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
 import com.snowplowanalytics.snowplow.enrich.common.fs2.SpecHelpers._
 import com.snowplowanalytics.snowplow.eventgen.runGen
@@ -38,16 +39,12 @@ import _root_.io.circe.parser.decode
 import _root_.io.circe.syntax._
 import _root_.io.circe.generic.auto._
 import _root_.io.circe.literal._
-import org.http4s.client.{Client => Http4sClient}
 import org.joda.time.DateTime
 import org.specs2.mutable.Specification
 import org.specs2.specification.core.{Fragment, Fragments}
 
 import java.time.Instant
-import scala.concurrent.ExecutionContext
 import scala.util.{Random, Try}
-
-import test.TestEnvironment
 
 class EventGenEtlPipelineSpec extends Specification with CatsIO {
 
@@ -82,15 +79,6 @@ class EventGenEtlPipelineSpec extends Specification with CatsIO {
     ip_organization: Option[String],
     ip_domain: Option[String],
     ip_netspeed: Option[String],
-//    page_url: Option[String],
-//    page_title: Option[String],
-//    page_referrer: Option[String],
-//    page_urlscheme: Option[String],
-//    page_urlhost: Option[String],
-//    page_urlport: Option[String],
-//    page_urlpath: Option[String],
-//    page_urlquery: Option[String],
-//    page_urlfragment: Option[String],
     refr_urlscheme: Option[String],
     refr_urlhost: Option[String],
     refr_urlport: Option[String],
@@ -121,7 +109,6 @@ class EventGenEtlPipelineSpec extends Specification with CatsIO {
     ti_category: Option[String],
     ti_price: Option[String],
     ti_quantity: Option[String],
-//    useragent: Option[String],
     br_name: Option[String],
     br_family: Option[String],
     br_version: Option[String],
@@ -175,7 +162,7 @@ class EventGenEtlPipelineSpec extends Specification with CatsIO {
 
   val rng: Random = new scala.util.Random(1L)
 
-  val adapterRegistry = new AdapterRegistry(adaptersSchemas = adaptersSchemas)
+  val adapterRegistry = new AdapterRegistry(Map.empty[(String, String), RemoteAdapter[IO]], adaptersSchemas)
   val enrichmentReg = EnrichmentRegistry[IO]()
   val igluCentral = Registry.IgluCentral
   val client = IgluCirceClient.parseDefault[IO](json"""
@@ -211,9 +198,7 @@ class EventGenEtlPipelineSpec extends Specification with CatsIO {
   val processor = Processor("sce-test-suite", "1.0.0")
   val dateTime = DateTime.now()
   val process = Processor("EventGenEtlPipelineSpec", "v1")
-  val blocker: Blocker = Blocker.liftExecutionContext(ExecutionContext.global)
-
-  implicit val httpClient: Http4sClient[IO] = TestEnvironment.http4sClient
+  val blocker: Blocker = Blocker.liftExecutionContext(SpecHelpers.blockingEC)
 
   def processEvents(e: CollectorPayload): IO[List[Validated[BadRow, EnrichedEvent]]] =
     EtlPipeline.processEvents[IO](

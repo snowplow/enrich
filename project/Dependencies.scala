@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -40,17 +40,17 @@ object Dependencies {
     val mysqlConnector   = "8.0.29"
     val hikariCP         = "5.0.1"
     val jaywayJsonpath   = "2.7.0"
-    val jsonsmart        = "2.4.10" // override transitive dependency to mitigate security vulnerabilities
+    val jsonsmart        = "2.4.10"
     val iabClient        = "0.2.0"
     val yauaa            = "7.11.0"
     val log4jToSlf4j     = "2.18.0"
     val guava            = "28.1-jre"
     val slf4j            = "2.0.3"
     val log4j            = "2.20.0"
-    val thrift           = "0.15.0" // override transitive dependency to mitigate security vulnerabilities
-    val sprayJson        = "1.3.6" // override transitive dependency to mitigate security vulnerabilities
-    val netty            = "4.1.100.Final" // override transitive dependency to mitigate security vulnerabilities
-    val protobuf         = "3.21.9" // override transitive dependency to mitigate security vulnerabilities
+    val thrift           = "0.15.0"
+    val sprayJson        = "1.3.6"
+    val netty            = "4.1.100.Final"
+    val protobuf         = "3.21.9"
 
     val refererParser    = "1.1.0"
     val maxmindIplookups = "0.7.1"
@@ -71,7 +71,6 @@ object Dependencies {
 
     val awsSdk           = "1.12.506"
     val gcpSdk           = "2.14.0"
-    val kinesisClient    = "1.14.5"
     val awsSdk2          = "2.18.7"
     val kinesisClient2   = "2.4.3"
     val kafka            = "2.8.2"
@@ -94,8 +93,6 @@ object Dependencies {
     val eventGen         = "0.2.0"
     val fs2RabbitMQ      = "3.0.1" // latest version without CE3
 
-    val scopt            = "3.7.1"
-    val pureconfig       = "0.11.0"
     val snowplowTracker  = "1.0.0"
 
     val specs2            = "4.17.0"
@@ -103,11 +100,8 @@ object Dependencies {
     val specs2CE          = "0.4.1"
     val scalacheck        = "1.14.0"
     val testcontainers    = "0.40.10"
-    val jinJava           = "2.5.0"
     val parserCombinators = "2.1.1"
     val sentry            = "1.7.30"
-    val grpc              = "1.32.2"
-    val macros            = "2.1.1"
 
     val betterMonadicFor = "0.3.1"
   }
@@ -128,17 +122,14 @@ object Dependencies {
     val jsonsmart        = "net.minidev"                %  "json-smart"                    % V.jsonsmart
     val yauaa            = "nl.basjes.parse.useragent"  %  "yauaa"                         % V.yauaa
     val log4jToSlf4j     = "org.apache.logging.log4j"   % "log4j-to-slf4j"                 % V.log4jToSlf4j
-    val guava            = "com.google.guava"           %  "guava"                         % V.guava
     val log4j            = "org.apache.logging.log4j"   % "log4j-core"                     % V.log4j
-    val log4jApi         = "org.apache.logging.log4j"   % "log4j-api"                      % V.log4j
+    val guava            = "com.google.guava"           %  "guava"                         % V.guava
 
     val circeCore        = "io.circe"                   %% "circe-core"                    % V.circe
     val circeGeneric     = "io.circe"                   %% "circe-generic"                 % V.circe
     val circeExtras      = "io.circe"                   %% "circe-generic-extras"          % V.circe
     val circeParser      = "io.circe"                   %% "circe-parser"                  % V.circe
     val circeLiteral     = "io.circe"                   %% "circe-literal"                 % V.circe
-    val circeJava8       = "io.circe"                   %% "circe-java8"                   % V.circe
-    val circeJawn        = "io.circe"                   %% "circe-jawn"                    % V.circe
     val circeConfig      = "io.circe"                   %% "circe-config"                  % V.circeConfig
     val circeOptics      = "io.circe"                   %% "circe-optics"                  % V.circeOptics
     val circeJackson     = "io.circe"                   %% "circe-jackson210"              % V.circeJackson
@@ -174,26 +165,16 @@ object Dependencies {
     val parserCombinators  = "org.scala-lang.modules" %% "scala-parser-combinators"      % V.parserCombinators % Test
     val testContainersIt   = "com.dimafeng"           %% "testcontainers-scala-core"     % V.testcontainers    % IntegrationTest
 
-    // Stream
     val kinesisSdk       = "com.amazonaws"                    %  "aws-java-sdk-kinesis"              % V.awsSdk
     val dynamodbSdk      = "com.amazonaws"                    %  "aws-java-sdk-dynamodb"             % V.awsSdk
-    val s3Sdk            = "com.amazonaws"                    %  "aws-java-sdk-s3"                   % V.awsSdk
-    val kinesisClient    = "com.amazonaws"                    %  "amazon-kinesis-client"             % V.kinesisClient
     val sts              = "com.amazonaws"                    %  "aws-java-sdk-sts"                  % V.awsSdk           % Runtime
     val gcs              = "com.google.cloud"                 %  "google-cloud-storage"              % V.gcpSdk
     val kafkaClients     = "org.apache.kafka"                 %  "kafka-clients"                     % V.kafka
     val mskAuth          = "software.amazon.msk"              %  "aws-msk-iam-auth"                  % V.mskAuth          % Runtime
-    val jacksonCbor      = "com.fasterxml.jackson.dataformat" %  "jackson-dataformat-cbor"           % V.jackson
     val config           = "com.typesafe"                     %  "config"                            % V.config
-    val log4jOverSlf4j   = "org.slf4j"                        %  "log4j-over-slf4j"                  % V.slf4j
-    val scopt            = "com.github.scopt"                 %% "scopt"                             % V.scopt
-    val pureconfig       = "com.github.pureconfig"            %% "pureconfig"                        % V.pureconfig
     val nsqClient        = "com.snowplowanalytics"            %  "nsq-java-client"                   % V.nsqClient
     val catsEffect       = "org.typelevel"                    %% "cats-effect"                       % V.catsEffect
-    val snowplowTracker  = "com.snowplowanalytics"            %% "snowplow-scala-tracker-emitter-id" % V.snowplowTracker
     val scalacheck       = "org.scalacheck"                   %% "scalacheck"                        % V.scalacheck      % Test
-    val kafka            = "org.apache.kafka"                 %% "kafka"                             % V.kafka           % Test
-    val jinJava          = "com.hubspot.jinjava"              %  "jinjava"                           % V.jinJava         % Test
 
     // FS2
     val decline          = "com.monovore"                     %% "decline"                               % V.decline
@@ -267,41 +248,9 @@ object Dependencies {
       specs2Cats,
       specs2Scalacheck,
       specs2Mock,
+      specs2CE,
       circeLiteral % Test,
       parserCombinators
-    )
-
-    val streamCommonDependencies = Seq(
-      config,
-      sentry,
-      slf4j,
-      log4jOverSlf4j,
-      s3Sdk,
-      gcs,
-      scopt,
-      pureconfig,
-      snowplowTracker,
-      jacksonCbor,
-      specs2,
-      scalacheck
-    )
-
-    val streamKinesisDependencies = streamCommonDependencies ++ Seq(
-      kinesisClient,
-      kinesisSdk,
-      dynamodbSdk,
-      sts
-    )
-
-    val streamKafkaDependencies = streamCommonDependencies ++ Seq(
-      kafkaClients,
-      mskAuth
-    )
-
-    val streamNsqDependencies = streamCommonDependencies ++ Seq(
-      log4j,
-      log4jApi,
-      nsqClient
     )
 
     val commonFs2Dependencies = Seq(

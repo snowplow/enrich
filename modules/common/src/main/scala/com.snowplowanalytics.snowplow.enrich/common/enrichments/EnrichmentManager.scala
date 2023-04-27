@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -10,8 +10,7 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments
+package com.snowplowanalytics.snowplow.enrich.common.enrichments
 
 import java.nio.charset.Charset
 import java.net.URI
@@ -34,16 +33,17 @@ import com.snowplowanalytics.iglu.core.circe.implicits._
 import com.snowplowanalytics.snowplow.badrows._
 import com.snowplowanalytics.snowplow.badrows.{FailureDetails, Payload, Processor}
 
-import adapters.RawEvent
-import enrichments.{EventEnrichments => EE}
-import enrichments.{MiscEnrichments => ME}
-import enrichments.registry._
-import enrichments.registry.apirequest.ApiRequestEnrichment
-import enrichments.registry.pii.PiiPseudonymizerEnrichment
-import enrichments.registry.sqlquery.SqlQueryEnrichment
-import enrichments.web.{PageEnrichments => WPE}
-import outputs.EnrichedEvent
-import utils.{IgluUtils, ConversionUtils => CU}
+import com.snowplowanalytics.snowplow.enrich.common.{EtlPipeline, QueryStringParameters, RawEventParameters}
+import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.{EventEnrichments => EE}
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.{MiscEnrichments => ME}
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry._
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest.ApiRequestEnrichment
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii.PiiPseudonymizerEnrichment
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.SqlQueryEnrichment
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.web.{PageEnrichments => WPE}
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.utils.{IgluUtils, ConversionUtils => CU}
 
 object EnrichmentManager {
 

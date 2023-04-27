@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -14,13 +14,14 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.lang.{Float => JFloat}
 import java.time.{Instant, ZoneOffset, ZonedDateTime}
-import java.util.concurrent.TimeUnit
 
 import scala.concurrent.duration.FiniteDuration
 
 import cats.Monad
 import cats.data.{EitherT, NonEmptyList, ValidatedNel}
 import cats.implicits._
+
+import cats.effect.Async
 
 import org.joda.time.{DateTime, DateTimeZone}
 
@@ -67,24 +68,27 @@ object WeatherEnrichment extends ParseableEnrichment {
       }
       .toValidated
 
-  /**
-   * Creates a WeatherEnrichment from a WeatherConf
-   * @param conf Configuration for the weather enrichment
-   * @return a weather enrichment
-   */
-  def apply[F[_]: Monad: CreateOWM](conf: WeatherConf): EitherT[F, String, WeatherEnrichment[F]] =
+  def create[F[_]: Async](
+    schemaKey: SchemaKey,
+    apiHost: String,
+    apiKey: String,
+    timeout: FiniteDuration,
+    ssl: Boolean,
+    cacheSize: Int,
+    geoPrecision: Int
+  ): EitherT[F, String, WeatherEnrichment[F]] =
     EitherT(
       CreateOWM[F]
         .create(
-          conf.apiHost,
-          conf.apiKey,
-          FiniteDuration(conf.timeout.toLong, TimeUnit.SECONDS),
-          true,
-          conf.cacheSize,
-          conf.geoPrecision
+          apiHost,
+          apiKey,
+          timeout,
+          ssl,
+          cacheSize,
+          geoPrecision
         )
     ).leftMap(_.message)
-      .map(c => WeatherEnrichment(conf.schemaKey, c))
+      .map(c => WeatherEnrichment(schemaKey, c))
 }
 
 /**

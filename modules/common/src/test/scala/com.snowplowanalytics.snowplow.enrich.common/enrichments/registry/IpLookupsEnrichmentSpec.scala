@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -12,19 +12,26 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
-import cats.Id
 import cats.implicits._
 
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
-import com.snowplowanalytics.maxmind.iplookups.model.IpLocation
-import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
+import cats.effect.{Blocker, IO}
+
+import cats.effect.testing.specs2.CatsIO
 
 import io.circe.literal._
 
 import org.specs2.Specification
 import org.specs2.matcher.DataTables
 
-class IpLookupsEnrichmentSpec extends Specification with DataTables {
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+
+import com.snowplowanalytics.maxmind.iplookups.model.IpLocation
+
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
+
+class IpLookupsEnrichmentSpec extends Specification with DataTables with CatsIO {
+  val blocker: Blocker = Blocker.liftExecutionContext(SpecHelpers.blockingEC)
+
   def is = s2"""
   extractIpInformation should correctly extract location data from IP addresses where possible $e1
   extractIpInformation should correctly extract ISP data from IP addresses where possible      $e2
@@ -97,15 +104,17 @@ class IpLookupsEnrichmentSpec extends Specification with DataTables {
           continent = "Asia",
           accuracyRadius = 100
         ).asRight.some |> { (_, ipAddress, expected) =>
-      (for {
-        e <- config.enrichment[Id](BlockerF.noop)
-        res <- e.extractIpInformation(ipAddress)
-      } yield res.ipLocation).map(_.leftMap(_.getClass.getSimpleName)) must_== expected
+      for {
+        ipLookup <- config.enrichment[IO](blocker)
+        result <- ipLookup.extractIpInformation(ipAddress)
+        ipLocation = result.ipLocation.map(_.leftMap(_.getClass.getSimpleName))
+      } yield ipLocation must beEqualTo(expected)
     }
 
   def e2 =
-    config
-      .enrichment[Id](BlockerF.noop)
-      .extractIpInformation("70.46.123.145")
-      .isp must_== "FDN Communications".asRight.some
+    for {
+      ipLookup <- config.enrichment[IO](blocker)
+      result <- ipLookup.extractIpInformation("70.46.123.145")
+      isp = result.isp
+    } yield isp must beEqualTo(Some(Right("FDN Communications")))
 }

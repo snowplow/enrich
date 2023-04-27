@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2014-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -10,38 +10,38 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package adapters
-package registry
+package com.snowplowanalytics.snowplow.enrich.common.adapters.registry
 
+import org.apache.http.NameValuePair
 import cats.Monad
 import cats.data.NonEmptyList
-import cats.effect.Clock
 import cats.syntax.either._
 import cats.syntax.functor._
 import cats.syntax.option._
 import cats.syntax.validated._
-import com.snowplowanalytics.iglu.client.IgluCirceClient
-import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-import com.snowplowanalytics.snowplow.badrows._
 import io.circe.Json
 import io.circe.syntax._
 
-import loaders.CollectorPayload
-import utils.{HttpClient, JsonUtils}
-import Adapter.Adapted
+import com.snowplowanalytics.iglu.client.IgluCirceClient
+
+import com.snowplowanalytics.snowplow.badrows._
+
+import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
+import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, JsonUtils}
+import com.snowplowanalytics.snowplow.enrich.common.adapters._
+import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.Adapter.Adapted
 
 /**
  * An adapter for an enrichment that is handled by a remote webservice.
  * @param remoteUrl the url of the remote webservice, e.g. http://localhost/myEnrichment
- * @param connectionTimeout max duration of each connection attempt
- * @param readTimeout max duration of read wait time
  */
-final case class RemoteAdapter(
-  remoteUrl: String,
-  connectionTimeout: Option[Long],
-  readTimeout: Option[Long]
-) extends Adapter {
+final case class RemoteAdapter[F[_]: Monad](
+  httpClient: HttpClient[F],
+  remoteUrl: String
+) {
+
+  private def toMap(parameters: List[NameValuePair]): Map[String, Option[String]] =
+    parameters.map(p => p.getName -> Option(p.getValue)).toMap
 
   /**
    * POST the given payload to the remote webservice,
@@ -49,21 +49,21 @@ final case class RemoteAdapter(
    * @param client The Iglu client used for schema lookup and validation
    * @return a Validation boxing either a NEL of RawEvents on Success, or a NEL of Failure Strings
    */
-  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
+  def toRawEvents(
     payload: CollectorPayload,
-    client: IgluCirceClient[F]
+    igluClient: IgluCirceClient[F]
   ): F[Adapted] =
     payload.body match {
       case Some(body) if body.nonEmpty =>
-        val _ = client
+        val _ = igluClient
         val json = Json.obj(
           "contentType" := payload.contentType,
           "queryString" := toMap(payload.querystring),
           "headers" := payload.context.headers,
           "body" := payload.body
         )
-        HttpClient[F]
-          .getResponse(remoteUrl, None, None, Some(json.noSpaces), "POST", connectionTimeout, readTimeout)
+        httpClient
+          .getResponse(remoteUrl, None, None, Some(json.noSpaces), "POST")
           .map(processResponse(payload, _).toValidatedNel)
       case _ =>
         val msg = s"empty body: not a valid remote adapter $remoteUrl payload"

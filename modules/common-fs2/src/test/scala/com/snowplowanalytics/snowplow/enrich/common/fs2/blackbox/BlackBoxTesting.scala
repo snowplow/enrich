@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2022-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -13,12 +13,10 @@
 package com.snowplowanalytics.snowplow.enrich.common.fs2.blackbox
 
 import scala.collection.JavaConverters._
-import scala.concurrent.ExecutionContext
 
 import org.specs2.mutable.Specification
 
-import cats.effect.Blocker
-import cats.effect.IO
+import cats.effect.{Blocker, IO, Resource}
 
 import cats.effect.testing.specs2.CatsIO
 
@@ -31,8 +29,6 @@ import io.circe.parser.{parse => jparse}
 
 import org.apache.thrift.TSerializer
 
-import org.http4s.client.{Client => Http4sClient, JavaNetClientBuilder}
-
 import com.snowplowanalytics.snowplow.CollectorPayload.thrift.model1.CollectorPayload
 
 import com.snowplowanalytics.iglu.client.IgluCirceClient
@@ -41,21 +37,21 @@ import com.snowplowanalytics.iglu.client.resolver.registries.Registry
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
-import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, ShiftExecution}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, ShiftExecution}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Enrich
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.FeatureFlags
+import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.EnrichSpec
-import com.snowplowanalytics.snowplow.enrich.common.fs2.SpecHelpers.createIgluClient
+import com.snowplowanalytics.snowplow.enrich.common.fs2.SpecHelpers
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test.TestEnvironment
 
 object BlackBoxTesting extends Specification with CatsIO {
 
-  val blocker: Blocker = Blocker.liftExecutionContext(ExecutionContext.global)
-  implicit val httpClient: Http4sClient[IO] = JavaNetClientBuilder[IO](blocker).create
+  val blocker: Blocker = Blocker.liftExecutionContext(SpecHelpers.blockingEC)
 
   private val serializer: TSerializer = new TSerializer()
 
@@ -96,23 +92,27 @@ object BlackBoxTesting extends Specification with CatsIO {
     expected: Map[String, String],
     enrichmentConfig: Option[Json] = None
   ) =
-    createIgluClient(List(Registry.EmbeddedRegistry))
+    SpecHelpers
+      .createIgluClient(List(Registry.EmbeddedRegistry))
       .flatMap { igluClient =>
-        Enrich
-          .enrichWith(getEnrichmentRegistry(enrichmentConfig, igluClient),
-                      TestEnvironment.adapterRegistry,
-                      igluClient,
-                      None,
-                      EnrichSpec.processor,
-                      featureFlags,
-                      IO.unit
-          )(
-            input
-          )
-          .map {
-            case (List(Validated.Valid(enriched)), _) => checkEnriched(enriched, expected)
-            case other => ko(s"there should be one enriched event but got $other")
-          }
+        getEnrichmentRegistry(enrichmentConfig, igluClient).use { registry =>
+          Enrich
+            .enrichWith(
+              IO.pure(registry),
+              TestEnvironment.adapterRegistry,
+              igluClient,
+              None,
+              EnrichSpec.processor,
+              featureFlags,
+              IO.unit
+            )(
+              input
+            )
+            .map {
+              case (List(Validated.Valid(enriched)), _) => checkEnriched(enriched, expected)
+              case other => ko(s"there should be one enriched event but got $other")
+            }
+        }
       }
 
   private def checkEnriched(enriched: EnrichedEvent, expectedFields: Map[String, String]) = {
@@ -135,27 +135,33 @@ object BlackBoxTesting extends Specification with CatsIO {
   private def getMap(enriched: EnrichedEvent): Map[String, String] =
     enrichedFields.map(f => (f.getName(), Option(f.get(enriched)).map(_.toString).getOrElse(""))).toMap
 
-  private def getEnrichmentRegistry(enrichmentConfig: Option[Json], igluClient: IgluCirceClient[IO]): IO[EnrichmentRegistry[IO]] =
-    enrichmentConfig match {
-      case None =>
-        IO.pure(EnrichmentRegistry[IO]())
-      case Some(json) =>
-        val enrichmentsSchemaKey =
-          SchemaKey("com.snowplowanalytics.snowplow", "enrichments", "jsonschema", SchemaVer.Full(1, 0, 0))
-        val enrichmentsJson = SelfDescribingData(enrichmentsSchemaKey, Json.arr(json)).asJson
-        for {
-          parsed <- EnrichmentRegistry.parse[IO](enrichmentsJson, igluClient, true)
-          confs <- parsed match {
-                     case Invalid(e) => IO.raiseError(new IllegalArgumentException(s"can't parse enrichmentsJson: $e"))
-                     case Valid(list) => IO.pure(list)
-                   }
-          built <- EnrichmentRegistry.build[IO](confs, BlockerF.noop, ShiftExecution.noop).value
-          registry <- built match {
-                        case Left(e) => IO.raiseError(new IllegalArgumentException(s"can't build EnrichmentRegistry: $e"))
-                        case Right(r) => IO.pure(r)
-                      }
-        } yield registry
-    }
+  private def getEnrichmentRegistry(enrichmentConfig: Option[Json], igluClient: IgluCirceClient[IO]): Resource[IO, EnrichmentRegistry[IO]] =
+    for {
+      shift <- ShiftExecution.ofSingleThread[IO]
+      http4s <- Clients.mkHttp[IO](ec = SpecHelpers.blockingEC)
+      http = HttpClient.fromHttp4sClient[IO](http4s)
+      registry = enrichmentConfig match {
+                   case None =>
+                     IO.pure(EnrichmentRegistry[IO]())
+                   case Some(json) =>
+                     val enrichmentsSchemaKey =
+                       SchemaKey("com.snowplowanalytics.snowplow", "enrichments", "jsonschema", SchemaVer.Full(1, 0, 0))
+                     val enrichmentsJson = SelfDescribingData(enrichmentsSchemaKey, Json.arr(json)).asJson
+                     for {
+                       parsed <- EnrichmentRegistry.parse[IO](enrichmentsJson, igluClient, true)
+                       confs <- parsed match {
+                                  case Invalid(e) => IO.raiseError(new IllegalArgumentException(s"can't parse enrichmentsJson: $e"))
+                                  case Valid(list) => IO.pure(list)
+                                }
+                       built <- EnrichmentRegistry.build[IO](confs, blocker, shift, http).value
+                       registry <- built match {
+                                     case Left(e) => IO.raiseError(new IllegalArgumentException(s"can't build EnrichmentRegistry: $e"))
+                                     case Right(r) => IO.pure(r)
+                                   }
+                     } yield registry
+                 }
+      resource <- Resource.eval(registry)
+    } yield resource
 
   private val featureFlags = FeatureFlags(acceptInvalid = false, legacyEnrichmentOrder = false, tryBase64Decoding = false)
 }

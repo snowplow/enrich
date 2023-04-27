@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -10,21 +10,20 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments
+package com.snowplowanalytics.snowplow.enrich.common.enrichments
 
 import cats.implicits._
 import cats.data.ValidatedNel
 
 import com.snowplowanalytics.snowplow.badrows._
 
-import enrichments.{EventEnrichments => EE}
-import enrichments.{MiscEnrichments => ME}
-import enrichments.{ClientEnrichments => CE}
-import utils.{ConversionUtils => CU, JsonUtils => JU}
-import utils.MapTransformer._
-import outputs.EnrichedEvent
-import adapters.RawEvent
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.{EventEnrichments => EE}
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.{MiscEnrichments => ME}
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.{ClientEnrichments => CE}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{ConversionUtils => CU, JsonUtils => JU}
+import com.snowplowanalytics.snowplow.enrich.common.utils.MapTransformer._
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
 
 object Transform {
 

@@ -12,18 +12,24 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments
 
-import cats.Id
+import scala.concurrent.duration.TimeUnit
+
 import cats.effect.Clock
+
+import cats.effect.IO
+
+import cats.effect.testing.specs2.CatsIO
+
+import io.circe.Json
+import io.circe.literal.JsonStringContext
+
+import org.specs2.mutable.Specification
+
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.CachingEvaluatorSpec.{TestClock, TestContext}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.CachingEvaluator
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.CachingEvaluator._
-import io.circe.Json
-import io.circe.literal.JsonStringContext
-import org.specs2.mutable.Specification
 
-import scala.concurrent.duration.TimeUnit
-
-class CachingEvaluatorSpec extends Specification {
+class CachingEvaluatorSpec extends Specification with CatsIO {
 
   private val successTtl = 5
   private val errorTtl = 2
@@ -31,120 +37,111 @@ class CachingEvaluatorSpec extends Specification {
   "Cached evaluation should work when" >> {
     "TTL is not exceeded, second call not evaluated" >> {
       "for success" in {
-        val context = setupContext()
-
-        val v1 = getValue(context, ifEvaluated = successful(result = json""" { "field": "value1" } """))
-
-        context.addSeconds(4) // for success => 4 < 5
-
-        val v2 = getValue(context, ifEvaluated = successful(result = json""" { "field": "value2" } """))
-
-        v1 must beRight(json""" { "field": "value1" } """)
-        v2 must beRight(json""" { "field": "value1" } """)
+        for {
+          context <- setupContext()
+          v1 <- getValue(context, ifEvaluated = successful(result = json""" { "field": "value1" } """))
+          _ <- IO(context.addSeconds(4)) // for success => 4 < 5
+          v2 <- getValue(context, ifEvaluated = successful(result = json""" { "field": "value2" } """))
+        } yield {
+          v1 must beRight(json""" { "field": "value1" } """)
+          v2 must beRight(json""" { "field": "value1" } """)
+        }
       }
 
       "for errors" in {
-        val context = setupContext()
-
-        val v1 = getValue(context, ifEvaluated = error(new RuntimeException("Some error1!")))
-
-        context.addSeconds(1) // for error => 1 < 2
-
-        val v2 = getValue(context, ifEvaluated = error(new RuntimeException("This second error should not be evaluated!")))
-
-        v1.left.map(_.getMessage) must beLeft("Some error1!")
-        v2.left.map(_.getMessage) must beLeft("Some error1!")
+        for {
+          context <- setupContext()
+          v1 <- getValue(context, ifEvaluated = error(new RuntimeException("Some error1!")))
+          _ <- IO(context.addSeconds(1)) // for error => 1 < 2
+          v2 <- getValue(context, ifEvaluated = error(new RuntimeException("This second error should not be evaluated!")))
+        } yield {
+          v1.left.map(_.getMessage) must beLeft("Some error1!")
+          v2.left.map(_.getMessage) must beLeft("Some error1!")
+        }
       }
     }
 
     "TTL is exceeded, second call is evaluated" >> {
       "1 call - success, 2 call - success => use new json" in {
-        val context = setupContext()
-
-        val v1 = getValue(context, ifEvaluated = successful(result = json""" { "field": "value1" } """))
-
-        context.addSeconds(6) // for success => 6 > 5
-
-        val v2 = getValue(context, ifEvaluated = successful(result = json""" { "field": "value2" } """))
-
-        v1 must beRight(json""" { "field": "value1" } """)
-        v2 must beRight(json""" { "field": "value2" } """)
+        for {
+          context <- setupContext()
+          v1 <- getValue(context, ifEvaluated = successful(result = json""" { "field": "value1" } """))
+          _ <- IO(context.addSeconds(6)) // for success => 6 > 5
+          v2 <- getValue(context, ifEvaluated = successful(result = json""" { "field": "value2" } """))
+        } yield {
+          v1 must beRight(json""" { "field": "value1" } """)
+          v2 must beRight(json""" { "field": "value2" } """)
+        }
       }
 
       "1 call - success, 2 call - error => fallback to previous success, still TTL for errors in force " in {
-        val context = setupContext()
-
-        val v1 = getValue(context, ifEvaluated = successful(result = json""" { "field": "value1" } """))
-
-        context.addSeconds(6) // for success => 6 > 5
-
-        val v2 = getValue(context, ifEvaluated = error(new RuntimeException("This second error should be evaluated but not returned!")))
-
-        context.addSeconds(3) // for error => 3 > 2
-
-        val v3 = getValue(context, ifEvaluated = successful(result = json""" { "field": "value2" } """))
-
-        v1 must beRight(json""" { "field": "value1" } """)
-        v2 must beRight(json""" { "field": "value1" } """)
-        v3 must beRight(json""" { "field": "value2" } """)
+        for {
+          context <- setupContext()
+          v1 <- getValue(context, ifEvaluated = successful(result = json""" { "field": "value1" } """))
+          _ <- IO(context.addSeconds(6)) // for success => 6 > 5
+          v2 <- getValue(context, ifEvaluated = error(new RuntimeException("This second error should be evaluated but not returned!")))
+          _ <- IO(context.addSeconds(3)) // for error => 3 > 2
+          v3 <- getValue(context, ifEvaluated = successful(result = json""" { "field": "value2" } """))
+        } yield {
+          v1 must beRight(json""" { "field": "value1" } """)
+          v2 must beRight(json""" { "field": "value1" } """)
+          v3 must beRight(json""" { "field": "value2" } """)
+        }
       }
 
       "1 call - error, 2 call - error => use new error" in {
-        val context = setupContext()
-
-        val v1 = getValue(context, ifEvaluated = error(new RuntimeException("Some error1!")))
-
-        context.addSeconds(3) // for error => 3 > 2
-
-        val v2 = getValue(context, ifEvaluated = error(new RuntimeException("This second error should be evaluated!")))
-
-        v1.left.map(_.getMessage) must beLeft("Some error1!")
-        v2.left.map(_.getMessage) must beLeft("This second error should be evaluated!")
+        for {
+          context <- setupContext()
+          v1 <- getValue(context, ifEvaluated = error(new RuntimeException("Some error1!")))
+          _ <- IO(context.addSeconds(3)) // for error => 3 > 2
+          v2 <- getValue(context, ifEvaluated = error(new RuntimeException("This second error should be evaluated!")))
+        } yield {
+          v1.left.map(_.getMessage) must beLeft("Some error1!")
+          v2.left.map(_.getMessage) must beLeft("This second error should be evaluated!")
+        }
       }
 
       "1 call - error, 2 call - success => use new json" in {
-        val context = setupContext()
-
-        val v1 = getValue(context, ifEvaluated = error(new RuntimeException("Some error1!")))
-
-        context.addSeconds(3) // for error => 3 > 2
-
-        val v2 = getValue(context, ifEvaluated = successful(result = json""" { "field": "value2" } """))
-
-        v1.left.map(_.getMessage) must beLeft("Some error1!")
-        v2 must beRight(json""" { "field": "value2" } """)
+        for {
+          context <- setupContext()
+          v1 <- getValue(context, ifEvaluated = error(new RuntimeException("Some error1!")))
+          _ <- IO(context.addSeconds(3)) // for error => 3 > 2
+          v2 <- getValue(context, ifEvaluated = successful(result = json""" { "field": "value2" } """))
+        } yield {
+          v1.left.map(_.getMessage) must beLeft("Some error1!")
+          v2 must beRight(json""" { "field": "value2" } """)
+        }
       }
     }
-
   }
 
-  private def getValue(context: TestContext, ifEvaluated: GetResult[Id, Json]): Either[Throwable, Json] = {
+  private def getValue(context: TestContext, ifEvaluated: GetResult[IO, Json]): IO[Either[Throwable, Json]] = {
     implicit val clock: TestClock = context.clock
     context.evaluation.evaluateForKey("key", ifEvaluated)
   }
 
-  private def setupContext(): TestContext =
-    TestContext(
-      new TestClock,
-      CachingEvaluator.create[Id, String, Json](Config(size = 1, successTtl, errorTtl))
-    )
+  private def setupContext(): IO[TestContext] =
+    for {
+      evaluator <- CachingEvaluator.create[IO, String, Json](Config(size = 1, successTtl, errorTtl))
+      context = TestContext(new TestClock, evaluator)
+    } yield context
 
-  private def successful(result: Json): GetResult[Id, Json] = () => Right(result)
-  private def error(ex: Throwable): GetResult[Id, Json] = () => Left(ex)
+  private def successful(result: Json): GetResult[IO, Json] = () => IO.pure(Right(result))
+  private def error(ex: Throwable): GetResult[IO, Json] = () => IO.pure(Left(ex))
 
 }
 
 object CachingEvaluatorSpec {
 
-  final case class TestContext(clock: TestClock, evaluation: CachingEvaluator[Id, String, Json]) {
+  final case class TestContext(clock: TestClock, evaluation: CachingEvaluator[IO, String, Json]) {
     def addSeconds(value: Int): Unit =
       clock.secondsCounter += value
   }
 
-  final class TestClock extends Clock[Id] {
+  final class TestClock extends Clock[IO] {
     var secondsCounter: Long = 0
 
-    override def realTime(unit: TimeUnit): Id[Long] = secondsCounter
-    override def monotonic(unit: TimeUnit): Id[Long] = secondsCounter
+    override def realTime(unit: TimeUnit): IO[Long] = IO.pure(secondsCounter)
+    override def monotonic(unit: TimeUnit): IO[Long] = IO.pure(secondsCounter)
   }
 }

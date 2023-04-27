@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -14,23 +14,27 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.net.URI
 
-import cats.Id
 import cats.data.EitherT
 import cats.syntax.either._
 
-import io.circe.literal._
+import cats.effect.IO
 
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
-import com.snowplowanalytics.refererparser._
+import cats.effect.testing.specs2.CatsIO
+
+import io.circe.literal._
 
 import org.specs2.Specification
 import org.specs2.matcher.DataTables
+
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+
+import com.snowplowanalytics.refererparser._
 
 /**
  * A small selection of tests partially borrowed from referer-parser.
  * This is a very imcomplete set - more a tripwire than an exhaustive test.
  */
-class RefererParserEnrichmentSpec extends Specification with DataTables {
+class RefererParserEnrichmentSpec extends Specification with DataTables with CatsIO {
   def is = s2"""
   parsing referer URIs should work                     $e1
   tabs and newlines in search terms should be replaced $e2
@@ -60,7 +64,7 @@ class RefererParserEnrichmentSpec extends Specification with DataTables {
         Medium.Unknown
       ) |> { (_, refererUri, referer) =>
       (for {
-        c <- EitherT.fromEither[Id](
+        c <- EitherT.fromEither[IO](
                RefererParserEnrichment
                  .parse(
                    json"""{
@@ -84,16 +88,16 @@ class RefererParserEnrichmentSpec extends Specification with DataTables {
                  .toEither
                  .leftMap(_.head)
              )
-        e <- c.enrichment[Id]
+        e <- c.enrichment[IO]
         res = e.extractRefererDetails(new URI(refererUri), PageHost)
-      } yield res).value must beRight.like {
+      } yield res).value.map(_ must beRight.like {
         case o => o must beSome(referer)
-      }
+      })
     }
 
   def e2 =
     (for {
-      c <- EitherT.fromEither[Id](
+      c <- EitherT.fromEither[IO](
              RefererParserEnrichment
                .parse(
                  json"""{
@@ -117,14 +121,14 @@ class RefererParserEnrichmentSpec extends Specification with DataTables {
                .toEither
                .leftMap(_.head)
            )
-      e <- c.enrichment[Id]
+      e <- c.enrichment[IO]
       res = e.extractRefererDetails(
               new URI(
                 "http://www.google.com/search?q=%0Agateway%09oracle%09cards%09denise%09linn&hl=en&client=safari"
               ),
               PageHost
             )
-    } yield res).value must beRight.like {
+    } yield res).value.map(_ must beRight.like {
       case o =>
         o must beSome(
           SearchReferer(
@@ -133,5 +137,5 @@ class RefererParserEnrichmentSpec extends Specification with DataTables {
             Some("gateway    oracle    cards    denise    linn")
           )
         )
-    }
+    })
 }

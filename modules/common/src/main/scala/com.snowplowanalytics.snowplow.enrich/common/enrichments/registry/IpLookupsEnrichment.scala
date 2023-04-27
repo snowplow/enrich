@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -14,9 +14,10 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.net.URI
 
-import cats.Functor
 import cats.data.{NonEmptyList, ValidatedNel}
 import cats.implicits._
+
+import cats.effect.{Async, Blocker, ContextShift}
 
 import io.circe._
 
@@ -28,7 +29,7 @@ import com.snowplowanalytics.maxmind.iplookups._
 import com.snowplowanalytics.maxmind.iplookups.model._
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.IpLookupsConf
-import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, CirceUtils}
+import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
 
 /** Companion object. Lets us create an IpLookupsEnrichment instance from a Json. */
 object IpLookupsEnrichment extends ParseableEnrichment {
@@ -94,23 +95,23 @@ object IpLookupsEnrichment extends ParseableEnrichment {
       } yield IpLookupsDatabase(name, uri, uriAndDb._2)).toValidated.some
     } else None
 
-  /**
-   * Creates a IpLookupsEnrichment from a IpLookupsConf
-   * @param conf Configuration for the ip lookups enrichment
-   * @return an ip lookups enrichment
-   */
-  def apply[F[_]: Functor: CreateIpLookups](conf: IpLookupsConf, blocker: BlockerF[F]): F[IpLookupsEnrichment[F]] =
+  def create[F[_]: Async: ContextShift](
+    blocker: Blocker,
+    geoFilePath: Option[String],
+    ispFilePath: Option[String],
+    domainFilePath: Option[String],
+    connectionFilePath: Option[String]
+  ): F[IpLookupsEnrichment[F]] =
     CreateIpLookups[F]
       .createFromFilenames(
-        conf.geoFile.map(_._2),
-        conf.ispFile.map(_._2),
-        conf.domainFile.map(_._2),
-        conf.connectionTypeFile.map(_._2),
+        geoFilePath,
+        ispFilePath,
+        domainFilePath,
+        connectionFilePath,
         memCache = true,
         lruCacheSize = 20000
       )
       .map(i => IpLookupsEnrichment(i, blocker))
-
 }
 
 /**
@@ -118,7 +119,7 @@ object IpLookupsEnrichment extends ParseableEnrichment {
  * @param ipLookups IP lookups client
  * @param blocker Runs db lookups on a separate thread pool
  */
-final case class IpLookupsEnrichment[F[_]](ipLookups: IpLookups[F], blocker: BlockerF[F]) extends Enrichment {
+final case class IpLookupsEnrichment[F[_]: ContextShift](ipLookups: IpLookups[F], blocker: Blocker) extends Enrichment {
 
   /**
    * Extract the geo-location using the client IP address.

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  *
  * This program is licensed to you under the Apache License Version 2.0,
@@ -11,24 +11,25 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package adapters
-package registry
+package com.snowplowanalytics.snowplow.enrich.common.adapters.registry
 
 import cats.data.NonEmptyList
 import cats.syntax.option._
-import com.snowplowanalytics.snowplow.badrows._
+import cats.effect.testing.specs2.CatsIO
 import io.circe.literal._
 import org.joda.time.DateTime
 import org.specs2.Specification
 import org.specs2.matcher.{DataTables, ValidatedMatchers}
 
-import loaders._
-import utils.Clock._
+import com.snowplowanalytics.snowplow.badrows._
 
-import SpecHelpers._
+import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
+import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 
-class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMatchers {
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
+
+class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMatchers with CatsIO {
   def is = s2"""
   payloadBodyToEvents must return a Success list of event JSON's from a valid payload body $e1
   payloadBodyToEvents must return a Failure Nel for an invalid payload body being passed   $e2
@@ -100,7 +101,7 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
         Shared.context
       )
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client).map(_ must beValid(expected))
   }
 
   def e4 = {
@@ -119,34 +120,46 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
       adapterWithDefaultSchemas.EventSchemaMap,
       "no schema associated with the provided type parameter at index 0"
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(
-      NonEmptyList.one(expected)
-    )
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(expected)
+        )
+      )
   }
 
   def e5 = {
     val payload =
       CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.AdapterFailure
-          .InputData("body", None, "empty body: not events to process")
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure
+              .InputData("body", None, "empty body: not events to process")
+          )
+        )
       )
-    )
   }
 
   def e6 = {
     val payload =
       CollectorPayload(Shared.api, Nil, None, "stub".some, Shared.cljSource, Shared.context)
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.AdapterFailure.InputData(
-          "contentType",
-          None,
-          "no content type: expected application/json"
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure.InputData(
+              "contentType",
+              None,
+              "no content type: expected application/json"
+            )
+          )
         )
       )
-    )
   }
 
   def e7 = {
@@ -159,11 +172,15 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
       Shared.cljSource,
       Shared.context
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.AdapterFailure
-          .InputData("contentType", ct, "expected application/json")
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure
+              .InputData("contentType", ct, "expected application/json")
+          )
+        )
       )
-    )
   }
 }

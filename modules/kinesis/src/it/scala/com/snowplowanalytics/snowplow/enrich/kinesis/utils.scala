@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2022-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -13,11 +13,12 @@
 package com.snowplowanalytics.snowplow.enrich.kinesis
 
 import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext
 
 import cats.data.Validated
 
-import cats.effect.{Blocker, ContextShift, IO, Resource, Timer}
+import cats.effect.{Blocker, IO, Resource}
+
+import cats.effect.testing.specs2.CatsIO
 
 import fs2.{Pipe, Stream}
 
@@ -28,11 +29,7 @@ import com.snowplowanalytics.snowplow.badrows.BadRow
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test.Utils
 
-object utils {
-
-  private val executionContext: ExecutionContext = ExecutionContext.global
-  implicit val ioContextShift: ContextShift[IO] = IO.contextShift(executionContext)
-  implicit val ioTimer: Timer[IO] = IO.timer(executionContext)
+object utils extends CatsIO {
 
   sealed trait OutputRow
   object OutputRow {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2015-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -10,24 +10,26 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package adapters.registry
+package com.snowplowanalytics.snowplow.enrich.common.adapters.registry
 
 import cats.data.{NonEmptyList, Validated}
 import cats.syntax.either._
 import cats.syntax.option._
-import com.snowplowanalytics.snowplow.badrows._
-import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.urbanAirshipSchemas
+import cats.effect.testing.specs2.CatsIO
 import io.circe.literal._
 import io.circe.parser._
 import org.joda.time.DateTime
 import org.specs2.matcher.ValidatedMatchers
 import org.specs2.mutable.Specification
 
-import loaders._
-import utils.Clock._
+import com.snowplowanalytics.snowplow.badrows._
 
-class UrbanAirshipAdapterSpec extends Specification with ValidatedMatchers {
+import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
+
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
+
+class UrbanAirshipAdapterSpec extends Specification with ValidatedMatchers with CatsIO {
 
   object Shared {
     val api = CollectorPayload.Api("com.urbanairship.connect", "v1")
@@ -105,21 +107,24 @@ class UrbanAirshipAdapterSpec extends Specification with ValidatedMatchers {
     }"""
 
     "return the correct number of events (1)" in {
-      actual must beValid
-      val items = actual.toList.head.toList
-      items must have size 1
+      actual.map { output =>
+        output must beValid
+        val items = output.toList.head.toList
+        items must have size 1
+      }
     }
 
     "link to the correct json schema for the event type" in {
-      actual must beValid
-      val correctType = validPayload.hcursor.get[String]("type")
-      correctType must be equalTo (Right("CLOSE"))
-
-      val items = actual.toList.head.toList
-      val sentSchema = parse(items.head.parameters("ue_pr").getOrElse("{}"))
-        .leftMap(_.getMessage)
-        .flatMap(_.hcursor.downField("data").get[String]("schema").leftMap(_.getMessage))
-      sentSchema must beRight("""iglu:com.urbanairship.connect/CLOSE/jsonschema/1-0-0""")
+      actual.map { output =>
+        output must beValid
+        val correctType = validPayload.hcursor.get[String]("type")
+        correctType must be equalTo (Right("CLOSE"))
+        val items = output.toList.head.toList
+        val sentSchema = parse(items.head.parameters("ue_pr").getOrElse("{}"))
+          .leftMap(_.getMessage)
+          .flatMap(_.hcursor.downField("data").get[String]("schema").leftMap(_.getMessage))
+        sentSchema must beRight("""iglu:com.urbanairship.connect/CLOSE/jsonschema/1-0-0""")
+      }
     }
 
     "fail on unknown event types" in {
@@ -131,13 +136,13 @@ class UrbanAirshipAdapterSpec extends Specification with ValidatedMatchers {
         Shared.cljSource,
         Shared.context
       )
-      adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid
+      adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client).map(_ must beInvalid)
     }
 
     "reject unparsable json" in {
       val payload =
         CollectorPayload(Shared.api, Nil, None, """{ """.some, Shared.cljSource, Shared.context)
-      adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid
+      adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client).map(_ must beInvalid)
     }
 
     "reject badly formatted json" in {
@@ -150,7 +155,7 @@ class UrbanAirshipAdapterSpec extends Specification with ValidatedMatchers {
           Shared.cljSource,
           Shared.context
         )
-      adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid
+      adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client).map(_ must beInvalid)
     }
 
     "reject content types" in {
@@ -162,38 +167,46 @@ class UrbanAirshipAdapterSpec extends Specification with ValidatedMatchers {
         Shared.cljSource,
         Shared.context
       )
-      val res = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
-
-      res must beInvalid(
-        NonEmptyList.one(
-          FailureDetails.AdapterFailure
-            .InputData("contentType", "a/type".some, "expected no content type")
+      adapterWithDefaultSchemas
+        .toRawEvents(payload, SpecHelpers.client)
+        .map(
+          _ must beInvalid(
+            NonEmptyList.one(
+              FailureDetails.AdapterFailure
+                .InputData("contentType", "a/type".some, "expected no content type")
+            )
+          )
         )
-      )
     }
 
     "populate content-type as None (it's not applicable)" in {
-      val contentType = actual.getOrElse(throw new IllegalStateException).head.contentType
-      contentType must beEqualTo(None)
+      actual.map { output =>
+        val contentType = output.getOrElse(throw new IllegalStateException).head.contentType
+        contentType must beEqualTo(None)
+      }
     }
 
     "have the correct collector source" in {
-      val source = actual.getOrElse(throw new IllegalStateException).head.source
-      source must beEqualTo(Shared.cljSource)
+      actual.map { output =>
+        val source = output.getOrElse(throw new IllegalStateException).head.source
+        source must beEqualTo(Shared.cljSource)
+      }
     }
 
     "have the correct context, including setting the correct collector timestamp" in {
-      val context = actual.getOrElse(throw new IllegalStateException).head.context
-      Shared.context.timestamp mustEqual None
-      context mustEqual Shared.context.copy(
-        timestamp = DateTime
-          .parse("2015-11-13T16:31:52.393Z")
-          .some
-      ) // it should be set to the "processed" field by the adapter
+      actual.map { output =>
+        val context = output.getOrElse(throw new IllegalStateException).head.context
+        Shared.context.timestamp mustEqual None
+        context mustEqual Shared.context.copy(
+          timestamp = DateTime
+            .parse("2015-11-13T16:31:52.393Z")
+            .some
+        ) // it should be set to the "processed" field by the adapter
+      }
     }
 
     "return the correct unstruct_event json" in {
-      actual match {
+      actual.map {
         case Validated.Valid(successes) =>
           val event = successes.head
           parse(event.parameters("ue_pr").getOrElse("{}")) must beRight(expectedUnstructEventJson)
@@ -202,7 +215,7 @@ class UrbanAirshipAdapterSpec extends Specification with ValidatedMatchers {
     }
 
     "correctly populate the true timestamp" in {
-      actual match {
+      actual.map {
         case Validated.Valid(successes) =>
           val event = successes.head
           // "occurred" field value in ms past epoch (2015-11-13T16:31:52.393Z)
@@ -212,7 +225,7 @@ class UrbanAirshipAdapterSpec extends Specification with ValidatedMatchers {
     }
 
     "correctly populate the eid" in {
-      actual match {
+      actual.map {
         case Validated.Valid(successes) =>
           val event = successes.head
           // id field value
@@ -220,7 +233,5 @@ class UrbanAirshipAdapterSpec extends Specification with ValidatedMatchers {
         case _ => ko("payload was not populated")
       }
     }
-
   }
-
 }

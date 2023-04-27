@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -10,19 +10,12 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package adapters
-package registry
-package snowplow
+package com.snowplowanalytics.snowplow.enrich.common.adapters.registry.snowplow
 
 import cats.data.NonEmptyList
 import cats.syntax.option._
 
-import com.snowplowanalytics.iglu.client._
-import com.snowplowanalytics.iglu.client.validator._
-import com.snowplowanalytics.iglu.core._
-
-import com.snowplowanalytics.snowplow.badrows._
+import cats.effect.testing.specs2.CatsIO
 
 import io.circe.literal._
 
@@ -31,13 +24,22 @@ import org.joda.time.DateTime
 import org.specs2.{ScalaCheck, Specification}
 import org.specs2.matcher.{DataTables, ValidatedMatchers}
 
-import loaders._
-import utils.{ConversionUtils => CU}
-import utils.Clock._
+import com.snowplowanalytics.iglu.client._
+import com.snowplowanalytics.iglu.client.validator._
 
-import SpecHelpers._
+import com.snowplowanalytics.iglu.core._
 
-class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMatchers with ScalaCheck {
+import com.snowplowanalytics.snowplow.badrows._
+
+import com.snowplowanalytics.snowplow.enrich.common.loaders._
+import com.snowplowanalytics.snowplow.enrich.common.utils.{ConversionUtils => CU}
+import com.snowplowanalytics.snowplow.enrich.common.RawEventParameters
+import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
+
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
+
+class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMatchers with ScalaCheck with CatsIO {
   def is = s2"""
   Tp1.toRawEvents should return a NEL containing one RawEvent if the querystring is populated                             $e1
   Tp1.toRawEvents should return a Validation Failure if the querystring is empty                                          $e2
@@ -93,25 +95,38 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
         Shared.source,
         Shared.context
       )
-    val actual = Tp1Adapter.toRawEvents(payload, SpecHelpers.client)
-    actual must beValid(
-      NonEmptyList
-        .one(RawEvent(Snowplow.Tp1, Map("aid" -> "test").toOpt, None, Shared.source, Shared.context))
-    )
+    Tp1Adapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beValid(
+          NonEmptyList.one(
+            RawEvent(
+              Snowplow.Tp1,
+              Map("aid" -> "test").toOpt,
+              None,
+              Shared.source,
+              Shared.context
+            )
+          )
+        )
+      )
   }
 
   def e2 = {
     val payload = CollectorPayload(Snowplow.Tp1, Nil, None, None, Shared.source, Shared.context)
-    val actual = Tp1Adapter.toRawEvents(payload, SpecHelpers.client)
-    actual must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.AdapterFailure.InputData(
-          "querystring",
-          None,
-          "empty querystring: not a valid URI redirect"
+    Tp1Adapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure.InputData(
+              "querystring",
+              None,
+              "empty querystring: not a valid URI redirect"
+            )
+          )
         )
       )
-    )
   }
 
   def e3 = {
@@ -123,18 +138,21 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       Shared.source,
       Shared.context
     )
-    val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client)
-    actual must beValid(
-      NonEmptyList.one(
-        RawEvent(
-          Snowplow.Tp2,
-          Map("aid" -> "tp2", "e" -> "se").toOpt,
-          None,
-          Shared.source,
-          Shared.context
+    Tp2Adapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beValid(
+          NonEmptyList.one(
+            RawEvent(
+              Snowplow.Tp2,
+              Map("aid" -> "tp2", "e" -> "se").toOpt,
+              None,
+              Shared.source,
+              Shared.context
+            )
+          )
         )
       )
-    )
   }
 
   def e4 = {
@@ -149,18 +167,21 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
         Shared.source,
         Shared.context
       )
-    val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client)
-    actual must beValid(
-      NonEmptyList.one(
-        RawEvent(
-          Snowplow.Tp2,
-          Map("tv" -> "ios-0.1.0", "p" -> "mob", "e" -> "se").toOpt,
-          ApplicationJsonWithCharset.some,
-          Shared.source,
-          Shared.context
+    Tp2Adapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beValid(
+          NonEmptyList.one(
+            RawEvent(
+              Snowplow.Tp2,
+              Map("tv" -> "ios-0.1.0", "p" -> "mob", "e" -> "se").toOpt,
+              ApplicationJsonWithCharset.some,
+              Shared.source,
+              Shared.context
+            )
+          )
         )
       )
-    )
   }
 
   def e5 = {
@@ -176,8 +197,6 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       Shared.source,
       Shared.context
     )
-    val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client)
-
     val rawEvent: RawEventParameters => RawEvent = params =>
       RawEvent(
         Snowplow.Tp2,
@@ -186,13 +205,18 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
         Shared.source,
         Shared.context
       )
-    actual must beValid(
-      NonEmptyList.of(
-        rawEvent(Map("tv" -> "0", "p" -> "1", "e" -> "1", "nuid" -> "123").toOpt),
-        rawEvent(Map("tv" -> "0", "p" -> "2", "e" -> "2", "nuid" -> "123").toOpt),
-        rawEvent(Map("tv" -> "0", "p" -> "3", "e" -> "3", "nuid" -> "123").toOpt)
+
+    Tp2Adapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beValid(
+          NonEmptyList.of(
+            rawEvent(Map("tv" -> "0", "p" -> "1", "e" -> "1", "nuid" -> "123").toOpt),
+            rawEvent(Map("tv" -> "0", "p" -> "2", "e" -> "2", "nuid" -> "123").toOpt),
+            rawEvent(Map("tv" -> "0", "p" -> "3", "e" -> "3", "nuid" -> "123").toOpt)
+          )
+        )
       )
-    )
   }
 
   def e6 = {
@@ -206,18 +230,21 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       Shared.source,
       Shared.context
     )
-    val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client)
-    actual must beValid(
-      NonEmptyList.one(
-        RawEvent(
-          Snowplow.Tp2,
-          Map("tv" -> "ios-0.1.0", "p" -> "mob", "e" -> "se").toOpt,
-          ApplicationJsonWithCapitalCharset.some,
-          Shared.source,
-          Shared.context
+    Tp2Adapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beValid(
+          NonEmptyList.one(
+            RawEvent(
+              Snowplow.Tp2,
+              Map("tv" -> "ios-0.1.0", "p" -> "mob", "e" -> "se").toOpt,
+              ApplicationJsonWithCapitalCharset.some,
+              Shared.source,
+              Shared.context
+            )
+          )
         )
       )
-    )
   }
 
   def e7 =
@@ -274,8 +301,9 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
         Shared.source,
         Shared.context
       )
-      val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client)
-      actual must beInvalid(expected)
+      Tp2Adapter
+        .toRawEvents(payload, SpecHelpers.client)
+        .map(_ must beInvalid(expected))
     }
 
   def e8 = {
@@ -287,13 +315,16 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       Shared.source,
       Shared.context
     )
-    val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client)
-    actual must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.TrackerProtocolViolation
-          .NotIglu(json"""{"not":"self-desc"}""", ParseError.InvalidData)
+    Tp2Adapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.TrackerProtocolViolation
+              .NotIglu(json"""{"not":"self-desc"}""", ParseError.InvalidData)
+          )
+        )
       )
-    )
   }
 
   def e9 = {
@@ -306,32 +337,35 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       Shared.source,
       Shared.context
     )
-    val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client)
-    actual must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.TrackerProtocolViolation.IgluError(
-          SchemaKey(
-            "com.snowplowanalytics.snowplow",
-            "geolocation_context",
-            "jsonschema",
-            SchemaVer.Full(1, 0, 0)
-          ),
-          ClientError.ValidationError(
-            ValidatorError.InvalidData(
-              NonEmptyList.one(
-                ValidatorReport(
-                  "$.latitude: is missing but it is required",
-                  "$".some,
-                  List("latitude"),
-                  "required".some
-                )
+    Tp2Adapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.TrackerProtocolViolation.IgluError(
+              SchemaKey(
+                "com.snowplowanalytics.snowplow",
+                "geolocation_context",
+                "jsonschema",
+                SchemaVer.Full(1, 0, 0)
+              ),
+              ClientError.ValidationError(
+                ValidatorError.InvalidData(
+                  NonEmptyList.one(
+                    ValidatorReport(
+                      "$.latitude: is missing but it is required",
+                      "$".some,
+                      List("latitude"),
+                      "required".some
+                    )
+                  )
+                ),
+                None
               )
-            ),
-            None
+            )
           )
         )
       )
-    )
   }
 
   def e10 =
@@ -441,8 +475,9 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
           Shared.context
         )
 
-      val actual = Tp2Adapter.toRawEvents(payload, SpecHelpers.client)
-      actual must beInvalid(expected)
+      Tp2Adapter
+        .toRawEvents(payload, SpecHelpers.client)
+        .map(_ must beInvalid(expected))
     }
 
   def e11 = {
@@ -457,24 +492,27 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       Shared.source,
       Shared.context
     )
-    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client)
-    actual must beValid(
-      NonEmptyList.one(
-        RawEvent(
-          Snowplow.Tp2,
-          Map(
-            "e" -> "ue",
-            "tv" -> "r-tp2",
-            "ue_pr" -> """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.snowplowanalytics.snowplow/uri_redirect/jsonschema/1-0-0","data":{"uri":"https://github.com/snowplow/snowplow"}}}""",
-            "p" -> "web",
-            "cx" -> "dGVzdHRlc3R0ZXN0"
-          ).toOpt,
-          None,
-          Shared.source,
-          Shared.context
+    RedirectAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beValid(
+          NonEmptyList.one(
+            RawEvent(
+              Snowplow.Tp2,
+              Map(
+                "e" -> "ue",
+                "tv" -> "r-tp2",
+                "ue_pr" -> """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.snowplowanalytics.snowplow/uri_redirect/jsonschema/1-0-0","data":{"uri":"https://github.com/snowplow/snowplow"}}}""",
+                "p" -> "web",
+                "cx" -> "dGVzdHRlc3R0ZXN0"
+              ).toOpt,
+              None,
+              Shared.source,
+              Shared.context
+            )
+          )
         )
       )
-    )
   }
 
   def e12 = {
@@ -490,24 +528,27 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       Shared.source,
       Shared.context
     )
-    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client)
-    actual must beValid(
-      NonEmptyList.one(
-        RawEvent(
-          Snowplow.Tp2,
-          Map(
-            "e" -> "se",
-            "aid" -> "ads",
-            "tv" -> "r-tp2",
-            "co" -> """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/uri_redirect/jsonschema/1-0-0","data":{"uri":"https://github.com/snowplow/snowplow"}}]}""",
-            "p" -> "web"
-          ).toOpt,
-          None,
-          Shared.source,
-          Shared.context
+    RedirectAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beValid(
+          NonEmptyList.one(
+            RawEvent(
+              Snowplow.Tp2,
+              Map(
+                "e" -> "se",
+                "aid" -> "ads",
+                "tv" -> "r-tp2",
+                "co" -> """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/uri_redirect/jsonschema/1-0-0","data":{"uri":"https://github.com/snowplow/snowplow"}}]}""",
+                "p" -> "web"
+              ).toOpt,
+              None,
+              Shared.source,
+              Shared.context
+            )
+          )
         )
       )
-    )
   }
 
   def e13 = {
@@ -524,24 +565,27 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       Shared.source,
       Shared.context
     )
-    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client)
-    actual must beValid(
-      NonEmptyList.one(
-        RawEvent(
-          Snowplow.Tp2,
-          Map(
-            "e" -> "se",
-            "aid" -> "ads",
-            "tv" -> "r-tp2",
-            "co" -> """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/uri_redirect/jsonschema/1-0-0","data":{"uri":"https://github.com/snowplow/snowplow"}}]}""",
-            "p" -> "web"
-          ).toOpt,
-          None,
-          Shared.source,
-          Shared.context
+    RedirectAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beValid(
+          NonEmptyList.one(
+            RawEvent(
+              Snowplow.Tp2,
+              Map(
+                "e" -> "se",
+                "aid" -> "ads",
+                "tv" -> "r-tp2",
+                "co" -> """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/uri_redirect/jsonschema/1-0-0","data":{"uri":"https://github.com/snowplow/snowplow"}}]}""",
+                "p" -> "web"
+              ).toOpt,
+              None,
+              Shared.source,
+              Shared.context
+            )
+          )
         )
       )
-    )
   }
 
   def e14 = {
@@ -557,23 +601,26 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       Shared.source,
       Shared.context
     )
-    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client)
-    actual must beValid(
-      NonEmptyList.one(
-        RawEvent(
-          Snowplow.Tp2,
-          Map(
-            "e" -> "se",
-            "tv" -> "r-tp2",
-            "co" -> """{"data":[{"schema":"iglu:com.snowplowanalytics.snowplow/uri_redirect/jsonschema/1-0-0","data":{"uri":"https://github.com/snowplow/snowplow"}},{"data":{"osType":"OSX","appleIdfv":"some_appleIdfv","openIdfa":"some_Idfa","carrier":"some_carrier","deviceModel":"large","osVersion":"3.0.0","appleIdfa":"some_appleIdfa","androidIdfa":"some_androidIdfa","deviceManufacturer":"Amstrad"},"schema":"iglu:com.snowplowanalytics.snowplow/mobile_context/jsonschema/1-0-0"},{"data":{"longitude":10,"bearing":50,"speed":16,"altitude":20,"altitudeAccuracy":0.3,"latitudeLongitudeAccuracy":0.5,"latitude":7},"schema":"iglu:com.snowplowanalytics.snowplow/geolocation_context/jsonschema/1-0-0"}],"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0"}""",
-            "p" -> "web"
-          ).toOpt,
-          None,
-          Shared.source,
-          Shared.context
+    RedirectAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beValid(
+          NonEmptyList.one(
+            RawEvent(
+              Snowplow.Tp2,
+              Map(
+                "e" -> "se",
+                "tv" -> "r-tp2",
+                "co" -> """{"data":[{"schema":"iglu:com.snowplowanalytics.snowplow/uri_redirect/jsonschema/1-0-0","data":{"uri":"https://github.com/snowplow/snowplow"}},{"data":{"osType":"OSX","appleIdfv":"some_appleIdfv","openIdfa":"some_Idfa","carrier":"some_carrier","deviceModel":"large","osVersion":"3.0.0","appleIdfa":"some_appleIdfa","androidIdfa":"some_androidIdfa","deviceManufacturer":"Amstrad"},"schema":"iglu:com.snowplowanalytics.snowplow/mobile_context/jsonschema/1-0-0"},{"data":{"longitude":10,"bearing":50,"speed":16,"altitude":20,"altitudeAccuracy":0.3,"latitudeLongitudeAccuracy":0.5,"latitude":7},"schema":"iglu:com.snowplowanalytics.snowplow/geolocation_context/jsonschema/1-0-0"}],"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0"}""",
+                "p" -> "web"
+              ).toOpt,
+              None,
+              Shared.source,
+              Shared.context
+            )
+          )
         )
       )
-    )
   }
 
   def e15 = {
@@ -592,39 +639,45 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       Shared.source,
       Shared.context
     )
-    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client)
-    actual must beValid(
-      NonEmptyList.one(
-        RawEvent(
-          Snowplow.Tp2,
-          Map(
-            "e" -> "se",
-            "tv" -> "r-tp2",
-            "cx" -> CU.encodeBase64Url(
-              """{"data":[{"schema":"iglu:com.snowplowanalytics.snowplow/uri_redirect/jsonschema/1-0-0","data":{"uri":"https://github.com/snowplow/snowplow"}},{"data":{"osType":"OSX","appleIdfv":"some_appleIdfv","openIdfa":"some_Idfa","carrier":"some_carrier","deviceModel":"large","osVersion":"3.0.0","appleIdfa":"some_appleIdfa","androidIdfa":"some_androidIdfa","deviceManufacturer":"Amstrad"},"schema":"iglu:com.snowplowanalytics.snowplow/mobile_context/jsonschema/1-0-0"},{"data":{"longitude":10,"bearing":50,"speed":16,"altitude":20,"altitudeAccuracy":0.3,"latitudeLongitudeAccuracy":0.5,"latitude":7},"schema":"iglu:com.snowplowanalytics.snowplow/geolocation_context/jsonschema/1-0-0"}],"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0"}"""
-            ),
-            "p" -> "web"
-          ).toOpt,
-          None,
-          Shared.source,
-          Shared.context
+    RedirectAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beValid(
+          NonEmptyList.one(
+            RawEvent(
+              Snowplow.Tp2,
+              Map(
+                "e" -> "se",
+                "tv" -> "r-tp2",
+                "cx" -> CU.encodeBase64Url(
+                  """{"data":[{"schema":"iglu:com.snowplowanalytics.snowplow/uri_redirect/jsonschema/1-0-0","data":{"uri":"https://github.com/snowplow/snowplow"}},{"data":{"osType":"OSX","appleIdfv":"some_appleIdfv","openIdfa":"some_Idfa","carrier":"some_carrier","deviceModel":"large","osVersion":"3.0.0","appleIdfa":"some_appleIdfa","androidIdfa":"some_androidIdfa","deviceManufacturer":"Amstrad"},"schema":"iglu:com.snowplowanalytics.snowplow/mobile_context/jsonschema/1-0-0"},{"data":{"longitude":10,"bearing":50,"speed":16,"altitude":20,"altitudeAccuracy":0.3,"latitudeLongitudeAccuracy":0.5,"latitude":7},"schema":"iglu:com.snowplowanalytics.snowplow/geolocation_context/jsonschema/1-0-0"}],"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0"}"""
+                ),
+                "p" -> "web"
+              ).toOpt,
+              None,
+              Shared.source,
+              Shared.context
+            )
+          )
         )
       )
-    )
   }
 
   def e16 = {
     val payload = CollectorPayload(Snowplow.Tp2, Nil, None, None, Shared.source, Shared.context)
-    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client)
-    actual must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.TrackerProtocolViolation.InputData(
-          "querystring",
-          None,
-          "empty querystring: not a valid URI redirect"
+    RedirectAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.TrackerProtocolViolation.InputData(
+              "querystring",
+              None,
+              "empty querystring: not a valid URI redirect"
+            )
+          )
         )
       )
-    )
   }
 
   def e17 = {
@@ -637,16 +690,19 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
         Shared.source,
         Shared.context
       )
-    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client)
-    actual must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.TrackerProtocolViolation.InputData(
-          "querystring",
-          "aid=test".some,
-          "missing `u` parameter: not a valid URI redirect"
+    RedirectAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.TrackerProtocolViolation.InputData(
+              "querystring",
+              "aid=test".some,
+              "missing `u` parameter: not a valid URI redirect"
+            )
+          )
         )
       )
-    )
   }
 
   def e18 = {
@@ -662,16 +718,19 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       Shared.source,
       Shared.context
     )
-    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client)
-    actual must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.TrackerProtocolViolation.NotJson(
-          "co|cx",
-          "{[-".some,
-          """invalid json: expected " got '[-' (line 1, column 2)"""
+    RedirectAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.TrackerProtocolViolation.NotJson(
+              "co|cx",
+              "{[-".some,
+              """invalid json: expected " got '[-' (line 1, column 2)"""
+            )
+          )
         )
       )
-    )
   }
 
   def e19 = {
@@ -687,13 +746,16 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       Shared.source,
       Shared.context
     )
-    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client)
-    actual must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.TrackerProtocolViolation
-          .NotJson("co|cx", "".some, "invalid json: exhausted input")
+    RedirectAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.TrackerProtocolViolation
+              .NotJson("co|cx", "".some, "invalid json: exhausted input")
+          )
+        )
       )
-    )
   }
 
   def e20 = {
@@ -708,15 +770,18 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       Shared.source,
       Shared.context
     )
-    val actual = RedirectAdapter.toRawEvents(payload, SpecHelpers.client)
-    actual must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.TrackerProtocolViolation.InputData(
-          "querystring",
-          "u=null&cx=dGVzdHRlc3R0ZXN0".some,
-          "missing `u` parameter: not a valid URI redirect"
+    RedirectAdapter
+      .toRawEvents(payload, SpecHelpers.client)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.TrackerProtocolViolation.InputData(
+              "querystring",
+              "u=null&cx=dGVzdHRlc3R0ZXN0".some,
+              "missing `u` parameter: not a valid URI redirect"
+            )
+          )
         )
       )
-    )
   }
 }

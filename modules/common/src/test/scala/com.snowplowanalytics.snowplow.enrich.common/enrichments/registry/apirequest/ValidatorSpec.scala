@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -13,13 +13,15 @@
 
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest
 
-import com.snowplowanalytics.iglu.client.CirceValidator
-import com.snowplowanalytics.snowplow.enrich.common.utils.JsonPath.query
 import io.circe.Json
 import io.circe.literal.JsonStringContext
 import org.specs2.Specification
 import org.specs2.matcher.ValidatedMatchers
 import org.specs2.specification.core.SpecStructure
+
+import com.snowplowanalytics.iglu.client.CirceValidator
+
+import com.snowplowanalytics.snowplow.enrich.common.utils.JsonPath.query
 
 class ValidatorSpec extends Specification with ValidatedMatchers {
   override def is: SpecStructure = s2"""

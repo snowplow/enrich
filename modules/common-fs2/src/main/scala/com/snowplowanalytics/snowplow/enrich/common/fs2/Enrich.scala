@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -46,7 +46,7 @@ import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.loaders.{CollectorPayload, ThriftLoader}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
-import com.snowplowanalytics.snowplow.enrich.common.utils.{ConversionUtils, HttpClient}
+import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.FeatureFlags
 
 object Enrich {
@@ -63,7 +63,7 @@ object Enrich {
    * [[Environment]] initialisation, then if `assetsUpdatePeriod` has been specified -
    * they'll be refreshed periodically by [[Assets.updateStream]]
    */
-  def run[F[_]: Concurrent: ContextShift: Clock: HttpClient: Parallel: Timer, A](env: Environment[F, A]): Stream[F, Unit] = {
+  def run[F[_]: Concurrent: ContextShift: Clock: Parallel: Timer, A](env: Environment[F, A]): Stream[F, Unit] = {
     val enrichmentsRegistry: F[EnrichmentRegistry[F]] = env.enrichments.get.map(_.registry)
     val enrich: Enrich[F] = {
       implicit val rl: RegistryLookup[F] = env.registryLookup
@@ -112,9 +112,9 @@ object Enrich {
    * Enrich a single `CollectorPayload` to get list of bad rows and/or enriched events
    * @return enriched event or bad row, along with the collector timestamp
    */
-  def enrichWith[F[_]: Clock: ContextShift: RegistryLookup: Sync: HttpClient](
+  def enrichWith[F[_]: Clock: ContextShift: RegistryLookup: Sync](
     enrichRegistry: F[EnrichmentRegistry[F]],
-    adapterRegistry: AdapterRegistry,
+    adapterRegistry: AdapterRegistry[F],
     igluClient: IgluCirceClient[F],
     sentry: Option[SentryClient],
     processor: Processor,

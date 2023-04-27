@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -15,9 +15,9 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 import io.circe._
 import io.circe.literal._
 
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
-
 import org.specs2.Specification
+
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 
 class HttpHeaderExtractorEnrichmentSpec extends Specification {
   def is = s2"""

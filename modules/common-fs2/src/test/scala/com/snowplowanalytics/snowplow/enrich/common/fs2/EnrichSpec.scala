@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -41,7 +41,6 @@ import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.FeatureFlags
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.EnrichSpec.{Expected, minimalEvent, normalizeResult}
-import com.snowplowanalytics.snowplow.enrich.common.fs2.SpecHelpers.createIgluClient
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test._
 
 import org.specs2.ScalaCheck
@@ -68,8 +67,7 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
           event_version = Some("1-0-0"),
           derived_tstamp = Some(Instant.ofEpochMilli(0L))
         )
-      implicit val c = TestEnvironment.http4sClient
-      createIgluClient(List(TestEnvironment.embeddedRegistry)).flatMap { igluClient =>
+      SpecHelpers.createIgluClient(List(TestEnvironment.embeddedRegistry)).flatMap { igluClient =>
         Enrich
           .enrichWith(
             TestEnvironment.enrichmentReg.pure[IO],
@@ -93,10 +91,9 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
 
     "enrich a randomly generated page view event" in {
       implicit val cpGen = PayloadGen.getPageViewArbitrary
-      implicit val c = TestEnvironment.http4sClient
       prop { (collectorPayload: CollectorPayload) =>
         val payload = collectorPayload.toRaw
-        createIgluClient(List(TestEnvironment.embeddedRegistry)).flatMap { igluClient =>
+        SpecHelpers.createIgluClient(List(TestEnvironment.embeddedRegistry)).flatMap { igluClient =>
           Enrich
             .enrichWith(
               TestEnvironment.enrichmentReg.pure[IO],
@@ -131,8 +128,7 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
           event_version = Some("1-0-0"),
           derived_tstamp = Some(Instant.ofEpochMilli(0L))
         )
-      implicit val c = TestEnvironment.http4sClient
-      createIgluClient(List(TestEnvironment.embeddedRegistry)).flatMap { igluClient =>
+      SpecHelpers.createIgluClient(List(TestEnvironment.embeddedRegistry)).flatMap { igluClient =>
         Enrich
           .enrichWith(
             TestEnvironment.enrichmentReg.pure[IO],
@@ -154,8 +150,7 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
     }
 
     "return bad row when base64 decoding isn't enabled and base64 encoded event arrived" in {
-      implicit val c = TestEnvironment.http4sClient
-      createIgluClient(List(TestEnvironment.embeddedRegistry)).flatMap { igluClient =>
+      SpecHelpers.createIgluClient(List(TestEnvironment.embeddedRegistry)).flatMap { igluClient =>
         Enrich
           .enrichWith(
             TestEnvironment.enrichmentReg.pure[IO],
@@ -180,7 +175,6 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
   "enrich" should {
     "update metrics with raw, good and bad counters" in {
       val input = Stream.emits(List(Array.empty[Byte], EnrichSpec.payload))
-      implicit val c = TestEnvironment.http4sClient
       TestEnvironment.make(input).use { test =>
         val enrichStream = Enrich.run[IO, Array[Byte]](test.env)
         for {

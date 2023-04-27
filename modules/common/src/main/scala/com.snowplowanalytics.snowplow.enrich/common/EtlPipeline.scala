@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -17,18 +17,17 @@ import cats.data.{Validated, ValidatedNel}
 import cats.effect.Clock
 import cats.implicits._
 
+import org.joda.time.DateTime
+
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 
 import com.snowplowanalytics.snowplow.badrows.{BadRow, Processor}
 
-import org.joda.time.DateTime
-
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.{EnrichmentManager, EnrichmentRegistry}
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.HttpClient
 
 /** Expresses the end-to-end event pipeline supported by the Scala Common Enrich project. */
 object EtlPipeline {
@@ -59,8 +58,8 @@ object EtlPipeline {
    * @return the ValidatedMaybeCanonicalOutput. Thanks to flatMap, will include any validation
    * errors contained within the ValidatedMaybeCanonicalInput
    */
-  def processEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
-    adapterRegistry: AdapterRegistry,
+  def processEvents[F[_]: Clock: Monad: RegistryLookup](
+    adapterRegistry: AdapterRegistry[F],
     enrichmentRegistry: EnrichmentRegistry[F],
     client: IgluCirceClient[F],
     processor: Processor,

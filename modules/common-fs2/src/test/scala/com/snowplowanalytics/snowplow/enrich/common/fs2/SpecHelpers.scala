@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -13,6 +13,7 @@
 package com.snowplowanalytics.snowplow.enrich.common.fs2
 
 import java.nio.file.{NoSuchFileException, Path}
+import java.util.concurrent.Executors
 
 import scala.concurrent.duration.TimeUnit
 import scala.concurrent.ExecutionContext
@@ -48,7 +49,7 @@ object SpecHelpers extends CatsIO {
     for {
       b <- TestEnvironment.ioBlocker
       sem <- Resource.eval(Semaphore[IO](1L))
-      http <- Clients.mkHttp[IO](ec = ExecutionContext.global)
+      http <- Clients.mkHttp[IO](ec = SpecHelpers.blockingEC)
       clients = Clients.init[IO](http, Nil)
       state <- Resource.eval(Assets.State.make[IO](b, sem, clients, assets))
     } yield state
@@ -67,4 +68,6 @@ object SpecHelpers extends CatsIO {
 
   def createIgluClient(registries: List[Registry]): IO[IgluCirceClient[IO]] =
     IgluCirceClient.fromResolver[IO](Resolver(registries, None), cacheSize = 0)
+
+  val blockingEC = ExecutionContext.fromExecutorService(Executors.newCachedThreadPool)
 }

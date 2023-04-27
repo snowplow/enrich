@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0, and
  * you may not use this file except in compliance with the Apache License
@@ -23,79 +23,13 @@ lazy val root = project.in(file("."))
   .settings(projectSettings)
   .settings(compilerSettings)
   .settings(resolverSettings)
-  .aggregate(common, commonFs2, pubsub, pubsubDistroless, kinesis, kinesisDistroless, streamCommon, streamKinesis, streamKinesisDistroless, streamKafka, streamKafkaDistroless, streamNsq, streamNsqDistroless, streamStdin, kafka, kafkaDistroless, rabbitmq, rabbitmqDistroless, nsq, nsqDistroless)
+  .aggregate(common, commonFs2, pubsub, pubsubDistroless, kinesis, kinesisDistroless, kafka, kafkaDistroless, rabbitmq, rabbitmqDistroless, nsq, nsqDistroless)
 
 lazy val common = project
   .in(file("modules/common"))
   .settings(commonBuildSettings)
   .settings(libraryDependencies ++= commonDependencies)
   .settings(excludeDependencies ++= exclusions)
-
-lazy val streamCommon = project
-  .in(file("modules/stream/common"))
-  .enablePlugins(BuildInfoPlugin)
-  .settings(streamCommonBuildSettings)
-  .settings(libraryDependencies ++= streamCommonDependencies)
-  .settings(excludeDependencies ++= exclusions)
-  .dependsOn(common % "test->test;compile->compile")
-
-lazy val streamKinesis = project
-  .in(file("modules/stream/kinesis"))
-  .enablePlugins(JavaAppPackaging, SnowplowDockerPlugin)
-  .settings(streamKinesisBuildSettings)
-  .settings(libraryDependencies ++= streamKinesisDependencies)
-  .settings(excludeDependencies ++= exclusions)
-  .dependsOn(streamCommon)
-
-lazy val streamKinesisDistroless = project
-  .in(file("modules/distroless/stream/kinesis"))
-  .enablePlugins(JavaAppPackaging, SnowplowDistrolessDockerPlugin)
-  .settings(sourceDirectory := (streamKinesis / sourceDirectory).value)
-  .settings(streamKinesisDistrolessBuildSettings)
-  .settings(libraryDependencies ++= streamKinesisDependencies)
-  .settings(excludeDependencies ++= exclusions)
-  .dependsOn(streamCommon)
-
-lazy val streamKafka = project
-  .in(file("modules/stream/kafka"))
-  .enablePlugins(JavaAppPackaging, SnowplowDockerPlugin)
-  .settings(streamKafkaBuildSettings)
-  .settings(libraryDependencies ++= streamKafkaDependencies)
-  .settings(excludeDependencies ++= exclusions)
-  .dependsOn(streamCommon)
-
-lazy val streamKafkaDistroless = project
-  .in(file("modules/distroless/stream/kafka"))
-  .enablePlugins(JavaAppPackaging, SnowplowDistrolessDockerPlugin)
-  .settings(sourceDirectory := (streamKafka / sourceDirectory).value)
-  .settings(streamKafkaDistrolessBuildSettings)
-  .settings(libraryDependencies ++= streamKafkaDependencies)
-  .settings(excludeDependencies ++= exclusions)
-  .dependsOn(streamCommon)
-
-lazy val streamNsq = project
-  .in(file("modules/stream/nsq"))
-  .enablePlugins(JavaAppPackaging, SnowplowDockerPlugin)
-  .settings(streamNsqBuildSettings)
-  .settings(libraryDependencies ++= streamNsqDependencies)
-  .settings(excludeDependencies ++= exclusions)
-  .dependsOn(streamCommon)
-
-lazy val streamNsqDistroless = project
-  .in(file("modules/distroless/stream/nsq"))
-  .enablePlugins(JavaAppPackaging, SnowplowDistrolessDockerPlugin)
-  .settings(sourceDirectory := (streamNsq / sourceDirectory).value)
-  .settings(streamNsqDistrolessBuildSettings)
-  .settings(libraryDependencies ++= streamNsqDependencies)
-  .settings(excludeDependencies ++= exclusions)
-  .dependsOn(streamCommon)
-
-lazy val streamStdin = project
-  .in(file("modules/stream/stdin"))
-  .settings(streamStdinBuildSettings)
-  .settings(libraryDependencies ++= streamCommonDependencies)
-  .settings(excludeDependencies ++= exclusions)
-  .dependsOn(streamCommon)
 
 lazy val commonFs2 = project
   .in(file("modules/common-fs2"))

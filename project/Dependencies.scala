@@ -35,7 +35,7 @@ object Dependencies {
     val jodaTime         = "2.10.1"
     val useragent        = "1.21"
     val uaParser         = "1.4.3"
-    val snakeYaml        = "1.31" // override transitive dependency to mitigate security vulnerabilities CVE-2022-25857
+    val snakeYaml        = "2.0" // override transitive dependency to mitigate security vulnerabilities CVE-2022-1471
     val postgresDriver   = "42.5.2"
     val mysqlConnector   = "8.0.29"
     val hikariCP         = "5.0.1"
@@ -69,7 +69,7 @@ object Dependencies {
     val collectorPayload = "0.0.0"
     val schemaSniffer    = "0.0.0"
 
-    val awsSdk           = "1.12.129"
+    val awsSdk           = "1.12.261" // override transitive dependency to mitigate security vulnerabilities CVE-2022-31159
     val gcpSdk           = "2.14.0"
     val kinesisClient    = "1.14.5"
     val awsSdk2          = "2.18.7"

@@ -16,9 +16,6 @@ import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
 
 import cats.data.Validated
-import cats.syntax.either._
-
-import io.circe.parser
 
 import cats.effect.{Blocker, ContextShift, IO, Resource, Timer}
 
@@ -28,10 +25,8 @@ import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 
 import com.snowplowanalytics.snowplow.badrows.BadRow
 
-import com.snowplowanalytics.iglu.core.SelfDescribingData
-import com.snowplowanalytics.iglu.core.circe.implicits._
-
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input
+import com.snowplowanalytics.snowplow.enrich.common.fs2.test.Utils
 
 object utils {
 
@@ -83,20 +78,13 @@ object utils {
     source.map { bytes =>
       OutputRow.Bad {
         val s = new String(bytes)
-        parseBadRow(s) match {
+        Utils.parseBadRow(s) match {
           case Right(br) => br
           case Left(e) =>
             throw new RuntimeException(s"Can't decode bad row $s. Error: $e")
         }
       }
     }
-
-  private def parseBadRow(s: String): Either[String, BadRow] =
-    for {
-      json <- parser.parse(s).leftMap(_.message)
-      sdj <- SelfDescribingData.parse(json).leftMap(_.message("Can't decode JSON as SDJ"))
-      br <- sdj.data.as[BadRow].leftMap(_.getMessage())
-    } yield br
 
   def parseOutput(output: List[OutputRow], testName: String): (List[Event], List[BadRow]) = {
     val good = output.collect { case OutputRow.Good(e) => e}

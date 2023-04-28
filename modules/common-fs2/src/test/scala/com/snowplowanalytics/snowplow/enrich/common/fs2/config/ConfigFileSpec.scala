@@ -30,6 +30,8 @@ import org.http4s.Uri
 
 import org.specs2.mutable.Specification
 
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.BackoffPolicy
+
 class ConfigFileSpec extends Specification with CatsIO {
   "parse" should {
     "parse reference example for PubSub" in {
@@ -282,6 +284,107 @@ class ConfigFileSpec extends Specification with CatsIO {
           Some("hfy67e5ydhtrd"),
           Some("665bhft5u6udjf"),
           Some("enrich-rabbitmq-ce"),
+          Some("1.0.0")
+        ),
+        io.FeatureFlags(
+          false,
+          false,
+          false
+        ),
+        Some(
+          io.Experimental(
+            Some(
+              io.Metadata(
+                Uri.uri("https://my_pipeline.my_domain.com/iglu"),
+                5.minutes,
+                UUID.fromString("c5f3a09f-75f8-4309-bec5-fea560f78455"),
+                UUID.fromString("75a13583-5c99-40e3-81fc-541084dfc784")
+              )
+            )
+          )
+        )
+      )
+      ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
+    }
+
+    "parse reference example for NSQ" in {
+      val configPath = Paths.get(getClass.getResource("/config.nsq.extended.hocon").toURI)
+      val expected = ConfigFile(
+        io.Input.Nsq(
+          "collector-payloads",
+          "collector-payloads-channel",
+          "127.0.0.1",
+          4161,
+          3000,
+          BackoffPolicy(
+            minBackoff = 100.milliseconds,
+            maxBackoff = 10.seconds,
+            maxRetries = Some(10)
+          )
+        ),
+        io.Outputs(
+          io.Output.Nsq(
+            "enriched",
+            "127.0.0.1",
+            4150,
+            BackoffPolicy(
+              minBackoff = 100.milliseconds,
+              maxBackoff = 10.seconds,
+              maxRetries = Some(10)
+            )
+          ),
+          Some(
+            io.Output.Nsq(
+              "pii",
+              "127.0.0.1",
+              4150,
+              BackoffPolicy(
+                minBackoff = 100.milliseconds,
+                maxBackoff = 10.seconds,
+                maxRetries = Some(10)
+              )
+            )
+          ),
+          io.Output.Nsq(
+            "bad",
+            "127.0.0.1",
+            4150,
+            BackoffPolicy(
+              minBackoff = 100.milliseconds,
+              maxBackoff = 10.seconds,
+              maxRetries = Some(10)
+            )
+          )
+        ),
+        io.Concurrency(256, 3),
+        Some(7.days),
+        io.RemoteAdapterConfigs(
+          10.seconds,
+          45.seconds,
+          10,
+          List(
+            io.RemoteAdapterConfig("com.example", "v1", "https://remote-adapter.com")
+          )
+        ),
+        io.Monitoring(
+          Some(Sentry(URI.create("http://sentry.acme.com"))),
+          io.MetricsReporters(
+            Some(io.MetricsReporters.StatsD("localhost", 8125, Map("app" -> "enrich"), 10.seconds, None)),
+            Some(io.MetricsReporters.Stdout(10.seconds, None)),
+            true
+          )
+        ),
+        io.Telemetry(
+          false,
+          15.minutes,
+          "POST",
+          "collector-g.snowplowanalytics.com",
+          443,
+          true,
+          Some("my_pipeline"),
+          Some("hfy67e5ydhtrd"),
+          Some("665bhft5u6udjf"),
+          Some("enrich-nsq-ce"),
           Some("1.0.0")
         ),
         io.FeatureFlags(

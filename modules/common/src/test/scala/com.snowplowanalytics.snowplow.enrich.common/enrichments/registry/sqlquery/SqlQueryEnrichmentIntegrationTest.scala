@@ -20,11 +20,12 @@ import io.circe.parser._
 import cats.Id
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
+import com.snowplowanalytics.snowplow.enrich.common.utils.Clock.idClock
 
 import org.specs2.Specification
 
 import outputs.EnrichedEvent
-import utils.BlockerF
+import utils.{BlockerF, ShiftExecution}
 import cats.data.NonEmptyList
 
 object SqlQueryEnrichmentIntegrationTest {
@@ -92,7 +93,7 @@ class SqlQueryEnrichmentIntegrationTest extends Specification {
 
     val event = new EnrichedEvent
 
-    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[Id](BlockerF.noop))
+    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[Id](BlockerF.noop, ShiftExecution.noop))
     val context = config.toEither.flatMap(_.lookup(event, Nil, Nil, None).toEither)
 
     val correctContext =
@@ -316,7 +317,7 @@ class SqlQueryEnrichmentIntegrationTest extends Specification {
       json""" {"applicationName": "ue_test_london"} """
     )
 
-    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).toEither.map(_.enrichment[Id](BlockerF.noop))
+    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).toEither.map(_.enrichment[Id](BlockerF.noop, ShiftExecution.noop))
 
     val context1 =
       config.flatMap(_.lookup(event1, List(weatherContext1), List(geoContext1), Some(ue1)).toEither)
@@ -407,7 +408,7 @@ class SqlQueryEnrichmentIntegrationTest extends Specification {
     val event = new EnrichedEvent
     event.user_id = null
 
-    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[Id](BlockerF.noop))
+    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[Id](BlockerF.noop, ShiftExecution.noop))
     val context = config.toEither.flatMap(_.lookup(event, Nil, Nil, None).toEither)
 
     context must beRight(Nil)
@@ -451,12 +452,12 @@ class SqlQueryEnrichmentIntegrationTest extends Specification {
       """
 
     val event = new EnrichedEvent
-    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[Id](BlockerF.noop))
+    val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[Id](BlockerF.noop, ShiftExecution.noop))
     val context = config.toEither.flatMap(_.lookup(event, Nil, Nil, None).toEither)
 
     context must beLeft.like {
       case NonEmptyList(one, two :: Nil)
-          if one.toString.contains("Error while getting the connection from the data source") &&
+          if one.toString.contains("Error while executing the sql lookup") &&
             two.toString.contains("FATAL: password authentication failed for user") =>
         ok
       case left => ko(s"error(s) don't contain the expected error messages: $left")

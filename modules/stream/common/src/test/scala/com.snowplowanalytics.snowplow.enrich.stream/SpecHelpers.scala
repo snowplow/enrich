@@ -24,7 +24,7 @@ import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.{EnrichmentRegistry, MiscEnrichments}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, JsonUtils}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, JsonUtils, ShiftExecution}
 import com.snowplowanalytics.snowplow.enrich.stream.model.{AWSCredentials, CloudAgnosticPlatformConfig, GCPCredentials, Kafka, Nsq, Stdin}
 import org.specs2.matcher.{Expectable, Matcher}
 import sources.TestSource
@@ -179,6 +179,8 @@ object SpecHelpers {
     s => s
   )
 
+  // Vendor and name are intentionally tweaked in the first enrichment
+  // to test that we are no longer validating them (users were confused about such validation)
   val enrichmentConfig =
     """|{
       |"schema": "iglu:com.snowplowanalytics.snowplow/enrichments/jsonschema/1-0-0",
@@ -186,8 +188,8 @@ object SpecHelpers {
         |{
           |"schema": "iglu:com.snowplowanalytics.snowplow/anon_ip/jsonschema/1-0-0",
           |"data": {
-            |"vendor": "com.snowplowanalytics.snowplow",
-            |"name": "anon_ip",
+            |"vendor": "com.snowplowanalytics.snowplow_custom",
+            |"name": "anon_ip_custom",
             |"enabled": true,
             |"parameters": {
               |"anonOctets": 1
@@ -284,7 +286,7 @@ object SpecHelpers {
   val enrichmentRegistry = (for {
     registryConfig <- JsonUtils.extractJson(enrichmentConfig)
     confs <- EnrichmentRegistry.parse(registryConfig, client, true).leftMap(_.toString).toEither
-    reg <- EnrichmentRegistry.build[Id](confs, BlockerF.noop).value
+    reg <- EnrichmentRegistry.build[Id](confs, BlockerF.noop, ShiftExecution.noop).value
   } yield reg) fold (
     e => throw new RuntimeException(e),
     s => s

@@ -1,3 +1,8 @@
+3.7.3 (2023-04-26)
+------------------
+enrich-pubsub: check max message attricutes length (#782)
+common: upgrade iglu-scala-client to 1.3.1 (#781)
+
 3.7.2 (2023-04-26)
 ------------------
 Try to base64 decode event if initial Thrift serialization fails (#777)

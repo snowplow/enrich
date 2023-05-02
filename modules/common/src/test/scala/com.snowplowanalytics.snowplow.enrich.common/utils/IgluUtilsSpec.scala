@@ -21,6 +21,7 @@ import com.snowplowanalytics.iglu.client.ClientError.{ResolutionError, Validatio
 import com.snowplowanalytics.snowplow.badrows._
 
 import io.circe.Json
+import io.circe.parser._
 
 import cats.data.NonEmptyList
 
@@ -92,16 +93,17 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       "emailAddress": "hello@world.com"
     }
   }"""
+  val clientSessionData = s"""{
+     "sessionIndex": 1,
+     "storageMechanism": "LOCAL_STORAGE",
+     "firstEventId": "5c33fccf-6be5-4ce6-afb1-e34026a3ca75",
+     "sessionId": "21c2a0dd-892d-42d1-b156-3a9d4e147eef",
+     "previousSessionId": null,
+     "userId": "20d631b8-7837-49df-a73e-6da73154e6fd"
+  }"""
   val clientSession = s"""{
     "schema": "${clientSessionSchema.toSchemaUri}",
-    "data": {
-      "sessionIndex": 1,
-      "storageMechanism": "LOCAL_STORAGE",
-      "firstEventId": "5c33fccf-6be5-4ce6-afb1-e34026a3ca75",
-      "sessionId": "21c2a0dd-892d-42d1-b156-3a9d4e147eef",
-      "previousSessionId": null,
-      "userId": "20d631b8-7837-49df-a73e-6da73154e6fd"
-    }
+    "data": $clientSessionData
   }"""
   val noSchema =
     """{"schema":"iglu:com.snowplowanalytics.snowplow/foo/jsonschema/1-0-0", "data": {}}"""
@@ -514,6 +516,17 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
             s"[($list, $opt)] is not a list with 2 extracted contexts and an option with the extracted unstructured event"
           )
       }
+    }
+
+    "return the extracted input context for an input that has a required property set to null if the schema explicitly allows it" >> {
+      val input = new EnrichedEvent
+      input.setContexts(buildInputContexts(List(clientSession)))
+
+      val csd = parse(clientSessionData).getOrElse("")
+
+      IgluUtils.extractAndValidateInputJsons(input, SpecHelpers.client, raw, processor).value must beRight(
+        (List(SelfDescribingData(clientSessionSchema, csd)), None)
+      )
     }
   }
 

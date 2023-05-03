@@ -1,3 +1,16 @@
+3.8.0 (2023-05-03)
+------------------
+Take superseding schema into account during validation (#751)
+common: Provide derived contexts to JS enrichment (#769)
+Scan Docker images in Snyk Github action (#772)
+common: do not validate enrichment names (#767)
+common: SQL enrichment: get connection only if request not cached (#765)
+common: SQL enrichment: put getConnection in Blocker (#763)
+common-fs2: fix env var substitution for JSON files (#753)
+Add enrich-nsq (#740)
+fix: add mskAuth to kafka depedencies (#752)
+common: improve caching in API/SQL enrichments (#747)
+
 3.7.3 (2023-04-26)
 ------------------
 enrich-pubsub: check max message attricutes length (#782)

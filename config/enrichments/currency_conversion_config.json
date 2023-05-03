@@ -1,6 +1,5 @@
 {
-	"schema": "iglu:com.snowplowanalytics.snowplow/currency_conversion_config/jsonschema/1-0-0",
-
+	"schema": "iglu:com.snowplowanalytics.snowplow/currency_conversion_config/jsonschema/2-0-0",
 	"data": {
 
 		"enabled": false,
@@ -11,6 +10,50 @@
 			"apiKey": "{{KEY}}",
 			"baseCurrency": "USD",
 			"rateAt": "EOD_PRIOR"
+		},
+		"mappings": [
+		{
+			"input": "iglu:ecommerce.tracking/product_entity/jsonschema/1-0-0",
+			"output": "iglu:ecommerce.tracking/converted_product_entity/jsonschema/1-0-0",
+			"fields": [
+			{
+				"inputField": "price",
+				"currency": "currency",
+				"outputField": "price"
+			},
+			{
+				"inputField": "list_price",
+				"currency": "currency",
+				"outputField": "list_price"
+			}
+			]
+		},
+		{
+			"input": "iglu:ecommerce.tracking/transaction_entity/jsonschema/1-0-0",
+			"output": "iglu:ecommerce.tracking/converted_transaction_entity/jsonschema/1-0-0",
+			"fields": [
+			{
+				"inputField": "revenue",
+				"currency": "currency",
+				"outputField": "revenue"
+			},
+			{
+				"inputField": "tax",
+				"currency": "currency",
+				"outputField": "tax"
+			},
+			{
+				"inputField": "shipping",
+				"currency": "currency",
+				"outputField": "shipping"
+			},
+			{
+				"inputField": "discount_amount",
+				"currency": "currency",
+				"outputField": "discount_amount"
+			}
+			]
 		}
+		]
 	}
 }

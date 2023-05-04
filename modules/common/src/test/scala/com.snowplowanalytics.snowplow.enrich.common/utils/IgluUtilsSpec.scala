@@ -15,12 +15,12 @@ package com.snowplowanalytics.snowplow.enrich.common.utils
 import org.specs2.mutable.Specification
 import org.specs2.matcher.ValidatedMatchers
 
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 import com.snowplowanalytics.iglu.client.ClientError.{ResolutionError, ValidationError}
 
 import com.snowplowanalytics.snowplow.badrows._
 
-import io.circe.Json
+import io.circe.parser.parse
 
 import cats.data.NonEmptyList
 
@@ -65,6 +65,14 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       "jsonschema",
       SchemaVer.Full(1, 0, 0)
     )
+  val supersedingExampleSchema100 =
+    SchemaKey(
+      "com.acme",
+      "superseding_example",
+      "jsonschema",
+      SchemaVer.Full(1, 0, 0)
+    )
+  val supersedingExampleSchema101 = supersedingExampleSchema100.copy(version = SchemaVer.Full(1, 0, 1))
   val clientSessionSchema =
     SchemaKey(
       "com.snowplowanalytics.snowplow",
@@ -90,6 +98,23 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
     "schema": "${emailSentSchema.toSchemaUri}",
     "data": {
       "emailAddress": "hello@world.com"
+    }
+  }"""
+  val supersedingExample1 =
+    s"""{
+    "schema": "${supersedingExampleSchema100.toSchemaUri}",
+    "data": {
+      "field_a": "value_a",
+      "field_b": "value_b"
+    }
+  }"""
+  val supersedingExample2 =
+    s"""{
+    "schema": "${supersedingExampleSchema100.toSchemaUri}",
+    "data": {
+      "field_a": "value_a",
+      "field_b": "value_b",
+      "field_d": "value_d"
     }
   }"""
   val clientSession = s"""{
@@ -162,7 +187,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
 
       IgluUtils
         .extractAndValidateUnstructEvent(input, SpecHelpers.client) must beInvalid.like {
-        case FailureDetails.SchemaViolation.IgluError(_, ValidationError(_)) => ok
+        case FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)) => ok
         case ie: FailureDetails.SchemaViolation.IgluError =>
           ko(s"IgluError [$ie] is not ValidationError")
         case err => ko(s"[$err] is not IgluError")
@@ -175,7 +200,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
 
       IgluUtils
         .extractAndValidateUnstructEvent(input, SpecHelpers.client) must beInvalid.like {
-        case FailureDetails.SchemaViolation.IgluError(_, ValidationError(_)) => ok
+        case FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)) => ok
         case ie: FailureDetails.SchemaViolation.IgluError =>
           ko(s"IgluError [$ie] is not ValidationError")
         case err => ko(s"[$err] is not IgluError")
@@ -201,10 +226,41 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
 
       IgluUtils
         .extractAndValidateUnstructEvent(input, SpecHelpers.client) must beValid.like {
-        case Some(sdj) if sdj.schema == emailSentSchema => ok
-        case Some(sdj) =>
+        case Some(IgluUtils.SdjExtractResult(sdj, None)) if sdj.schema == emailSentSchema => ok
+        case Some(s) =>
           ko(
-            s"unstructured event's schema [${sdj.schema}] does not match expected schema [${emailSentSchema}]"
+            s"unstructured event's schema [${s.sdj.schema}] does not match expected schema [${emailSentSchema}]"
+          )
+        case None => ko("no unstructured event was extracted")
+      }
+    }
+
+    "return the extracted unstructured event when schema is superseded by another schema" >> {
+      val input1 = new EnrichedEvent
+      input1.setUnstruct_event(buildUnstruct(supersedingExample1))
+
+      val input2 = new EnrichedEvent
+      input2.setUnstruct_event(buildUnstruct(supersedingExample2))
+
+      val expectedValidationInfo = IgluUtils.ValidationInfo(supersedingExampleSchema100, supersedingExampleSchema101.version)
+
+      IgluUtils
+        .extractAndValidateUnstructEvent(input1, SpecHelpers.client) must beValid.like {
+        case Some(IgluUtils.SdjExtractResult(sdj, Some(`expectedValidationInfo`))) if sdj.schema == supersedingExampleSchema101 => ok
+        case Some(s) =>
+          ko(
+            s"unstructured event's schema [${s.sdj.schema}] does not match expected schema [${supersedingExampleSchema101}]"
+          )
+        case None => ko("no unstructured event was extracted")
+      }
+
+      // input2 wouldn't be validated with 1-0-0. It would be validated with 1-0-1 only.
+      IgluUtils
+        .extractAndValidateUnstructEvent(input2, SpecHelpers.client) must beValid.like {
+        case Some(IgluUtils.SdjExtractResult(sdj, Some(`expectedValidationInfo`))) if sdj.schema == supersedingExampleSchema101 => ok
+        case Some(s) =>
+          ko(
+            s"unstructured event's schema [${s.sdj.schema}] does not match expected schema [${supersedingExampleSchema101}]"
           )
         case None => ko("no unstructured event was extracted")
       }
@@ -258,7 +314,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
 
       IgluUtils
         .extractAndValidateInputContexts(input, SpecHelpers.client) must beInvalid.like {
-        case NonEmptyList(FailureDetails.SchemaViolation.IgluError(_, ValidationError(_)), Nil) =>
+        case NonEmptyList(FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)), Nil) =>
           ok
         case NonEmptyList(ie: FailureDetails.SchemaViolation.IgluError, Nil) =>
           ko(s"IgluError [$ie] is not ValidationError")
@@ -272,7 +328,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
 
       IgluUtils
         .extractAndValidateInputContexts(input, SpecHelpers.client) must beInvalid.like {
-        case NonEmptyList(FailureDetails.SchemaViolation.IgluError(_, ValidationError(_)), Nil) =>
+        case NonEmptyList(FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)), Nil) =>
           ok
         case NonEmptyList(ie: FailureDetails.SchemaViolation.IgluError, Nil) =>
           ko(s"IgluError [$ie] is not ValidationError")
@@ -301,7 +357,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       IgluUtils
         .extractAndValidateInputContexts(input, SpecHelpers.client) must beInvalid.like {
         case NonEmptyList(
-              FailureDetails.SchemaViolation.IgluError(_, ValidationError(_)),
+              FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)),
               List(FailureDetails.SchemaViolation.IgluError(_, ResolutionError(_)))
             ) =>
           ok
@@ -326,7 +382,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
 
       IgluUtils
         .extractAndValidateInputContexts(input, SpecHelpers.client) must beValid.like {
-        case sdjs: List[SelfDescribingData[Json]] if sdjs.size == 2 && sdjs.forall(_.schema == emailSentSchema) =>
+        case sdjs if sdjs.size == 2 && sdjs.forall(i => i.sdj.schema == emailSentSchema && i.validationInfo.isEmpty) =>
           ok
         case res =>
           ko(s"[$res] are not 2 SDJs with expected schema [${emailSentSchema.toSchemaUri}]")
@@ -338,10 +394,22 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
       input.setContexts(buildInputContexts(List(clientSession)))
 
       IgluUtils.extractAndValidateInputContexts(input, SpecHelpers.client) must beValid.like {
-        case sdj: List[SelfDescribingData[Json]] if sdj.size == 1 && sdj.forall(_.schema == clientSessionSchema) =>
+        case sdj if sdj.size == 1 && sdj.forall(_.sdj.schema == clientSessionSchema) =>
           ok
         case _ =>
           ko("$.previousSessionId: is missing but it is required")
+      }
+    }
+
+    "return the extracted context when schema is superseded by another schema" >> {
+      val input = new EnrichedEvent
+      input.setContexts(buildInputContexts(List(supersedingExample1, supersedingExample2)))
+
+      IgluUtils.extractAndValidateInputContexts(input, SpecHelpers.client) must beValid.like {
+        case sdj if sdj.size == 2 && sdj.forall(_.sdj.schema == supersedingExampleSchema101) =>
+          ok
+        case _ =>
+          ko("Failed to extract context when schema is superseded by another schema")
       }
     }
   }
@@ -360,7 +428,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
             case NonEmptyList(
                   FailureDetails.EnrichmentFailure(
                     _,
-                    FailureDetails.EnrichmentFailureMessage.IgluError(_, ValidationError(_))
+                    FailureDetails.EnrichmentFailureMessage.IgluError(_, ValidationError(_, _))
                   ),
                   _
                 ) =>
@@ -385,7 +453,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
             case NonEmptyList(
                   FailureDetails.EnrichmentFailure(
                     _,
-                    FailureDetails.EnrichmentFailureMessage.IgluError(_, ValidationError(_))
+                    FailureDetails.EnrichmentFailureMessage.IgluError(_, ValidationError(_, _))
                   ),
                   List(
                     FailureDetails.EnrichmentFailure(
@@ -418,7 +486,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
             case NonEmptyList(
                   FailureDetails.EnrichmentFailure(
                     _,
-                    FailureDetails.EnrichmentFailureMessage.IgluError(_, ValidationError(_))
+                    FailureDetails.EnrichmentFailureMessage.IgluError(_, ValidationError(_, _))
                   ),
                   Nil
                 ) =>
@@ -507,11 +575,48 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers {
           processor
         )
         .value must beRight.like {
-        case (sdjs: List[SelfDescribingData[Json]], Some(sdj)) if sdjs.size == 2 && (sdj :: sdjs).forall(_.schema == emailSentSchema) =>
+        case IgluUtils.EventExtractResult(contexts, Some(unstructEvent), validationInfos)
+            if contexts.size == 2
+              && validationInfos.isEmpty
+              && (unstructEvent :: contexts).forall(_.schema == emailSentSchema) =>
           ok
-        case (list, opt) =>
+        case res =>
           ko(
-            s"[($list, $opt)] is not a list with 2 extracted contexts and an option with the extracted unstructured event"
+            s"[$res] is not a list with 2 extracted contexts and an option with the extracted unstructured event"
+          )
+      }
+    }
+
+    "return the extracted unstructured event and the extracted input contexts when schema is superseded by another schema" >> {
+      val input = new EnrichedEvent
+      input.setUnstruct_event(buildUnstruct(supersedingExample1))
+      input.setContexts(buildInputContexts(List(supersedingExample1, supersedingExample2)))
+
+      val expectedValidationInfoContext = parse(
+        """ {
+          | "originalSchema" : "iglu:com.acme/superseding_example/jsonschema/1-0-0",
+          | "validatedWith" : "1-0-1"
+          |}""".stripMargin
+      ).toOption.get
+
+      IgluUtils
+        .extractAndValidateInputJsons(
+          input,
+          SpecHelpers.client,
+          raw,
+          processor
+        )
+        .value must beRight.like {
+        case IgluUtils.EventExtractResult(contexts, Some(unstructEvent), List(validationInfo))
+            if contexts.size == 2
+              && unstructEvent.schema == supersedingExampleSchema101
+              && contexts.count(_.schema == supersedingExampleSchema101) == 2
+              && validationInfo.schema == IgluUtils.ValidationInfo.schemaKey
+              && validationInfo.data == expectedValidationInfoContext =>
+          ok
+        case res =>
+          ko(
+            s"[$res] is not a list with 2 extracted contexts and an option with the extracted unstructured event"
           )
       }
     }

@@ -289,6 +289,12 @@ class EventGenEtlPipelineSpec extends Specification with CatsIO {
               .map(_.toJson(false))
               .map(_.foldWith(folder))
               .map(_.noSpaces)
+              .map(
+                _.replaceAll(
+                  "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
+                  "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1"
+                )
+              )
               .map(decode[IntermediateEvent])
               .rethrow
               .map(IntermediateEvent.pad)

@@ -13,43 +13,41 @@
 		},
 		"mappings": [
 		{
-			"input": "iglu:ecommerce.tracking/product_entity/jsonschema/1-0-0",
-			"output": "iglu:ecommerce.tracking/converted_product_entity/jsonschema/1-0-0",
+			"field": "contexts",
+			"schemaCriterion": "iglu:ecommerce.tracking/product_entity/jsonschema/1-*-*",
+			"derivedContext": "iglu:ecommerce.tracking/normalized_product_entity/jsonschema/1-0-0",
+			"currencyJsonPath": "$.currency",
 			"fields": [
 			{
-				"inputField": "price",
-				"currency": "currency",
+				"jsonPath": "$.price",
 				"outputField": "price"
 			},
 			{
-				"inputField": "list_price",
-				"currency": "currency",
+				"jsonPath": "$.list_price",
 				"outputField": "list_price"
 			}
 			]
 		},
 		{
-			"input": "iglu:ecommerce.tracking/transaction_entity/jsonschema/1-0-0",
-			"output": "iglu:ecommerce.tracking/converted_transaction_entity/jsonschema/1-0-0",
+			"field": "contexts",
+			"schemaCriterion": "iglu:ecommerce.tracking/transaction_entity/jsonschema/1-*-*",
+			"derivedContext": "iglu:ecommerce.tracking/normalized_transaction_entity/jsonschema/1-0-0",
+			"currencyJsonPath": "$.currency",
 			"fields": [
 			{
-				"inputField": "revenue",
-				"currency": "currency",
+				"jsonPath": "$.revenue",
 				"outputField": "revenue"
 			},
 			{
-				"inputField": "tax",
-				"currency": "currency",
+				"jsonPath": "$.tax",
 				"outputField": "tax"
 			},
 			{
-				"inputField": "shipping",
-				"currency": "currency",
+				"jsonPath": "$.shipping",
 				"outputField": "shipping"
 			},
 			{
-				"inputField": "discount_amount",
-				"currency": "currency",
+				"jsonPath": "$.discount_amount",
 				"outputField": "discount_amount"
 			}
 			]

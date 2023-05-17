@@ -25,11 +25,11 @@ import scala.concurrent.duration.{Duration, FiniteDuration}
 import _root_.io.circe.{Decoder, DecodingFailure, Encoder}
 import _root_.io.circe.generic.extras.semiauto._
 import _root_.io.circe.config.syntax._
-import _root_.io.circe.DecodingFailure
 
 import org.http4s.{ParseFailure, Uri}
 
 import com.snowplowanalytics.snowplow.enrich.common.EtlPipeline.{FeatureFlags => CommonFeatureFlags}
+import com.snowplowanalytics.snowplow.enrich.common.adapters._
 
 object io {
 
@@ -511,5 +511,76 @@ object io {
         acceptInvalid = ff.acceptInvalid,
         legacyEnrichmentOrder = ff.legacyEnrichmentOrder
       )
+  }
+
+  object AdaptersSchemasEncoderDecoders {
+    implicit val adaptersSchemasDecoder: Decoder[AdaptersSchemas] =
+      deriveConfiguredDecoder[AdaptersSchemas]
+    implicit val adaptersSchemasEncoder: Encoder[AdaptersSchemas] =
+      deriveConfiguredEncoder[AdaptersSchemas]
+    implicit val callrailSchemasDecoder: Decoder[CallrailSchemas] =
+      deriveConfiguredDecoder[CallrailSchemas]
+    implicit val callrailSchemasEncoder: Encoder[CallrailSchemas] =
+      deriveConfiguredEncoder[CallrailSchemas]
+    implicit val cloudfrontAccessLogSchemasDecoder: Decoder[CloudfrontAccessLogSchemas] =
+      deriveConfiguredDecoder[CloudfrontAccessLogSchemas]
+    implicit val cloudfrontAccessLogSchemasEncoder: Encoder[CloudfrontAccessLogSchemas] =
+      deriveConfiguredEncoder[CloudfrontAccessLogSchemas]
+    implicit val googleAnalyticsSchemasDecoder: Decoder[GoogleAnalyticsSchemas] =
+      deriveConfiguredDecoder[GoogleAnalyticsSchemas]
+    implicit val googleAnalyticsSchemasEncoder: Encoder[GoogleAnalyticsSchemas] =
+      deriveConfiguredEncoder[GoogleAnalyticsSchemas]
+    implicit val hubspotSchemasDecoder: Decoder[HubspotSchemas] =
+      deriveConfiguredDecoder[HubspotSchemas]
+    implicit val hubspotSchemasEncoder: Encoder[HubspotSchemas] =
+      deriveConfiguredEncoder[HubspotSchemas]
+    implicit val mailchimpSchemasDecoder: Decoder[MailchimpSchemas] =
+      deriveConfiguredDecoder[MailchimpSchemas]
+    implicit val mailchimpSchemasEncoder: Encoder[MailchimpSchemas] =
+      deriveConfiguredEncoder[MailchimpSchemas]
+    implicit val mailgunSchemasDecoder: Decoder[MailgunSchemas] =
+      deriveConfiguredDecoder[MailgunSchemas]
+    implicit val mailgunSchemasEncoder: Encoder[MailgunSchemas] =
+      deriveConfiguredEncoder[MailgunSchemas]
+    implicit val mandrillSchemasDecoder: Decoder[MandrillSchemas] =
+      deriveConfiguredDecoder[MandrillSchemas]
+    implicit val mandrillSchemasEncoder: Encoder[MandrillSchemas] =
+      deriveConfiguredEncoder[MandrillSchemas]
+    implicit val marketoSchemasDecoder: Decoder[MarketoSchemas] =
+      deriveConfiguredDecoder[MarketoSchemas]
+    implicit val marketoSchemasEncoder: Encoder[MarketoSchemas] =
+      deriveConfiguredEncoder[MarketoSchemas]
+    implicit val olarkSchemasDecoder: Decoder[OlarkSchemas] =
+      deriveConfiguredDecoder[OlarkSchemas]
+    implicit val olarkSchemasEncoder: Encoder[OlarkSchemas] =
+      deriveConfiguredEncoder[OlarkSchemas]
+    implicit val pagerdutySchemasDecoder: Decoder[PagerdutySchemas] =
+      deriveConfiguredDecoder[PagerdutySchemas]
+    implicit val pagerdutySchemasEncoder: Encoder[PagerdutySchemas] =
+      deriveConfiguredEncoder[PagerdutySchemas]
+    implicit val pingdomSchemasDecoder: Decoder[PingdomSchemas] =
+      deriveConfiguredDecoder[PingdomSchemas]
+    implicit val pingdomSchemasEncoder: Encoder[PingdomSchemas] =
+      deriveConfiguredEncoder[PingdomSchemas]
+    implicit val sendgridSchemasDecoder: Decoder[SendgridSchemas] =
+      deriveConfiguredDecoder[SendgridSchemas]
+    implicit val sendgridSchemasEncoder: Encoder[SendgridSchemas] =
+      deriveConfiguredEncoder[SendgridSchemas]
+    implicit val statusgatorSchemasDecoder: Decoder[StatusGatorSchemas] =
+      deriveConfiguredDecoder[StatusGatorSchemas]
+    implicit val statusgatorSchemasEncoder: Encoder[StatusGatorSchemas] =
+      deriveConfiguredEncoder[StatusGatorSchemas]
+    implicit val unbounceSchemasDecoder: Decoder[UnbounceSchemas] =
+      deriveConfiguredDecoder[UnbounceSchemas]
+    implicit val unbounceSchemasEncoder: Encoder[UnbounceSchemas] =
+      deriveConfiguredEncoder[UnbounceSchemas]
+    implicit val urbanAirshipSchemasDecoder: Decoder[UrbanAirshipSchemas] =
+      deriveConfiguredDecoder[UrbanAirshipSchemas]
+    implicit val urbanAirshipSchemasEncoder: Encoder[UrbanAirshipSchemas] =
+      deriveConfiguredEncoder[UrbanAirshipSchemas]
+    implicit val veroSchemasDecoder: Decoder[VeroSchemas] =
+      deriveConfiguredDecoder[VeroSchemas]
+    implicit val veroSchemasEncoder: Encoder[VeroSchemas] =
+      deriveConfiguredEncoder[VeroSchemas]
   }
 }

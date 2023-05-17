@@ -32,6 +32,9 @@ import utils.Clock._
 import SpecHelpers._
 
 class PingdomAdapterSpec extends Specification with DataTables with ValidatedMatchers {
+
+  val adapterWithDefaultSchemas = PingdomAdapter(schemas = pingdomSchemas)
+
   def is = s2"""
   reformatParameters should return either an updated JSON without the 'action' field or the same JSON $e1
   reformatMapParams must return a Failure Nel for any Python Unicode wrapped values                   $e2
@@ -58,7 +61,7 @@ class PingdomAdapterSpec extends Specification with DataTables with ValidatedMat
       "Remove action field" !! json"""{"action":"assign","agent":"smith"}""" ! json"""{"agent":"smith"}""" |
       "Nothing removed" !! json"""{"actions":"assign","agent":"smith"}""" ! json"""{"actions":"assign","agent":"smith"}""" |> {
       (_, json, expected) =>
-        PingdomAdapter.reformatParameters(json) mustEqual expected
+        adapterWithDefaultSchemas.reformatParameters(json) mustEqual expected
     }
 
   def e2 = {
@@ -69,7 +72,7 @@ class PingdomAdapterSpec extends Specification with DataTables with ValidatedMat
         "apps".some,
         """should not pass regex \(u'(.+)',\)"""
       )
-    PingdomAdapter.reformatMapParams(nvPairs) must beLeft(NonEmptyList.one(expected))
+    adapterWithDefaultSchemas.reformatMapParams(nvPairs) must beLeft(NonEmptyList.one(expected))
   }
 
   def e3 = {
@@ -91,7 +94,7 @@ class PingdomAdapterSpec extends Specification with DataTables with ValidatedMat
       Shared.cljSource,
       Shared.context
     )
-    PingdomAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beValid(
       NonEmptyList.one(expected)
     )
   }
@@ -104,7 +107,7 @@ class PingdomAdapterSpec extends Specification with DataTables with ValidatedMat
         None,
         "empty querystring: no events to process"
       )
-    PingdomAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(expected)
     )
   }
@@ -119,7 +122,7 @@ class PingdomAdapterSpec extends Specification with DataTables with ValidatedMat
         "p=apps".some,
         "no `message` parameter provided"
       )
-    PingdomAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(expected)
     )
   }

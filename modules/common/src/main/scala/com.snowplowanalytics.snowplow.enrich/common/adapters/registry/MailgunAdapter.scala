@@ -22,7 +22,6 @@ import cats.syntax.option._
 import cats.syntax.validated._
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 import com.snowplowanalytics.snowplow.badrows._
 import io.circe._
 import io.circe.parser._
@@ -36,26 +35,22 @@ import Adapter.Adapted
  * Transforms a collector payload which conforms to a known version of the StatusGator Tracking
  * webhook into raw events.
  */
-object MailgunAdapter extends Adapter {
+case class MailgunAdapter(schemas: MailgunSchemas) extends Adapter {
   // Tracker version for an Mailgun Tracking webhook
   private val TrackerVersion = "com.mailgun-v1"
 
   // Expected content type for a request body
   private val ContentType = "application/json"
 
-  private val Vendor = "com.mailgun"
-  private val Format = "jsonschema"
-  private val SchemaVersion = SchemaVer.Full(1, 0, 0)
-
   // Schemas for reverse-engineering a Snowplow unstructured event
   private[registry] val EventSchemaMap = Map(
-    "bounced" -> SchemaKey(Vendor, "message_bounced", Format, SchemaVersion),
-    "clicked" -> SchemaKey(Vendor, "message_clicked", Format, SchemaVersion),
-    "complained" -> SchemaKey(Vendor, "message_complained", Format, SchemaVersion),
-    "delivered" -> SchemaKey(Vendor, "message_delivered", Format, SchemaVersion),
-    "dropped" -> SchemaKey(Vendor, "message_dropped", Format, SchemaVersion),
-    "opened" -> SchemaKey(Vendor, "message_opened", Format, SchemaVersion),
-    "unsubscribed" -> SchemaKey(Vendor, "recipient_unsubscribed", Format, SchemaVersion)
+    "bounced" -> schemas.messageBouncedSchemaKey,
+    "clicked" -> schemas.messageClickedSchemaKey,
+    "complained" -> schemas.messageComplainedSchemaKey,
+    "delivered" -> schemas.messageDeliveredSchemaKey,
+    "dropped" -> schemas.messageDroppedSchemaKey,
+    "opened" -> schemas.messageOpenedSchemaKey,
+    "unsubscribed" -> schemas.recipientUnsubscribedSchemaKey
   )
 
   /**

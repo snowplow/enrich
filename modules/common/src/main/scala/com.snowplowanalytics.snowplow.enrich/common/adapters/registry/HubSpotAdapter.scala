@@ -27,7 +27,6 @@ import org.joda.time.DateTime
 
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 import com.snowplowanalytics.snowplow.badrows._
 
 import io.circe._
@@ -40,37 +39,24 @@ import Adapter.Adapted
  * Transforms a collector payload which conforms to a known version of the HubSpot webhook
  * subscription into raw events.
  */
-object HubSpotAdapter extends Adapter {
+case class HubSpotAdapter(schemas: HubspotSchemas) extends Adapter {
   // Tracker version for a HubSpot webhook
   private val TrackerVersion = "com.hubspot-v1"
 
   // Expected content type for a request body
   private val ContentType = "application/json"
 
-  private val Vendor = "com.hubspot"
-  private val Format = "jsonschema"
-  private val SchemaVersion = SchemaVer.Full(1, 0, 0)
-
   // Event-Schema Map for reverse-engineering a Snowplow unstructured event
   private[registry] val EventSchemaMap = Map(
-    "contact.creation" ->
-      SchemaKey(Vendor, "contact_creation", Format, SchemaVersion),
-    "contact.deletion" ->
-      SchemaKey(Vendor, "contact_deletion", Format, SchemaVersion),
-    "contact.propertyChange" ->
-      SchemaKey(Vendor, "contact_change", Format, SchemaVersion),
-    "company.creation" ->
-      SchemaKey(Vendor, "company_creation", Format, SchemaVersion),
-    "company.deletion" ->
-      SchemaKey(Vendor, "company_deletion", Format, SchemaVersion),
-    "company.propertyChange" ->
-      SchemaKey(Vendor, "company_change", Format, SchemaVersion),
-    "deal.creation" ->
-      SchemaKey(Vendor, "deal_creation", Format, SchemaVersion),
-    "deal.deletion" ->
-      SchemaKey(Vendor, "deal_deletion", Format, SchemaVersion),
-    "deal.propertyChange" ->
-      SchemaKey(Vendor, "deal_change", Format, SchemaVersion)
+    "contact.creation" -> schemas.contactCreationSchemaKey,
+    "contact.deletion" -> schemas.contactDeletionSchemaKey,
+    "contact.propertyChange" -> schemas.contactChangeSchemaKey,
+    "company.creation" -> schemas.companyCreationSchemaKey,
+    "company.deletion" -> schemas.companyDeletionSchemaKey,
+    "company.propertyChange" -> schemas.companyChangeSchemaKey,
+    "deal.creation" -> schemas.dealCreationSchemaKey,
+    "deal.deletion" -> schemas.dealDeletionSchemaKey,
+    "deal.propertyChange" -> schemas.dealChangeSchemaKey
   )
 
   /**

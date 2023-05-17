@@ -34,6 +34,8 @@ class CallrailAdapterSpec extends Specification with DataTables with ValidatedMa
   toRawEvents should return a Validation Failure if there are no parameters on the querystring      $e2
   """
 
+  val adapterWithDefaultSchemas = CallrailAdapter(schemas = callrailSchemas)
+
   object Shared {
     val api = CollectorPayload.Api("com.callrail", "v1")
     val source = CollectorPayload.Source("clj-tomcat", "UTF-8", None)
@@ -97,7 +99,7 @@ class CallrailAdapterSpec extends Specification with DataTables with ValidatedMa
       "nuid" -> "-"
     )
     val payload = CollectorPayload(Shared.api, params, None, None, Shared.source, Shared.context)
-    val actual = CallrailAdapter.toRawEvents[Id](payload, SpecHelpers.client)
+    val actual = adapterWithDefaultSchemas.toRawEvents[Id](payload, SpecHelpers.client)
 
     val expectedJson =
       """|{
@@ -160,7 +162,7 @@ class CallrailAdapterSpec extends Specification with DataTables with ValidatedMa
   def e2 = {
     val params = toNameValuePairs()
     val payload = CollectorPayload(Shared.api, params, None, None, Shared.source, Shared.context)
-    val actual = CallrailAdapter.toRawEvents[Id](payload, SpecHelpers.client)
+    val actual = adapterWithDefaultSchemas.toRawEvents[Id](payload, SpecHelpers.client)
 
     actual must beInvalid(
       NonEmptyList.one(

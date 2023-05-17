@@ -24,7 +24,6 @@ import org.joda.time.format.DateTimeFormat
 
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
@@ -37,19 +36,14 @@ import Adapter.Adapted
  * a known version of the AD-X Tracking webhook
  * into raw events.
  */
-object CallrailAdapter extends Adapter {
+case class CallrailAdapter(schemas: CallrailSchemas) extends Adapter {
 
   // Tracker version for an AD-X Tracking webhook
   private val TrackerVersion = "com.callrail-v1"
 
   // Schemas for reverse-engineering a Snowplow unstructured event
   private object SchemaUris {
-    val CallComplete = SchemaKey(
-      "com.callrail",
-      "call_complete",
-      "jsonschema",
-      SchemaVer.Full(1, 0, 2)
-    )
+    val CallComplete = schemas.callCompleteSchemaKey
   }
 
   // Datetime format used by CallRail (as we will need to massage)

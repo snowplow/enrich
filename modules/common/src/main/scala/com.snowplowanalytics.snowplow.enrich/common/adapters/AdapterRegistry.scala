@@ -34,29 +34,31 @@ import com.snowplowanalytics.snowplow.enrich.common.utils.HttpClient
  * The AdapterRegistry lets us convert a CollectorPayload into one or more RawEvents, using a given
  * adapter.
  */
-class AdapterRegistry(remoteAdapters: Map[(String, String), RemoteAdapter] = Map.empty) {
-
+class AdapterRegistry(
+  remoteAdapters: Map[(String, String), RemoteAdapter] = Map.empty,
+  adaptersSchemas: AdaptersSchemas
+) {
   val adapters: Map[(String, String), Adapter] = Map(
     (Vendor.Snowplow, "tp1") -> Tp1Adapter,
     (Vendor.Snowplow, "tp2") -> Tp2Adapter,
     (Vendor.Redirect, "tp2") -> RedirectAdapter,
     (Vendor.Iglu, "v1") -> IgluAdapter,
-    (Vendor.Callrail, "v1") -> CallrailAdapter,
-    (Vendor.Cloudfront, "wd_access_log") -> CloudfrontAccessLogAdapter,
-    (Vendor.Mailchimp, "v1") -> MailchimpAdapter,
-    (Vendor.Mailgun, "v1") -> MailgunAdapter,
-    (Vendor.GoogleAnalytics, "v1") -> GoogleAnalyticsAdapter,
-    (Vendor.Mandrill, "v1") -> MandrillAdapter,
-    (Vendor.Olark, "v1") -> OlarkAdapter,
-    (Vendor.Pagerduty, "v1") -> PagerdutyAdapter,
-    (Vendor.Pingdom, "v1") -> PingdomAdapter,
-    (Vendor.Sendgrid, "v3") -> SendgridAdapter,
-    (Vendor.StatusGator, "v1") -> StatusGatorAdapter,
-    (Vendor.Unbounce, "v1") -> UnbounceAdapter,
-    (Vendor.UrbanAirship, "v1") -> UrbanAirshipAdapter,
-    (Vendor.Marketo, "v1") -> MarketoAdapter,
-    (Vendor.Vero, "v1") -> VeroAdapter,
-    (Vendor.HubSpot, "v1") -> HubSpotAdapter
+    (Vendor.Callrail, "v1") -> CallrailAdapter(adaptersSchemas.callrail),
+    (Vendor.Cloudfront, "wd_access_log") -> CloudfrontAccessLogAdapter(adaptersSchemas.cloudfrontAccessLog),
+    (Vendor.Mailchimp, "v1") -> MailchimpAdapter(adaptersSchemas.mailchimp),
+    (Vendor.Mailgun, "v1") -> MailgunAdapter(adaptersSchemas.mailgun),
+    (Vendor.GoogleAnalytics, "v1") -> GoogleAnalyticsAdapter(adaptersSchemas.googleAnalytics),
+    (Vendor.Mandrill, "v1") -> MandrillAdapter(adaptersSchemas.mandrill),
+    (Vendor.Olark, "v1") -> OlarkAdapter(adaptersSchemas.olark),
+    (Vendor.Pagerduty, "v1") -> PagerdutyAdapter(adaptersSchemas.pagerduty),
+    (Vendor.Pingdom, "v1") -> PingdomAdapter(adaptersSchemas.pingdom),
+    (Vendor.Sendgrid, "v3") -> SendgridAdapter(adaptersSchemas.sendgrid),
+    (Vendor.StatusGator, "v1") -> StatusGatorAdapter(adaptersSchemas.statusgator),
+    (Vendor.Unbounce, "v1") -> UnbounceAdapter(adaptersSchemas.unbounce),
+    (Vendor.UrbanAirship, "v1") -> UrbanAirshipAdapter(adaptersSchemas.urbanAirship),
+    (Vendor.Marketo, "v1") -> MarketoAdapter(adaptersSchemas.marketo),
+    (Vendor.Vero, "v1") -> VeroAdapter(adaptersSchemas.vero),
+    (Vendor.HubSpot, "v1") -> HubSpotAdapter(adaptersSchemas.hubspot)
   ) ++ remoteAdapters
 
   private object Vendor {

@@ -37,6 +37,7 @@ import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 
 import com.snowplowanalytics.snowplow.badrows.BadRow
 
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
@@ -114,7 +115,7 @@ object TestEnvironment extends CatsIO {
 
   val embeddedRegistry = Registry.EmbeddedRegistry
 
-  val adapterRegistry = new AdapterRegistry()
+  val adapterRegistry = new AdapterRegistry(adaptersSchemas = adaptersSchemas)
 
   val http4sClient: Http4sClient[IO] = Http4sClient[IO] { _ =>
     val dsl = new Http4sDsl[IO] {}; import dsl._

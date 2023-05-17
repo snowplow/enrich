@@ -28,8 +28,7 @@ import com.snowplowanalytics.iglu.client.{Resolver, Client, CirceValidator}
 import com.snowplowanalytics.snowplow.enrich.common.EtlPipeline
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
-
-import com.snowplowanalytics.snowplow.enrich.pubsub.{Enrich, EnrichSpec}
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
 
 import org.joda.time.DateTime
 
@@ -75,7 +74,7 @@ object EtlPipelineBench {
     @Setup(Level.Trial)
     def setup(): Unit = {
       dateTime = DateTime.parse("2010-06-30T01:20+02:00")
-      adapterRegistry = new AdapterRegistry()
+      adapterRegistry = new AdapterRegistry(adaptersSchemas = adaptersSchemas)
       enrichmentRegistryId = EnrichmentRegistry[Id]()
       enrichmentRegistryIo = EnrichmentRegistry[IO]()
       clientId = Client[Id, Json](Resolver(List(), None), CirceValidator)

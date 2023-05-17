@@ -198,7 +198,7 @@ object Environment {
       metadata <- Resource.eval(metadataReporter[F](file, processor.artifact, http))
       assets = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
       (remoteAdaptersHttpClient, remoteAdapters) <- prepareRemoteAdapters[F](file.remoteAdapters, ec, metrics)
-      adapterRegistry = new AdapterRegistry(remoteAdapters)
+      adapterRegistry = new AdapterRegistry(remoteAdapters, file.adaptersSchemas)
       sem <- Resource.eval(Semaphore(1L))
       assetsState <- Resource.eval(Assets.State.make[F](blocker, sem, clts, assets))
       shifter <- ShiftExecution.ofSingleThread[F]

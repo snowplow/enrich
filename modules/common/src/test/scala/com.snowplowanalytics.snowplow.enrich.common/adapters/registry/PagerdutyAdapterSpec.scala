@@ -54,6 +54,7 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
     )
   }
 
+  val adapterWithDefaultSchemas = PagerdutyAdapter(schemas = pagerdutySchemas)
   val ContentType = "application/json"
 
   def e1 =
@@ -61,13 +62,13 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
       "Valid, update one value" !! json"""{"type":"null"}""" ! json"""{"type":null}""" |
       "Valid, update multiple values" !! json"""{"type":"null","some":"null"}""" ! json"""{"type":null,"some":null}""" |
       "Valid, update nested values" !! json"""{"type": {"some":"null"}}""" ! json"""{"type":{"some":null}}""" |> { (_, input, expected) =>
-      PagerdutyAdapter.reformatParameters(input) mustEqual expected
+      adapterWithDefaultSchemas.reformatParameters(input) mustEqual expected
     }
 
   def e2 = {
     val json = json"""{"type":"incident.trigger"}"""
     val expected = json"""{"type":"trigger"}"""
-    PagerdutyAdapter.reformatParameters(json) mustEqual expected
+    adapterWithDefaultSchemas.reformatParameters(json) mustEqual expected
   }
 
   def e3 =
@@ -76,7 +77,7 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
       "Valid, update multiple values" !! json"""{"created_on":"2014-11-12T18:53:47 00:00","last_status_change_on":"2014-11-12T18:53:47 00:00"}""" ! json"""{"created_on":"2014-11-12T18:53:47+00:00","last_status_change_on":"2014-11-12T18:53:47+00:00"}""" |
       "Valid, update nested values" !! json"""{"created_on":"2014-12-15T08:19:54Z","nested":{"created_on":"2014-11-12T18:53:47 00:00"}}""" ! json"""{"created_on":"2014-12-15T08:19:54Z","nested":{"created_on":"2014-11-12T18:53:47+00:00"}}""" |> {
       (_, input, expected) =>
-        PagerdutyAdapter.reformatParameters(input) mustEqual expected
+        adapterWithDefaultSchemas.reformatParameters(input) mustEqual expected
     }
 
   def e4 = {
@@ -90,7 +91,7 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
         }
       }
     }""")
-    PagerdutyAdapter.payloadBodyToEvents(bodyStr) must beRight(expected)
+    adapterWithDefaultSchemas.payloadBodyToEvents(bodyStr) must beRight(expected)
   }
 
   def e5 =
@@ -107,7 +108,7 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
           """{"somekey":"key"}""".some,
           "field `messages` is not an array"
         ) |> { (_, input, expected) =>
-      PagerdutyAdapter.payloadBodyToEvents(input) must beLeft(expected)
+      adapterWithDefaultSchemas.payloadBodyToEvents(input) must beLeft(expected)
     }
 
   def e6 = {
@@ -135,7 +136,7 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
         Shared.context
       )
     )
-    PagerdutyAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
   }
 
   def e7 = {
@@ -151,10 +152,10 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
     )
     val expected = FailureDetails.AdapterFailure.SchemaMapping(
       "trigger".some,
-      PagerdutyAdapter.EventSchemaMap,
+      adapterWithDefaultSchemas.EventSchemaMap,
       "no schema associated with the provided type parameter at index 0"
     )
-    PagerdutyAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(expected)
     )
   }
@@ -162,7 +163,7 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
   def e8 = {
     val payload =
       CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
-    PagerdutyAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(
         FailureDetails.AdapterFailure
           .InputData("body", None, "empty body: no events to process")
@@ -173,7 +174,7 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
   def e9 = {
     val payload =
       CollectorPayload(Shared.api, Nil, None, "stub".some, Shared.cljSource, Shared.context)
-    PagerdutyAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(
         FailureDetails.AdapterFailure.InputData(
           "contentType",
@@ -194,7 +195,7 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
       Shared.cljSource,
       Shared.context
     )
-    PagerdutyAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(
         FailureDetails.AdapterFailure
           .InputData("contentType", ct, "expected application/json")

@@ -37,6 +37,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegist
 import com.snowplowanalytics.snowplow.enrich.common.loaders._
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.Clock._
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
 
 class EtlPipelineSpec extends Specification with ValidatedMatchers {
   def is = s2"""
@@ -46,7 +47,9 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers {
   Absence of CollectorPayload (None) should be supported                                   $e4
   """
 
-  val adapterRegistry = new AdapterRegistry()
+  val adapterRegistry = new AdapterRegistry(
+    adaptersSchemas = adaptersSchemas
+  )
   val enrichmentReg = EnrichmentRegistry[Id]()
   val igluCentral = Registry.IgluCentral
   val client = IgluCirceClient.fromResolver[Id](Resolver(List(igluCentral), None), cacheSize = 0)

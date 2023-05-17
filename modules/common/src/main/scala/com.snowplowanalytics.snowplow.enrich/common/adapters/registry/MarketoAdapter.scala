@@ -23,7 +23,6 @@ import cats.syntax.validated._
 
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 import com.snowplowanalytics.snowplow.badrows._
 import io.circe._
 import org.joda.time.DateTimeZone
@@ -37,13 +36,13 @@ import Adapter.Adapted
  * Transforms a collector payload which conforms to a known version of the Marketo webhook into raw
  * events.
  */
-object MarketoAdapter extends Adapter {
+case class MarketoAdapter(schemas: MarketoSchemas) extends Adapter {
   // Tracker version for an Marketo webhook
   private val TrackerVersion = "com.marketo-v1"
 
   // Schemas for reverse-engineering a Snowplow unstructured event
   private val EventSchemaMap = Map(
-    "event" -> SchemaKey("com.marketo", "event", "jsonschema", SchemaVer.Full(2, 0, 0))
+    "event" -> schemas.eventSchemaKey
   )
 
   // Datetime format used by Marketo

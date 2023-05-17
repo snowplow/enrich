@@ -22,7 +22,6 @@ import cats.syntax.option._
 import cats.syntax.validated._
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 import com.snowplowanalytics.snowplow.badrows._
 import io.circe._
 
@@ -35,28 +34,24 @@ import Adapter.Adapted
  * Transforms a collector payload which conforms to a known version of the Mandrill Tracking webhook
  * into raw events.
  */
-object MandrillAdapter extends Adapter {
+case class MandrillAdapter(schemas: MandrillSchemas) extends Adapter {
   // Tracker version for an Mandrill Tracking webhook
   private val TrackerVersion = "com.mandrill-v1"
 
   // Expected content type for a request body
   private val ContentType = "application/x-www-form-urlencoded"
 
-  private val Vendor = "com.mandrill"
-  private val Format = "jsonschema"
-  private val SchemaVersion = SchemaVer.Full(1, 0, 1)
-
   // Schemas for reverse-engineering a Snowplow unstructured event
   private[registry] val EventSchemaMap = Map(
-    "hard_bounce" -> SchemaKey(Vendor, "message_bounced", Format, SchemaVersion),
-    "click" -> SchemaKey(Vendor, "message_clicked", Format, SchemaVersion),
-    "deferral" -> SchemaKey(Vendor, "message_delayed", Format, SchemaVersion),
-    "spam" -> SchemaKey(Vendor, "message_marked_as_spam", Format, SchemaVersion),
-    "open" -> SchemaKey(Vendor, "message_opened", Format, SchemaVersion),
-    "reject" -> SchemaKey(Vendor, "message_rejected", Format, SchemaVer.Full(1, 0, 0)),
-    "send" -> SchemaKey(Vendor, "message_sent", Format, SchemaVer.Full(1, 0, 0)),
-    "soft_bounce" -> SchemaKey(Vendor, "message_soft_bounced", Format, SchemaVersion),
-    "unsub" -> SchemaKey(Vendor, "recipient_unsubscribed", Format, SchemaVersion)
+    "hard_bounce" -> schemas.messageBouncedSchemaKey,
+    "click" -> schemas.messageClickedSchemaKey,
+    "deferral" -> schemas.messageDelayedSchemaKey,
+    "spam" -> schemas.messageMarkedAsSpamSchemaKey,
+    "open" -> schemas.messageOpenedSchemaKey,
+    "reject" -> schemas.messageRejectedSchemaKey,
+    "send" -> schemas.messageSentSchemaKey,
+    "soft_bounce" -> schemas.messageSoftBouncedSchemaKey,
+    "unsub" -> schemas.recipientUnsubscribedSchemaKey
   )
 
   /**

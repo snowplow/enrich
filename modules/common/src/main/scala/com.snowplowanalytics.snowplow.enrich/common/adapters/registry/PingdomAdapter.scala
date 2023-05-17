@@ -22,7 +22,6 @@ import cats.syntax.option._
 import cats.syntax.validated._
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 import com.snowplowanalytics.snowplow.badrows._
 import io.circe._
 import org.apache.http.NameValuePair
@@ -35,7 +34,7 @@ import Adapter.Adapted
  * Transforms a collector payload which conforms to a known version of the Pingdom Tracking webhook
  * into raw events.
  */
-object PingdomAdapter extends Adapter {
+case class PingdomAdapter(schemas: PingdomSchemas) extends Adapter {
   // Tracker version for an Pingdom Tracking webhook
   private val TrackerVersion = "com.pingdom-v1"
 
@@ -43,16 +42,11 @@ object PingdomAdapter extends Adapter {
   // believe are incorrectly handled Python unicode strings.
   private val PingdomValueRegex = """\(u'(.+)',\)""".r
 
-  private val Vendor = "com.pingdom"
-  private val Format = "jsonschema"
-  private val SchemaVersion = SchemaVer.Full(1, 0, 0)
-
   // Schemas for reverse-engineering a Snowplow unstructured event
   private val EventSchemaMap = Map(
-    "assign" -> SchemaKey(Vendor, "incident_assign", Format, SchemaVersion),
-    "notify_user" -> SchemaKey(Vendor, "incident_notify_user", Format, SchemaVersion),
-    "notify_of_close" ->
-      SchemaKey(Vendor, "incident_notify_of_close", Format, SchemaVersion)
+    "assign" -> schemas.incidentAssignSchemaKey,
+    "notify_user" -> schemas.incidentNotifyUserSchemaKey,
+    "notify_of_close" -> schemas.incidentNotifyOfCloseSchemaKey
   )
 
   /**

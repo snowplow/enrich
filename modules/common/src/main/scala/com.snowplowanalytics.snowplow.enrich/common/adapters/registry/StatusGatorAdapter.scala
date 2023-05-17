@@ -27,7 +27,6 @@ import cats.syntax.option._
 import cats.syntax.validated._
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 import com.snowplowanalytics.snowplow.badrows._
 import io.circe.syntax._
 import org.apache.http.client.utils.URLEncodedUtils
@@ -40,7 +39,7 @@ import Adapter.Adapted
  * Transforms a collector payload which conforms to a known version of the StatusGator Tracking
  * webhook into raw events.
  */
-object StatusGatorAdapter extends Adapter {
+case class StatusGatorAdapter(schemas: StatusGatorSchemas) extends Adapter {
   // Tracker version for an StatusGator Tracking webhook
   private val TrackerVersion = "com.statusgator-v1"
 
@@ -48,8 +47,7 @@ object StatusGatorAdapter extends Adapter {
   private val ContentType = "application/x-www-form-urlencoded"
 
   // Schemas for reverse-engineering a Snowplow unstructured event
-  private val EventSchema =
-    SchemaKey("com.statusgator", "status_change", "jsonschema", SchemaVer.Full(1, 0, 0))
+  private val EventSchema = schemas.statusChangeSchemaKey
 
   /**
    * Converts a CollectorPayload instance into raw events. A StatusGator Tracking payload contains

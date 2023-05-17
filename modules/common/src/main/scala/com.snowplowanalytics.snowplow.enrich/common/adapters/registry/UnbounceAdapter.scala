@@ -29,7 +29,6 @@ import cats.syntax.option._
 import cats.syntax.validated._
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 import com.snowplowanalytics.snowplow.badrows._
 import io.circe._
 import org.apache.http.client.utils.URLEncodedUtils
@@ -42,7 +41,7 @@ import Adapter.Adapted
  * Transforms a collector payload which conforms to a known version of the Unbounce Tracking webhook
  * into raw events.
  */
-object UnbounceAdapter extends Adapter {
+case class UnbounceAdapter(schemas: UnbounceSchemas) extends Adapter {
   // Tracker version for an Unbounce Tracking webhook
   private val TrackerVersion = "com.unbounce-v1"
 
@@ -51,7 +50,7 @@ object UnbounceAdapter extends Adapter {
 
   // Schema for Unbounce event context
   private val ContextSchema = Map(
-    "form_post" -> SchemaKey("com.unbounce", "form_post", "jsonschema", SchemaVer.Full(1, 0, 0))
+    "form_post" -> schemas.formPostSchemaKey
   )
 
   /**

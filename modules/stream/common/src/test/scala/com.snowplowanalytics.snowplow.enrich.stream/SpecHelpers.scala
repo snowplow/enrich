@@ -25,6 +25,7 @@ import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdap
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.{EnrichmentRegistry, MiscEnrichments}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, JsonUtils, ShiftExecution}
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
 import com.snowplowanalytics.snowplow.enrich.stream.model.{AWSCredentials, CloudAgnosticPlatformConfig, GCPCredentials, Kafka, Nsq, Stdin}
 import org.specs2.matcher.{Expectable, Matcher}
 import sources.TestSource
@@ -294,7 +295,8 @@ object SpecHelpers {
 
   // Init AdapterRegistry with one RemoteAdapter used for integration tests
   val adapterRegistry = new AdapterRegistry(
-    Map(("remoteVendor", "v42") -> new RemoteAdapter("http://localhost:9090/", None, None))
+    Map(("remoteVendor", "v42") -> RemoteAdapter("http://localhost:9090/", None, None)),
+    adaptersSchemas = adaptersSchemas
   )
 
   val kafkaConfig: CloudAgnosticPlatformConfig =

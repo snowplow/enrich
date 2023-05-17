@@ -22,6 +22,7 @@ import java.text.SimpleDateFormat
 import java.net.URI
 
 import cats.syntax.either._
+import com.snowplowanalytics.snowplow.enrich.common.adapters.AdaptersSchemas
 
 object model {
 
@@ -168,10 +169,12 @@ object model {
     url: String
   )
   final case class SentryConfig(dsn: URI)
+
   final case class EnrichConfig(
     streams: StreamsConfig,
     remoteAdapters: Option[List[RemoteAdapterConfig]],
     monitoring: Option[MonitoringConfig],
-    sentry: Option[SentryConfig]
+    sentry: Option[SentryConfig],
+    adapters: AdaptersSchemas
   )
 }

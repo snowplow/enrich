@@ -23,7 +23,6 @@ import cats.syntax.option._
 import cats.syntax.validated._
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 import com.snowplowanalytics.snowplow.badrows._
 import io.circe.DecodingFailure
 import org.joda.time.{DateTime, DateTimeZone}
@@ -36,35 +35,28 @@ import Adapter.Adapted
  * Transforms a collector payload which conforms to a known version of the UrbanAirship Connect API
  * into raw events.
  */
-object UrbanAirshipAdapter extends Adapter {
+case class UrbanAirshipAdapter(schemas: UrbanAirshipSchemas) extends Adapter {
   // Tracker version for an UrbanAirship Connect API
   private val TrackerVersion = "com.urbanairship.connect-v1"
 
-  private val Vendor = "com.urbanairship.connect"
-  private val Format = "jsonschema"
-  private val SchemaVersion = SchemaVer.Full(1, 0, 0)
-
   // Schemas for reverse-engineering a Snowplow unstructured event
   private val EventSchemaMap = Map(
-    "CLOSE" -> SchemaKey(Vendor, "CLOSE", Format, SchemaVersion),
-    "CUSTOM" -> SchemaKey(Vendor, "CUSTOM", Format, SchemaVersion),
-    "FIRST_OPEN" -> SchemaKey(Vendor, "FIRST_OPEN", Format, SchemaVersion),
-    "IN_APP_MESSAGE_DISPLAY" ->
-      SchemaKey(Vendor, "IN_APP_MESSAGE_DISPLAY", Format, SchemaVersion),
-    "IN_APP_MESSAGE_EXPIRATION" ->
-      SchemaKey(Vendor, "IN_APP_MESSAGE_EXPIRATION", Format, SchemaVersion),
-    "IN_APP_MESSAGE_RESOLUTION" ->
-      SchemaKey(Vendor, "IN_APP_MESSAGE_RESOLUTION", Format, SchemaVersion),
-    "LOCATION" -> SchemaKey(Vendor, "LOCATION", Format, SchemaVersion),
-    "OPEN" -> SchemaKey(Vendor, "OPEN", Format, SchemaVersion),
-    "PUSH_BODY" -> SchemaKey(Vendor, "PUSH_BODY", Format, SchemaVersion),
-    "REGION" -> SchemaKey(Vendor, "REGION", Format, SchemaVersion),
-    "RICH_DELETE" -> SchemaKey(Vendor, "RICH_DELETE", Format, SchemaVersion),
-    "RICH_DELIVERY" -> SchemaKey(Vendor, "RICH_DELIVERY", Format, SchemaVersion),
-    "RICH_HEAD" -> SchemaKey(Vendor, "RICH_HEAD", Format, SchemaVersion),
-    "SEND" -> SchemaKey(Vendor, "SEND", Format, SchemaVersion),
-    "TAG_CHANGE" -> SchemaKey(Vendor, "TAG_CHANGE", Format, SchemaVersion),
-    "UNINSTALL" -> SchemaKey(Vendor, "UNINSTALL", Format, SchemaVersion)
+    "CLOSE" -> schemas.closeSchemaKey,
+    "CUSTOM" -> schemas.customSchemaKey,
+    "FIRST_OPEN" -> schemas.firstOpenSchemaKey,
+    "IN_APP_MESSAGE_DISPLAY" -> schemas.inAppMessageDisplaySchemaKey,
+    "IN_APP_MESSAGE_EXPIRATION" -> schemas.inAppMessageExpirationSchemaKey,
+    "IN_APP_MESSAGE_RESOLUTION" -> schemas.inAppMessageResolutionSchemaKey,
+    "LOCATION" -> schemas.locationSchemaKey,
+    "OPEN" -> schemas.openSchemaKey,
+    "PUSH_BODY" -> schemas.pushBodySchemaKey,
+    "REGION" -> schemas.regionSchemaKey,
+    "RICH_DELETE" -> schemas.richDeleteSchemaKey,
+    "RICH_DELIVERY" -> schemas.richDeliverySchemaKey,
+    "RICH_HEAD" -> schemas.richHeadSchemaKey,
+    "SEND" -> schemas.sendSchemaKey,
+    "TAG_CHANGE" -> schemas.tagChangeSchemaKey,
+    "UNINSTALL" -> schemas.uninstallSchemaKey
   )
 
   /**

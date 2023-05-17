@@ -31,6 +31,7 @@ import org.http4s.Uri
 import org.specs2.mutable.Specification
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.BackoffPolicy
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
 
 class ConfigFileSpec extends Specification with CatsIO {
   "parse" should {
@@ -90,7 +91,8 @@ class ConfigFileSpec extends Specification with CatsIO {
               )
             )
           )
-        )
+        ),
+        adaptersSchemas
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
     }
@@ -191,7 +193,8 @@ class ConfigFileSpec extends Specification with CatsIO {
               )
             )
           )
-        )
+        ),
+        adaptersSchemas
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
     }
@@ -302,7 +305,8 @@ class ConfigFileSpec extends Specification with CatsIO {
               )
             )
           )
-        )
+        ),
+        adaptersSchemas
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
     }
@@ -403,7 +407,8 @@ class ConfigFileSpec extends Specification with CatsIO {
               )
             )
           )
-        )
+        ),
+        adaptersSchemas
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
     }

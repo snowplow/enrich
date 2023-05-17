@@ -45,6 +45,7 @@ import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
 import com.snowplowanalytics.snowplow.enrich.common.utils.Clock._
 import com.snowplowanalytics.snowplow.enrich.common.AcceptInvalid
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
 
 class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatchers {
   def is = s2"""
@@ -168,7 +169,7 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
     val client = IgluCirceClient.fromResolver[Id](Resolver(List(reg), None), cacheSize = 0)
     EtlPipeline
       .processEvents[Id](
-        new AdapterRegistry(),
+        new AdapterRegistry(adaptersSchemas = adaptersSchemas),
         enrichmentReg,
         client,
         Processor("spark", "0.0.0"),

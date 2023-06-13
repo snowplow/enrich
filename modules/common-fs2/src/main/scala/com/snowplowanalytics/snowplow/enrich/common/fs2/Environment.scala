@@ -39,7 +39,7 @@ import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdap
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, HttpClient}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, HttpClient, ShiftExecution}
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{ConfigFile, ParsedConfigs}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{
@@ -71,6 +71,7 @@ import java.util.concurrent.TimeoutException
  *                            have to be replaced with newer ones
  * @param httpClient          client used to perform HTTP requests
  * @param blocker             thread pool for blocking operations and enrichments themselves
+ * @param shifter             thread pool for blocking jdbc operations in the SqlEnrichment
  * @param source              stream of records containing the collector payloads
  * @param sinkGood            function that sinks enriched event
  * @param sinkPii             function that sinks pii event
@@ -103,6 +104,7 @@ final case class Environment[F[_], A](
   httpClient: Http4sClient[F],
   remoteAdapterHttpClient: Option[Http4sClient[F]],
   blocker: Blocker,
+  shifter: ShiftExecution[F],
   source: Stream[F, A],
   adapterRegistry: AdapterRegistry,
   sinkGood: AttributedByteSink[F],
@@ -132,24 +134,32 @@ object Environment {
     Slf4jLogger.getLogger[F]
 
   /** Registry with all allocated clients (MaxMind, IAB etc) and their original configs */
-  final case class Enrichments[F[_]](registry: EnrichmentRegistry[F], configs: List[EnrichmentConf]) {
+  final case class Enrichments[F[_]: Clock](registry: EnrichmentRegistry[F], configs: List[EnrichmentConf]) {
 
     /** Initialize same enrichments, specified by configs (in case DB files updated) */
-    def reinitialize(blocker: BlockerF[F])(implicit A: Async[F], C: HttpClient[F]): F[Enrichments[F]] =
-      Enrichments.buildRegistry(configs, blocker).map(registry => Enrichments(registry, configs))
+    def reinitialize(blocker: BlockerF[F], shifter: ShiftExecution[F])(implicit A: Async[F], C: HttpClient[F]): F[Enrichments[F]] =
+      Enrichments.buildRegistry(configs, blocker, shifter).map(registry => Enrichments(registry, configs))
   }
 
   object Enrichments {
-    def make[F[_]: Async: Clock: HttpClient](configs: List[EnrichmentConf], blocker: BlockerF[F]): Resource[F, Ref[F, Enrichments[F]]] =
+    def make[F[_]: Async: Clock: HttpClient](
+      configs: List[EnrichmentConf],
+      blocker: BlockerF[F],
+      shifter: ShiftExecution[F]
+    ): Resource[F, Ref[F, Enrichments[F]]] =
       Resource.eval {
         for {
-          registry <- buildRegistry[F](configs, blocker)
+          registry <- buildRegistry[F](configs, blocker, shifter)
           ref <- Ref.of(Enrichments[F](registry, configs))
         } yield ref
       }
 
-    def buildRegistry[F[_]: Async: HttpClient](configs: List[EnrichmentConf], blocker: BlockerF[F]) =
-      EnrichmentRegistry.build[F](configs, blocker).value.flatMap {
+    def buildRegistry[F[_]: Async: HttpClient: Clock](
+      configs: List[EnrichmentConf],
+      blocker: BlockerF[F],
+      shifter: ShiftExecution[F]
+    ) =
+      EnrichmentRegistry.build[F](configs, blocker, shifter).value.flatMap {
         case Right(reg) => Async[F].pure(reg)
         case Left(error) => Async[F].raiseError[EnrichmentRegistry[F]](new RuntimeException(error))
       }
@@ -191,9 +201,10 @@ object Environment {
       adapterRegistry = new AdapterRegistry(remoteAdapters)
       sem <- Resource.eval(Semaphore(1L))
       assetsState <- Resource.eval(Assets.State.make[F](blocker, sem, clts, assets))
+      shifter <- ShiftExecution.ofSingleThread[F]
       enrichments <- {
         implicit val C: Http4sClient[F] = http
-        Enrichments.make[F](parsedConfigs.enrichmentConfigs, BlockerF.ofBlocker(blocker))
+        Enrichments.make[F](parsedConfigs.enrichmentConfigs, BlockerF.ofBlocker(blocker), shifter)
       }
     } yield Environment[F, A](
       igluClient,
@@ -204,6 +215,7 @@ object Environment {
       http,
       remoteAdaptersHttpClient,
       blocker,
+      shifter,
       source,
       adapterRegistry,
       good,

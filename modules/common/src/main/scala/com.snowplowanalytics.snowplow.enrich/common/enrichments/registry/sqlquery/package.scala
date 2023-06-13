@@ -22,8 +22,10 @@ import io.circe.Json
 
 package object sqlquery {
   type SqlCacheInit[F[_]] =
-    CreateLruMap[F, IntMap[Input.ExtractedValue], (Either[Throwable, List[SelfDescribingData[Json]]], Long)]
+    CreateLruMap[F, IntMap[Input.ExtractedValue], CachingEvaluator.CachedItem[List[SelfDescribingData[Json]]]]
 
   type SqlCache[F[_]] =
-    LruMap[F, IntMap[Input.ExtractedValue], (Either[Throwable, List[SelfDescribingData[Json]]], Long)]
+    LruMap[F, IntMap[Input.ExtractedValue], CachingEvaluator.CachedItem[List[SelfDescribingData[Json]]]]
+
+  type SqlQueryEvaluator[F[_]] = CachingEvaluator[F, IntMap[Input.ExtractedValue], List[SelfDescribingData[Json]]]
 }

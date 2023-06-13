@@ -27,6 +27,7 @@ import cats.data.Validated.{Invalid, Valid}
 
 import io.circe.Json
 import io.circe.syntax._
+import io.circe.parser.{parse => jparse}
 
 import org.apache.thrift.TSerializer
 
@@ -40,7 +41,7 @@ import com.snowplowanalytics.iglu.client.resolver.registries.Registry
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
-import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, ShiftExecution}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 
@@ -116,9 +117,17 @@ object BlackBoxTesting extends Specification with CatsIO {
 
   private def checkEnriched(enriched: EnrichedEvent, expectedFields: Map[String, String]) = {
     val asMap = getMap(enriched)
-    val r = expectedFields.map { case (k, v) => asMap.get(k) must beSome(v) }
+    val r = expectedFields.map {
+      case (k, v) if k == "unstruct_event" || k == "contexts" || k == "derived_contexts" =>
+        compareJsons(asMap.getOrElse(k, ""), v) must beTrue
+      case (k, v) =>
+        asMap.get(k) must beSome(v)
+    }
     r.toList.reduce(_ and _)
   }
+
+  private def compareJsons(j1: String, j2: String): Boolean =
+    j1 == j2 || jparse(j1).toOption.get == jparse(j2).toOption.get
 
   private val enrichedFields = classOf[EnrichedEvent].getDeclaredFields()
   enrichedFields.foreach(_.setAccessible(true))
@@ -140,7 +149,7 @@ object BlackBoxTesting extends Specification with CatsIO {
                      case Invalid(e) => IO.raiseError(new IllegalArgumentException(s"can't parse enrichmentsJson: $e"))
                      case Valid(list) => IO.pure(list)
                    }
-          built <- EnrichmentRegistry.build[IO](confs, BlockerF.noop).value
+          built <- EnrichmentRegistry.build[IO](confs, BlockerF.noop, ShiftExecution.noop).value
           registry <- built match {
                         case Left(e) => IO.raiseError(new IllegalArgumentException(s"can't build EnrichmentRegistry: $e"))
                         case Right(r) => IO.pure(r)

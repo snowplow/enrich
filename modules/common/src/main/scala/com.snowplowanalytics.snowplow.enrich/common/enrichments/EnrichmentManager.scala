@@ -69,21 +69,21 @@ object EnrichmentManager {
   ): EitherT[F, BadRow, EnrichedEvent] =
     for {
       enriched <- EitherT.fromEither[F](setupEnrichedEvent(raw, etlTstamp, processor))
-      inputSDJs <- IgluUtils.extractAndValidateInputJsons(enriched, client, raw, processor)
-      (inputContexts, unstructEvent) = inputSDJs
+      extractResult <- IgluUtils.extractAndValidateInputJsons(enriched, client, raw, processor)
+      _ = {
+        ME.formatUnstructEvent(extractResult.unstructEvent).foreach(e => enriched.unstruct_event = e)
+        ME.formatContexts(extractResult.contexts).foreach(c => enriched.contexts = c)
+      }
       enrichmentsContexts <- runEnrichments(
                                registry,
                                processor,
                                raw,
                                enriched,
-                               inputContexts,
-                               unstructEvent,
+                               extractResult.contexts,
+                               extractResult.unstructEvent,
                                featureFlags.legacyEnrichmentOrder
                              )
-      _ <- EitherT.rightT[F, BadRow] {
-             if (enrichmentsContexts.nonEmpty)
-               enriched.derived_contexts = ME.formatDerivedContexts(enrichmentsContexts)
-           }
+      _ = ME.formatContexts(enrichmentsContexts ::: extractResult.validationInfoContexts).foreach(c => enriched.derived_contexts = c)
       _ <- IgluUtils
              .validateEnrichmentsContexts[F](client, enrichmentsContexts, raw, processor, enriched)
       _ <- EitherT.rightT[F, BadRow](
@@ -662,9 +662,11 @@ object EnrichmentManager {
     javascriptScript: Option[JavascriptScriptEnrichment]
   ): EStateT[F, Unit] =
     EStateT.fromEither {
-      case (event, _) =>
+      case (event, derivedContexts) =>
         javascriptScript match {
-          case Some(jse) => jse.process(event).leftMap(NonEmptyList.one(_))
+          case Some(jse) =>
+            ME.formatContexts(derivedContexts).foreach(c => event.derived_contexts = c)
+            jse.process(event).leftMap(NonEmptyList.one)
           case None => Nil.asRight
         }
     }

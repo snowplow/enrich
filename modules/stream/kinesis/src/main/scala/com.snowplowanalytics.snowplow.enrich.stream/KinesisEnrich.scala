@@ -36,14 +36,14 @@ import com.snowplowanalytics.iglu.core.circe.CirceIgluCodecs._
 import com.snowplowanalytics.snowplow.badrows.Processor
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
-import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, JsonUtils}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, JsonUtils, ShiftExecution}
 import com.snowplowanalytics.snowplow.scalatracker.Tracker
 import io.circe.Json
 import io.circe.syntax._
 import config._
 import model.{Credentials, DualCloudCredentialsPair, Kinesis, NoCredentials, SentryConfig, StreamsConfig}
 import sources.KinesisSource
-import utils.getAWSCredentialsProvider
+import utils.{clockProvider, getAWSCredentialsProvider}
 
 /** The main entry point for Stream Enrich for Kinesis. */
 object KinesisEnrich extends Enrich {
@@ -73,7 +73,7 @@ object KinesisEnrich extends Enrich {
              credentials.gcp,
              Option(awsRegion)
            )
-      enrichmentRegistry <- EnrichmentRegistry.build[Id](enrichmentsConf, BlockerF.noop).value
+      enrichmentRegistry <- EnrichmentRegistry.build[Id](enrichmentsConf, BlockerF.noop, ShiftExecution.noop).value
       tracker = enrichConfig.monitoring.map(c => SnowplowTracking.initializeTracker(c.snowplow))
       adapterRegistry = new AdapterRegistry(prepareRemoteAdapters(enrichConfig.remoteAdapters))
       processor = Processor(generated.BuildInfo.name, generated.BuildInfo.version)

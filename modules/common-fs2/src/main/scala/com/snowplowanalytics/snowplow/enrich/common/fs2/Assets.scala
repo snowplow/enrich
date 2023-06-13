@@ -33,7 +33,7 @@ import fs2.io.file.{exists, move, readAll, tempFileResource, writeAll}
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
-import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, HttpClient}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, HttpClient, ShiftExecution}
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients
 
@@ -134,6 +134,7 @@ object Assets {
   /** Initializes the [[updateStream]] if refresh period is specified. */
   def run[F[_]: ConcurrentEffect: ContextShift: HttpClient: Parallel: Timer, A](
     blocker: Blocker,
+    shifter: ShiftExecution[F],
     sem: Semaphore[F],
     updatePeriod: Option[FiniteDuration],
     assetsState: Assets.State[F],
@@ -144,7 +145,7 @@ object Assets {
         val init = for {
           _ <- Logger[F].info(show"Assets will be checked every $interval")
           assets <- enrichments.get.map(_.configs.flatMap(_.filesToCache))
-        } yield updateStream[F](blocker, sem, assetsState, enrichments, interval, assets)
+        } yield updateStream[F](blocker, shifter, sem, assetsState, enrichments, interval, assets)
         Stream.eval(init).flatten
       case None =>
         Stream.empty.covary[F]
@@ -156,6 +157,7 @@ object Assets {
    */
   def updateStream[F[_]: ConcurrentEffect: ContextShift: Parallel: Timer: HttpClient](
     blocker: Blocker,
+    shifter: ShiftExecution[F],
     sem: Semaphore[F],
     state: State[F],
     enrichments: Ref[F, Environment.Enrichments[F]],
@@ -174,7 +176,7 @@ object Assets {
                  Logger[F].info("All the assets are still the same, no update")
                else
                  sem.withPermit {
-                   update(blocker, state, enrichments, newAssets)
+                   update(blocker, shifter, state, enrichments, newAssets)
                  }
              }
       } yield ()
@@ -223,6 +225,7 @@ object Assets {
    */
   def update[F[_]: ConcurrentEffect: ContextShift: HttpClient](
     blocker: Blocker,
+    shifter: ShiftExecution[F],
     state: State[F],
     enrichments: Ref[F, Environment.Enrichments[F]],
     newAssets: List[Downloaded]
@@ -240,7 +243,7 @@ object Assets {
 
       _ <- Logger[F].info("Reinitializing enrichments")
       old <- enrichments.get
-      fresh <- old.reinitialize(BlockerF.ofBlocker(blocker))
+      fresh <- old.reinitialize(BlockerF.ofBlocker(blocker), shifter)
       _ <- enrichments.set(fresh)
     } yield ()
 

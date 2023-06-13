@@ -62,8 +62,8 @@ object Dependencies {
     val scalaWeather     = "1.0.0"
     val gatlingJsonpath  = "0.6.14"
     val scalaUri         = "1.5.1"
-    val badRows          = "2.1.1"
-    val igluClient       = "1.3.1"
+    val badRows          = "2.1.2"
+    val igluClient       = "1.4.0"
 
     val snowplowRawEvent = "0.1.0"
     val collectorPayload = "0.0.0"
@@ -362,7 +362,12 @@ object Dependencies {
 
     val kafkaDependencies = Seq(
       fs2Kafka,
-      kafkaClients // override kafka-clients 2.8.1 from fs2Kafka to address https://security.snyk.io/vuln/SNYK-JAVA-ORGAPACHEKAFKA-3027430
+      kafkaClients, // override kafka-clients 2.8.1 from fs2Kafka to address https://security.snyk.io/vuln/SNYK-JAVA-ORGAPACHEKAFKA-3027430
+      mskAuth
+    )
+
+    val nsqDependencies = Seq(
+      nsqClient
     )
 
     // exclusions

@@ -33,7 +33,7 @@ import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
-import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, JsonUtils}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, JsonUtils, ShiftExecution}
 import com.snowplowanalytics.snowplow.enrich.stream.sources.Source
 import com.snowplowanalytics.snowplow.scalatracker.Tracker
 import com.typesafe.config.ConfigFactory
@@ -78,7 +78,7 @@ trait Enrich {
              awsRegion
            )
       tracker = enrichConfig.monitoring.map(c => SnowplowTracking.initializeTracker(c.snowplow))
-      enrichmentRegistry <- EnrichmentRegistry.build[Id](enrichmentsConf, BlockerF.noop).value
+      enrichmentRegistry <- EnrichmentRegistry.build[Id](enrichmentsConf, BlockerF.noop, ShiftExecution.noop).value
       adapterRegistry = new AdapterRegistry(prepareRemoteAdapters(enrichConfig.remoteAdapters))
       processor = Processor(generated.BuildInfo.name, generated.BuildInfo.version)
       source <- getSource(

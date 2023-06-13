@@ -23,6 +23,7 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData
 
 import org.specs2.Specification
 import org.specs2.matcher.Matcher
+import com.snowplowanalytics.snowplow.enrich.common.utils.Clock.idClock
 
 import outputs.EnrichedEvent
 

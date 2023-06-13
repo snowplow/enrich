@@ -111,6 +111,16 @@ object io {
       consumerConf: Map[String, String]
     ) extends Input
 
+    case class Nsq private (
+      topic: String,
+      channel: String,
+      lookupHost: String,
+      lookupPort: Int,
+      maxBufferQueueSize: Int,
+      checkpointBackoff: BackoffPolicy
+    ) extends Input
+        with RetryCheckpointing
+
     case class PubSub private (
       subscription: String,
       parallelPullCount: Int,
@@ -261,6 +271,13 @@ object io {
       partitionKey: String,
       headers: Set[String],
       producerConf: Map[String, String]
+    ) extends Output
+
+    case class Nsq private (
+      topic: String,
+      nsqdHost: String,
+      nsqdPort: Int,
+      backoffPolicy: BackoffPolicy
     ) extends Output
 
     case class PubSub private (

@@ -91,9 +91,9 @@ class ExtractIpSpec extends Specification with DataTables {
 
 }
 
-class FormatDerivedContextsSpec extends MutSpecification {
+class FormatContextsSpec extends MutSpecification {
 
-  "extractDerivedContexts" should {
+  "extractContexts" should {
     "convert a list of JObjects to a self-describing contexts JSON" in {
 
       val derivedContextsList = List(
@@ -128,7 +128,35 @@ class FormatDerivedContextsSpec extends MutSpecification {
         |]
       |}""".stripMargin.replaceAll("[\n\r]", "")
 
-      MiscEnrichments.formatDerivedContexts(derivedContextsList) must_== expected
+      MiscEnrichments.formatContexts(derivedContextsList) must beSome(expected)
+    }
+  }
+}
+
+class FormatUnstructEventSpec extends MutSpecification {
+
+  "extractUnstructEvent" should {
+    "convert a JObject to a self-describing unstruct event JSON" in {
+
+      val unstructEvent = SelfDescribingData(
+        SchemaKey("com.acme", "design", "jsonschema", SchemaVer.Full(1, 0, 0)),
+        json"""{"color": "red", "fontSize": 14}"""
+      )
+
+      val expected = """
+      |{
+       |"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+       |"data":
+         |{
+           |"schema":"iglu:com.acme/design/jsonschema/1-0-0",
+           |"data":{
+             |"color":"red",
+             |"fontSize":14
+           |}
+         |}
+      |}""".stripMargin.replaceAll("[\n\r]", "")
+
+      MiscEnrichments.formatUnstructEvent(Some(unstructEvent)) must beSome(expected)
     }
   }
 }

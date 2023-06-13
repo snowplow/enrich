@@ -51,7 +51,7 @@ class UaParserEnrichmentSpec extends Specification with DataTables {
         "jsonschema",
         SchemaVer.Full(1, 0, 0)
       ),
-      json"""{"useragentFamily":"Safari","useragentMajor":"8","useragentMinor":"0","useragentPatch":null,"useragentVersion":"Safari 8.0","osFamily":"Mac OS X","osMajor":"10","osMinor":"10","osPatch":null,"osPatchMinor":null,"osVersion":"Mac OS X 10.10","deviceFamily":"Other"}"""
+      json"""{"useragentFamily":"Safari","useragentMajor":"8","useragentMinor":"0","useragentPatch":null,"useragentVersion":"Safari 8.0","osFamily":"Mac OS X","osMajor":"10","osMinor":"10","osPatch":null,"osPatchMinor":null,"osVersion":"Mac OS X 10.10","deviceFamily":"Mac"}"""
     )
 
   // The URI is irrelevant here, but the local file name needs to point to our test resource

@@ -34,7 +34,7 @@ object Dependencies {
     val commonsText      = "1.10.0"
     val jodaTime         = "2.10.1"
     val useragent        = "1.21"
-    val uaParser         = "1.4.3"
+    val uaParser         = "1.5.4" // override transitive dependency to mitigate security vulnerabilities CVE-2022-1471
     val snakeYaml        = "2.0" // override transitive dependency to mitigate security vulnerabilities CVE-2022-1471
     val postgresDriver   = "42.5.2"
     val mysqlConnector   = "8.0.29"
@@ -77,8 +77,8 @@ object Dependencies {
     val kafka            = "2.8.2"
     val mskAuth          = "1.1.4"
     val nsqClient        = "1.3.0"
-    val jackson          = "2.13.4.2"
-    val jacksonCbor      = "2.13.4"
+    val jackson          = "2.15.0" // override transitive dependency to mitigate security vulnerabilities CVE-2022-1471
+    val jacksonCbor      = "2.15.0" // override transitive dependency to mitigate security vulnerabilities CVE-2022-1471
     val config           = "1.3.4"
 
     val decline          = "1.0.0"

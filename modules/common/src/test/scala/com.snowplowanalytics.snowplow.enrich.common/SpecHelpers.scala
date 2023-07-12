@@ -124,17 +124,17 @@ object SpecHelpers {
   )
 
   val sendgridSchemas = SendgridSchemas(
-    processed = "iglu:com.sendgrid/processed/jsonschema/2-0-0",
-    dropped = "iglu:com.sendgrid/dropped/jsonschema/2-0-0",
-    delivered = "iglu:com.sendgrid/delivered/jsonschema/2-0-0",
-    bounce = "iglu:com.sendgrid/bounce/jsonschema/2-0-0",
-    deferred = "iglu:com.sendgrid/deferred/jsonschema/2-0-0",
-    open = "iglu:com.sendgrid/open/jsonschema/2-0-0",
-    click = "iglu:com.sendgrid/click/jsonschema/2-0-0",
-    unsubscribe = "iglu:com.sendgrid/unsubscribe/jsonschema/2-0-0",
-    group_unsubscribe = "iglu:com.sendgrid/group_unsubscribe/jsonschema/2-0-0",
-    group_resubscribe = "iglu:com.sendgrid/group_resubscribe/jsonschema/2-0-0",
-    spamreport = "iglu:com.sendgrid/spamreport/jsonschema/2-0-0"
+    processed = "iglu:com.sendgrid/processed/jsonschema/3-0-0",
+    dropped = "iglu:com.sendgrid/dropped/jsonschema/3-0-0",
+    delivered = "iglu:com.sendgrid/delivered/jsonschema/3-0-0",
+    bounce = "iglu:com.sendgrid/bounce/jsonschema/3-0-0",
+    deferred = "iglu:com.sendgrid/deferred/jsonschema/3-0-0",
+    open = "iglu:com.sendgrid/open/jsonschema/3-0-0",
+    click = "iglu:com.sendgrid/click/jsonschema/3-0-0",
+    unsubscribe = "iglu:com.sendgrid/unsubscribe/jsonschema/3-0-0",
+    group_unsubscribe = "iglu:com.sendgrid/group_unsubscribe/jsonschema/3-0-0",
+    group_resubscribe = "iglu:com.sendgrid/group_resubscribe/jsonschema/3-0-0",
+    spamreport = "iglu:com.sendgrid/spamreport/jsonschema/3-0-0"
   )
 
   val googleAnalyticsSchemas = GoogleAnalyticsSchemas(

@@ -583,4 +583,14 @@ object io {
     implicit val veroSchemasEncoder: Encoder[VeroSchemas] =
       deriveConfiguredEncoder[VeroSchemas]
   }
+
+  sealed trait Cloud
+
+  object Cloud {
+    case object Aws extends Cloud
+    case object Gcp extends Cloud
+    case object Azure extends Cloud
+
+    implicit val encoder: Encoder[Cloud] = Encoder.encodeString.contramap[Cloud](_.toString().toUpperCase())
+  }
 }

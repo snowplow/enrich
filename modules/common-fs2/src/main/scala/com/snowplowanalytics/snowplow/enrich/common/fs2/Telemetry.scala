@@ -25,7 +25,6 @@ import fs2.Stream
 import org.http4s.client.{Client => HttpClient}
 
 import _root_.io.circe.Json
-import _root_.io.circe.Encoder
 import _root_.io.circe.syntax._
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
@@ -36,6 +35,7 @@ import com.snowplowanalytics.snowplow.scalatracker.Emitter.{Result => TrackerRes
 import com.snowplowanalytics.snowplow.scalatracker.emitters.http4s.Http4sEmitter
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Telemetry => TelemetryConfig}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Cloud
 
 object Telemetry {
 
@@ -119,13 +119,4 @@ object Telemetry {
         "applicationVersion" -> appVersion.asJson
       )
     )
-
-  sealed trait Cloud
-
-  object Cloud {
-    case object Aws extends Cloud
-    case object Gcp extends Cloud
-
-    implicit val encoder: Encoder[Cloud] = Encoder.encodeString.contramap[Cloud](_.toString().toUpperCase())
-  }
 }

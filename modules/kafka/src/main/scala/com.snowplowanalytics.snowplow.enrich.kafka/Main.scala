@@ -19,6 +19,7 @@ import cats.{Applicative, Parallel}
 import cats.implicits._
 import cats.effect.{ExitCode, IO, IOApp, Resource, SyncIO}
 import fs2.kafka.CommittableConsumerRecord
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Cloud
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Run
 import com.snowplowanalytics.snowplow.enrich.kafka.generated.BuildInfo
 
@@ -60,7 +61,7 @@ object Main extends IOApp.WithContext {
       List.empty,
       _.record.value,
       MaxRecordSize,
-      None,
+      Some(Cloud.Azure),
       None
     )
 

@@ -21,6 +21,7 @@ import org.typelevel.log4cats.slf4j.Slf4jLogger
 import cats.implicits._
 import cats.Applicative
 import cats.data.NonEmptyList
+import cats.kernel.Semigroup
 import cats.effect.{Async, Clock, ConcurrentEffect, ContextShift, Resource, Sync, Timer}
 import cats.effect.concurrent.Ref
 import fs2.Stream
@@ -49,7 +50,17 @@ trait Metadata[F[_]] {
 }
 
 object Metadata {
-  type EventsToEntities = Map[MetadataEvent, Set[SchemaKey]]
+  type Aggregates = Map[MetadataEvent, EntitiesAndCount]
+  case class EntitiesAndCount(entities: Set[SchemaKey], count: Int)
+
+  implicit private def entitiesAndCountSemigroup: Semigroup[EntitiesAndCount] =
+    new Semigroup[EntitiesAndCount] {
+      override def combine(x: EntitiesAndCount, y: EntitiesAndCount): EntitiesAndCount =
+        EntitiesAndCount(
+          x.entities |+| y.entities,
+          x.count + y.count
+        )
+    }
 
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
     Slf4jLogger.getLogger[F]
@@ -69,7 +80,7 @@ object Metadata {
           } yield ()
 
         def observe(events: List[EnrichedEvent]): F[Unit] =
-          observedRef.eventsToEntities.update(recalculate(_, events))
+          observedRef.aggregates.update(recalculate(_, events))
       }
     }
 
@@ -82,17 +93,18 @@ object Metadata {
   private def submit[F[_]: Sync: Clock](reporter: MetadataReporter[F], ref: MetadataEventsRef[F]): F[Unit] =
     for {
       snapshot <- MetadataEventsRef.snapshot(ref)
-      _ <- snapshot.eventsToEntities.keySet.toList
-             .traverse(reporter.report(snapshot.periodStart, snapshot.periodEnd)(_, snapshot.eventsToEntities))
+      _ <- snapshot.aggregates.toList.traverse {
+             case (event, entitiesAndCount) =>
+               reporter.report(snapshot.periodStart, snapshot.periodEnd, event, entitiesAndCount)
+           }
     } yield ()
 
   trait MetadataReporter[F[_]] {
     def report(
       periodStart: Instant,
-      periodEnd: Instant
-    )(
-      snapshot: MetadataEvent,
-      eventsToEntities: EventsToEntities
+      periodEnd: Instant,
+      event: MetadataEvent,
+      entitiesAndCount: EntitiesAndCount
     ): F[Unit]
   }
 
@@ -121,16 +133,15 @@ object Metadata {
 
     def report(
       periodStart: Instant,
-      periodEnd: Instant
-    )(
+      periodEnd: Instant,
       event: MetadataEvent,
-      eventsToEntities: EventsToEntities
+      entitiesAndCount: EntitiesAndCount
     ): F[Unit] =
       initTracker(config, appName, client).use { t =>
         Logger[F].info(s"Tracking observed event ${event.schema.toSchemaUri}") >>
           t.trackSelfDescribingEvent(
-            mkWebhookEvent(config.organizationId, config.pipelineId, periodStart, periodEnd, event),
-            eventsToEntities.find(_._1 == event).map(_._2).toSeq.flatMap(mkWebhookContexts)
+            mkWebhookEvent(config.organizationId, config.pipelineId, periodStart, periodEnd, event, entitiesAndCount.count),
+            mkWebhookContexts(entitiesAndCount.entities).toSeq
           ) >> t.flushEmitters()
       }
 
@@ -159,11 +170,13 @@ object Metadata {
    * @param schema - schema key of given event
    * @param source - `app_id` for given event
    * @param tracker - `v_tracker` for given event
+   * @param platform - The platform the app runs on for given event (`platform` field)
    */
   case class MetadataEvent(
     schema: SchemaKey,
     source: Option[String],
-    tracker: Option[String]
+    tracker: Option[String],
+    platform: Option[String]
   )
   object MetadataEvent {
     def apply(event: EnrichedEvent): MetadataEvent =
@@ -175,30 +188,31 @@ object Metadata {
           Option(event.event_version).toRight("unknown-version").flatMap(SchemaVer.parseFull).getOrElse(SchemaVer.Full(0, 0, 0))
         ),
         Option(event.app_id),
-        Option(event.v_tracker)
+        Option(event.v_tracker),
+        Option(event.platform)
       )
   }
 
   /**
    * An representation of observed metadata events and entites attached to them over a period of time
    *
-   * @param eventsToEntities - mappings of entities observed (since `periodStart`) for given `MetadataEvent`s
-   * @param periodStart - since when `eventsToEntities` are accumulated
-   * @param periodEnd - until when `eventsToEntities` are accumulated
+   * @param aggregates - mappings of entities observed (since `periodStart`) for given `MetadataEvent`s
+   * @param periodStart - since when `aggregates` are accumulated
+   * @param periodEnd - until when `aggregates` are accumulated
    */
   case class MetadataSnapshot(
-    eventsToEntities: EventsToEntities,
+    aggregates: Aggregates,
     periodStart: Instant,
     periodEnd: Instant
   )
 
   /**
    * Internal state representation for current metadata period
-   * @param eventsToEntities - mappings of entities observed (since `periodStart`) for given `MetadataEvent`s
-   * @param periodStart - since when `eventsToEntities` are accumulated
+   * @param aggregates - mappings of entities observed (since `periodStart`) for given `MetadataEvent`s
+   * @param periodStart - since when `aggregates` are accumulated
    */
   case class MetadataEventsRef[F[_]](
-    eventsToEntities: Ref[F, EventsToEntities],
+    aggregates: Ref[F, Aggregates],
     periodStart: Ref[F, Instant]
   )
 
@@ -206,15 +220,15 @@ object Metadata {
     def init[F[_]: Sync: Clock]: F[MetadataEventsRef[F]] =
       for {
         time <- Clock[F].instantNow
-        eventsToEntities <- Ref.of[F, EventsToEntities](Map.empty)
+        aggregates <- Ref.of[F, Aggregates](Map.empty)
         periodStart <- Ref.of[F, Instant](time)
-      } yield MetadataEventsRef(eventsToEntities, periodStart)
+      } yield MetadataEventsRef(aggregates, periodStart)
     def snapshot[F[_]: Sync: Clock](ref: MetadataEventsRef[F]): F[MetadataSnapshot] =
       for {
         periodEnd <- Clock[F].instantNow
-        eventsToEntities <- ref.eventsToEntities.getAndSet(Map.empty)
+        aggregates <- ref.aggregates.getAndSet(Map.empty)
         periodStart <- ref.periodStart.getAndSet(periodEnd)
-      } yield MetadataSnapshot(eventsToEntities, periodStart, periodEnd)
+      } yield MetadataSnapshot(aggregates, periodStart, periodEnd)
   }
 
   def unwrapEntities(event: EnrichedEvent): Set[SchemaKey] = {
@@ -240,18 +254,19 @@ object Metadata {
       SchemaVer.parseFull(event.event_version).getOrElse(SchemaVer.Full(0, 0, 0))
     )
 
-  def recalculate(previous: EventsToEntities, events: List[EnrichedEvent]): EventsToEntities =
-    previous |+| events.map(e => Map(MetadataEvent(e) -> unwrapEntities(e))).combineAll
+  def recalculate(previous: Aggregates, events: List[EnrichedEvent]): Aggregates =
+    previous |+| events.map(e => Map(MetadataEvent(e) -> EntitiesAndCount(unwrapEntities(e), 1))).combineAll
 
   def mkWebhookEvent(
     organizationId: UUID,
     pipelineId: UUID,
     periodStart: Instant,
     periodEnd: Instant,
-    event: MetadataEvent
+    event: MetadataEvent,
+    count: Int
   ): SelfDescribingData[Json] =
     SelfDescribingData(
-      SchemaKey("com.snowplowanalytics.console", "observed_event", "jsonschema", SchemaVer.Full(4, 0, 0)),
+      SchemaKey("com.snowplowanalytics.console", "observed_event", "jsonschema", SchemaVer.Full(6, 0, 0)),
       Json.obj(
         "organizationId" -> organizationId.asJson,
         "pipelineId" -> pipelineId.asJson,
@@ -260,6 +275,8 @@ object Metadata {
         "eventVersion" -> event.schema.version.asString.asJson,
         "source" -> event.source.getOrElse("unknown-source").asJson,
         "tracker" -> event.tracker.getOrElse("unknown-tracker").asJson,
+        "platform" -> event.platform.getOrElse("unknown-platform").asJson,
+        "eventVolume" -> Json.fromInt(count),
         "periodStart" -> periodStart.asJson,
         "periodEnd" -> periodEnd.asJson
       )

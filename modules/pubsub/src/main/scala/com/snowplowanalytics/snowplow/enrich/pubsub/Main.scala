@@ -23,8 +23,8 @@ import scala.concurrent.ExecutionContext
 
 import com.permutive.pubsub.consumer.ConsumerRecord
 
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Cloud
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Run
-import com.snowplowanalytics.snowplow.enrich.common.fs2.Telemetry
 
 import com.snowplowanalytics.snowplow.enrich.pubsub.generated.BuildInfo
 
@@ -71,7 +71,7 @@ object Main extends IOApp.WithContext {
       List(b => Resource.eval(GcsClient.mk[IO](b))),
       _.value,
       MaxRecordSize,
-      Some(Telemetry.Cloud.Gcp),
+      Some(Cloud.Gcp),
       None
     )
 

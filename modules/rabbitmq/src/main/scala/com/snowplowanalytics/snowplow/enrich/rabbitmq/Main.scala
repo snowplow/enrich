@@ -22,7 +22,6 @@ import java.util.concurrent.{Executors, TimeUnit}
 import scala.concurrent.ExecutionContext
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Run
-import com.snowplowanalytics.snowplow.enrich.common.fs2.Telemetry
 
 import com.snowplowanalytics.snowplow.enrich.rabbitmq.generated.BuildInfo
 
@@ -63,7 +62,7 @@ object Main extends IOApp.WithContext {
       Nil,
       _.data,
       MaxRecordSize,
-      Some(Telemetry.Cloud.Gcp),
+      None,
       None
     )
 

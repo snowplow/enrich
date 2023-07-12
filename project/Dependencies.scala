@@ -367,7 +367,9 @@ object Dependencies {
     )
 
     val nsqDependencies = Seq(
-      nsqClient
+      nsqClient,
+      fs2BlobS3,
+      fs2BlobGcs
     )
 
     // exclusions

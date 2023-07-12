@@ -61,7 +61,7 @@ object Main extends IOApp.WithContext {
       (blocker, out) => Sink.initAttributed(blocker, out),
       (blocker, out) => Sink.init(blocker, out),
       checkpoint,
-      Nil,
+      List(b => Resource.eval(GcsClient.mk[IO](b)), _ => S3Client.mk[IO]),
       _.data,
       MaxRecordSize,
       None,

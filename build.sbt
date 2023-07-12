@@ -179,11 +179,6 @@ lazy val kafkaDistroless = project
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(commonFs2)
 
-lazy val bench = project
-  .in(file("modules/bench"))
-  .dependsOn(pubsub % "test->test")
-  .enablePlugins(JmhPlugin)
-
 lazy val rabbitmq = project
   .in(file("modules/rabbitmq"))
   .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDockerPlugin)

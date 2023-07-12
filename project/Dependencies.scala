@@ -46,7 +46,7 @@ object Dependencies {
     val log4jToSlf4j     = "2.18.0"
     val guava            = "28.1-jre"
     val slf4j            = "2.0.3"
-    val log4j            = "2.17.0" // CVE-2021-44228
+    val log4j            = "2.20.0"
     val thrift           = "0.15.0" // override transitive dependency to mitigate security vulnerabilities
     val sprayJson        = "1.3.6" // override transitive dependency to mitigate security vulnerabilities
     val netty            = "4.1.87.Final" // override transitive dependency to mitigate security vulnerabilities
@@ -369,7 +369,8 @@ object Dependencies {
     val nsqDependencies = Seq(
       nsqClient,
       fs2BlobS3,
-      fs2BlobGcs
+      fs2BlobGcs,
+      log4j // for security vulnerabilities
     )
 
     // exclusions

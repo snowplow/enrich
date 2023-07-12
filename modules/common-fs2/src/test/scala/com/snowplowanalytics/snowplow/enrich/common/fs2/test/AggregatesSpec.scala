@@ -15,15 +15,14 @@ package com.snowplowanalytics.snowplow.enrich.common.fs2.test
 import cats.effect.Sync
 import cats.effect.concurrent.Ref
 import fs2.Stream
-import com.snowplowanalytics.iglu.core.SchemaKey
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.experimental.Metadata
-import com.snowplowanalytics.snowplow.enrich.common.fs2.io.experimental.Metadata.MetadataEvent
+import com.snowplowanalytics.snowplow.enrich.common.fs2.io.experimental.Metadata.{EntitiesAndCount, MetadataEvent}
 
-object Aggregates {
-  def init[F[_]: Sync] = Ref.of[F, Map[MetadataEvent, Set[SchemaKey]]](Map.empty)
+object AggregatesSpec {
+  def init[F[_]: Sync] = Ref.of[F, Map[MetadataEvent, EntitiesAndCount]](Map.empty)
 
-  def metadata[F[_]](ref: Ref[F, Map[MetadataEvent, Set[SchemaKey]]]): Metadata[F] =
+  def metadata[F[_]](ref: Ref[F, Map[MetadataEvent, EntitiesAndCount]]): Metadata[F] =
     new Metadata[F] {
       def report: Stream[F, Unit] = Stream.empty.covary[F]
       def observe(events: List[EnrichedEvent]): F[Unit] =

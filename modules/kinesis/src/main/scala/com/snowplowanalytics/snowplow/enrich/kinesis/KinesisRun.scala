@@ -27,8 +27,8 @@ import fs2.aws.kinesis.CommittableRecord
 
 import software.amazon.kinesis.exceptions.ShutdownException
 
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Cloud
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Run
-import com.snowplowanalytics.snowplow.enrich.common.fs2.Telemetry
 
 import com.snowplowanalytics.snowplow.enrich.kinesis.generated.BuildInfo
 
@@ -56,7 +56,7 @@ object KinesisRun {
       List(_ => S3Client.mk[F]),
       getPayload,
       MaxRecordSize,
-      Some(Telemetry.Cloud.Aws),
+      Some(Cloud.Aws),
       getRuntimeRegion
     )
 

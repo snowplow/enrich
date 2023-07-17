@@ -77,8 +77,7 @@ object Dependencies {
     val kafka            = "2.8.2"
     val mskAuth          = "1.1.4"
     val nsqClient        = "1.3.0"
-    val jackson          = "2.13.4.2"
-    val jacksonCbor      = "2.13.4"
+    val jackson          = "2.15.2"
     val config           = "1.3.4"
 
     val decline          = "1.0.0"
@@ -184,7 +183,7 @@ object Dependencies {
     val gcs              = "com.google.cloud"                 %  "google-cloud-storage"              % V.gcpSdk
     val kafkaClients     = "org.apache.kafka"                 %  "kafka-clients"                     % V.kafka
     val mskAuth          = "software.amazon.msk"              %  "aws-msk-iam-auth"                  % V.mskAuth          % Runtime
-    val jacksonCbor      = "com.fasterxml.jackson.dataformat" %  "jackson-dataformat-cbor"           % V.jacksonCbor
+    val jacksonCbor      = "com.fasterxml.jackson.dataformat" %  "jackson-dataformat-cbor"           % V.jackson
     val config           = "com.typesafe"                     %  "config"                            % V.config
     val log4jOverSlf4j   = "org.slf4j"                        %  "log4j-over-slf4j"                  % V.slf4j
     val scopt            = "com.github.scopt"                 %% "scopt"                             % V.scopt

@@ -69,7 +69,7 @@ object Dependencies {
     val collectorPayload = "0.0.0"
     val schemaSniffer    = "0.0.0"
 
-    val awsSdk           = "1.12.129"
+    val awsSdk           = "1.12.506"
     val gcpSdk           = "2.14.0"
     val kinesisClient    = "1.14.5"
     val awsSdk2          = "2.18.7"

@@ -84,14 +84,22 @@ class MetadataSpec extends Specification with CatsIO {
     "parse schemas for event's entities" in {
       val event = new EnrichedEvent()
       event.contexts =
-        """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-0","data":{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}},{"schema":"iglu:org.w3/PerformanceTiming/jsonschema/1-0-0","data":{"navigationStart":1581931694397,"unloadEventStart":1581931696046,"unloadEventEnd":1581931694764,"redirectStart":0,"redirectEnd":0,"fetchStart":1581931694397,"domainLookupStart":1581931694440,"domainLookupEnd":1581931694513,"connectStart":1581931694513,"connectEnd":1581931694665,"secureConnectionStart":1581931694572,"requestStart":1581931694665,"responseStart":1581931694750,"responseEnd":1581931694750,"domLoading":1581931694762,"domInteractive":1581931695963,"domContentLoadedEventStart":1581931696039,"domContentLoadedEventEnd":1581931696039,"domComplete":0,"loadEventStart":0,"loadEventEnd":0}}]}"""
-      val expected =
+        """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[
+             {"schema":"iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-0","data":{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}},
+             {"schema":"iglu:org.w3/PerformanceTiming/jsonschema/1-0-0","data":{"navigationStart":1581931694397,"unloadEventStart":1581931696046,"unloadEventEnd":1581931694764,"redirectStart":0,"redirectEnd":0,"fetchStart":1581931694397,"domainLookupStart":1581931694440,"domainLookupEnd":1581931694513,"connectStart":1581931694513,"connectEnd":1581931694665,"secureConnectionStart":1581931694572,"requestStart":1581931694665,"responseStart":1581931694750,"responseEnd":1581931694750,"domLoading":1581931694762,"domInteractive":1581931695963,"domContentLoadedEventStart":1581931696039,"domContentLoadedEventEnd":1581931696039,"domComplete":0,"loadEventStart":0,"loadEventEnd":0}},
+             {"schema": "iglu:com.snowplowanalytics.snowplow/tracking_scenario/jsonschema/1-0-0", "data": {"id": "tracking_scenario"}}
+           ]}"""
+      val expectedEntitites =
         Seq(
           SchemaKey("com.snowplowanalytics.snowplow", "web_page", "jsonschema", SchemaVer.Full(1, 0, 0)),
           SchemaKey("org.w3", "PerformanceTiming", "jsonschema", SchemaVer.Full(1, 0, 0))
         )
+      val expectedScenarioId = Some("tracking_scenario")
 
-      Metadata.unwrapEntities(event) should containTheSameElementsAs(expected)
+      val (actualEntities, actualScenarioId) = Metadata.unwrapEntities(event)
+
+      actualEntities should containTheSameElementsAs(expectedEntitites)
+      actualScenarioId should beEqualTo(expectedScenarioId)
     }
 
     "recalculate event aggregates" should {
@@ -99,7 +107,7 @@ class MetadataSpec extends Specification with CatsIO {
       "add metadata event to empty state" in {
         val enriched = MetadataSpec.enriched
         Metadata.recalculate(Map.empty, List(enriched)) should containTheSameElementsAs(
-          Seq(MetadataEvent(enriched) -> EntitiesAndCount(Set.empty, 1))
+          Seq(MetadataEvent(enriched, None) -> EntitiesAndCount(Set.empty, 1))
         )
       }
 
@@ -108,9 +116,9 @@ class MetadataSpec extends Specification with CatsIO {
         val other = MetadataSpec.enriched
         val v1_0_1 = SchemaVer.Full(1, 0, 1)
         other.event_version = v1_0_1.asString
-        val previous = Map(MetadataEvent(enriched) -> EntitiesAndCount(Set.empty[SchemaKey], 1))
+        val previous = Map(MetadataEvent(enriched, None) -> EntitiesAndCount(Set.empty[SchemaKey], 1))
         Metadata.recalculate(previous, List(other)) should containTheSameElementsAs(
-          previous.toSeq ++ Seq(MetadataEvent(other) -> EntitiesAndCount(Set.empty[SchemaKey], 1))
+          previous.toSeq ++ Seq(MetadataEvent(other, None) -> EntitiesAndCount(Set.empty[SchemaKey], 1))
         )
       }
 
@@ -126,9 +134,9 @@ class MetadataSpec extends Specification with CatsIO {
         enrichedBis.contexts =
           """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-1","data":{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}}]}"""
         val entityBis = SchemaKey("com.snowplowanalytics.snowplow", "web_page", "jsonschema", SchemaVer.Full(1, 0, 1))
-        val previous = Map(MetadataEvent(enriched) -> EntitiesAndCount(entities, 1))
+        val previous = Map(MetadataEvent(enriched, None) -> EntitiesAndCount(entities, 1))
         Metadata.recalculate(previous, List(enrichedBis)) should containTheSameElementsAs(
-          Seq(MetadataEvent(enriched) -> EntitiesAndCount(entities + entityBis, 2))
+          Seq(MetadataEvent(enriched, None) -> EntitiesAndCount(entities + entityBis, 2))
         )
       }
 
@@ -148,11 +156,47 @@ class MetadataSpec extends Specification with CatsIO {
         enrichedTer.contexts =
           """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-2","data":{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}}]}"""
         val entityTer = SchemaKey("com.snowplowanalytics.snowplow", "web_page", "jsonschema", SchemaVer.Full(1, 0, 2))
-        val previous = Map(MetadataEvent(enriched) -> EntitiesAndCount(entities, 1))
+        val previous = Map(MetadataEvent(enriched, None) -> EntitiesAndCount(entities, 1))
         Metadata.recalculate(previous, List(enrichedBis, enrichedTer)) should containTheSameElementsAs(
-          Seq(MetadataEvent(enriched) -> EntitiesAndCount(entities + entityBis + entityTer, 3))
+          Seq(MetadataEvent(enriched, None) -> EntitiesAndCount(entities + entityBis + entityTer, 3))
         )
       }
+    }
+
+    "put scenario_id in the JSON if defined" in {
+      val json = Metadata.mkWebhookEvent(
+        UUID.randomUUID(),
+        UUID.randomUUID(),
+        Instant.now(),
+        Instant.now(),
+        MetadataEvent(
+          SchemaKey("com.snowplowanalytics.snowplow", "whatever", "jsonschema", SchemaVer.Full(1, 0, 2)),
+          None,
+          None,
+          None,
+          Some("hello")
+        ),
+        42
+      ).toString
+      json.contains("\"scenario_id\" : \"hello\",") must beTrue
+    }
+
+    "put null as scenario_id in the JSON if not defined" in {
+      val json = Metadata.mkWebhookEvent(
+        UUID.randomUUID(),
+        UUID.randomUUID(),
+        Instant.now(),
+        Instant.now(),
+        MetadataEvent(
+          SchemaKey("com.snowplowanalytics.snowplow", "whatever", "jsonschema", SchemaVer.Full(1, 0, 2)),
+          None,
+          None,
+          None,
+          None
+        ),
+        42
+      ).toString
+      json.contains("\"scenario_id\" : null,") must beTrue
     }
   }
 }

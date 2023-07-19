@@ -62,6 +62,9 @@ object Metadata {
         )
     }
 
+  case class TrackingScenarioInfo(schemaVendor: String, schemaName: String, field: String)
+  private val trackingScenarioInfo = TrackingScenarioInfo("com.snowplowanalytics.snowplow", "tracking_scenario", "id")
+
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
     Slf4jLogger.getLogger[F]
 
@@ -171,15 +174,17 @@ object Metadata {
    * @param source - `app_id` for given event
    * @param tracker - `v_tracker` for given event
    * @param platform - The platform the app runs on for given event (`platform` field)
+   * @param scenarioId - Identifier for the tracking scenario the event is being tracked for
    */
   case class MetadataEvent(
     schema: SchemaKey,
     source: Option[String],
     tracker: Option[String],
-    platform: Option[String]
+    platform: Option[String],
+    scenarioId: Option[String]
   )
   object MetadataEvent {
-    def apply(event: EnrichedEvent): MetadataEvent =
+    def apply(event: EnrichedEvent, scenarioId: Option[String]): MetadataEvent =
       MetadataEvent(
         SchemaKey(
           Option(event.event_vendor).getOrElse("unknown-vendor"),
@@ -189,7 +194,8 @@ object Metadata {
         ),
         Option(event.app_id),
         Option(event.v_tracker),
-        Option(event.platform)
+        Option(event.platform),
+        scenarioId
       )
   }
 
@@ -231,7 +237,7 @@ object Metadata {
       } yield MetadataSnapshot(aggregates, periodStart, periodEnd)
   }
 
-  def unwrapEntities(event: EnrichedEvent): Set[SchemaKey] = {
+  def unwrapEntities(event: EnrichedEvent): (Set[SchemaKey], Option[String]) = {
     def unwrap(str: String) =
       decode[SelfDescribingData[Json]](str)
         .traverse(
@@ -243,7 +249,29 @@ object Metadata {
         .flatMap(_.toList)
         .toSet
 
-    unwrap(event.contexts) ++ unwrap(event.derived_contexts)
+    def getScenarioId(str: String): Option[String] =
+      (decode[SelfDescribingData[Json]](str) match {
+        case Right(contexts) =>
+          contexts.data.as[List[SelfDescribingData[Json]]] match {
+            case Right(entities) =>
+              entities.collectFirst { case sdj if sdj.schema.vendor == trackingScenarioInfo.schemaVendor && sdj.schema.name == trackingScenarioInfo.schemaName =>
+                sdj.data.hcursor.downField(trackingScenarioInfo.field).as[String] match {
+                  case Right(scenarioId) =>
+                    Some(scenarioId)
+                  case _ =>
+                    None
+                }
+              }
+            case _ => None
+          }
+        case _ => None
+      }).flatten
+
+    val scenarioId = getScenarioId(event.contexts)
+    val entities = (unwrap(event.contexts) ++ unwrap(event.derived_contexts))
+      .filterNot(schema => schema.vendor == trackingScenarioInfo.schemaVendor && schema.name == trackingScenarioInfo.schemaName)
+
+    (entities, scenarioId)
   }
 
   def schema(event: EnrichedEvent): SchemaKey =
@@ -255,7 +283,11 @@ object Metadata {
     )
 
   def recalculate(previous: Aggregates, events: List[EnrichedEvent]): Aggregates =
-    previous |+| events.map(e => Map(MetadataEvent(e) -> EntitiesAndCount(unwrapEntities(e), 1))).combineAll
+    previous |+| events.map { e =>
+      val (entities, scenarioId) = unwrapEntities(e)
+      Map(MetadataEvent(e, scenarioId) -> EntitiesAndCount(entities, 1))
+    }
+      .combineAll
 
   def mkWebhookEvent(
     organizationId: UUID,
@@ -266,7 +298,7 @@ object Metadata {
     count: Int
   ): SelfDescribingData[Json] =
     SelfDescribingData(
-      SchemaKey("com.snowplowanalytics.console", "observed_event", "jsonschema", SchemaVer.Full(6, 0, 0)),
+      SchemaKey("com.snowplowanalytics.console", "observed_event", "jsonschema", SchemaVer.Full(6, 0, 1)),
       Json.obj(
         "organizationId" -> organizationId.asJson,
         "pipelineId" -> pipelineId.asJson,
@@ -276,6 +308,7 @@ object Metadata {
         "source" -> event.source.getOrElse("unknown-source").asJson,
         "tracker" -> event.tracker.getOrElse("unknown-tracker").asJson,
         "platform" -> event.platform.getOrElse("unknown-platform").asJson,
+        "scenario_id" -> event.scenarioId.asJson,
         "eventVolume" -> Json.fromInt(count),
         "periodStart" -> periodStart.asJson,
         "periodEnd" -> periodEnd.asJson

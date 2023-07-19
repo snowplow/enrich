@@ -1,3 +1,18 @@
+3.8.1 (2023-07-19)
+------------------
+Github Actions: split testing and releasing (#806)
+Bump AWS SDK to 1.12.506 (#805)
+Bump snakeyaml to 1.33 (#804)
+Bump jackson to 2.15.2 (#803)
+Bump uap-java to 1.5.4 (#802)
+Bump log4j to 2.20.0 (#801)
+Remove bench module (#799)
+enrich-nsq: add S3 and GCS dependencies (#793)
+Add eventVolume and platform to observed_event (#795)
+Makes schemas configurable in adapters (#791)
+Update Iglu Scala Client to 1.5.0 (#794)
+common: ignore API/SQL enrichments when failing (#760)
+
 3.8.0 (2023-05-03)
 ------------------
 Take superseding schema into account during validation (#751)

@@ -122,6 +122,14 @@ object BuildSettings {
     buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.nsq.generated"
   )
 
+  lazy val eventbridgeProjectSettings = projectSettings ++ Seq(
+    name := "snowplow-enrich-eventbridge",
+    moduleName := "snowplow-enrich-eventbridge",
+    description := "High-performance streaming enrich app working with Kinesis source and Eventbridge sink, built on top of functional streams",
+    buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
+    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.eventbridge.generated"
+  )
+
   /** Make package (build) metadata available within source code. */
   lazy val scalifiedSettings = Seq(
     Compile / sourceGenerators += Def.task {
@@ -353,6 +361,18 @@ object BuildSettings {
   }
 
   lazy val nsqDistrolessBuildSettings = nsqBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
+
+  lazy val eventbridgeBuildSettings = {
+    // Project
+    eventbridgeProjectSettings ++ buildSettings ++
+      // Build and publish
+      assemblySettings ++ dockerSettingsFocal ++
+      Seq(Docker / packageName := "snowplow-enrich-eventbridge") ++
+      // Tests
+      scoverageSettings ++ noParallelTestExecution ++ Seq(Test / fork := true)
+  }
+
+  lazy val eventbridgeDistrolessBuildSettings = eventbridgeBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
 
   /** Fork a JVM per test in order to not reuse enrichment registries. */
   def oneJVMPerTest(tests: Seq[TestDefinition]): Seq[Tests.Group] =

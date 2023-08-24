@@ -205,6 +205,7 @@ object Dependencies {
     val fs2Io            = "co.fs2"                           %% "fs2-io"                                % V.fs2
     val fs2Kafka         = "com.github.fd4s"                  %% "fs2-kafka"                             % V.fs2Kafka
     val kinesisSdk2      = "software.amazon.awssdk"           %  "kinesis"                               % V.awsSdk2
+    val eventbridgeSdk2  = "software.amazon.awssdk"           %  "eventbridge"                           % V.awsSdk2
     val dynamoDbSdk2     = "software.amazon.awssdk"           %  "dynamodb"                              % V.awsSdk2
     val s3Sdk2           = "software.amazon.awssdk"           %  "s3"                                    % V.awsSdk2
     val cloudwatchSdk2   = "software.amazon.awssdk"           %  "cloudwatch"                            % V.awsSdk2
@@ -370,6 +371,22 @@ object Dependencies {
       fs2BlobS3,
       fs2BlobGcs,
       log4j // for security vulnerabilities
+    )
+
+    val eventbridgeDependencies = Seq(
+      dynamodbSdk,
+      kinesisSdk,
+      fs2BlobS3,
+      fs2Aws,
+      kinesisSdk2,
+      dynamoDbSdk2,
+      s3Sdk2,
+      cloudwatchSdk2,
+      kinesisClient2,
+      stsSdk2,
+      sts,
+      specs2,
+      eventbridgeSdk2
     )
 
     // exclusions

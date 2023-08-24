@@ -308,6 +308,18 @@ object io {
       byteLimit: Int,
       customEndpoint: Option[URI]
     ) extends Output
+    case class Eventbridge(
+      eventBusName: String,
+      eventBusSource: String,
+      region: Option[String],
+      backoffPolicy: BackoffPolicy,
+      throttledBackoffPolicy: BackoffPolicy,
+      recordLimit: Int,
+      byteLimit: Int,
+      customEndpoint: Option[URI],
+      collector: Option[Boolean],
+      payload: Option[Boolean]
+    ) extends Output
     case class RabbitMQ(
       cluster: RabbitMQConfig,
       exchange: String,
@@ -329,6 +341,8 @@ object io {
             }
           case k: Kinesis if k.streamName.isEmpty && k.region.nonEmpty =>
             "streamName needs to be set".asLeft
+          case k: Eventbridge if k.eventBusName.isEmpty && k.region.nonEmpty =>
+            "eventBusName needs to be set".asLeft
           case other => other.asRight
         }
         .emap {

@@ -23,7 +23,7 @@ lazy val root = project.in(file("."))
   .settings(projectSettings)
   .settings(compilerSettings)
   .settings(resolverSettings)
-  .aggregate(common, commonFs2, pubsub, pubsubDistroless, kinesis, kinesisDistroless, streamCommon, streamKinesis, streamKinesisDistroless, streamKafka, streamKafkaDistroless, streamNsq, streamNsqDistroless, streamStdin, kafka, kafkaDistroless, rabbitmq, rabbitmqDistroless, nsq, nsqDistroless)
+  .aggregate(common, commonFs2, pubsub, pubsubDistroless, kinesis, kinesisDistroless, streamCommon, streamKinesis, streamKinesisDistroless, streamKafka, streamKafkaDistroless, streamNsq, streamNsqDistroless, streamStdin, kafka, kafkaDistroless, rabbitmq, rabbitmqDistroless, nsq, nsqDistroless, eventbridge, eventbridgeDistroless)
 
 lazy val common = project
   .in(file("modules/common"))
@@ -224,3 +224,33 @@ lazy val nsqDistroless = project
   .configs(IntegrationTest)
   .settings((IntegrationTest / test) := (IntegrationTest / test).dependsOn(Docker / publishLocal).value)
   .settings((IntegrationTest / testOnly) := (IntegrationTest / testOnly).dependsOn(Docker / publishLocal).evaluated)
+
+lazy val eventbridge = project
+  .in(file("modules/eventbridge"))
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDockerPlugin)
+  .settings(eventbridgeBuildSettings)
+  .settings(libraryDependencies ++= eventbridgeDependencies)
+  .settings(excludeDependencies ++= exclusions)
+  .settings(addCompilerPlugin(betterMonadicFor))
+  .dependsOn(commonFs2)
+  .dependsOn(kinesis)
+
+lazy val eventbridgeDistroless = project
+  .in(file("modules/distroless/eventbridge"))
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDistrolessDockerPlugin)
+  .settings(sourceDirectory := (eventbridge / sourceDirectory).value)
+  .settings(eventbridgeDistrolessBuildSettings)
+  .settings(libraryDependencies ++= eventbridgeDependencies ++ Seq(
+    // integration tests dependencies
+    specs2CEIt,
+    testContainersIt
+  ))
+  .settings(excludeDependencies ++= exclusions)
+  .settings(addCompilerPlugin(betterMonadicFor))
+  .dependsOn(commonFs2 % "compile->compile;it->it")
+  .dependsOn(kinesis % "compile->compile;it->it")
+  .settings(Defaults.itSettings)
+  .configs(IntegrationTest)
+  .settings((IntegrationTest / test) := (IntegrationTest / test).dependsOn(Docker / publishLocal).value)
+  .settings((IntegrationTest / testOnly) := (IntegrationTest / testOnly).dependsOn(Docker / publishLocal).evaluated)
+

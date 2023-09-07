@@ -1,3 +1,9 @@
+3.8.2 (2023-09-07)
+------------------
+Update default schema versions for the Sendgrid adapter to 3-0-0 (#797)
+Change IP lookup enrichment example config (#810)
+Change PII enrichment config example (#811)
+
 3.8.1 (2023-07-19)
 ------------------
 Github Actions: split testing and releasing (#806)

@@ -49,7 +49,8 @@ case class MandrillAdapter(schemas: MandrillSchemas) extends Adapter {
     "reject" -> schemas.messageRejectedSchemaKey,
     "send" -> schemas.messageSentSchemaKey,
     "soft_bounce" -> schemas.messageSoftBouncedSchemaKey,
-    "unsub" -> schemas.recipientUnsubscribedSchemaKey
+    "unsub" -> schemas.recipientUnsubscribedSchemaKey,
+    "delivered" -> schemas.messageDeliveredSchemaKey
   )
 
   /**

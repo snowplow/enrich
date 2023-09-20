@@ -191,6 +191,7 @@ case class MandrillSchemas(
   message_bounced: String,
   message_clicked: String,
   message_delayed: String,
+  message_delivered: String,
   message_marked_as_spam: String,
   message_opened: String,
   message_rejected: String,
@@ -202,6 +203,7 @@ case class MandrillSchemas(
   val messageBouncedSchemaKey: SchemaKey = AdapterConfigHelper.toSchemaKey(message_bounced, "message_bounced", "Mandrill")
   val messageClickedSchemaKey: SchemaKey = AdapterConfigHelper.toSchemaKey(message_clicked, "message_clicked", "Mandrill")
   val messageDelayedSchemaKey: SchemaKey = AdapterConfigHelper.toSchemaKey(message_delayed, "message_delayed", "Mandrill")
+  val messageDeliveredSchemaKey: SchemaKey = AdapterConfigHelper.toSchemaKey(message_delivered, "message_delivered", "Mandrill")
   val messageMarkedAsSpamSchemaKey: SchemaKey =
     AdapterConfigHelper.toSchemaKey(message_marked_as_spam, "message_marked_as_spam", "Mandrill")
   val messageOpenedSchemaKey: SchemaKey = AdapterConfigHelper.toSchemaKey(message_opened, "message_opened", "Mandrill")

@@ -244,15 +244,16 @@ object SpecHelpers extends CatsEffect {
   )
 
   val mandrillSchemas = MandrillSchemas(
-    message_bounced = "iglu:com.mandrill/message_bounced/jsonschema/1-0-1",
-    message_clicked = "iglu:com.mandrill/message_clicked/jsonschema/1-0-1",
-    message_delayed = "iglu:com.mandrill/message_delayed/jsonschema/1-0-1",
-    message_marked_as_spam = "iglu:com.mandrill/message_marked_as_spam/jsonschema/1-0-1",
-    message_opened = "iglu:com.mandrill/message_opened/jsonschema/1-0-1",
-    message_rejected = "iglu:com.mandrill/message_rejected/jsonschema/1-0-0",
-    message_sent = "iglu:com.mandrill/message_sent/jsonschema/1-0-0",
-    message_soft_bounced = "iglu:com.mandrill/message_soft_bounced/jsonschema/1-0-1",
-    recipient_unsubscribed = "iglu:com.mandrill/recipient_unsubscribed/jsonschema/1-0-1"
+    message_bounced = "iglu:com.mandrill/message_bounced/jsonschema/1-0-2",
+    message_clicked = "iglu:com.mandrill/message_clicked/jsonschema/1-0-2",
+    message_delayed = "iglu:com.mandrill/message_delayed/jsonschema/1-0-2",
+    message_delivered = "iglu:com.mandrill/message_delivered/jsonschema/1-0-0",
+    message_marked_as_spam = "iglu:com.mandrill/message_marked_as_spam/jsonschema/1-0-2",
+    message_opened = "iglu:com.mandrill/message_opened/jsonschema/1-0-2",
+    message_rejected = "iglu:com.mandrill/message_rejected/jsonschema/1-0-1",
+    message_sent = "iglu:com.mandrill/message_sent/jsonschema/1-0-1",
+    message_soft_bounced = "iglu:com.mandrill/message_soft_bounced/jsonschema/1-0-2",
+    recipient_unsubscribed = "iglu:com.mandrill/recipient_unsubscribed/jsonschema/1-0-2"
   )
 
   val marketoSchemas = MarketoSchemas(

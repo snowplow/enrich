@@ -22,7 +22,6 @@ import cats.syntax.option._
 import cats.syntax.validated._
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 import com.snowplowanalytics.snowplow.badrows._
 import io.circe._
 import org.joda.time.DateTimeZone
@@ -37,25 +36,21 @@ import Adapter.Adapted
  * Transforms a collector payload which conforms to a known version of the Mailchimp Tracking
  * webhook into raw events.
  */
-object MailchimpAdapter extends Adapter {
+case class MailchimpAdapter(schemas: MailchimpSchemas) extends Adapter {
   // Expected content type for a request body
   private val ContentType = "application/x-www-form-urlencoded"
 
   // Tracker version for a Mailchimp Tracking webhook
   private val TrackerVersion = "com.mailchimp-v1"
 
-  private val Vendor = "com.mailchimp"
-  private val Format = "jsonschema"
-  private val SchemaVersion = SchemaVer.Full(1, 0, 0)
-
   // Schemas for reverse-engineering a Snowplow unstructured event
   private[registry] val EventSchemaMap = Map(
-    "subscribe" -> SchemaKey(Vendor, "subscribe", Format, SchemaVersion),
-    "unsubscribe" -> SchemaKey(Vendor, "unsubscribe", Format, SchemaVersion),
-    "campaign" -> SchemaKey(Vendor, "campaign_sending_status", Format, SchemaVersion),
-    "cleaned" -> SchemaKey(Vendor, "cleaned_email", Format, SchemaVersion),
-    "upemail" -> SchemaKey(Vendor, "email_address_change", Format, SchemaVersion),
-    "profile" -> SchemaKey(Vendor, "profile_update", Format, SchemaVersion)
+    "subscribe" -> schemas.subscribeSchemaKey,
+    "unsubscribe" -> schemas.unsubscribeSchemaKey,
+    "campaign" -> schemas.campaignSendingStatusSchemaKey,
+    "cleaned" -> schemas.cleanedEmailSchemaKey,
+    "upemail" -> schemas.emailAddressChangeSchemaKey,
+    "profile" -> schemas.profileUpdateSchemaKey
   )
 
   // Datetime format used by MailChimp (as we will need to massage)

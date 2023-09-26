@@ -43,6 +43,7 @@ import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, HttpClient,
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{ConfigFile, ParsedConfigs}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{
+  Cloud,
   Concurrency,
   FeatureFlags,
   RemoteAdapterConfigs,
@@ -124,7 +125,7 @@ final case class Environment[F[_], A](
   processor: Processor,
   streamsSettings: Environment.StreamsSettings,
   region: Option[String],
-  cloud: Option[Telemetry.Cloud],
+  cloud: Option[Cloud],
   featureFlags: FeatureFlags
 )
 
@@ -179,7 +180,7 @@ object Environment {
     getPayload: A => Array[Byte],
     processor: Processor,
     maxRecordSize: Int,
-    cloud: Option[Telemetry.Cloud],
+    cloud: Option[Cloud],
     getRegion: => Option[String],
     featureFlags: FeatureFlags
   ): Resource[F, Environment[F, A]] = {
@@ -198,7 +199,7 @@ object Environment {
       metadata <- Resource.eval(metadataReporter[F](file, processor.artifact, http))
       assets = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
       (remoteAdaptersHttpClient, remoteAdapters) <- prepareRemoteAdapters[F](file.remoteAdapters, ec, metrics)
-      adapterRegistry = new AdapterRegistry(remoteAdapters)
+      adapterRegistry = new AdapterRegistry(remoteAdapters, file.adaptersSchemas)
       sem <- Resource.eval(Semaphore(1L))
       assetsState <- Resource.eval(Assets.State.make[F](blocker, sem, clts, assets))
       shifter <- ShiftExecution.ofSingleThread[F]

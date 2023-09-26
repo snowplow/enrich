@@ -27,6 +27,7 @@ import org.specs2.mutable.Specification
 import com.typesafe.config.ConfigFactory
 
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
 
 class ParsedConfigsSpec extends Specification with CatsIO {
   "validateConfig" should {
@@ -89,7 +90,8 @@ class ParsedConfigsSpec extends Specification with CatsIO {
               )
             )
           )
-        )
+        ),
+        adaptersSchemas
       )
 
       ParsedConfigs.validateConfig[IO](configFile).value.map(result => result must beLeft)

@@ -29,7 +29,7 @@ import cats.effect.Clock
 
 import io.circe._
 
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+import com.snowplowanalytics.iglu.core.SchemaKey
 
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
@@ -41,7 +41,7 @@ import utils.{ConversionUtils, HttpClient}
 import Adapter.Adapted
 
 /** Transforms a Cloudfront access log into raw events */
-object CloudfrontAccessLogAdapter extends Adapter {
+case class CloudfrontAccessLogAdapter(schemas: CloudfrontAccessLogSchemas) extends Adapter {
 
   private val FieldNames = List(
     "dateTime",
@@ -90,21 +90,21 @@ object CloudfrontAccessLogAdapter extends Adapter {
       case Some(p) =>
         val _ = client
         val fields = p.split("\t", -1)
-        val schemaVersion = fields.size match {
-          case 12 => SchemaVer.Full(1, 0, 0).asRight // Before 12 Sep 2012
-          case 15 => SchemaVer.Full(1, 0, 1).asRight // 12 Sep 2012
-          case 18 => SchemaVer.Full(1, 0, 2).asRight // 21 Oct 2013
-          case 19 => SchemaVer.Full(1, 0, 3).asRight // 29 Apr 2014
-          case 23 => SchemaVer.Full(1, 0, 4).asRight // 01 Jul 2015
-          case 24 => SchemaVer.Full(1, 0, 5).asRight // 29 Sep 2016
-          case 26 => SchemaVer.Full(1, 0, 6).asRight
+        val schemaKey = fields.size match {
+          case 12 => schemas.with12FieldsSchemaKey.asRight // Before 12 Sep 2012
+          case 15 => schemas.with15FieldsSchemaKey.asRight // 12 Sep 2012
+          case 18 => schemas.with18FieldsSchemaKey.asRight // 21 Oct 2013
+          case 19 => schemas.with19FieldsSchemaKey.asRight // 29 Apr 2014
+          case 23 => schemas.with23FieldsSchemaKey.asRight // 01 Jul 2015
+          case 24 => schemas.with24FieldsSchemaKey.asRight // 29 Sep 2016
+          case 26 => schemas.with26FieldsSchemaKey.asRight
           case n =>
             val msg = s"access log contained $n fields, expected 12, 15, 18, 19, 23, 24 or 26"
             val failure = FailureDetails.AdapterFailure.InputData("body", p.some, msg)
             NonEmptyList.one(failure).asLeft
         }
-        val result = schemaVersion
-          .flatMap(v => buildRawEvents(v, fields.toList, payload))
+        val result = schemaKey
+          .flatMap(s => buildRawEvents(s, fields.toList, payload))
           .toValidated
         Monad[F].pure(result)
       case None =>
@@ -128,7 +128,7 @@ object CloudfrontAccessLogAdapter extends Adapter {
       }
 
   private def buildRawEvents(
-    schemaVersion: SchemaVer.Full,
+    schemaKey: SchemaKey,
     fields: List[String],
     payload: CollectorPayload
   ): Either[NonEmptyList[FailureDetails.AdapterFailure], NonEmptyList[RawEvent]] = {
@@ -162,7 +162,7 @@ object CloudfrontAccessLogAdapter extends Adapter {
       val parameters = toUnstructEventParams(
         TrackerVersion,
         qsParams,
-        SchemaKey("com.amazon.aws.cloudfront", "wd_access_log", "jsonschema", schemaVersion),
+        schemaKey,
         ueJson,
         "srv"
       )

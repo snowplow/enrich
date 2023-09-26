@@ -28,7 +28,7 @@ import retry.syntax.all._
 
 import com.snowplowanalytics.snowplow.badrows.Processor
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{BackoffPolicy, Input, Monitoring, Output, RetryCheckpointing}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{BackoffPolicy, Cloud, Input, Monitoring, Output, RetryCheckpointing}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{CliConfig, ParsedConfigs}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{FileSink, Retries, Source}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.Client
@@ -54,7 +54,7 @@ object Run {
     mkClients: List[Blocker => Resource[F, Client[F]]],
     getPayload: A => Array[Byte],
     maxRecordSize: Int,
-    cloud: Option[Telemetry.Cloud],
+    cloud: Option[Cloud],
     getRegion: => Option[String]
   ): F[ExitCode] =
     CliConfig.command(name, version, description).parse(args) match {

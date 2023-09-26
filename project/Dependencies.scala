@@ -34,8 +34,8 @@ object Dependencies {
     val commonsText      = "1.10.0"
     val jodaTime         = "2.10.1"
     val useragent        = "1.21"
-    val uaParser         = "1.4.3"
-    val snakeYaml        = "1.31" // override transitive dependency to mitigate security vulnerabilities CVE-2022-25857
+    val uaParser         = "1.5.4"
+    val snakeYaml        = "1.33"
     val postgresDriver   = "42.5.2"
     val mysqlConnector   = "8.0.29"
     val hikariCP         = "5.0.1"
@@ -46,7 +46,7 @@ object Dependencies {
     val log4jToSlf4j     = "2.18.0"
     val guava            = "28.1-jre"
     val slf4j            = "2.0.3"
-    val log4j            = "2.17.0" // CVE-2021-44228
+    val log4j            = "2.20.0"
     val thrift           = "0.15.0" // override transitive dependency to mitigate security vulnerabilities
     val sprayJson        = "1.3.6" // override transitive dependency to mitigate security vulnerabilities
     val netty            = "4.1.87.Final" // override transitive dependency to mitigate security vulnerabilities
@@ -63,13 +63,13 @@ object Dependencies {
     val gatlingJsonpath  = "0.6.14"
     val scalaUri         = "1.5.1"
     val badRows          = "2.1.2"
-    val igluClient       = "1.4.0"
+    val igluClient       = "1.5.0"
 
     val snowplowRawEvent = "0.1.0"
     val collectorPayload = "0.0.0"
     val schemaSniffer    = "0.0.0"
 
-    val awsSdk           = "1.12.129"
+    val awsSdk           = "1.12.506"
     val gcpSdk           = "2.14.0"
     val kinesisClient    = "1.14.5"
     val awsSdk2          = "2.18.7"
@@ -77,8 +77,7 @@ object Dependencies {
     val kafka            = "2.8.2"
     val mskAuth          = "1.1.4"
     val nsqClient        = "1.3.0"
-    val jackson          = "2.13.4.2"
-    val jacksonCbor      = "2.13.4"
+    val jackson          = "2.15.2"
     val config           = "1.3.4"
 
     val decline          = "1.0.0"
@@ -184,7 +183,7 @@ object Dependencies {
     val gcs              = "com.google.cloud"                 %  "google-cloud-storage"              % V.gcpSdk
     val kafkaClients     = "org.apache.kafka"                 %  "kafka-clients"                     % V.kafka
     val mskAuth          = "software.amazon.msk"              %  "aws-msk-iam-auth"                  % V.mskAuth          % Runtime
-    val jacksonCbor      = "com.fasterxml.jackson.dataformat" %  "jackson-dataformat-cbor"           % V.jacksonCbor
+    val jacksonCbor      = "com.fasterxml.jackson.dataformat" %  "jackson-dataformat-cbor"           % V.jackson
     val config           = "com.typesafe"                     %  "config"                            % V.config
     val log4jOverSlf4j   = "org.slf4j"                        %  "log4j-over-slf4j"                  % V.slf4j
     val scopt            = "com.github.scopt"                 %% "scopt"                             % V.scopt
@@ -367,7 +366,10 @@ object Dependencies {
     )
 
     val nsqDependencies = Seq(
-      nsqClient
+      nsqClient,
+      fs2BlobS3,
+      fs2BlobGcs,
+      log4j // for security vulnerabilities
     )
 
     // exclusions

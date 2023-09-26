@@ -60,7 +60,8 @@ class HttpApiSpec extends Specification with ValidatedMatchers with Mockito {
       Nil,
       HttpApi("GET", "http://thishostdoesntexist31337:8123/endpoint", 1000, Authentication(None)),
       List(Output("", Some(JsonOutput("")))),
-      Cache(1, 1)
+      Cache(1, 1),
+      ignoreOnError = false
     ).enrichment[Id]
 
     val event = new EnrichedEvent

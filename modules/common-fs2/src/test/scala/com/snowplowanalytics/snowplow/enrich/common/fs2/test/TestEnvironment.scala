@@ -37,6 +37,7 @@ import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 
 import com.snowplowanalytics.snowplow.badrows.BadRow
 
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
@@ -114,7 +115,7 @@ object TestEnvironment extends CatsIO {
 
   val embeddedRegistry = Registry.EmbeddedRegistry
 
-  val adapterRegistry = new AdapterRegistry()
+  val adapterRegistry = new AdapterRegistry(adaptersSchemas = adaptersSchemas)
 
   val http4sClient: Http4sClient[IO] = Http4sClient[IO] { _ =>
     val dsl = new Http4sDsl[IO] {}; import dsl._
@@ -132,8 +133,8 @@ object TestEnvironment extends CatsIO {
       _ <- filesResource(blocker, enrichments.flatMap(_.filesToCache).map(p => Paths.get(p._2)))
       counter <- Resource.eval(Counter.make[IO])
       metrics = Counter.mkCounterMetrics[IO](counter)(Monad[IO], ioClock)
-      aggregates <- Resource.eval(Aggregates.init[IO])
-      metadata = Aggregates.metadata[IO](aggregates)
+      aggregates <- Resource.eval(AggregatesSpec.init[IO])
+      metadata = AggregatesSpec.metadata[IO](aggregates)
       clients = Clients.init[IO](http, Nil)
       sem <- Resource.eval(Semaphore[IO](1L))
       assetsState <- Resource.eval(Assets.State.make(blocker, sem, clients, enrichments.flatMap(_.filesToCache)))

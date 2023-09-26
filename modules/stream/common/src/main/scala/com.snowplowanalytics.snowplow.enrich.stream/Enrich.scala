@@ -79,7 +79,10 @@ trait Enrich {
            )
       tracker = enrichConfig.monitoring.map(c => SnowplowTracking.initializeTracker(c.snowplow))
       enrichmentRegistry <- EnrichmentRegistry.build[Id](enrichmentsConf, BlockerF.noop, ShiftExecution.noop).value
-      adapterRegistry = new AdapterRegistry(prepareRemoteAdapters(enrichConfig.remoteAdapters))
+      adapterRegistry = new AdapterRegistry(
+                          prepareRemoteAdapters(enrichConfig.remoteAdapters),
+                          adaptersSchemas = enrichConfig.adapters
+                        )
       processor = Processor(generated.BuildInfo.name, generated.BuildInfo.version)
       source <- getSource(
                   enrichConfig.streams,
@@ -146,7 +149,15 @@ trait Enrich {
                          )
       (config, resolverArg, enrichmentsArg, forceDownload) = validatedConfig
       parsedConfig <- Either
-                        .catchNonFatal(loadConfigOrThrow[EnrichConfig](config.getConfig("enrich")))
+                        .catchNonFatal(
+                          loadConfigOrThrow[EnrichConfig](
+                            config
+                              .getConfig("enrich")
+                              .withFallback(
+                                ConfigFactory.load("reference.conf")
+                              )
+                          )
+                        )
                         .map(ec => (ec, resolverArg, enrichmentsArg, forceDownload))
                         .leftMap(_.getMessage)
     } yield parsedConfig

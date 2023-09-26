@@ -52,12 +52,13 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
     )
   }
 
+  val adapterWithDefaultSchemas = MandrillAdapter(schemas = mandrillSchemas)
   val ContentType = "application/x-www-form-urlencoded"
 
   def e1 = {
     val bodyStr = "mandrill_events=%5B%7B%22event%22%3A%20%22subscribe%22%7D%5D"
     val expected = List(json"""{"event": "subscribe"}""")
-    MandrillAdapter.payloadBodyToEvents(bodyStr) must beRight(expected)
+    adapterWithDefaultSchemas.payloadBodyToEvents(bodyStr) must beRight(expected)
   }
 
   def e2 =
@@ -80,7 +81,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
           "events_mandrill=something".some,
           "no `mandrill_events` parameter provided"
         ) |> { (_, str, expected) =>
-      MandrillAdapter.payloadBodyToEvents(str) must beLeft(expected)
+      adapterWithDefaultSchemas.payloadBodyToEvents(str) must beLeft(expected)
     }
 
   def e3 = {
@@ -90,7 +91,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
       """[{"event":"click}]""".some,
       "invalid json: exhausted input"
     )
-    MandrillAdapter.payloadBodyToEvents(bodyStr) must beLeft(expected)
+    adapterWithDefaultSchemas.payloadBodyToEvents(bodyStr) must beLeft(expected)
   }
 
   def e4 = { // Spec for nine seperate events being passed and returned.
@@ -214,7 +215,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
         Shared.context
       )
     )
-    MandrillAdapter.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
   }
 
   def e5 = { // Spec for nine seperate events where two have incorrect event names and one does not have event as a parameter
@@ -231,27 +232,27 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
     val expected = NonEmptyList.of(
       FailureDetails.AdapterFailure.SchemaMapping(
         "sending".some,
-        MandrillAdapter.EventSchemaMap,
+        adapterWithDefaultSchemas.EventSchemaMap,
         "no schema associated with the provided type parameter at index 0"
       ),
       FailureDetails.AdapterFailure.SchemaMapping(
         "deferred".some,
-        MandrillAdapter.EventSchemaMap,
+        adapterWithDefaultSchemas.EventSchemaMap,
         "no schema associated with the provided type parameter at index 1"
       ),
       FailureDetails.AdapterFailure.SchemaMapping(
         None,
-        MandrillAdapter.EventSchemaMap,
+        adapterWithDefaultSchemas.EventSchemaMap,
         "cannot determine event type: type parameter not provided at index 2"
       )
     )
-    MandrillAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(expected)
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(expected)
   }
 
   def e6 = {
     val payload =
       CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
-    MandrillAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(
         FailureDetails.AdapterFailure
           .InputData("body", None, "empty body: no events to process")
@@ -263,7 +264,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
     val body = "mandrill_events=%5B%7B%22event%22%3A%20%22subscribe%22%7D%5D"
     val payload =
       CollectorPayload(Shared.api, Nil, None, body.some, Shared.cljSource, Shared.context)
-    MandrillAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(
         FailureDetails.AdapterFailure.InputData(
           "contentType",
@@ -279,7 +280,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
     val ct = "application/x-www-form-urlencoded; charset=utf-8".some
     val payload =
       CollectorPayload(Shared.api, Nil, ct, body.some, Shared.cljSource, Shared.context)
-    MandrillAdapter.toRawEvents(payload, SpecHelpers.client) must beInvalid(
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(
       NonEmptyList.one(
         FailureDetails.AdapterFailure
           .InputData("contentType", ct, "expected application/x-www-form-urlencoded")

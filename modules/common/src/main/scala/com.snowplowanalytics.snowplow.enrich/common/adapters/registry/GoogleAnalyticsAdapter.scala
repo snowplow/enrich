@@ -28,7 +28,7 @@ import io.circe.syntax._
 
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
+import com.snowplowanalytics.iglu.core.{SchemaKey, SelfDescribingData}
 
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
@@ -37,48 +37,56 @@ import utils.HttpClient
 import utils.ConversionUtils._
 import Adapter.Adapted
 
-/**
- * Transforms a collector payload which conforms to a known version of the Google Analytics
- * protocol into raw events.
- */
-object GoogleAnalyticsAdapter extends Adapter {
-
-  // for failure messages
-  private val GaVendor = "com.google.analytics"
-  private val Vendor = s"$GaVendor.measurement-protocol"
-  private val ProtocolVersion = "v1"
-  private val Protocol = s"$Vendor-$ProtocolVersion"
-  private val Format = "jsonschema"
-  private val SchemaVersion = SchemaVer.Full(1, 0, 0)
-
-  private val PageViewHitType = "pageview"
-
+object GoogleAnalyticsAdapter {
   // models a translation between measurement protocol fields and the fields in Iglu schemas
   type Translation = Function1[String, Either[FailureDetails.AdapterFailure, FieldType]]
 
   /**
    * Case class holding the name of the field in the Iglu schemas as well as the necessary
    * translation between the original MP string and the typed value
-   * @param fieldName name of the field in the Iglu schemas
+   *
+   * @param fieldName   name of the field in the Iglu schemas
    * @param translation going from the raw string in the MP payload to the typed data fit to be
-   * incorporated in a schema
+   *                    incorporated in a schema
    */
   final case class KVTranslation(fieldName: String, translation: Translation)
 
   /**
    * Case class representing measurement protocol schema data
-   * @param schemaKey key of the Iglu schema
+   *
+   * @param schemaKey        key of the Iglu schema
    * @param translationTable mapping of measurement protocol field names to field names in Iglu
-   * schemas
+   *                         schemas
    */
   final case class MPData(schemaKey: SchemaKey, translationTable: Map[String, KVTranslation])
 
   // class hierarchy defined to type the measurement protocol payload
   sealed trait FieldType
+
   final case class StringType(s: String) extends FieldType
+
   final case class IntType(i: Int) extends FieldType
+
   final case class DoubleType(d: Double) extends FieldType
+
   final case class BooleanType(b: Boolean) extends FieldType
+}
+
+/**
+ * Transforms a collector payload which conforms to a known version of the Google Analytics
+ * protocol into raw events.
+ */
+case class GoogleAnalyticsAdapter(schemas: GoogleAnalyticsSchemas) extends Adapter {
+  import GoogleAnalyticsAdapter._
+
+  // for failure messages
+  private val GaVendor = "com.google.analytics"
+  private val Vendor = s"$GaVendor.measurement-protocol"
+  private val ProtocolVersion = "v1"
+  private val Protocol = s"$Vendor-$ProtocolVersion"
+
+  private val PageViewHitType = "pageview"
+
   implicit val encodeFieldType: Encoder[FieldType] = new Encoder[FieldType] {
     def apply(f: FieldType): Json =
       f match {
@@ -128,7 +136,7 @@ object GoogleAnalyticsAdapter extends Adapter {
   // unstruct event mappings
   private[registry] val unstructEventData: Map[String, MPData] = Map(
     "pageview" -> MPData(
-      SchemaKey(Vendor, "page_view", Format, SchemaVersion),
+      schemas.pageViewSchemaKey,
       Map(
         "dl" -> idTranslation("documentLocationUrl"),
         "dh" -> idTranslation("documentHostName"),
@@ -137,11 +145,11 @@ object GoogleAnalyticsAdapter extends Adapter {
       )
     ),
     "screenview" -> MPData(
-      SchemaKey(Vendor, "screen_view", Format, SchemaVersion),
+      schemas.screenViewSchemaKey,
       Map("cd" -> idTranslation("screenName"))
     ),
     "event" -> MPData(
-      SchemaKey(Vendor, "event", Format, SchemaVersion),
+      schemas.eventSchemaKey,
       Map(
         "ec" -> idTranslation("category"),
         "ea" -> idTranslation("action"),
@@ -150,7 +158,7 @@ object GoogleAnalyticsAdapter extends Adapter {
       )
     ),
     "transaction" -> MPData(
-      SchemaKey(Vendor, "transaction", Format, SchemaVersion),
+      schemas.transactionSchemaKey,
       Map(
         "ti" -> idTranslation("id"),
         "ta" -> idTranslation("affiliation"),
@@ -162,7 +170,7 @@ object GoogleAnalyticsAdapter extends Adapter {
       )
     ),
     "item" -> MPData(
-      SchemaKey(Vendor, "item", Format, SchemaVersion),
+      schemas.itemSchemaKey,
       Map(
         "ti" -> idTranslation("transactionId"),
         "in" -> idTranslation("name"),
@@ -174,7 +182,7 @@ object GoogleAnalyticsAdapter extends Adapter {
       )
     ),
     "social" -> MPData(
-      SchemaKey(Vendor, "social", Format, SchemaVersion),
+      schemas.socialSchemaKey,
       Map(
         "sn" -> idTranslation("network"),
         "sa" -> idTranslation("action"),
@@ -182,14 +190,14 @@ object GoogleAnalyticsAdapter extends Adapter {
       )
     ),
     "exception" -> MPData(
-      SchemaKey(Vendor, "exception", Format, SchemaVersion),
+      schemas.exceptionSchemaKey,
       Map(
         "exd" -> idTranslation("description"),
         "exf" -> booleanTranslation("isFatal")
       )
     ),
     "timing" -> MPData(
-      SchemaKey(Vendor, "timing", Format, SchemaVersion),
+      schemas.timingSchemaKey,
       Map(
         "utc" -> idTranslation("userTimingCategory"),
         "utv" -> idTranslation("userTimingVariableName"),
@@ -212,16 +220,16 @@ object GoogleAnalyticsAdapter extends Adapter {
     // pageview can be a context too
     val ct = unstructEventData(PageViewHitType) :: List(
       MPData(
-        SchemaKey(GaVendor, "undocumented", Format, SchemaVersion),
+        schemas.undocumentedSchemaKey,
         List("a", "jid", "gjid").map(e => e -> idTranslation(e)).toMap
       ),
       MPData(
-        SchemaKey(GaVendor, "private", Format, SchemaVersion),
+        schemas.privateSchemaKey,
         (List("_v", "_u", "_gid").map(e => e -> idTranslation(e.tail)) ++
           List("_s", "_r").map(e => e -> intTranslation(e.tail))).toMap
       ),
       MPData(
-        SchemaKey(Vendor, "general", Format, SchemaVersion),
+        schemas.generalSchemaKey,
         Map(
           "v" -> idTranslation("protocolVersion"),
           "tid" -> idTranslation("trackingId"),
@@ -232,11 +240,11 @@ object GoogleAnalyticsAdapter extends Adapter {
         )
       ),
       MPData(
-        SchemaKey(Vendor, "user", Format, SchemaVersion),
+        schemas.userSchemaKey,
         Map("cid" -> idTranslation("clientId"), "uid" -> idTranslation("userId"))
       ),
       MPData(
-        SchemaKey(Vendor, "session", Format, SchemaVersion),
+        schemas.sessionSchemaKey,
         Map(
           "sc" -> idTranslation("sessionControl"),
           "uip" -> idTranslation("ipOverride"),
@@ -245,7 +253,7 @@ object GoogleAnalyticsAdapter extends Adapter {
         )
       ),
       MPData(
-        SchemaKey(Vendor, "traffic_source", Format, SchemaVersion),
+        schemas.trafficSourceSchemaKey,
         Map(
           "dr" -> idTranslation("documentReferrer"),
           "cn" -> idTranslation("campaignName"),
@@ -259,7 +267,7 @@ object GoogleAnalyticsAdapter extends Adapter {
         )
       ),
       MPData(
-        SchemaKey(Vendor, "system_info", Format, SchemaVersion),
+        schemas.systemInfoSchemaKey,
         Map(
           "sr" -> idTranslation("screenResolution"),
           "vp" -> idTranslation("viewportSize"),
@@ -271,11 +279,11 @@ object GoogleAnalyticsAdapter extends Adapter {
         )
       ),
       MPData(
-        SchemaKey(Vendor, "link", Format, SchemaVersion),
+        schemas.linkSchemaKey,
         Map("linkid" -> idTranslation("id"))
       ),
       MPData(
-        SchemaKey(Vendor, "app", Format, SchemaVersion),
+        schemas.appSchemaKey,
         Map(
           "an" -> idTranslation("name"),
           "aid" -> idTranslation("id"),
@@ -284,7 +292,7 @@ object GoogleAnalyticsAdapter extends Adapter {
         )
       ),
       MPData(
-        SchemaKey(Vendor, "product_action", Format, SchemaVersion),
+        schemas.productActionSchemaKey,
         Map(
           "pa" -> idTranslation("productAction"),
           "pal" -> idTranslation("productActionList"),
@@ -293,15 +301,15 @@ object GoogleAnalyticsAdapter extends Adapter {
         )
       ),
       MPData(
-        SchemaKey(Vendor, "content_experiment", Format, SchemaVersion),
+        schemas.contentExperimentSchemaKey,
         Map("xid" -> idTranslation("id"), "xvar" -> idTranslation("variant"))
       ),
       MPData(
-        SchemaKey(Vendor, "hit", Format, SchemaVersion),
+        schemas.hitSchemaKey,
         Map("t" -> idTranslation("type"), "ni" -> booleanTranslation("nonInteractionHit"))
       ),
       MPData(
-        SchemaKey(Vendor, "promotion_action", Format, SchemaVersion),
+        schemas.promotionActionSchemaKey,
         Map("promoa" -> idTranslation("promotionAction"))
       )
     )
@@ -317,7 +325,7 @@ object GoogleAnalyticsAdapter extends Adapter {
   // composite context mappings
   private val compositeContextData: List[MPData] = List(
     MPData(
-      SchemaKey(Vendor, "product", Format, SchemaVersion),
+      schemas.productSchemaKey,
       Map(
         s"${valueInFieldNameIndicator}pr" -> intTranslation("index"),
         "prid" -> idTranslation("sku"),
@@ -333,7 +341,7 @@ object GoogleAnalyticsAdapter extends Adapter {
       )
     ),
     MPData(
-      SchemaKey(Vendor, "product_custom_dimension", Format, SchemaVersion),
+      schemas.productCustomDimensionSchemaKey,
       Map(
         s"${valueInFieldNameIndicator}prcd" -> intTranslation("productIndex"),
         s"${valueInFieldNameIndicator}cd" -> intTranslation("dimensionIndex"),
@@ -341,7 +349,7 @@ object GoogleAnalyticsAdapter extends Adapter {
       )
     ),
     MPData(
-      SchemaKey(Vendor, "product_custom_metric", Format, SchemaVersion),
+      schemas.productCustomMetricSchemaKey,
       Map(
         s"${valueInFieldNameIndicator}prcm" -> intTranslation("productIndex"),
         s"${valueInFieldNameIndicator}cm" -> intTranslation("metricIndex"),
@@ -349,14 +357,14 @@ object GoogleAnalyticsAdapter extends Adapter {
       )
     ),
     MPData(
-      SchemaKey(Vendor, "product_impression_list", Format, SchemaVersion),
+      schemas.productImpressionListSchemaKey,
       Map(
         s"${valueInFieldNameIndicator}il" -> intTranslation("index"),
         "ilnm" -> idTranslation("name")
       )
     ),
     MPData(
-      SchemaKey(Vendor, "product_impression", Format, SchemaVersion),
+      schemas.productImpressionSchemaKey,
       Map(
         s"${valueInFieldNameIndicator}ilpi" -> intTranslation("listIndex"),
         s"${valueInFieldNameIndicator}pi" -> intTranslation("productIndex"),
@@ -371,7 +379,7 @@ object GoogleAnalyticsAdapter extends Adapter {
       )
     ),
     MPData(
-      SchemaKey(Vendor, "product_impression_custom_dimension", Format, SchemaVersion),
+      schemas.productImpressionCustomDimensionSchemaKey,
       Map(
         s"${valueInFieldNameIndicator}ilpicd" -> intTranslation("listIndex"),
         s"${valueInFieldNameIndicator}picd" -> intTranslation("productIndex"),
@@ -380,7 +388,7 @@ object GoogleAnalyticsAdapter extends Adapter {
       )
     ),
     MPData(
-      SchemaKey(Vendor, "product_impression_custom_metric", Format, SchemaVersion),
+      schemas.productImpressionCustomMetricSchemaKey,
       Map(
         s"${valueInFieldNameIndicator}ilpicm" -> intTranslation("listIndex"),
         s"${valueInFieldNameIndicator}picm" -> intTranslation("productIndex"),
@@ -389,7 +397,7 @@ object GoogleAnalyticsAdapter extends Adapter {
       )
     ),
     MPData(
-      SchemaKey(Vendor, "promotion", Format, SchemaVersion),
+      schemas.promotionSchemaKey,
       Map(
         s"${valueInFieldNameIndicator}promo" -> intTranslation("index"),
         "promoid" -> idTranslation("id"),
@@ -399,21 +407,21 @@ object GoogleAnalyticsAdapter extends Adapter {
       )
     ),
     MPData(
-      SchemaKey(Vendor, "custom_dimension", Format, SchemaVersion),
+      schemas.customDimensionSchemaKey,
       Map(
         s"${valueInFieldNameIndicator}cd" -> intTranslation("index"),
         "cd" -> idTranslation("value")
       )
     ),
     MPData(
-      SchemaKey(Vendor, "custom_metric", Format, SchemaVersion),
+      schemas.customMetricSchemaKey,
       Map(
         s"${valueInFieldNameIndicator}cm" -> intTranslation("index"),
         "cm" -> doubleTranslation("value")
       )
     ),
     MPData(
-      SchemaKey(Vendor, "content_group", Format, SchemaVersion),
+      schemas.contentGroupSchemaKey,
       Map(
         s"${valueInFieldNameIndicator}cg" -> intTranslation("index"),
         "cg" -> idTranslation("value")

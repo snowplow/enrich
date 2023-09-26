@@ -22,7 +22,6 @@ import cats.syntax.option._
 import cats.syntax.validated._
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 import com.snowplowanalytics.snowplow.badrows._
 import io.circe._
 
@@ -34,7 +33,7 @@ import Adapter.Adapted
  * Transforms a collector payload which conforms to a known version of the PagerDuty Tracking
  * webhook into raw events.
  */
-object PagerdutyAdapter extends Adapter {
+case class PagerdutyAdapter(schemas: PagerdutySchemas) extends Adapter {
   // Tracker version for a PagerDuty webhook
   private val TrackerVersion = "com.pagerduty-v1"
 
@@ -42,8 +41,7 @@ object PagerdutyAdapter extends Adapter {
   private val ContentType = "application/json"
 
   // Event-Schema Map for reverse-engineering a Snowplow unstructured event
-  private val Incident =
-    SchemaKey("com.pagerduty", "incident", "jsonschema", SchemaVer.Full(1, 0, 0))
+  private val Incident = schemas.incidentSchemaKey
   private[registry] val EventSchemaMap = Map(
     "incident.trigger" -> Incident,
     "incident.acknowledge" -> Incident,

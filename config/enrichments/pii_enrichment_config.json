@@ -20,8 +20,8 @@
         {
           "json": {
             "field": "unstruct_event",
-            "schemaCriterion": "iglu:com.mailchimp/subscribe/jsonschema/1-*-*",
-            "jsonPath": "$.data.['email', 'ip_opt']"
+            "schemaCriterion": "iglu:com.google.analytics.measurement-protocol/user/jsonschema/1-*-*",
+            "jsonPath": "$.['clientId', 'userId']"
           }
         }
       ],

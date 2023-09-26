@@ -26,7 +26,6 @@ import org.specs2.matcher.{DataTables, ValidatedMatchers}
 import com.snowplowanalytics.snowplow.badrows._
 
 import loaders._
-import GoogleAnalyticsAdapter._
 import utils.Clock._
 
 import SpecHelpers._
@@ -52,6 +51,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
   breakDownCompositeField should work properly                             $e20
   """
 
+  val adapterWithDefaultSchemas = GoogleAnalyticsAdapter(schemas = googleAnalyticsSchemas)
   val api = CollectorPayload.Api("com.google.analytics.measurement-protocol", "v1")
   val source = CollectorPayload.Source("clj-tomcat", "UTF-8", None)
   val context =
@@ -78,7 +78,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
   def e1 = {
     val payload = CollectorPayload(api, Nil, None, None, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
+    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
     actual must beInvalid(
       NonEmptyList.one(
         FailureDetails.AdapterFailure.InputData("body", None, "empty body")
@@ -89,7 +89,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
   def e2 = {
     val body = "dl=docloc"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
+    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
     actual must beInvalid(
       NonEmptyList.one(
         FailureDetails.AdapterFailure.InputData(
@@ -104,14 +104,14 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
   def e3 = {
     val body = "t=unknown&dl=docloc"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
+    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
     actual must beInvalid(
       NonEmptyList.of(
         FailureDetails.AdapterFailure
           .InputData("t", "unknown".some, "no matching hit type"),
         FailureDetails.AdapterFailure.SchemaMapping(
           "unknown".some,
-          unstructEventData.mapValues(_.schemaKey),
+          adapterWithDefaultSchemas.unstructEventData.mapValues(_.schemaKey),
           "no schema associated with the provided type parameter"
         )
       )
@@ -121,7 +121,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
   def e4 = {
     val body = "t=pageview&dh=host&dp=path"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
+    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
 
     val expectedJson =
       """|{
@@ -146,7 +146,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
   def e5 = {
     val body = "t=pageview&dh=host&cid=id&v=version"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
+    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
 
     val expectedUE =
       """|{
@@ -176,7 +176,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
   def e6 = {
     val body = "t=pageview&dp=path&uip=ip"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
+    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
 
     val expectedUE =
       """|{
@@ -202,7 +202,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
   def e7 = {
     val body = "t=item&in=name&ip=12.228&iq=12&aip=0"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
+    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
 
     val expectedUE =
       """|{
@@ -238,7 +238,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
   def e8 = {
     val body = "t=exception&exd=desc&exf=1&dh=host"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
+    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
 
     val expectedUE =
       """|{
@@ -263,7 +263,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
   def e9 = {
     val body = "t=transaction&ti=tr&cu=EUR&pr12id=ident&pr12cd42=val"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
+    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
 
     val expectedUE =
       """|{
@@ -296,7 +296,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
   def e10 = {
     val body = "t=pageview&dp=path&il12pi42id=s&il12pi42cd36=dim"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
+    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
 
     val expectedUE =
       """|{
@@ -324,7 +324,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
   def e11 = {
     val body = "t=screenview&cd=name&cd12=dim"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
+    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
 
     val expectedUE =
       """|{
@@ -349,7 +349,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
   def e12 = {
     val body = "t=pageview&dp=path&pr1id=s1&pr2id=s2&pr1cd1=v1&pr1cd2=v2"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
+    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
 
     val expectedUE =
       """|{
@@ -383,7 +383,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
   def e13 = {
     val body = "t=pageview&dp=path&promoa=action&promo12id=id"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
+    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
 
     val expectedUE =
       """|{
@@ -411,7 +411,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
   def e14 = {
     val body = "t=pageview&dh=host&dp=path\nt=pageview&dh=host&dp=path"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
+    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
 
     val expectedJson =
       """|{
@@ -438,7 +438,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
     val body =
       "t=pageview&dh=host&dp=path&cu=EUR&il1pi1pr=1&il1pi1nm=name1&il1pi1ps=1&il1pi1ca=cat1&il1pi1id=id1&il1pi1br=brand1&il1pi2pr=2&il1pi2nm=name2&il1pi2ps=2&il1pi2ca=cat2&il1pi2id=id2&il1pi2br=brand2&il2pi1pr=21&il2pi1nm=name21&il2pi1ps=21&il2pi1ca=cat21&il2pi1id=id21&il2pi1br=brand21"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
-    val actual = toRawEvents(payload, SpecHelpers.client)
+    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
 
     val expectedJson =
       """|{
@@ -482,22 +482,22 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
           """(pr|promo|il|cd|cm|cg)(\d+)([a-zA-Z]*)(\d*)([a-zA-Z]*)(\d*)$"""
       )
     val s = Seq(
-      breakDownCompField("pr") must beLeft(errorMessage("pr")),
-      breakDownCompField("pr12id") must beRight((List("pr", "id"), List("12"))),
-      breakDownCompField("12") must beLeft(errorMessage("12")),
-      breakDownCompField("") must beLeft(
+      adapterWithDefaultSchemas.breakDownCompField("pr") must beLeft(errorMessage("pr")),
+      adapterWithDefaultSchemas.breakDownCompField("pr12id") must beRight((List("pr", "id"), List("12"))),
+      adapterWithDefaultSchemas.breakDownCompField("12") must beLeft(errorMessage("12")),
+      adapterWithDefaultSchemas.breakDownCompField("") must beLeft(
         FailureDetails.AdapterFailure
           .InputData("", None, "cannot parse empty field name")
       ),
-      breakDownCompField("pr12id", "identifier", "IF") must beRight(
+      adapterWithDefaultSchemas.breakDownCompField("pr12id", "identifier", "IF") must beRight(
         Map("IFpr" -> "12", "prid" -> "identifier")
       ),
-      breakDownCompField("pr12cm42", "value", "IF") must beRight(
+      adapterWithDefaultSchemas.breakDownCompField("pr12cm42", "value", "IF") must beRight(
         Map("IFprcm" -> "12", "IFcm" -> "42", "prcm" -> "value")
       ),
-      breakDownCompField("pr", "value", "IF") must beLeft(errorMessage("pr")),
-      breakDownCompField("pr", "", "IF") must beLeft(errorMessage("pr")),
-      breakDownCompField("pr12", "val", "IF") must beRight(Map("IFpr" -> "12", "pr" -> "val"))
+      adapterWithDefaultSchemas.breakDownCompField("pr", "value", "IF") must beLeft(errorMessage("pr")),
+      adapterWithDefaultSchemas.breakDownCompField("pr", "", "IF") must beLeft(errorMessage("pr")),
+      adapterWithDefaultSchemas.breakDownCompField("pr12", "val", "IF") must beRight(Map("IFpr" -> "12", "pr" -> "val"))
     )
     s.reduce(_ and _)
   }

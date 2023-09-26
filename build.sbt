@@ -37,7 +37,7 @@ lazy val streamCommon = project
   .settings(streamCommonBuildSettings)
   .settings(libraryDependencies ++= streamCommonDependencies)
   .settings(excludeDependencies ++= exclusions)
-  .dependsOn(common)
+  .dependsOn(common % "test->test;compile->compile")
 
 lazy val streamKinesis = project
   .in(file("modules/stream/kinesis"))
@@ -105,7 +105,7 @@ lazy val commonFs2 = project
   .settings(Defaults.itSettings)
   .configs(IntegrationTest)
   .settings(addCompilerPlugin(betterMonadicFor))
-  .dependsOn(common)
+  .dependsOn(common % "test->test;compile->compile")
 
 
 lazy val pubsub = project
@@ -178,11 +178,6 @@ lazy val kafkaDistroless = project
   .settings(excludeDependencies ++= exclusions)
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(commonFs2)
-
-lazy val bench = project
-  .in(file("modules/bench"))
-  .dependsOn(pubsub % "test->test")
-  .enablePlugins(JmhPlugin)
 
 lazy val rabbitmq = project
   .in(file("modules/rabbitmq"))

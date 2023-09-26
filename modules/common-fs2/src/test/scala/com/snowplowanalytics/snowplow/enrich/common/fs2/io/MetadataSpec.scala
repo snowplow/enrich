@@ -27,19 +27,25 @@ import org.specs2.mutable.Specification
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Metadata => MetadataConfig}
-import Metadata.{MetadataEvent, MetadataReporter}
+import Metadata.{EntitiesAndCount, MetadataEvent, MetadataReporter}
 
 class MetadataSpec extends Specification with CatsIO {
   case class Report(
     periodStart: Instant,
     periodEnd: Instant,
     event: SchemaKey,
-    entities: Set[SchemaKey]
+    entitiesAndCount: EntitiesAndCount
   )
   case class TestReporter[F[_]](state: Ref[F, List[Report]]) extends MetadataReporter[F] {
-    def report(periodStart: Instant, periodEnd: Instant)(event: MetadataEvent, mappings: Map[MetadataEvent, Set[SchemaKey]]): F[Unit] =
+
+    def report(
+      periodStart: Instant,
+      periodEnd: Instant,
+      event: MetadataEvent,
+      entitiesAndCount: EntitiesAndCount
+    ): F[Unit] =
       state.update(
-        _ :+ Report(periodStart, periodEnd, event.schema, mappings.find(_._1 == event).map(_._2).toSet.flatten)
+        _ :+ Report(periodStart, periodEnd, event.schema, entitiesAndCount)
       )
   }
 
@@ -65,12 +71,13 @@ class MetadataSpec extends Specification with CatsIO {
         res.map(_.event) should containTheSameElementsAs(
           List(SchemaKey("unknown-vendor", "unknown-name", "unknown-format", SchemaVer.Full(0, 0, 0)))
         )
-        res.flatMap(_.entities) should containTheSameElementsAs(
+        res.flatMap(_.entitiesAndCount.entities) should containTheSameElementsAs(
           Seq(
             SchemaKey("com.snowplowanalytics.snowplow", "web_page", "jsonschema", SchemaVer.Full(1, 0, 0)),
             SchemaKey("org.w3", "PerformanceTiming", "jsonschema", SchemaVer.Full(1, 0, 0))
           )
         )
+        res.map(_.entitiesAndCount.count) should beEqualTo(List(1))
       }
     }
 
@@ -92,7 +99,7 @@ class MetadataSpec extends Specification with CatsIO {
       "add metadata event to empty state" in {
         val enriched = MetadataSpec.enriched
         Metadata.recalculate(Map.empty, List(enriched)) should containTheSameElementsAs(
-          Seq((MetadataEvent(enriched) -> Set.empty))
+          Seq(MetadataEvent(enriched) -> EntitiesAndCount(Set.empty, 1))
         )
       }
 
@@ -101,9 +108,9 @@ class MetadataSpec extends Specification with CatsIO {
         val other = MetadataSpec.enriched
         val v1_0_1 = SchemaVer.Full(1, 0, 1)
         other.event_version = v1_0_1.asString
-        val previous = Map(MetadataEvent(enriched) -> Set.empty[SchemaKey])
+        val previous = Map(MetadataEvent(enriched) -> EntitiesAndCount(Set.empty[SchemaKey], 1))
         Metadata.recalculate(previous, List(other)) should containTheSameElementsAs(
-          previous.toSeq ++ Seq(MetadataEvent(other) -> Set.empty[SchemaKey])
+          previous.toSeq ++ Seq(MetadataEvent(other) -> EntitiesAndCount(Set.empty[SchemaKey], 1))
         )
       }
 
@@ -119,9 +126,9 @@ class MetadataSpec extends Specification with CatsIO {
         enrichedBis.contexts =
           """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-1","data":{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}}]}"""
         val entityBis = SchemaKey("com.snowplowanalytics.snowplow", "web_page", "jsonschema", SchemaVer.Full(1, 0, 1))
-        val previous = Map(MetadataEvent(enriched) -> entities)
+        val previous = Map(MetadataEvent(enriched) -> EntitiesAndCount(entities, 1))
         Metadata.recalculate(previous, List(enrichedBis)) should containTheSameElementsAs(
-          Seq(MetadataEvent(enriched) -> (entities + entityBis))
+          Seq(MetadataEvent(enriched) -> EntitiesAndCount(entities + entityBis, 2))
         )
       }
 
@@ -141,9 +148,9 @@ class MetadataSpec extends Specification with CatsIO {
         enrichedTer.contexts =
           """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-2","data":{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}}]}"""
         val entityTer = SchemaKey("com.snowplowanalytics.snowplow", "web_page", "jsonschema", SchemaVer.Full(1, 0, 2))
-        val previous = Map(MetadataEvent(enriched) -> entities)
+        val previous = Map(MetadataEvent(enriched) -> EntitiesAndCount(entities, 1))
         Metadata.recalculate(previous, List(enrichedBis, enrichedTer)) should containTheSameElementsAs(
-          Seq(MetadataEvent(enriched) -> (entities + entityBis + entityTer))
+          Seq(MetadataEvent(enriched) -> EntitiesAndCount(entities + entityBis + entityTer, 3))
         )
       }
     }

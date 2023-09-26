@@ -20,11 +20,13 @@ import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.Registry
 import com.snowplowanalytics.snowplow.badrows.{BadRow, Processor}
 import com.snowplowanalytics.snowplow.enrich.common.EtlPipeline
-import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.loaders._
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent.toPartiallyEnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
+import com.snowplowanalytics.snowplow.enrich.common.fs2.SpecHelpers._
 import com.snowplowanalytics.snowplow.eventgen.runGen
 import com.snowplowanalytics.snowplow.eventgen.enrich.{SdkEvent => GenSdkEvent}
 import org.specs2.matcher.MustMatchers.{left => _, right => _}
@@ -173,7 +175,7 @@ class EventGenEtlPipelineSpec extends Specification with CatsIO {
 
   val rng: Random = new scala.util.Random(1L)
 
-  val adapterRegistry = new AdapterRegistry()
+  val adapterRegistry = new AdapterRegistry(adaptersSchemas = adaptersSchemas)
   val enrichmentReg = EnrichmentRegistry[IO]()
   val igluCentral = Registry.IgluCentral
   val client = IgluCirceClient.parseDefault[IO](json"""

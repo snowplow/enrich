@@ -40,10 +40,11 @@ import SqlQueryEnrichmentIntegrationTest._
 class SqlQueryEnrichmentIntegrationTest extends Specification {
   def is =
     skipAllUnless(continuousIntegration) ^ s2"""
-  Basic case        $e1
-  All-features test $e2
-  Null test case    $e3
-  Invalid creds     $e4
+  Basic case                      $e1
+  All-features test               $e2
+  Null test case                  $e3
+  Invalid creds                   $e4
+  Invalid creds - ignore error    $e5
   """
 
   val SCHEMA_KEY =
@@ -415,7 +416,22 @@ class SqlQueryEnrichmentIntegrationTest extends Specification {
   }
 
   def e4 = {
-    val configuration = json"""
+    val result = invalidCreds(ignoreOnError = false)
+    result must beLeft.like {
+      case NonEmptyList(one, two :: Nil)
+          if one.toString.contains("Error while executing the sql lookup") &&
+            two.toString.contains("FATAL: password authentication failed for user") =>
+        ok
+      case left => ko(s"error(s) don't contain the expected error messages: $left")
+    }
+  }
+
+  def e5 =
+    invalidCreds(ignoreOnError = true) must beRight(List.empty)
+
+  private def invalidCreds(ignoreOnError: Boolean) = {
+    val configuration =
+      json"""
       {
         "vendor": "com.snowplowanalytics.snowplow.enrichments",
         "name": "sql_query_enrichment_config",
@@ -446,21 +462,14 @@ class SqlQueryEnrichmentIntegrationTest extends Specification {
           "cache": {
             "size": 3000,
             "ttl": 60
-          }
+          },
+         "ignoreOnError": $ignoreOnError
         }
       }
       """
 
     val event = new EnrichedEvent
     val config = SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[Id](BlockerF.noop, ShiftExecution.noop))
-    val context = config.toEither.flatMap(_.lookup(event, Nil, Nil, None).toEither)
-
-    context must beLeft.like {
-      case NonEmptyList(one, two :: Nil)
-          if one.toString.contains("Error while executing the sql lookup") &&
-            two.toString.contains("FATAL: password authentication failed for user") =>
-        ok
-      case left => ko(s"error(s) don't contain the expected error messages: $left")
-    }
+    config.toEither.flatMap(_.lookup(event, Nil, Nil, None).toEither)
   }
 }

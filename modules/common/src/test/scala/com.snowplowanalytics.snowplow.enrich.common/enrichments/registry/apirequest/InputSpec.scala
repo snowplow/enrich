@@ -252,7 +252,8 @@ class InputSpec extends Specification with ValidatedMatchers {
       List(input1, input2),
       HttpApi("GET", uriTemplate, 1000, Authentication(None)),
       List(Output("iglu:someschema", JsonOutput("$").some)),
-      Cache(10, 5)
+      Cache(10, 5),
+      ignoreOnError = false
     ).enrichment[Id]
     val event = new EnrichedEvent
     event.setUser_id("chuwy")

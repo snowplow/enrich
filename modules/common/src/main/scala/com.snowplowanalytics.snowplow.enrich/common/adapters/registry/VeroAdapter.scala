@@ -22,7 +22,6 @@ import cats.syntax.validated._
 
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
 import com.snowplowanalytics.snowplow.badrows._
 
@@ -33,24 +32,20 @@ import utils.{HttpClient, JsonUtils}
 import Adapter.Adapted
 
 /** Transforms a collector payload which fits the Vero webhook into raw events. */
-object VeroAdapter extends Adapter {
+case class VeroAdapter(schemas: VeroSchemas) extends Adapter {
   // Tracker version for an Vero webhook
   private val TrackerVersion = "com.getvero-v1"
 
-  private val Vendor = "com.getvero"
-  private val Format = "jsonschema"
-  private val SchemaVersion = SchemaVer.Full(1, 0, 0)
-
   // Schemas for reverse-engineering a Snowplow unstructured event
   private val EventSchemaMap = Map(
-    "bounced" -> SchemaKey(Vendor, "bounced", Format, SchemaVersion),
-    "clicked" -> SchemaKey(Vendor, "clicked", Format, SchemaVersion),
-    "delivered" -> SchemaKey(Vendor, "delivered", Format, SchemaVersion),
-    "opened" -> SchemaKey(Vendor, "opened", Format, SchemaVersion),
-    "sent" -> SchemaKey(Vendor, "sent", Format, SchemaVersion),
-    "unsubscribed" -> SchemaKey(Vendor, "unsubscribed", Format, SchemaVersion),
-    "user_created" -> SchemaKey(Vendor, "created", Format, SchemaVersion),
-    "user_updated" -> SchemaKey(Vendor, "updated", Format, SchemaVersion)
+    "bounced" -> schemas.bouncedSchemaKey,
+    "clicked" -> schemas.clickedSchemaKey,
+    "delivered" -> schemas.deliveredSchemaKey,
+    "opened" -> schemas.openedSchemaKey,
+    "sent" -> schemas.sentSchemaKey,
+    "unsubscribed" -> schemas.unsubscribedSchemaKey,
+    "user_created" -> schemas.createdSchemaKey,
+    "user_updated" -> schemas.updatedSchemaKey
   )
 
   /**

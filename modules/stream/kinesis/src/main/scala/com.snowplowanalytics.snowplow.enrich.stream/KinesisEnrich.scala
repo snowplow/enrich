@@ -75,7 +75,10 @@ object KinesisEnrich extends Enrich {
            )
       enrichmentRegistry <- EnrichmentRegistry.build[Id](enrichmentsConf, BlockerF.noop, ShiftExecution.noop).value
       tracker = enrichConfig.monitoring.map(c => SnowplowTracking.initializeTracker(c.snowplow))
-      adapterRegistry = new AdapterRegistry(prepareRemoteAdapters(enrichConfig.remoteAdapters))
+      adapterRegistry = new AdapterRegistry(
+                          prepareRemoteAdapters(enrichConfig.remoteAdapters),
+                          adaptersSchemas = enrichConfig.adapters
+                        )
       processor = Processor(generated.BuildInfo.name, generated.BuildInfo.version)
       source <- getSource(
                   enrichConfig.streams,

@@ -31,7 +31,6 @@ import cats.effect.Clock
 
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
 import io.circe._
@@ -48,21 +47,17 @@ import Adapter.Adapted
  * Transforms a collector payload which conforms to a known version of the Olark Tracking webhook
  * into raw events.
  */
-object OlarkAdapter extends Adapter {
+case class OlarkAdapter(schemas: OlarkSchemas) extends Adapter {
   // Tracker version for an Olark Tracking webhook
   private val TrackerVersion = "com.olark-v1"
 
   // Expected content type for a request body
   private val ContentType = "application/x-www-form-urlencoded"
 
-  private val Vendor = "com.olark"
-  private val Format = "jsonschema"
-  private val SchemaVersion = SchemaVer.Full(1, 0, 0)
-
   // Schemas for reverse-engineering a Snowplow unstructured event
   private val EventSchemaMap = Map(
-    "transcript" -> SchemaKey(Vendor, "transcript", Format, SchemaVersion),
-    "offline_message" -> SchemaKey(Vendor, "offline_message", Format, SchemaVersion)
+    "transcript" -> schemas.transcriptSchemaKey,
+    "offline_message" -> schemas.offlineMessageSchemaKey
   )
 
   /**

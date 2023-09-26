@@ -22,7 +22,6 @@ import cats.syntax.option._
 import cats.syntax.validated._
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 import com.snowplowanalytics.snowplow.badrows._
 
 import loaders.CollectorPayload
@@ -33,31 +32,26 @@ import Adapter.Adapted
  * Transforms a collector payload which conforms to a known version of the Sendgrid Tracking webhook
  * into raw events.
  */
-object SendgridAdapter extends Adapter {
+case class SendgridAdapter(schemas: SendgridSchemas) extends Adapter {
   // Expected content type for a request body
   private val ContentType = "application/json"
 
   // Tracker version for a Sendgrid Tracking webhook
   private val TrackerVersion = "com.sendgrid-v3"
 
-  private val Vendor = "com.sendgrid"
-  private val Format = "jsonschema"
-  private val SchemaVersion = SchemaVer.Full(2, 0, 0)
-
-  // Schemas for reverse-engineering a Snowplow unstructured event
+  // Schemas for reverse-engineering a Snowplow self-describing event
   private[registry] val EventSchemaMap = Map(
-    "processed" -> SchemaKey(Vendor, "processed", Format, SchemaVersion),
-    "dropped" -> SchemaKey(Vendor, "dropped", Format, SchemaVersion),
-    "delivered" -> SchemaKey(Vendor, "delivered", Format, SchemaVersion),
-    "deferred" -> SchemaKey(Vendor, "deferred", Format, SchemaVersion),
-    "bounce" -> SchemaKey(Vendor, "bounce", Format, SchemaVersion),
-    "open" -> SchemaKey(Vendor, "open", Format, SchemaVersion),
-    "click" -> SchemaKey(Vendor, "click", Format, SchemaVersion),
-    "spamreport" -> SchemaKey(Vendor, "spamreport", Format, SchemaVersion),
-    "unsubscribe" -> SchemaKey(Vendor, "unsubscribe", Format, SchemaVersion),
-    "group_unsubscribe" ->
-      SchemaKey(Vendor, "group_unsubscribe", Format, SchemaVersion),
-    "group_resubscribe" -> SchemaKey(Vendor, "group_resubscribe", Format, SchemaVersion)
+    "processed" -> schemas.processedSchemaKey,
+    "dropped" -> schemas.droppedSchemaKey,
+    "delivered" -> schemas.deliveredSchemaKey,
+    "deferred" -> schemas.deferredSchemaKey,
+    "bounce" -> schemas.bounceSchemaKey,
+    "open" -> schemas.openSchemaKey,
+    "click" -> schemas.clickSchemaKey,
+    "spamreport" -> schemas.spamreportSchemaKey,
+    "unsubscribe" -> schemas.unsubscribeSchemaKey,
+    "group_unsubscribe" -> schemas.groupUnsubscribeSchemaKey,
+    "group_resubscribe" -> schemas.groupResubscribeSchemaKey
   )
 
   /**

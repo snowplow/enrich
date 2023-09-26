@@ -64,7 +64,7 @@ class IpLookupsEnrichmentSpec extends Specification with DataTables {
       "blank IP address" !! "" ! "AddressNotFoundException".asLeft.some |
       "null IP address" !! null ! "AddressNotFoundException".asLeft.some |
       "invalid IP address #1" !! "localhost" ! "AddressNotFoundException".asLeft.some |
-      "invalid IP address #2" !! "hello" ! "UnknownHostException".asLeft.some |
+      "invalid IP address #2" !! "hello" ! "AddressNotFoundException".asLeft.some |
       "valid IP address" !! "175.16.199.0" !
         IpLocation( // Taken from scala-maxmind-geoip. See that test suite for other valid IP addresses
           countryCode = "CN",

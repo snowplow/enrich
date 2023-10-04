@@ -14,7 +14,7 @@ package com.snowplowanalytics.snowplow.enrich.common
 
 import cats.Monad
 import cats.data.{Validated, ValidatedNel}
-import cats.effect.Clock
+import cats.effect.{Clock, Sync}
 import cats.implicits._
 
 import com.snowplowanalytics.iglu.client.IgluCirceClient
@@ -24,6 +24,9 @@ import com.snowplowanalytics.snowplow.badrows.{BadRow, Processor}
 
 import org.joda.time.DateTime
 
+import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
+
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.{EnrichmentManager, EnrichmentRegistry}
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
@@ -32,6 +35,9 @@ import com.snowplowanalytics.snowplow.enrich.common.utils.HttpClient
 
 /** Expresses the end-to-end event pipeline supported by the Scala Common Enrich project. */
 object EtlPipeline {
+
+  private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
+    Slf4jLogger.getLogger[F]
 
   /*
    * Feature flags available in the current version of Enrich
@@ -59,7 +65,7 @@ object EtlPipeline {
    * @return the ValidatedMaybeCanonicalOutput. Thanks to flatMap, will include any validation
    * errors contained within the ValidatedMaybeCanonicalInput
    */
-  def processEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](
+  def processEvents[F[_]: RegistryLookup: Clock: HttpClient: Sync](
     adapterRegistry: AdapterRegistry,
     enrichmentRegistry: EnrichmentRegistry[F],
     client: IgluCirceClient[F],
@@ -75,19 +81,20 @@ object EtlPipeline {
           .toRawEvents(payload, client, processor)
           .flatMap {
             case Validated.Valid(rawEvents) =>
-              rawEvents.toList.traverse { event =>
-                EnrichmentManager
-                  .enrichEvent(
-                    enrichmentRegistry,
-                    client,
-                    processor,
-                    etlTstamp,
-                    event,
-                    featureFlags,
-                    invalidCount
-                  )
-                  .toValidated
-              }
+              Logger[F].debug(s"Collector payload contains ${rawEvents.size} events") *>
+                rawEvents.toList.traverse { event =>
+                  EnrichmentManager
+                    .enrichEvent(
+                      enrichmentRegistry,
+                      client,
+                      processor,
+                      etlTstamp,
+                      event,
+                      featureFlags,
+                      invalidCount
+                    )
+                    .toValidated
+                }
             case Validated.Invalid(badRow) =>
               Monad[F].pure(List(badRow.invalid[EnrichedEvent]))
           }

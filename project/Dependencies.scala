@@ -243,6 +243,7 @@ object Dependencies {
       iabClient,
       yauaa,
       log4jToSlf4j,
+      log4cats,
       guava,
       circeOptics,
       circeJackson,

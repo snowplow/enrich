@@ -82,6 +82,16 @@ object Enrich {
         .evalTap(chunk => Logger[F].debug(s"Starting to process chunk of size ${chunk.size}"))
         .evalTap(chunk => env.metrics.rawCount(chunk.size))
         .map(chunk => chunk.map(a => (a, env.getPayload(a))))
+        .evalTap { chunk =>
+          val maxSize = chunk.foldLeft(0) {
+            case (previousMax, event) =>
+              if (event._2.length > previousMax)
+                event._2.length
+              else
+                previousMax
+          }
+          Logger[F].debug(s"The biggest event in chunk of size ${chunk.size} has $maxSize bytes")
+        }
         .evalMap(chunk =>
           for {
             begin <- Clock[F].realTime(TimeUnit.MILLISECONDS)

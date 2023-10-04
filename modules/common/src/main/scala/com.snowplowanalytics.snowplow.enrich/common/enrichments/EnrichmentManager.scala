@@ -20,8 +20,11 @@ import org.joda.time.DateTime
 import io.circe.Json
 import cats.{Applicative, Monad}
 import cats.data.{EitherT, NonEmptyList, OptionT, StateT}
-import cats.effect.Clock
+import cats.effect.{Clock, Sync}
 import cats.implicits._
+
+import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import com.snowplowanalytics.refererparser._
 
@@ -47,6 +50,9 @@ import utils.{IgluUtils, ConversionUtils => CU}
 
 object EnrichmentManager {
 
+  private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
+    Slf4jLogger.getLogger[F]
+
   /**
    * Run the enrichment workflow
    * @param registry Contain configuration for all enrichments to apply
@@ -58,7 +64,7 @@ object EnrichmentManager {
    * @param invalidCount Function to increment the count of invalid events
    * @return Enriched event or bad row if a problem occured
    */
-  def enrichEvent[F[_]: Monad: RegistryLookup: Clock](
+  def enrichEvent[F[_]: RegistryLookup: Clock: Sync](
     registry: EnrichmentRegistry[F],
     client: IgluCirceClient[F],
     processor: Processor,
@@ -69,11 +75,14 @@ object EnrichmentManager {
   ): EitherT[F, BadRow, EnrichedEvent] =
     for {
       enriched <- EitherT.fromEither[F](setupEnrichedEvent(raw, etlTstamp, processor))
+      _ <- EitherT.liftF(Logger[F].debug(s"Validating contexts of ${enriched.event_id}"))
       extractResult <- IgluUtils.extractAndValidateInputJsons(enriched, client, raw, processor)
+      _ <- EitherT.liftF(Logger[F].debug(s"Contexts of ${enriched.event_id} validated"))
       _ = {
         ME.formatUnstructEvent(extractResult.unstructEvent).foreach(e => enriched.unstruct_event = e)
         ME.formatContexts(extractResult.contexts).foreach(c => enriched.contexts = c)
       }
+      _ <- EitherT.liftF(Logger[F].debug(s"Running the enrichments for ${enriched.event_id}"))
       enrichmentsContexts <- runEnrichments(
                                registry,
                                processor,
@@ -83,9 +92,12 @@ object EnrichmentManager {
                                extractResult.unstructEvent,
                                featureFlags.legacyEnrichmentOrder
                              )
+      _ <- EitherT.liftF(Logger[F].debug(s"Enrichments run for ${enriched.event_id}"))
       _ = ME.formatContexts(enrichmentsContexts ::: extractResult.validationInfoContexts).foreach(c => enriched.derived_contexts = c)
+      _ <- EitherT.liftF(Logger[F].debug(s"Validating the contexts added by enrichments for ${enriched.event_id}"))
       _ <- IgluUtils
              .validateEnrichmentsContexts[F](client, enrichmentsContexts, raw, processor, enriched)
+      _ <- EitherT.liftF(Logger[F].debug(s"Contexts added by enrichments validated for ${enriched.event_id}"))
       _ <- EitherT.rightT[F, BadRow](
              anonIp(enriched, registry.anonIp).foreach(enriched.user_ipaddress = _)
            )

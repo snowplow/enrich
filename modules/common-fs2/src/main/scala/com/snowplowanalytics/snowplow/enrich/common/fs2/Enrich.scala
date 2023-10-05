@@ -22,6 +22,7 @@ import scala.concurrent.duration._
 import org.joda.time.DateTime
 
 import cats.data.{NonEmptyList, ValidatedNel}
+import cats.data.Validated
 import cats.{Monad, Parallel}
 import cats.implicits._
 
@@ -85,10 +86,23 @@ object Enrich {
         .evalMap(chunk =>
           for {
             begin <- Clock[F].realTime(TimeUnit.MILLISECONDS)
-            result <-
-              env.semaphore.withPermit(
-                chunk.toList.map { case (orig, bytes) => enrich(bytes).map((orig, _)) }.parSequenceN(env.streamsSettings.concurrency.enrich)
-              )
+            result <- env.semaphore.withPermit(
+                        chunk.toList
+                          .map {
+                            case (orig, bytes) =>
+                              val timeout = 1.minute
+                              val badRow = genericBadRow(
+                                bytes,
+                                Instant.now(),
+                                new RuntimeException(s"Enriching the event timed out ($timeout)"),
+                                env.processor
+                              )
+                              enrich(bytes)
+                                .timeoutTo(timeout, Sync[F].pure((List(Validated.Invalid(badRow)), None)))
+                                .map((orig, _))
+                          }
+                          .parSequenceN(env.streamsSettings.concurrency.enrich)
+                      )
             end <- Clock[F].realTime(TimeUnit.MILLISECONDS)
             _ <- Logger[F].debug(s"Chunk of size ${chunk.size} enriched in ${end - begin} ms")
           } yield result
@@ -112,7 +126,7 @@ object Enrich {
    * Enrich a single `CollectorPayload` to get list of bad rows and/or enriched events
    * @return enriched event or bad row, along with the collector timestamp
    */
-  def enrichWith[F[_]: Clock: ContextShift: RegistryLookup: Sync: HttpClient](
+  def enrichWith[F[_]: Clock: ContextShift: RegistryLookup: Sync: Timer: HttpClient](
     enrichRegistry: F[EnrichmentRegistry[F]],
     adapterRegistry: AdapterRegistry,
     igluClient: IgluCirceClient[F],

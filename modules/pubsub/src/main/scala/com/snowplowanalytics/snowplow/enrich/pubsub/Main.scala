@@ -55,6 +55,14 @@ object Main extends IOApp.WithContext {
       .map(ExecutionContext.fromExecutorService)
   }
 
+  private val emptyRecord = ConsumerRecord[IO, Array[Byte]](
+    new Array[Byte](0),
+    Map.empty[String, String],
+    IO.unit,
+    IO.unit,
+    _ => IO.unit
+  )
+
   def run(args: List[String]): IO[ExitCode] =
     Run.run[IO, ConsumerRecord[IO, Array[Byte]]](
       args,
@@ -70,6 +78,7 @@ object Main extends IOApp.WithContext {
       checkpoint,
       List(b => Resource.eval(GcsClient.mk[IO](b))),
       _.value,
+      emptyRecord,
       MaxRecordSize,
       Some(Cloud.Gcp),
       None

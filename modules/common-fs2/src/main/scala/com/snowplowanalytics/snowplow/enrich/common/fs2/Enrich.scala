@@ -99,7 +99,12 @@ object Enrich {
                               )
                               enrich(bytes)
                                 .timeoutTo(timeout, Sync[F].pure((List(Validated.Invalid(badRow)), None)))
-                                .map((orig, _))
+                                .map {
+                                  case (List(Validated.Invalid(br: BadRow.GenericError)), _) =>
+                                    (env.emptyRecord, (List(Validated.Invalid(br)), None))
+                                  case res =>
+                                    (orig, res)
+                                }
                           }
                           .parSequenceN(env.streamsSettings.concurrency.enrich)
                       )

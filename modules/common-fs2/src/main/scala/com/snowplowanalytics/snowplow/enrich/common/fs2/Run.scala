@@ -53,6 +53,7 @@ object Run {
     checkpoint: List[A] => F[Unit],
     mkClients: List[Blocker => Resource[F, Client[F]]],
     getPayload: A => Array[Byte],
+    emptyRecord: A,
     maxRecordSize: Int,
     cloud: Option[Cloud],
     getRegion: => Option[String]
@@ -96,6 +97,7 @@ object Run {
                                     clients,
                                     _ => Sync[F].unit,
                                     identity,
+                                    new Array[Byte](0),
                                     processor,
                                     maxRecordSize,
                                     cloud,
@@ -126,6 +128,7 @@ object Run {
                                     clients,
                                     checkpointing,
                                     getPayload,
+                                    emptyRecord,
                                     processor,
                                     maxRecordSize,
                                     cloud,

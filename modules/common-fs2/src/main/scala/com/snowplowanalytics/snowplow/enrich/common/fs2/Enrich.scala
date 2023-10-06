@@ -144,7 +144,6 @@ object Enrich {
       for {
         etlTstamp <- Clock[F].realTime(TimeUnit.MILLISECONDS).map(millis => new DateTime(millis))
         registry <- enrichRegistry
-        _ <- if (payload.toString.contains("ben-testing")) Timer[F].sleep(2.minutes) else Sync[F].unit
         enriched <- EtlPipeline.processEvents[F](
                       adapterRegistry,
                       registry,

@@ -1,4 +1,4 @@
-/*Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
+/*Copyright (c) 2012-present Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -11,15 +11,21 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
+import java.io.{FileInputStream, InputStream}
+import java.net.URI
+
+import scala.concurrent.duration.FiniteDuration
+
 import cats.Monad
 import cats.data.{EitherT, NonEmptyList, ValidatedNel}
 import cats.implicits._
-import cats.effect.Async
+
+import cats.effect.{Concurrent, Sync, Timer}
+
 import io.circe.Json
 import io.circe.syntax._
+
 import ua_parser.{Client, Parser}
-import java.io.{FileInputStream, InputStream}
-import java.net.URI
 
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
 
@@ -67,7 +73,7 @@ object UaParserEnrichment extends ParseableEnrichment {
     else
       None.validNel
 
-  def create[F[_]: Async](
+  def create[F[_]: Concurrent: Timer](
     schemaKey: SchemaKey,
     databasePath: Option[String]
   ): EitherT[F, String, UaParserEnrichment[F]] =
@@ -95,7 +101,7 @@ object UaParserEnrichment extends ParseableEnrichment {
 }
 
 /** Config for an ua_parser_config enrichment. Uses uap-java library to parse client attributes */
-final case class UaParserEnrichment[F[_]: Monad](
+final case class UaParserEnrichment[F[_]: Concurrent: Timer](
   schemaKey: SchemaKey,
   parser: Parser,
   userAgentCache: UserAgentCache[F]
@@ -128,13 +134,22 @@ final case class UaParserEnrichment[F[_]: Monad](
    * @param useragent to extract from. Should be encoded, i.e. not previously decoded.
    * @return the json or the message of the bad row details
    */
-  def extractUserAgent(useragent: String): F[Either[FailureDetails.EnrichmentFailure, SelfDescribingData[Json]]] =
+  def extractUserAgent(useragent: String, timeout: FiniteDuration): F[Either[FailureDetails.EnrichmentFailure, SelfDescribingData[Json]]] =
     userAgentCache.get(useragent).flatMap {
       case Some(cachedValue) =>
         Monad[F].pure(Right(cachedValue))
       case None =>
-        evaluateUserAgentContext(useragent)
-          .pure[F]
+        Concurrent
+          .timeoutTo(
+            Sync[F].delay(evaluateUserAgentContext(useragent)),
+            timeout,
+            Sync[F].delay {
+              Left(createEnrichmentFailure(useragent, s"Regex timed out ($timeout)")): Either[
+                FailureDetails.EnrichmentFailure,
+                SelfDescribingData[Json]
+              ]
+            }
+          )
           .flatTap {
             case Right(context) =>
               userAgentCache.put(useragent, context)
@@ -147,15 +162,22 @@ final case class UaParserEnrichment[F[_]: Monad](
     Either
       .catchNonFatal(parser.parse(useragent))
       .leftMap { e =>
-        val msg = s"could not parse useragent: ${e.getMessage}"
-        val f = FailureDetails.EnrichmentFailureMessage.InputData(
-          "useragent",
-          useragent.some,
-          msg
+        createEnrichmentFailure(
+          useragent,
+          s"could not parse useragent: ${e.getMessage}"
         )
-        FailureDetails.EnrichmentFailure(enrichmentInfo, f)
       }
       .map(assembleContext)
+
+  private def createEnrichmentFailure(useragent: String, message: String): FailureDetails.EnrichmentFailure =
+    FailureDetails.EnrichmentFailure(
+      enrichmentInfo,
+      FailureDetails.EnrichmentFailureMessage.InputData(
+        "useragent",
+        useragent.some,
+        message
+      )
+    )
 
   /** Assembles ua_parser_context from a parsed user agent. */
   def assembleContext(c: Client): SelfDescribingData[Json] = {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2023 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-present Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -15,10 +15,13 @@ package com.snowplowanalytics.snowplow.enrich.common.fs2
 import java.nio.file.{NoSuchFileException, Path}
 import java.util.concurrent.Executors
 
-import scala.concurrent.duration.TimeUnit
+import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
 
 import cats.effect.{Blocker, Clock, IO, Resource}
+import cats.effect.concurrent.Semaphore
+
+import cats.effect.testing.specs2.CatsIO
 
 import cats.implicits._
 
@@ -27,11 +30,10 @@ import fs2.io.file.deleteIfExists
 import com.snowplowanalytics.iglu.client.{IgluCirceClient, Resolver}
 import com.snowplowanalytics.iglu.client.resolver.registries.Registry
 
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.Timeouts
+
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test._
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients
-
-import cats.effect.testing.specs2.CatsIO
-import cats.effect.concurrent.Semaphore
 
 object SpecHelpers extends CatsIO {
   implicit val ioClock: Clock[IO] =
@@ -70,4 +72,6 @@ object SpecHelpers extends CatsIO {
     IgluCirceClient.fromResolver[IO](Resolver(registries, None), cacheSize = 0)
 
   val blockingEC = ExecutionContext.fromExecutorService(Executors.newCachedThreadPool)
+
+  val timeouts = Timeouts(10.seconds, 20.seconds)
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2023 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-present Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -19,6 +19,7 @@ import java.nio.file.Paths
 import scala.concurrent.duration._
 
 import cats.syntax.either._
+
 import cats.effect.IO
 
 import cats.effect.testing.specs2.CatsIO
@@ -29,7 +30,10 @@ import org.http4s.Uri
 
 import org.specs2.mutable.Specification
 
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.Timeouts
+
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.BackoffPolicy
+
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
 
 class ConfigFileSpec extends Specification with CatsIO {
@@ -91,7 +95,8 @@ class ConfigFileSpec extends Specification with CatsIO {
             )
           )
         ),
-        adaptersSchemas
+        adaptersSchemas,
+        Timeouts(1 minute, 5 minutes)
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
     }
@@ -193,7 +198,8 @@ class ConfigFileSpec extends Specification with CatsIO {
             )
           )
         ),
-        adaptersSchemas
+        adaptersSchemas,
+        Timeouts(1 minute, 5 minutes)
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
     }
@@ -295,7 +301,8 @@ class ConfigFileSpec extends Specification with CatsIO {
             )
           )
         ),
-        adaptersSchemas
+        adaptersSchemas,
+        Timeouts(1 minute, 5 minutes)
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
     }
@@ -366,6 +373,10 @@ class ConfigFileSpec extends Specification with CatsIO {
                "organizationId": "c5f3a09f-75f8-4309-bec5-fea560f78455",
                "pipelineId": "75a13583-5c99-40e3-81fc-541084dfc784"
             }
+          },
+          "timeouts": {
+            "uaParserEnrichment": "1 minute",
+            "enriching": "5 minutes"
           }
         }"""
 
@@ -429,6 +440,10 @@ class ConfigFileSpec extends Specification with CatsIO {
             "acceptInvalid": false,
             "legacyEnrichmentOrder": false,
             "tryBase64Decoding": false
+          },
+          "timeouts": {
+            "uaParserEnrichment": "1 minute",
+            "enriching": "5 minutes"
           }
         }"""
 

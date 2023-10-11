@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -15,12 +15,18 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments
 import java.nio.charset.Charset
 import java.net.URI
 import java.time.Instant
+
+import scala.concurrent.duration.FiniteDuration
+
 import org.joda.time.DateTime
+
 import io.circe.Json
+
 import cats.{Applicative, Monad}
 import cats.data.{EitherT, NonEmptyList, OptionT, StateT}
-import cats.effect.Clock
 import cats.implicits._
+
+import cats.effect.{Clock, Concurrent, Timer}
 
 import com.snowplowanalytics.refererparser._
 
@@ -56,16 +62,18 @@ object EnrichmentManager {
    * @param raw Canonical input event to enrich
    * @param featureFlags The feature flags available in the current version of Enrich
    * @param invalidCount Function to increment the count of invalid events
+   * @param timeouts Timeouts for the enrichments
    * @return Enriched event or bad row if a problem occured
    */
-  def enrichEvent[F[_]: Monad: RegistryLookup: Clock](
+  def enrichEvent[F[_]: Clock: Concurrent: RegistryLookup: Timer](
     registry: EnrichmentRegistry[F],
     client: IgluCirceClient[F],
     processor: Processor,
     etlTstamp: DateTime,
     raw: RawEvent,
     featureFlags: EtlPipeline.FeatureFlags,
-    invalidCount: F[Unit]
+    invalidCount: F[Unit],
+    timeouts: Timeouts
   ): EitherT[F, BadRow, EnrichedEvent] =
     for {
       enriched <- EitherT.fromEither[F](setupEnrichedEvent(raw, etlTstamp, processor))
@@ -81,7 +89,8 @@ object EnrichmentManager {
                                enriched,
                                extractResult.contexts,
                                extractResult.unstructEvent,
-                               featureFlags.legacyEnrichmentOrder
+                               featureFlags.legacyEnrichmentOrder,
+                               timeouts
                              )
       _ = ME.formatContexts(enrichmentsContexts ::: extractResult.validationInfoContexts).foreach(c => enriched.derived_contexts = c)
       _ <- IgluUtils
@@ -104,17 +113,18 @@ object EnrichmentManager {
    *         or [[BadRow.EnrichmentFailures]] if something wrong happened
    *         with at least one enrichment
    */
-  private def runEnrichments[F[_]: Monad](
+  private def runEnrichments[F[_]: Concurrent: Timer](
     registry: EnrichmentRegistry[F],
     processor: Processor,
     raw: RawEvent,
     enriched: EnrichedEvent,
     inputContexts: List[SelfDescribingData[Json]],
     unstructEvent: Option[SelfDescribingData[Json]],
-    legacyOrder: Boolean
+    legacyOrder: Boolean,
+    timeouts: Timeouts
   ): EitherT[F, BadRow.EnrichmentFailures, List[SelfDescribingData[Json]]] =
     EitherT {
-      accState(registry, raw, inputContexts, unstructEvent, legacyOrder)
+      accState(registry, raw, inputContexts, unstructEvent, legacyOrder, timeouts)
         .runS(Accumulation(enriched, Nil, Nil))
         .map {
           case Accumulation(_, failures, contexts) =>
@@ -173,12 +183,13 @@ object EnrichmentManager {
       }
   }
 
-  private def accState[F[_]: Monad](
+  private def accState[F[_]: Concurrent: Timer](
     registry: EnrichmentRegistry[F],
     raw: RawEvent,
     inputContexts: List[SelfDescribingData[Json]],
     unstructEvent: Option[SelfDescribingData[Json]],
-    legacyOrder: Boolean
+    legacyOrder: Boolean,
+    timeouts: Timeouts
   ): EStateT[F, Unit] = {
     val getCookieContexts = headerContexts[F, CookieExtractorEnrichment](
       raw.context.headers,
@@ -201,7 +212,7 @@ object EnrichmentManager {
         _       <- getDerivedTstamp[F]                                                // Calculate the derived timestamp
         _       <- getIabContext[F](registry.iab)                                     // Fetch IAB enrichment context (before anonymizing the IP address)
         _       <- getUaUtils[F](registry.userAgentUtils)                             // Parse the useragent using user-agent-utils
-        _       <- getUaParser[F](registry.uaParser)                                  // Create the ua_parser_context
+        _       <- getUaParser[F](registry.uaParser, timeouts.uaParserEnrichment)     // Create the ua_parser_context
         _       <- getRefererUri[F](registry.refererParser)                           // Potentially set the referrer details and URL components
         qsMap   <- extractQueryString[F](pageUri, raw.source.encoding)                // Parse the page URI's querystring
         _       <- setCampaign[F](qsMap, registry.campaignAttribution)                // Marketing attribution
@@ -227,7 +238,7 @@ object EnrichmentManager {
         _       <- getDerivedTstamp[F]                                                // Calculate the derived timestamp
         _       <- getIabContext[F](registry.iab)                                     // Fetch IAB enrichment context (before anonymizing the IP address)
         _       <- getUaUtils[F](registry.userAgentUtils)                             // Parse the useragent using user-agent-utils
-        _       <- getUaParser[F](registry.uaParser)                                  // Create the ua_parser_context
+        _       <- getUaParser[F](registry.uaParser, timeouts.uaParserEnrichment)     // Create the ua_parser_context
         _       <- getCurrency[F](raw.context.timestamp, registry.currencyConversion) // Finalize the currency conversion
         _       <- getRefererUri[F](registry.refererParser)                           // Potentially set the referrer details and URL components
         qsMap   <- extractQueryString[F](pageUri, raw.source.encoding)                // Parse the page URI's querystring
@@ -453,17 +464,22 @@ object EnrichmentManager {
         }
     }
 
-  def getUaParser[F[_]: Monad](uaParser: Option[UaParserEnrichment[F]]): EStateT[F, Unit] =
+  def getUaParser[F[_]: Concurrent: Timer](
+    uaParser: Option[UaParserEnrichment[F]],
+    timeout: FiniteDuration
+  ): EStateT[F, Unit] =
     EStateT.fromEitherF {
       case (event, _) =>
         uaParser match {
           case Some(uap) =>
             Option(event.useragent) match {
               case Some(ua) =>
-                uap.extractUserAgent(ua).map {
-                  case Left(failure) => Left(NonEmptyList.one(failure))
-                  case Right(context) => Right(List(context))
-                }
+                uap
+                  .extractUserAgent(ua, timeout)
+                  .map {
+                    case Left(failure) => Left(NonEmptyList.one(failure))
+                    case Right(context) => Right(List(context))
+                  }
               case None => Monad[F].pure(Nil.asRight) // No fields updated
             }
           case None => Monad[F].pure(Nil.asRight)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -15,6 +15,7 @@ package com.snowplowanalytics.snowplow.enrich.common
 import java.util.concurrent.Executors
 
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration._
 
 import cats.implicits._
 import cats.effect.IO
@@ -38,6 +39,7 @@ import com.snowplowanalytics.lrumap.CreateLruMap._
 
 import com.snowplowanalytics.snowplow.enrich.common.adapters._
 import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, JsonUtils}
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.Timeouts
 
 object SpecHelpers extends CatsIO {
 
@@ -122,6 +124,8 @@ object SpecHelpers extends CatsIO {
   implicit class MapOps[A, B](underlying: Map[A, B]) {
     def toOpt: Map[A, Option[B]] = underlying.map { case (a, b) => (a, Option(b)) }
   }
+
+  val timeouts = Timeouts(10.seconds, 1.minute)
 
   val callrailSchemas = CallrailSchemas(
     call_complete = "iglu:com.callrail/call_complete/jsonschema/1-0-2"

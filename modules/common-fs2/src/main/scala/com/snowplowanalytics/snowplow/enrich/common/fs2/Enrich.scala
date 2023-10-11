@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2023 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-present Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -40,13 +40,16 @@ import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
+
 import com.snowplowanalytics.snowplow.badrows.{BadRow, Failure, Processor, Payload => BadRowPayload}
+
 import com.snowplowanalytics.snowplow.enrich.common.EtlPipeline
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.loaders.{CollectorPayload, ThriftLoader}
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.{EnrichmentRegistry, Timeouts}
 import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
+
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.FeatureFlags
 
 object Enrich {
@@ -73,7 +76,8 @@ object Enrich {
                     env.sentry,
                     env.processor,
                     env.featureFlags,
-                    env.metrics.invalidCount
+                    env.metrics.invalidCount,
+                    env.timeouts
       )
     }
 
@@ -112,14 +116,15 @@ object Enrich {
    * Enrich a single `CollectorPayload` to get list of bad rows and/or enriched events
    * @return enriched event or bad row, along with the collector timestamp
    */
-  def enrichWith[F[_]: Clock: ContextShift: RegistryLookup: Sync](
+  def enrichWith[F[_]: Clock: Concurrent: ContextShift: RegistryLookup: Timer](
     enrichRegistry: F[EnrichmentRegistry[F]],
     adapterRegistry: AdapterRegistry[F],
     igluClient: IgluCirceClient[F],
     sentry: Option[SentryClient],
     processor: Processor,
     featureFlags: FeatureFlags,
-    invalidCount: F[Unit]
+    invalidCount: F[Unit],
+    timeouts: Timeouts
   )(
     row: Array[Byte]
   ): F[Result] = {
@@ -130,16 +135,18 @@ object Enrich {
       for {
         etlTstamp <- Clock[F].realTime(TimeUnit.MILLISECONDS).map(millis => new DateTime(millis))
         registry <- enrichRegistry
-        enriched <- EtlPipeline.processEvents[F](
-                      adapterRegistry,
-                      registry,
-                      igluClient,
-                      processor,
-                      etlTstamp,
-                      payload,
-                      FeatureFlags.toCommon(featureFlags),
-                      invalidCount
-                    )
+        enriched <- EtlPipeline
+                      .processEvents[F](
+                        adapterRegistry,
+                        registry,
+                        igluClient,
+                        processor,
+                        etlTstamp,
+                        payload,
+                        FeatureFlags.toCommon(featureFlags),
+                        invalidCount,
+                        timeouts
+                      )
       } yield (enriched, collectorTstamp)
 
     result.handleErrorWith(sendToSentry[F](row, sentry, processor, collectorTstamp))

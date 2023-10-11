@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2023 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2021-present Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -98,7 +98,8 @@ object Run {
                                     maxRecordSize,
                                     cloud,
                                     getRegion,
-                                    file.featureFlags
+                                    file.featureFlags,
+                                    file.timeouts
                                   )
                                 runEnvironment[F, Array[Byte]](env)
                               case input =>
@@ -128,7 +129,8 @@ object Run {
                                     maxRecordSize,
                                     cloud,
                                     getRegion,
-                                    file.featureFlags
+                                    file.featureFlags,
+                                    file.timeouts
                                   )
                                 runEnvironment[F, A](env)
                             }

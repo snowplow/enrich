@@ -24,6 +24,7 @@ import _root_.io.circe.generic.extras.semiauto.{deriveConfiguredDecoder, deriveC
 
 import com.typesafe.config.{ConfigFactory, Config => TSConfig}
 
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.Timeouts
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdaptersSchemas
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io._
 
@@ -38,6 +39,7 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io._
  * @param featureFlags to activate/deactivate enrich features
  * @param experimental configuration for experimental features
  * @param adaptersSchemas configuration for adapters
+ * @param timeouts configuration for the timeouts of the enriching step
  */
 final case class ConfigFile(
   input: Input,
@@ -49,7 +51,8 @@ final case class ConfigFile(
   telemetry: Telemetry,
   featureFlags: FeatureFlags,
   experimental: Option[Experimental],
-  adaptersSchemas: AdaptersSchemas
+  adaptersSchemas: AdaptersSchemas,
+  timeouts: Timeouts
 )
 
 object ConfigFile {
@@ -59,18 +62,24 @@ object ConfigFile {
   implicit val finiteDurationEncoder: Encoder[FiniteDuration] =
     implicitly[Encoder[String]].contramap(_.toString)
 
+  implicit val timeoutsDecoder: Decoder[Timeouts] =
+    deriveConfiguredDecoder[Timeouts]
+  implicit val timeoutsEncoder: Encoder[Timeouts] =
+    deriveConfiguredEncoder[Timeouts]
+
   implicit val configFileDecoder: Decoder[ConfigFile] =
     deriveConfiguredDecoder[ConfigFile].emap {
-      case ConfigFile(_, _, _, Some(aup), _, _, _, _, _, _) if aup._1 <= 0L =>
+      case ConfigFile(_, _, _, Some(aup), _, _, _, _, _, _, _) if aup._1 <= 0L =>
         "assetsUpdatePeriod in config file cannot be less than 0".asLeft // TODO: use newtype
       // Remove pii output if streamName and region empty
-      case c @ ConfigFile(_, Outputs(good, Some(output: Output.Kinesis), bad), _, _, _, _, _, _, _, _) if output.streamName.isEmpty =>
+      case c @ ConfigFile(_, Outputs(good, Some(output: Output.Kinesis), bad), _, _, _, _, _, _, _, _, _) if output.streamName.isEmpty =>
         c.copy(output = Outputs(good, None, bad)).asRight
       // Remove pii output if topic empty
-      case c @ ConfigFile(_, Outputs(good, Some(Output.PubSub(t, _, _, _, _)), bad), _, _, _, _, _, _, _, _) if t.isEmpty =>
+      case c @ ConfigFile(_, Outputs(good, Some(Output.PubSub(t, _, _, _, _)), bad), _, _, _, _, _, _, _, _, _) if t.isEmpty =>
         c.copy(output = Outputs(good, None, bad)).asRight
       // Remove pii output if topic empty
-      case c @ ConfigFile(_, Outputs(good, Some(Output.Kafka(topicName, _, _, _, _)), bad), _, _, _, _, _, _, _, _) if topicName.isEmpty =>
+      case c @ ConfigFile(_, Outputs(good, Some(Output.Kafka(topicName, _, _, _, _)), bad), _, _, _, _, _, _, _, _, _)
+          if topicName.isEmpty =>
         c.copy(output = Outputs(good, None, bad)).asRight
       case other => other.asRight
     }

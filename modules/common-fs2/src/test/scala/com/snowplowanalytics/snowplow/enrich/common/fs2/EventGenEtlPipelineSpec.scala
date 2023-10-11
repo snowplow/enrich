@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -12,13 +12,42 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2
 
+import java.time.Instant
+
+import scala.util.{Random, Try}
+
+import org.joda.time.DateTime
+
 import cats.data.{Validated, ValidatedNel}
-import cats.effect.testing.specs2.CatsIO
-import cats.effect.{Blocker, IO}
 import cats.implicits._
+
+import cats.effect.{Blocker, IO}
+
+import fs2.{Pipe, Stream}
+
+import cats.effect.testing.specs2.CatsIO
+
+import org.specs2.mutable.Specification
+import org.specs2.specification.core.{Fragment, Fragments}
+import org.specs2.matcher.MustMatchers.{left => _, right => _}
+
+import com.softwaremill.diffx.specs2.DiffMatcher._
+import com.softwaremill.diffx.generic.auto._
+
+import _root_.io.circe.{Decoder, Json, JsonNumber, JsonObject}
+import _root_.io.circe.parser.decode
+import _root_.io.circe.syntax._
+import _root_.io.circe.generic.auto._
+import _root_.io.circe.literal._
+
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.Registry
+
 import com.snowplowanalytics.snowplow.badrows.{BadRow, Processor}
+
+import com.snowplowanalytics.snowplow.eventgen.runGen
+import com.snowplowanalytics.snowplow.eventgen.enrich.{SdkEvent => GenSdkEvent}
+
 import com.snowplowanalytics.snowplow.enrich.common.EtlPipeline
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.loaders._
@@ -26,25 +55,10 @@ import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent.toPartiallyEnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
-import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
-import com.snowplowanalytics.snowplow.enrich.common.fs2.SpecHelpers._
-import com.snowplowanalytics.snowplow.eventgen.runGen
-import com.snowplowanalytics.snowplow.eventgen.enrich.{SdkEvent => GenSdkEvent}
-import org.specs2.matcher.MustMatchers.{left => _, right => _}
-import com.softwaremill.diffx.specs2.DiffMatcher._
-import com.softwaremill.diffx.generic.auto._
-import fs2.{Pipe, Stream}
-import _root_.io.circe.{Decoder, Json, JsonNumber, JsonObject}
-import _root_.io.circe.parser.decode
-import _root_.io.circe.syntax._
-import _root_.io.circe.generic.auto._
-import _root_.io.circe.literal._
-import org.joda.time.DateTime
-import org.specs2.mutable.Specification
-import org.specs2.specification.core.{Fragment, Fragments}
 
-import java.time.Instant
-import scala.util.{Random, Try}
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
+
+import com.snowplowanalytics.snowplow.enrich.common.fs2.SpecHelpers._
 
 class EventGenEtlPipelineSpec extends Specification with CatsIO {
 
@@ -209,7 +223,8 @@ class EventGenEtlPipelineSpec extends Specification with CatsIO {
       dateTime,
       Some(e).validNel,
       EtlPipeline.FeatureFlags(acceptInvalid = false, legacyEnrichmentOrder = false),
-      IO.unit
+      IO.unit,
+      SpecHelpers.timeouts
     )
 
   def rethrowBadRows[A]: Pipe[IO, ValidatedNel[BadRow, A], A] =

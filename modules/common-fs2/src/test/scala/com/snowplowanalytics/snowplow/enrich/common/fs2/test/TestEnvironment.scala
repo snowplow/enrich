@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2023 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-present Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -162,7 +162,8 @@ object TestEnvironment extends CatsIO {
                       StreamsSettings(Concurrency(10000, 64), 1024 * 1024),
                       None,
                       None,
-                      EnrichSpec.featureFlags
+                      EnrichSpec.featureFlags,
+                      SpecHelpers.timeouts
                     )
       _ <- Resource.eval(logger.info("TestEnvironment initialized"))
     } yield TestEnvironment(environment, counter, goodRef.get, piiRef.get, badRef.get)

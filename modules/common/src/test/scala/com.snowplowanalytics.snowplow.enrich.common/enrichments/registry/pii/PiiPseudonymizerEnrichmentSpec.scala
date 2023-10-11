@@ -183,7 +183,8 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
                     new DateTime(1500000000L),
                     input,
                     AcceptInvalid.featureFlags,
-                    IO.unit
+                    IO.unit,
+                    SpecHelpers.timeouts
                   )
     } yield result
   }

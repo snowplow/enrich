@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -15,7 +15,7 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments
 import cats.Monad
 import cats.data.{EitherT, NonEmptyList, ValidatedNel}
 
-import cats.effect.{Async, Blocker, Clock, ContextShift}
+import cats.effect.{Blocker, Clock, Concurrent, ContextShift, Timer}
 import cats.implicits._
 
 import io.circe._
@@ -100,7 +100,7 @@ object EnrichmentRegistry {
     } yield configs).toValidated
 
   // todo: ValidatedNel?
-  def build[F[_]: Async: Clock: ContextShift](
+  def build[F[_]: Clock: Concurrent: ContextShift: Timer](
     confs: List[EnrichmentConf],
     blocker: Blocker,
     shifter: ShiftExecution[F],

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -12,6 +12,8 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common
 
+import scala.concurrent.duration._
+
 import cats.data.Validated
 import cats.syntax.validated._
 
@@ -22,12 +24,14 @@ import org.apache.thrift.TSerializer
 
 import org.joda.time.DateTime
 
-import org.specs2.Specification
+import org.specs2.mutable.Specification
 import org.specs2.matcher.ValidatedMatchers
 
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.Resolver
 import com.snowplowanalytics.iglu.client.resolver.registries.Registry
+
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
 import com.snowplowanalytics.snowplow.badrows.Processor
 import com.snowplowanalytics.snowplow.badrows.BadRow
@@ -37,24 +41,28 @@ import com.snowplowanalytics.snowplow.CollectorPayload.thrift.model1.{CollectorP
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.JavascriptScriptEnrichment
 import com.snowplowanalytics.snowplow.enrich.common.loaders.{CollectorPayload, ThriftLoader}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
 
 class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsIO {
-  def is = s2"""
+  override def is = s2"""
   EtlPipeline should always produce either bad or good row for each event of the payload   $e1
   Processing of events with malformed query string should be supported                     $e2
   Processing of invalid CollectorPayload (CPFormatViolation bad row) should be supported   $e3
   Absence of CollectorPayload (None) should be supported                                   $e4
+  An EnrichmentFailures bad row should be emitted in case of time out                      $e5
   """
 
   val adapterRegistry = new AdapterRegistry[IO](
     Map.empty[(String, String), RemoteAdapter[IO]],
     adaptersSchemas = adaptersSchemas
   )
-  val enrichmentReg = EnrichmentRegistry[IO]()
+  val enrichmentReg = EnrichmentRegistry[IO](
+    javascriptScript = EtlPipelineSpec.javascriptEnrichment
+  )
   val igluCentral = Registry.IgluCentral
   def igluClient = IgluCirceClient.fromResolver[IO](Resolver(List(igluCentral), None), cacheSize = 0)
   val processor = Processor("sce-test-suite", "1.0.0")
@@ -73,11 +81,15 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsIO {
                     dateTime,
                     Some(collectorPayloadBatched).validNel,
                     AcceptInvalid.featureFlags,
-                    IO.unit
+                    IO.unit,
+                    SpecHelpers.timeouts
                   )
     } yield output must be like {
       case a :: b :: c :: d :: Nil =>
-        (a must beValid).and(b must beInvalid).and(c must beInvalid).and(d must beInvalid)
+        a must beValid
+        b must beInvalid
+        c must beInvalid
+        d must beInvalid
     }
 
   def e2 =
@@ -98,7 +110,8 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsIO {
                     dateTime,
                     Some(collectorPayload).validNel,
                     AcceptInvalid.featureFlags,
-                    IO.unit
+                    IO.unit,
+                    SpecHelpers.timeouts
                   )
     } yield output must beLike {
       case Validated.Valid(_: EnrichedEvent) :: Nil => ok
@@ -118,7 +131,8 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsIO {
                     dateTime,
                     invalidCollectorPayload,
                     AcceptInvalid.featureFlags,
-                    IO.unit
+                    IO.unit,
+                    SpecHelpers.timeouts
                   )
     } yield output must be like {
       case Validated.Invalid(_: BadRow.CPFormatViolation) :: Nil => ok
@@ -138,9 +152,49 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsIO {
                     dateTime,
                     collectorPayload.validNel[BadRow],
                     AcceptInvalid.featureFlags,
-                    IO.unit
+                    IO.unit,
+                    SpecHelpers.timeouts
                   )
     } yield output must beEqualTo(Nil)
+
+  def e5 =
+    for {
+      client <- igluClient
+      collectorPayloadBatched = EtlPipelineSpec
+                                  .buildBatchedPayload()
+                                  .copy(body =
+                                    Some(
+                                      """
+        {
+          "schema":"iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-4",
+          "data":[
+            {"e":"pv","p":"web","tv":"scala","aid":"foo"},
+            {"e":"pv","p":"web","tv":"scala","aid":"timeout"}
+          ]
+        }
+        """
+                                    )
+                                  )
+      output <- EtlPipeline
+                  .processEvents[IO](
+                    adapterRegistry,
+                    enrichmentReg,
+                    client,
+                    processor,
+                    dateTime,
+                    Some(collectorPayloadBatched).validNel,
+                    AcceptInvalid.featureFlags,
+                    IO.unit,
+                    SpecHelpers.timeouts.copy(enriching = 1.second)
+                  )
+    } yield output must be like {
+      case a :: b :: Nil =>
+        a must beValid
+        b must beInvalid.like {
+          case br: BadRow.EnrichmentFailures =>
+            br.failure.messages.toString.contains("Enriching the event timed out")
+        }
+    }
 }
 
 object EtlPipelineSpec {
@@ -193,4 +247,17 @@ object EtlPipelineSpec {
     val serializer = ThriftSerializer.get()
     serializer.serialize(tCP)
   }
+
+  val javascriptEnrichment = Some(
+    JavascriptScriptEnrichment(
+      SchemaKey("com.snowplowanalytics.snowplow", "javascript_script_config", "jsonschema", SchemaVer.Full(1, 0, 0)),
+      """
+        function process(event){
+          var appId = event.getApp_id()
+          if (appId == "timeout") { while (1) {} }
+          return []
+        }
+      """
+    )
+  )
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -13,6 +13,8 @@
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.net.URI
+
+import scala.concurrent.duration._
 
 import org.specs2.matcher.DataTables
 import org.specs2.mutable.Specification
@@ -31,6 +33,8 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.UaParserConf
 
 class UaParserEnrichmentSpec extends Specification with DataTables with CatsIO {
+
+  val timeout = 2.seconds
 
   val mobileSafariUserAgent =
     "Mozilla/5.0 (iPhone; CPU iPhone OS 5_1_1 like Mac OS X) AppleWebKit/534.46 (KHTML, like Gecko) Version/5.1 Mobile/9B206 Safari/7534.48.3"
@@ -83,7 +87,7 @@ class UaParserEnrichmentSpec extends Specification with DataTables with CatsIO {
         (for {
           c <- EitherT.rightT[IO, String](UaParserConf(schemaKey, rules))
           e <- c.enrichment[IO]
-          res = e.extractUserAgent(input)
+          res = e.extractUserAgent(input, timeout)
         } yield res).value.map(_ must beLeft.like {
           case a => a must startWith(errorPrefix)
         })
@@ -98,9 +102,28 @@ class UaParserEnrichmentSpec extends Specification with DataTables with CatsIO {
         (for {
           c <- EitherT.rightT[IO, String](UaParserConf(schemaKey, rules))
           e <- c.enrichment[IO]
-          res <- EitherT(e.extractUserAgent(input).map(_.leftMap(_.toString())))
+          res <- EitherT(e.extractUserAgent(input, timeout).map(_.leftMap(_.toString())))
         } yield res).value.map(_ must beRight(expected))
       }
+    }
+
+    "create a failure in case of timeout" in {
+      val userAgent =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0" + " " * 6232 + "Safari/537.36"
+      val regexesFile = getClass.getResource("uap-test-rules-timeout.yml").toURI.getPath
+      val customRules = (new URI("s3://private-bucket/files/uap-rules.yml"), regexesFile)
+      val conf = UaParserConf(schemaKey, Some(customRules))
+      (for {
+        parsed <- conf.enrichment[IO].value
+        enrichment <- parsed match {
+                        case Right(c) => IO.pure(c)
+                        case Left(err) => IO.raiseError(new RuntimeException(err))
+                      }
+        res <- enrichment.extractUserAgent(userAgent, timeout)
+      } yield res).map(_ must beLeft.like {
+        case failure =>
+          failure.message.toString.contains("Regex timed out")
+      })
     }
   }
 }

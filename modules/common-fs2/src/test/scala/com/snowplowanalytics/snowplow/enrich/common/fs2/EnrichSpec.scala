@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2023 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-present Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -29,25 +29,28 @@ import _root_.io.circe.literal._
 import org.apache.http.NameValuePair
 import org.apache.http.message.BasicNameValuePair
 
+import org.specs2.ScalaCheck
+import org.specs2.mutable.Specification
+import org.specs2.scalacheck.Parameters
+
+import cats.effect.testing.specs2.CatsIO
+
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
+
 import com.snowplowanalytics.snowplow.badrows.{BadRow, Failure, FailureDetails, Processor, Payload => BadRowPayload}
+
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.IpLookupsEnrichment
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.MiscEnrichments
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
+
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.FeatureFlags
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.EnrichSpec.{Expected, minimalEvent, normalizeResult}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test._
-
-import org.specs2.ScalaCheck
-import org.specs2.mutable.Specification
-
-import cats.effect.testing.specs2.CatsIO
-import org.specs2.scalacheck.Parameters
 
 class EnrichSpec extends Specification with CatsIO with ScalaCheck {
 
@@ -76,7 +79,8 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
             None,
             EnrichSpec.processor,
             EnrichSpec.featureFlags,
-            IO.unit
+            IO.unit,
+            SpecHelpers.timeouts
           )(
             EnrichSpec.payload
           )
@@ -102,7 +106,8 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
               None,
               EnrichSpec.processor,
               EnrichSpec.featureFlags,
-              IO.unit
+              IO.unit,
+              SpecHelpers.timeouts
             )(
               payload
             )
@@ -137,7 +142,8 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
             None,
             EnrichSpec.processor,
             EnrichSpec.featureFlags.copy(tryBase64Decoding = true),
-            IO.unit
+            IO.unit,
+            SpecHelpers.timeouts
           )(
             Base64.getEncoder.encode(EnrichSpec.payload)
           )
@@ -159,7 +165,8 @@ class EnrichSpec extends Specification with CatsIO with ScalaCheck {
             None,
             EnrichSpec.processor,
             EnrichSpec.featureFlags,
-            IO.unit
+            IO.unit,
+            SpecHelpers.timeouts
           )(
             Base64.getEncoder.encode(EnrichSpec.payload)
           )

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -19,7 +19,7 @@ import scala.concurrent.duration.FiniteDuration
 
 import cats.data.EitherT
 
-import cats.effect.{Async, Blocker, Clock, ContextShift, Sync}
+import cats.effect.{Async, Blocker, Clock, Concurrent, ContextShift, Sync, Timer}
 
 import org.joda.money.CurrencyUnit
 
@@ -210,7 +210,7 @@ object EnrichmentConf {
 
   final case class UaParserConf(schemaKey: SchemaKey, uaDatabase: Option[(URI, String)]) extends EnrichmentConf {
     override val filesToCache: List[(URI, String)] = List(uaDatabase).flatten
-    def enrichment[F[_]: Async]: EitherT[F, String, UaParserEnrichment[F]] =
+    def enrichment[F[_]: Concurrent: Timer]: EitherT[F, String, UaParserEnrichment[F]] =
       UaParserEnrichment.create[F](
         schemaKey,
         uaDatabase.map(_._2)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2021 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-present Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -14,6 +14,7 @@ package com.snowplowanalytics.snowplow.enrich.common.fs2.config
 
 import java.net.URI
 import java.util.UUID
+
 import scala.concurrent.duration._
 
 import cats.effect.IO
@@ -27,6 +28,8 @@ import org.specs2.mutable.Specification
 import com.typesafe.config.ConfigFactory
 
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.Timeouts
+
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
 
 class ParsedConfigsSpec extends Specification with CatsIO {
@@ -91,7 +94,8 @@ class ParsedConfigsSpec extends Specification with CatsIO {
             )
           )
         ),
-        adaptersSchemas
+        adaptersSchemas,
+        Timeouts(1 minute, 5 minutes)
       )
 
       ParsedConfigs.validateConfig[IO](configFile).value.map(result => result must beLeft)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2023 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-present Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -12,13 +12,16 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2
 
+import java.util.concurrent.TimeoutException
+
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
 
 import cats.Show
 import cats.data.EitherT
 import cats.implicits._
 
-import cats.effect.{Async, Blocker, Clock, ConcurrentEffect, ContextShift, ExitCase, Resource, Sync, Timer}
+import cats.effect.{Async, Blocker, Clock, Concurrent, ConcurrentEffect, ContextShift, ExitCase, Resource, Sync, Timer}
 import cats.effect.concurrent.{Ref, Semaphore}
 
 import fs2.Stream
@@ -27,6 +30,7 @@ import _root_.io.sentry.{Sentry, SentryClient}
 
 import org.http4s.client.{Client => Http4sClient}
 import org.http4s.Status
+
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
@@ -34,14 +38,16 @@ import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.{Http4sRegistryLookup, RegistryLookup}
 
 import com.snowplowanalytics.snowplow.badrows.Processor
+
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.{EnrichmentRegistry, Timeouts}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, ShiftExecution}
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{ConfigFile, ParsedConfigs}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input.Kinesis
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{
   Cloud,
   Concurrency,
@@ -52,11 +58,6 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{Clients, Metrics}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.Client
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.experimental.Metadata
-
-import scala.concurrent.ExecutionContext
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input.Kinesis
-
-import java.util.concurrent.TimeoutException
 
 /**
  * All allocated resources, configs and mutable variables necessary for running Enrich process
@@ -93,6 +94,7 @@ import java.util.concurrent.TimeoutException
  * @param region              region in the cloud where enrich runs
  * @param cloud               cloud where enrich runs (AWS or GCP)
  * @param featureFlags        Feature flags for the current version of enrich, liable to change in future versions.
+ * @param timeouts            Configured timeouts for the enriching step
  * @tparam A                  type emitted by the source (e.g. `ConsumerRecord` for PubSub).
  *                            getPayload must be defined for this type, as well as checkpointing
  */
@@ -125,7 +127,8 @@ final case class Environment[F[_], A](
   streamsSettings: Environment.StreamsSettings,
   region: Option[String],
   cloud: Option[Cloud],
-  featureFlags: FeatureFlags
+  featureFlags: FeatureFlags,
+  timeouts: Timeouts
 )
 
 object Environment {
@@ -134,7 +137,7 @@ object Environment {
     Slf4jLogger.getLogger[F]
 
   /** Registry with all allocated clients (MaxMind, IAB etc) and their original configs */
-  final case class Enrichments[F[_]: Async: Clock: ContextShift](
+  final case class Enrichments[F[_]: Concurrent: Clock: ContextShift: Timer](
     registry: EnrichmentRegistry[F],
     configs: List[EnrichmentConf],
     httpClient: HttpClient[F]
@@ -146,7 +149,7 @@ object Environment {
   }
 
   object Enrichments {
-    def make[F[_]: Async: Clock: ContextShift](
+    def make[F[_]: Clock: Concurrent: ContextShift: Timer](
       configs: List[EnrichmentConf],
       blocker: Blocker,
       shifter: ShiftExecution[F],
@@ -159,7 +162,7 @@ object Environment {
         } yield ref
       }
 
-    def buildRegistry[F[_]: Async: Clock: ContextShift](
+    def buildRegistry[F[_]: Clock: Concurrent: ContextShift: Timer](
       configs: List[EnrichmentConf],
       blocker: Blocker,
       shifter: ShiftExecution[F],
@@ -187,7 +190,8 @@ object Environment {
     maxRecordSize: Int,
     cloud: Option[Cloud],
     getRegion: => Option[String],
-    featureFlags: FeatureFlags
+    featureFlags: FeatureFlags,
+    timeouts: Timeouts
   ): Resource[F, Environment[F, A]] = {
     val file = parsedConfigs.configFile
     for {
@@ -239,7 +243,8 @@ object Environment {
       StreamsSettings(file.concurrency, maxRecordSize),
       getRegionFromConfig(file).orElse(getRegion),
       cloud,
-      featureFlags
+      featureFlags,
+      timeouts
     )
   }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -12,20 +12,23 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common
 
+import scala.concurrent.duration.FiniteDuration
+
 import cats.Monad
-import cats.data.{Validated, ValidatedNel}
-import cats.effect.Clock
+import cats.data.{NonEmptyList, Validated, ValidatedNel}
 import cats.implicits._
+
+import cats.effect.{Clock, Concurrent, Sync, Timer}
 
 import org.joda.time.DateTime
 
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 
-import com.snowplowanalytics.snowplow.badrows.{BadRow, Processor}
+import com.snowplowanalytics.snowplow.badrows.{BadRow, FailureDetails, Processor}
 
-import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.{EnrichmentManager, EnrichmentRegistry}
+import com.snowplowanalytics.snowplow.enrich.common.adapters.{AdapterRegistry, RawEvent}
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.{EnrichmentManager, EnrichmentRegistry, Timeouts}
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
@@ -55,10 +58,11 @@ object EtlPipeline {
    * @param input The ValidatedMaybeCanonicalInput
    * @param featureFlags The feature flags available in the current version of Enrich
    * @param invalidCount Function to increment the count of invalid events
+   * @param timeouts Configured timeouts for the enriching step
    * @return the ValidatedMaybeCanonicalOutput. Thanks to flatMap, will include any validation
    * errors contained within the ValidatedMaybeCanonicalInput
    */
-  def processEvents[F[_]: Clock: Monad: RegistryLookup](
+  def processEvents[F[_]: Clock: Concurrent: RegistryLookup: Timer](
     adapterRegistry: AdapterRegistry[F],
     enrichmentRegistry: EnrichmentRegistry[F],
     client: IgluCirceClient[F],
@@ -66,7 +70,8 @@ object EtlPipeline {
     etlTstamp: DateTime,
     input: ValidatedNel[BadRow, Option[CollectorPayload]],
     featureFlags: FeatureFlags,
-    invalidCount: F[Unit]
+    invalidCount: F[Unit],
+    timeouts: Timeouts
   ): F[List[Validated[BadRow, EnrichedEvent]]] =
     input match {
       case Validated.Valid(Some(payload)) =>
@@ -75,17 +80,27 @@ object EtlPipeline {
           .flatMap {
             case Validated.Valid(rawEvents) =>
               rawEvents.toList.traverse { event =>
-                EnrichmentManager
-                  .enrichEvent(
-                    enrichmentRegistry,
-                    client,
-                    processor,
-                    etlTstamp,
-                    event,
-                    featureFlags,
-                    invalidCount
+                Concurrent
+                  .timeoutTo(
+                    EnrichmentManager
+                      .enrichEvent(
+                        enrichmentRegistry,
+                        client,
+                        processor,
+                        etlTstamp,
+                        event,
+                        featureFlags,
+                        invalidCount,
+                        timeouts
+                      )
+                      .value,
+                    timeouts.enriching,
+                    Sync[F].delay {
+                      val br = createTimeoutBadRow(event, timeouts.enriching, processor)
+                      Left(br): Either[BadRow, EnrichedEvent]
+                    }
                   )
-                  .toValidated
+                  .map(_.toValidated)
               }
             case Validated.Invalid(badRow) =>
               Monad[F].pure(List(badRow.invalid[EnrichedEvent]))
@@ -95,4 +110,21 @@ object EtlPipeline {
       case Validated.Valid(None) =>
         Monad[F].pure(List.empty[Validated[BadRow, EnrichedEvent]])
     }
+
+  private def createTimeoutBadRow(
+    event: RawEvent,
+    timeout: FiniteDuration,
+    processor: Processor
+  ): BadRow = {
+    val failure = FailureDetails.EnrichmentFailure(
+      None,
+      FailureDetails.EnrichmentFailureMessage.Simple(s"Enriching the event timed out ($timeout)")
+    )
+    EnrichmentManager.buildEnrichmentFailuresBadRow(
+      NonEmptyList.one(failure),
+      EnrichedEvent.toPartiallyEnrichedEvent(new EnrichedEvent),
+      RawEvent.toRawEvent(event),
+      processor
+    )
+  }
 }

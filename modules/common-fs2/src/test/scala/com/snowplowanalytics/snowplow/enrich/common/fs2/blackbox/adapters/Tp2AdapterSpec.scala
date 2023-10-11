@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2022-present Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -25,7 +25,7 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.Enrich
 import com.snowplowanalytics.snowplow.enrich.common.fs2.EnrichSpec
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test.TestEnvironment
 import com.snowplowanalytics.snowplow.enrich.common.fs2.blackbox.BlackBoxTesting
-import com.snowplowanalytics.snowplow.enrich.common.fs2.SpecHelpers.createIgluClient
+import com.snowplowanalytics.snowplow.enrich.common.fs2.SpecHelpers
 
 class Tp2AdapterSpec extends Specification with CatsIO {
   "enrichWith" should {
@@ -35,7 +35,7 @@ class Tp2AdapterSpec extends Specification with CatsIO {
         body = Tp2AdapterSpec.body.some,
         contentType = "application/json".some
       )
-      createIgluClient(List(TestEnvironment.embeddedRegistry)).flatMap { igluClient =>
+      SpecHelpers.createIgluClient(List(TestEnvironment.embeddedRegistry)).flatMap { igluClient =>
         Enrich
           .enrichWith(
             TestEnvironment.enrichmentReg.pure[IO],
@@ -44,7 +44,8 @@ class Tp2AdapterSpec extends Specification with CatsIO {
             None,
             EnrichSpec.processor,
             EnrichSpec.featureFlags,
-            IO.unit
+            IO.unit,
+            SpecHelpers.timeouts
           )(
             input
           )

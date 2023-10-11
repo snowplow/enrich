@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2023 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -87,7 +87,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.timeouts
       )
       enriched.value
         .map(_ must beLeft.like {
@@ -103,17 +104,17 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         "p" -> "web",
         "ue_pr" ->
           """
-          {
-            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
-            "data":{
-              "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
-              "data": {
-                "emailAddress": "hello@world.com",
-                "emailAddress2": "foo@bar.org",
-                "unallowedAdditionalField": "foo@bar.org"
-              }
+        {
+          "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+          "data":{
+            "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+            "data": {
+              "emailAddress": "hello@world.com",
+              "emailAddress2": "foo@bar.org",
+              "unallowedAdditionalField": "foo@bar.org"
             }
-          }"""
+          }
+        }"""
       ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
       val enriched = EnrichmentManager.enrichEvent[IO](
@@ -123,7 +124,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.timeouts
       )
       enriched.value
         .map(_ must beLeft.like {
@@ -135,17 +137,17 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
     "return an EnrichmentFailures bad row if one of the enrichment (JS enrichment here) fails" >> {
       val script =
         """
-        function process(event) {
-          throw "Javascript exception";
-          return [ { a: "b" } ];
-        }"""
+      function process(event) {
+        throw "Javascript exception";
+        return [ { a: "b" } ];
+      }"""
 
       val config =
         json"""{
-        "parameters": {
-          "script": ${ConversionUtils.encodeBase64Url(script)}
-        }
-      }"""
+      "parameters": {
+        "script": ${ConversionUtils.encodeBase64Url(script)}
+      }
+    }"""
       val schemaKey = SchemaKey(
         "com.snowplowanalytics.snowplow",
         "javascript_script_config",
@@ -170,7 +172,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.timeouts
       )
       enriched.value
         .map(_ must beLeft.like {
@@ -199,21 +202,21 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
     "return an EnrichmentFailures bad row containing one IgluError if one of the contexts added by the enrichments is invalid" >> {
       val script =
         """
-        function process(event) {
-          return [ { schema: "iglu:com.acme/email_sent/jsonschema/1-0-0",
-                     data: {
-                       emailAddress: "hello@world.com",
-                       foo: "bar"
-                     }
-                   } ];
-        }"""
+      function process(event) {
+        return [ { schema: "iglu:com.acme/email_sent/jsonschema/1-0-0",
+                    data: {
+                      emailAddress: "hello@world.com",
+                      foo: "bar"
+                    }
+                  } ];
+      }"""
 
       val config =
         json"""{
-        "parameters": {
-          "script": ${ConversionUtils.encodeBase64Url(script)}
-        }
-      }"""
+      "parameters": {
+        "script": ${ConversionUtils.encodeBase64Url(script)}
+      }
+    }"""
       val schemaKey = SchemaKey(
         "com.snowplowanalytics.snowplow",
         "javascript_script_config",
@@ -238,7 +241,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.timeouts
       )
       enriched.value
         .map(_ must beLeft.like {
@@ -302,7 +306,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.timeouts
       )
       enriched.value.map(_ must beRight)
     }
@@ -366,7 +371,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.timeouts
       )
       enriched.value.map(_ must beRight)
     }
@@ -430,7 +436,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.timeouts
       )
       enriched.value.map(_ must beRight)
     }
@@ -494,7 +501,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.timeouts
       )
       enriched.value.map(_ must beLeft)
     }
@@ -558,7 +566,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.timeouts
       )
       enriched.value.map(_ must beLeft)
     }
@@ -628,7 +637,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.timeouts
       )
       enriched.value.map(_ must beLeft)
     }
@@ -654,7 +664,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
               timestamp,
               rawEvent,
               AcceptInvalid.featureFlags,
-              IO.unit
+              IO.unit,
+              SpecHelpers.timeouts
             )
             enriched.value.map(_ must beRight)
           }
@@ -682,7 +693,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
               timestamp,
               rawEvent,
               AcceptInvalid.featureFlags,
-              IO.unit
+              IO.unit,
+              SpecHelpers.timeouts
             )
             enriched.value.map(_ must beRight)
           }
@@ -719,7 +731,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
               timestamp,
               rawEvent,
               AcceptInvalid.featureFlags,
-              IO.unit
+              IO.unit,
+              SpecHelpers.timeouts
             )
             enriched.value.map(_ must beRight { ee: EnrichedEvent =>
               ee.se_value.toString must_== expected
@@ -744,7 +757,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.timeouts
       )
       enriched.value.map { e =>
         val res1 = e.map(_.useragent) must beRight(qs_ua)
@@ -768,7 +782,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.timeouts
       )
       enriched.value.map { e =>
         e.map(_.useragent) must beRight("header-useragent")
@@ -791,7 +806,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.timeouts
       )
       enriched.value.map { e =>
         e.map(_.useragent) must beRight(ua)
@@ -815,7 +831,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.timeouts
       )
       enriched.value.map { e =>
         val res1 = e.map(_.useragent) must beRight(qs_ua)
@@ -859,7 +876,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.timeouts
       )
       enriched.value.map { e =>
         e.map(_.app_id) must beRight("moo")
@@ -1010,7 +1028,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.timeouts
       )
 
       enriched.value.map(_ must beRight.like {
@@ -1178,7 +1197,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
           timestamp,
           RawEvent(api, fatBody, None, source, context),
           featureFlags = AcceptInvalid.featureFlags.copy(acceptInvalid = false),
-          IO.unit
+          IO.unit,
+          SpecHelpers.timeouts
         )
         .value
 
@@ -1205,7 +1225,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
           timestamp,
           RawEvent(api, fatBody, None, source, context),
           featureFlags = AcceptInvalid.featureFlags.copy(acceptInvalid = true),
-          IO.unit
+          IO.unit,
+          SpecHelpers.timeouts
         )
         .value
 

@@ -161,6 +161,7 @@ object EnrichmentRegistry {
             registry <- er
           } yield registry.copy(weather = enrichment.some)
         case c: YauaaConf => er.map(_.copy(yauaa = c.enrichment.some))
+        case c: CrossNavigationConf => er.map(_.copy(crossNavigation = c.enrichment.some))
       }
     }
 
@@ -224,6 +225,8 @@ object EnrichmentRegistry {
             PiiPseudonymizerEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
           case "iab_spiders_and_robots_enrichment" =>
             IabEnrichment.parse(enrichmentConfig, schemaKey, localMode).map(_.some)
+          case "cross_navigation_config" =>
+            CrossNavigationEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
           case _ =>
             Option.empty[EnrichmentConf].validNel // Enrichment is not recognized
         }
@@ -248,5 +251,6 @@ final case class EnrichmentRegistry[F[_]](
   uaParser: Option[UaParserEnrichment[F]] = None,
   userAgentUtils: Option[UserAgentUtilsEnrichment] = None,
   weather: Option[WeatherEnrichment[F]] = None,
-  yauaa: Option[YauaaEnrichment] = None
+  yauaa: Option[YauaaEnrichment] = None,
+  crossNavigation: Option[CrossNavigationEnrichment] = None
 )

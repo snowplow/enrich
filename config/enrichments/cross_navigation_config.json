@@ -1,0 +1,9 @@
+{
+    "schema": "iglu:com.snowplowanalytics.snowplow.enrichments/cross_navigation_config/jsonschema/1-0-0",
+
+    "data": {
+        "enabled": false,
+        "vendor": "com.snowplowanalytics.snowplow.enrichments",
+        "name": "cross_navigation_config"
+    }
+}

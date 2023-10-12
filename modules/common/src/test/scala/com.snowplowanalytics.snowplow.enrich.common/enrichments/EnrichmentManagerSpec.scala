@@ -21,16 +21,19 @@ import cats.effect.testing.specs2.CatsEffect
 import cats.implicits._
 import cats.data.NonEmptyList
 
+import io.circe.Json
 import io.circe.literal._
 import io.circe.parser.{parse => jparse}
+import io.circe.syntax._
 
 import org.joda.time.DateTime
 
 import com.snowplowanalytics.snowplow.badrows._
 import com.snowplowanalytics.snowplow.badrows.FailureDetails.EnrichmentFailureMessage
 
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer}
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
 
+import com.snowplowanalytics.snowplow.enrich.common.QueryStringParameters
 import com.snowplowanalytics.snowplow.enrich.common.loaders._
 import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii.{
@@ -42,13 +45,13 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii.{
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{
+  CrossNavigationEnrichment,
   HttpHeaderExtractorEnrichment,
   IabEnrichment,
   JavascriptScriptEnrichment,
   YauaaEnrichment
 }
 import com.snowplowanalytics.snowplow.enrich.common.AcceptInvalid
-
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
 
@@ -1060,6 +1063,324 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
             (ueJson must beEqualTo(expectedUnstructEvent))
         case _ => ko
       })
+    }
+  }
+
+  "getCrossDomain" should {
+    val schemaKey = SchemaKey(
+      CrossNavigationEnrichment.supportedSchema.vendor,
+      CrossNavigationEnrichment.supportedSchema.name,
+      CrossNavigationEnrichment.supportedSchema.format,
+      SchemaVer.Full(1, 0, 0)
+    )
+
+    "do nothing if none query string parameters - crossNavigation enabled" >> {
+      val crossNavigationEnabled = Some(new CrossNavigationEnrichment(schemaKey))
+      val qsMap: Option[QueryStringParameters] = None
+      val input = new EnrichedEvent()
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager
+        .getCrossDomain[IO](
+          qsMap,
+          crossNavigationEnabled
+        )
+        .runS(inputState)
+        .map(
+          _ must beLike {
+            case acc: EnrichmentManager.Accumulation =>
+              val p = EnrichedEvent.toPartiallyEnrichedEvent(acc.event)
+              (p.refr_domain_userid must beNone) and
+                (p.refr_dvce_tstamp must beNone) and
+                (acc.errors must beEmpty) and
+                (acc.contexts must beEmpty)
+          }
+        )
+    }
+
+    "do nothing if none query string parameters - crossNavigation disabled" >> {
+      val crossNavigationDisabled = None
+      val qsMap: Option[QueryStringParameters] = None
+      val input = new EnrichedEvent()
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager
+        .getCrossDomain[IO](
+          qsMap,
+          crossNavigationDisabled
+        )
+        .runS(inputState)
+        .map(
+          _ must beLike {
+            case acc: EnrichmentManager.Accumulation =>
+              val p = EnrichedEvent.toPartiallyEnrichedEvent(acc.event)
+              (p.refr_domain_userid must beNone) and
+                (p.refr_dvce_tstamp must beNone) and
+                (acc.errors must beEmpty) and
+                (acc.contexts must beEmpty)
+          }
+        )
+    }
+
+    "do nothing if _sp is empty - crossNavigation enabled" >> {
+      val crossNavigationEnabled = Some(new CrossNavigationEnrichment(schemaKey))
+      val qsMap: Option[QueryStringParameters] = Some(List(("_sp" -> Some(""))))
+      val input = new EnrichedEvent()
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager
+        .getCrossDomain[IO](
+          qsMap,
+          crossNavigationEnabled
+        )
+        .runS(inputState)
+        .map(
+          _ must beLike {
+            case acc: EnrichmentManager.Accumulation =>
+              val p = EnrichedEvent.toPartiallyEnrichedEvent(acc.event)
+              (p.refr_domain_userid must beNone) and
+                (p.refr_dvce_tstamp must beNone) and
+                (acc.errors must beEmpty) and
+                (acc.contexts must beEmpty)
+          }
+        )
+    }
+
+    "do nothing if _sp is empty - crossNavigation disabled" >> {
+      val crossNavigationDisabled = None
+      val qsMap: Option[QueryStringParameters] = Some(List(("_sp" -> Some(""))))
+      val input = new EnrichedEvent()
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager
+        .getCrossDomain[IO](
+          qsMap,
+          crossNavigationDisabled
+        )
+        .runS(inputState)
+        .map(
+          _ must beLike {
+            case acc: EnrichmentManager.Accumulation =>
+              val p = EnrichedEvent.toPartiallyEnrichedEvent(acc.event)
+              (p.refr_domain_userid must beNone) and
+                (p.refr_dvce_tstamp must beNone) and
+                (acc.errors must beEmpty) and
+                (acc.contexts must beEmpty)
+          }
+        )
+    }
+
+    "add atomic props and ctx with original _sp format and cross navigation enabled" >> {
+      val crossNavigationEnabled = Some(new CrossNavigationEnrichment(schemaKey))
+      val qsMap: Option[QueryStringParameters] = Some(
+        List(
+          ("_sp" -> Some("abc.1697175843762"))
+        )
+      )
+      val expectedRefrDuid = Some("abc")
+      val expectedRefrTstamp = Some("2023-10-13 05:44:03.762")
+      val expectedCtx: List[SelfDescribingData[Json]] = List(
+        SelfDescribingData(
+          CrossNavigationEnrichment.outputSchema,
+          Map(
+            "domain_user_id" -> Some("abc"),
+            "timestamp" -> Some("2023-10-13T05:44:03.762Z"),
+            "session_id" -> None,
+            "user_id" -> None,
+            "source_id" -> None,
+            "source_platform" -> None,
+            "reason" -> None
+          ).asJson
+        )
+      )
+      val input = new EnrichedEvent()
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager
+        .getCrossDomain[IO](
+          qsMap,
+          crossNavigationEnabled
+        )
+        .runS(inputState)
+        .map(
+          _ must beLike {
+            case acc: EnrichmentManager.Accumulation =>
+              val p = EnrichedEvent.toPartiallyEnrichedEvent(acc.event)
+              (p.refr_domain_userid must beEqualTo(expectedRefrDuid)) and
+                (p.refr_dvce_tstamp must beEqualTo(expectedRefrTstamp)) and
+                (acc.errors must beEmpty) and
+                (acc.contexts must beEqualTo(expectedCtx))
+          }
+        )
+    }
+
+    "add atomic props but no ctx with original _sp format and cross navigation disabled" >> {
+      val crossNavigationDisabled = None
+      val qsMap: Option[QueryStringParameters] = Some(
+        List(
+          ("_sp" -> Some("abc.1697175843762"))
+        )
+      )
+      val expectedRefrDuid = Some("abc")
+      val expectedRefrTstamp = Some("2023-10-13 05:44:03.762")
+      val input = new EnrichedEvent()
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager
+        .getCrossDomain[IO](
+          qsMap,
+          crossNavigationDisabled
+        )
+        .runS(inputState)
+        .map(
+          _ must beLike {
+            case acc: EnrichmentManager.Accumulation =>
+              val p = EnrichedEvent.toPartiallyEnrichedEvent(acc.event)
+              (p.refr_domain_userid must beEqualTo(expectedRefrDuid)) and
+                (p.refr_dvce_tstamp must beEqualTo(expectedRefrTstamp)) and
+                (acc.errors must beEmpty) and
+                (acc.contexts must beEmpty)
+          }
+        )
+    }
+
+    "add atomic props and ctx with extended _sp format and cross navigation enabled" >> {
+      val crossNavigationEnabled = Some(new CrossNavigationEnrichment(schemaKey))
+      val qsMap: Option[QueryStringParameters] = Some(
+        List(
+          ("_sp" -> Some("abc.1697175843762.176ff68a-4769-4566-ad0e-3792c1c8148f.dGVzdGVy.c29tZVNvdXJjZUlk.web.dGVzdGluZ19yZWFzb24"))
+        )
+      )
+      val expectedRefrDuid = Some("abc")
+      val expectedRefrTstamp = Some("2023-10-13 05:44:03.762")
+      val expectedCtx: List[SelfDescribingData[Json]] = List(
+        SelfDescribingData(
+          CrossNavigationEnrichment.outputSchema,
+          Map(
+            "domain_user_id" -> Some("abc"),
+            "timestamp" -> Some("2023-10-13T05:44:03.762Z"),
+            "session_id" -> Some("176ff68a-4769-4566-ad0e-3792c1c8148f"),
+            "user_id" -> Some("tester"),
+            "source_id" -> Some("someSourceId"),
+            "source_platform" -> Some("web"),
+            "reason" -> Some("testing_reason")
+          ).asJson
+        )
+      )
+      val input = new EnrichedEvent()
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager
+        .getCrossDomain[IO](
+          qsMap,
+          crossNavigationEnabled
+        )
+        .runS(inputState)
+        .map(
+          _ must beLike {
+            case acc: EnrichmentManager.Accumulation =>
+              val p = EnrichedEvent.toPartiallyEnrichedEvent(acc.event)
+              (p.refr_domain_userid must beEqualTo(expectedRefrDuid)) and
+                (p.refr_dvce_tstamp must beEqualTo(expectedRefrTstamp)) and
+                (acc.errors must beEmpty) and
+                (acc.contexts must beEqualTo(expectedCtx))
+          }
+        )
+    }
+
+    "add atomic props but no ctx with extended _sp format and cross navigation disabled" >> {
+      val crossNavigationDisabled = None
+      val qsMap: Option[QueryStringParameters] = Some(
+        List(
+          ("_sp" -> Some("abc.1697175843762.176ff68a-4769-4566-ad0e-3792c1c8148f.dGVzdGVy.c29tZVNvdXJjZUlk.web.dGVzdGluZ19yZWFzb24"))
+        )
+      )
+      val expectedRefrDuid = Some("abc")
+      val expectedRefrTstamp = Some("2023-10-13 05:44:03.762")
+      val input = new EnrichedEvent()
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager
+        .getCrossDomain[IO](
+          qsMap,
+          crossNavigationDisabled
+        )
+        .runS(inputState)
+        .map(
+          _ must beLike {
+            case acc: EnrichmentManager.Accumulation =>
+              val p = EnrichedEvent.toPartiallyEnrichedEvent(acc.event)
+              (p.refr_domain_userid must beEqualTo(expectedRefrDuid)) and
+                (p.refr_dvce_tstamp must beEqualTo(expectedRefrTstamp)) and
+                (acc.errors must beEmpty) and
+                (acc.contexts must beEmpty)
+          }
+        )
+    }
+
+    "error with info if parsing failed and cross navigation is enabled" >> {
+      val crossNavigationEnabled = Some(new CrossNavigationEnrichment(schemaKey))
+      // causing a parsing failure by providing invalid tstamp
+      val qsMap: Option[QueryStringParameters] = Some(
+        List(
+          ("_sp" -> Some("abc.some_invalid_timestamp_value"))
+        )
+      )
+      val input = new EnrichedEvent()
+      val expectedFail = FailureDetails.EnrichmentFailure(
+        FailureDetails
+          .EnrichmentInformation(
+            schemaKey,
+            "cross-navigation"
+          )
+          .some,
+        FailureDetails.EnrichmentFailureMessage.InputData(
+          "sp_dtm",
+          "some_invalid_timestamp_value".some,
+          "not in the expected format: ms since epoch"
+        )
+      )
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager
+        .getCrossDomain[IO](
+          qsMap,
+          crossNavigationEnabled
+        )
+        .runS(inputState)
+        .map(
+          _ must beLike {
+            case acc: EnrichmentManager.Accumulation =>
+              (acc.errors must not beEmpty) and
+                (acc.errors must beEqualTo(List(expectedFail))) and
+                (acc.contexts must beEmpty)
+          }
+        )
+    }
+
+    "error without info if parsing failed and cross navigation is disabled" >> {
+      val crossNavigationDisabled = None
+      // causing a parsing failure by providing invalid tstamp
+      val qsMap: Option[QueryStringParameters] = Some(
+        List(
+          ("_sp" -> Some("abc.some_invalid_timestamp_value"))
+        )
+      )
+      val input = new EnrichedEvent()
+      val expectedFail = FailureDetails.EnrichmentFailure(
+        None,
+        FailureDetails.EnrichmentFailureMessage.InputData(
+          "sp_dtm",
+          "some_invalid_timestamp_value".some,
+          "not in the expected format: ms since epoch"
+        )
+      )
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager
+        .getCrossDomain[IO](
+          qsMap,
+          crossNavigationDisabled
+        )
+        .runS(inputState)
+        .map(
+          _ must beLike {
+            case acc: EnrichmentManager.Accumulation =>
+              (acc.errors must not beEmpty) and
+                (acc.errors must beEqualTo(List(expectedFail))) and
+                (acc.contexts must beEmpty)
+          }
+        )
     }
   }
 

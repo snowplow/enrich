@@ -245,4 +245,8 @@ object EnrichmentConf {
   ) extends EnrichmentConf {
     def enrichment: YauaaEnrichment = YauaaEnrichment(cacheSize)
   }
+
+  final case class CrossNavigationConf(schemaKey: SchemaKey) extends EnrichmentConf {
+    def enrichment: CrossNavigationEnrichment = CrossNavigationEnrichment(schemaKey)
+  }
 }

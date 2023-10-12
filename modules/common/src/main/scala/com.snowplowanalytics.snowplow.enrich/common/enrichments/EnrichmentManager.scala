@@ -35,7 +35,7 @@ import com.snowplowanalytics.snowplow.enrich.common.{EtlPipeline, QueryStringPar
 import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.{EventEnrichments => EE}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.{MiscEnrichments => ME}
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry._
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{CrossNavigationEnrichment => CNE, _}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest.ApiRequestEnrichment
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii.PiiPseudonymizerEnrichment
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.SqlQueryEnrichment
@@ -205,7 +205,7 @@ object EnrichmentManager {
         _       <- getRefererUri[F](registry.refererParser)                           // Potentially set the referrer details and URL components
         qsMap   <- extractQueryString[F](pageUri, raw.source.encoding)                // Parse the page URI's querystring
         _       <- setCampaign[F](qsMap, registry.campaignAttribution)                // Marketing attribution
-        _       <- getCrossDomain[F](qsMap)                                           // Cross-domain tracking
+        _       <- getCrossDomain[F](qsMap, registry.crossNavigation)                 // Cross-domain tracking
         _       <- setEventFingerprint[F](raw.parameters, registry.eventFingerprint)  // This enrichment cannot fail
         _       <- getCookieContexts                                                  // Execute cookie extractor enrichment
         _       <- getHttpHeaderContexts                                              // Execute header extractor enrichment
@@ -232,7 +232,7 @@ object EnrichmentManager {
         _       <- getRefererUri[F](registry.refererParser)                           // Potentially set the referrer details and URL components
         qsMap   <- extractQueryString[F](pageUri, raw.source.encoding)                // Parse the page URI's querystring
         _       <- setCampaign[F](qsMap, registry.campaignAttribution)                // Marketing attribution
-        _       <- getCrossDomain[F](qsMap)                                           // Cross-domain tracking
+        _       <- getCrossDomain[F](qsMap, registry.crossNavigation)                 // Cross-domain tracking
         _       <- setEventFingerprint[F](raw.parameters, registry.eventFingerprint)  // This enrichment cannot fail
         _       <- getCookieContexts                                                  // Execute cookie extractor enrichment
         _       <- getHttpHeaderContexts                                              // Execute header extractor enrichment
@@ -607,18 +607,30 @@ object EnrichmentManager {
     }
 
   def getCrossDomain[F[_]: Applicative](
-    pageQsMap: Option[QueryStringParameters]
+    pageQsMap: Option[QueryStringParameters],
+    crossNavEnrichment: Option[CNE]
   ): EStateT[F, Unit] =
     EStateT.fromEither {
       case (event, _) =>
         pageQsMap match {
           case Some(qsMap) =>
-            val crossDomainParseResult = WPE.parseCrossDomain(qsMap)
-            for ((maybeRefrDomainUserid, maybeRefrDvceTstamp) <- crossDomainParseResult.toOption) {
-              maybeRefrDomainUserid.foreach(event.refr_domain_userid = _)
-              maybeRefrDvceTstamp.foreach(event.refr_dvce_tstamp = _)
-            }
-            crossDomainParseResult.bimap(NonEmptyList.one(_), _ => Nil)
+            CNE
+              .parseCrossDomain(qsMap)
+              .bimap(
+                err =>
+                  crossNavEnrichment match {
+                    case Some(cn) => NonEmptyList.one(cn.addEnrichmentInfo(err))
+                    case None => NonEmptyList.one(err)
+                  },
+                crossNavMap => {
+                  crossNavMap.duid.foreach(event.refr_domain_userid = _)
+                  crossNavMap.tstamp.foreach(event.refr_dvce_tstamp = _)
+                  crossNavEnrichment match {
+                    case Some(_) => crossNavMap.getCrossNavigationContext
+                    case None => Nil
+                  }
+                }
+              )
           case None => Nil.asRight
         }
     }

@@ -13,13 +13,10 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.web
 import java.net.URI
 
 import cats.syntax.either._
-import cats.syntax.option._
 
 import com.snowplowanalytics.snowplow.badrows._
 
 import com.snowplowanalytics.snowplow.enrich.common.utils.{ConversionUtils => CU}
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.EventEnrichments
-import com.snowplowanalytics.snowplow.enrich.common.QueryStringParameters
 
 /** Holds enrichments related to the web page URL, and the document object contained in the page. */
 object PageEnrichments {
@@ -44,26 +41,4 @@ object PageEnrichments {
         FailureDetails.EnrichmentFailureMessage.Simple(f)
       )
     )
-
-  /**
-   * Extract the referrer domain user ID and timestamp from the "_sp={{DUID}}.{{TSTAMP}}"
-   * portion of the querystring
-   * @param qsMap The querystring parameters
-   * @return Validation boxing a pair of optional strings corresponding to the two fields
-   */
-  def parseCrossDomain(qsMap: QueryStringParameters): Either[FailureDetails.EnrichmentFailure, (Option[String], Option[String])] =
-    qsMap.toMap
-      .map { case (k, v) => (k, v.getOrElse("")) }
-      .get("_sp") match {
-      case Some("") => (None, None).asRight
-      case Some(sp) =>
-        val crossDomainElements = sp.split("\\.")
-        val duid = CU.makeTsvSafe(crossDomainElements(0)).some
-        val tstamp = crossDomainElements.lift(1) match {
-          case Some(spDtm) => EventEnrichments.extractTimestamp("sp_dtm", spDtm).map(_.some)
-          case None => None.asRight
-        }
-        tstamp.map(duid -> _)
-      case None => (None -> None).asRight
-    }
 }

@@ -474,4 +474,21 @@ class EnrichmentConfigsSpec extends Specification with ValidatedMatchers with Da
       result must beInvalid
     }
   }
+
+  "Parsing an cross_navigation_config JSON" should {
+    "successfully construct a CrossNavigationEnrichment" in {
+      val crossNavJson = json"""{
+        "enabled": true
+      }"""
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow.enrichments",
+        "cross_navigation_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val expected = CrossNavigationConf(schemaKey)
+      val result = CrossNavigationEnrichment.parse(crossNavJson, schemaKey, false)
+      result must beValid(expected)
+    }
+  }
 }

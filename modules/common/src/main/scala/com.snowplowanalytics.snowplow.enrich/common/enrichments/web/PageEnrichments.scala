@@ -17,8 +17,9 @@ package web
 import java.net.URI
 
 import cats.syntax.either._
-import cats.syntax.option._
-import com.snowplowanalytics.snowplow.badrows._
+
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{CrossNavigationEnrichment => CNE}
+import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
 import utils.{ConversionUtils => CU}
 
@@ -52,19 +53,12 @@ object PageEnrichments {
    * @param qsMap The querystring parameters
    * @return Validation boxing a pair of optional strings corresponding to the two fields
    */
-  def parseCrossDomain(qsMap: QueryStringParameters): Either[FailureDetails.EnrichmentFailure, (Option[String], Option[String])] =
+  def parseCrossDomain(qsMap: QueryStringParameters): Either[FailureDetails.EnrichmentFailure, Map[String, Option[String]]] =
     qsMap.toMap
       .map { case (k, v) => (k, v.getOrElse("")) }
       .get("_sp") match {
-      case Some("") => (None, None).asRight
-      case Some(sp) =>
-        val crossDomainElements = sp.split("\\.")
-        val duid = CU.makeTsvSafe(crossDomainElements(0)).some
-        val tstamp = crossDomainElements.lift(1) match {
-          case Some(spDtm) => EventEnrichments.extractTimestamp("sp_dtm", spDtm).map(_.some)
-          case None => None.asRight
-        }
-        tstamp.map(duid -> _)
-      case None => (None -> None).asRight
+      case Some("") => Map.empty[String, Option[String]].asRight
+      case Some(sp) => CNE.makeCrossDomainMap(sp)
+      case None => Map.empty[String, Option[String]].asRight
     }
 }

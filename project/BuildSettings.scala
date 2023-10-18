@@ -66,14 +66,6 @@ object BuildSettings {
     buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.kinesis.generated"
   )
 
-  lazy val rabbitmqProjectSettings = projectSettings ++ Seq(
-    name := "snowplow-enrich-rabbitmq",
-    moduleName := "snowplow-enrich-rabbitmq",
-    description := "High-performance streaming enrich app for RabbitMQ, built on top of functional streams",
-    buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
-    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.rabbitmq.generated"
-  )
-
   lazy val kafkaProjectSettings = projectSettings ++ Seq(
     name := "snowplow-enrich-kafka",
     moduleName := "snowplow-enrich-kafka",
@@ -242,16 +234,6 @@ object BuildSettings {
   }
 
   lazy val kinesisDistrolessBuildSettings = kinesisBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
-
-  lazy val rabbitmqBuildSettings = {
-    // Project
-    rabbitmqProjectSettings ++ buildSettings ++
-    // Build and publish
-    assemblySettings ++ dockerSettingsFocal ++
-      Seq(Docker / packageName := "snowplow-enrich-rabbitmq")
-  }
-
-  lazy val rabbitmqDistrolessBuildSettings = rabbitmqBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
 
   lazy val kafkaBuildSettings = {
     // Project

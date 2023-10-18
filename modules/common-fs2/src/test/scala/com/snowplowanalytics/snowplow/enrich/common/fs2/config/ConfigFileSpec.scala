@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -19,7 +19,6 @@ import java.nio.file.Paths
 import scala.concurrent.duration._
 
 import cats.syntax.either._
-import cats.data.NonEmptyList
 import cats.effect.IO
 
 import cats.effect.testing.specs2.CatsIO
@@ -175,118 +174,6 @@ class ConfigFileSpec extends Specification with CatsIO {
           Some("hfy67e5ydhtrd"),
           Some("665bhft5u6udjf"),
           Some("enrich-kinesis-ce"),
-          Some("1.0.0")
-        ),
-        io.FeatureFlags(
-          false,
-          false,
-          false
-        ),
-        Some(
-          io.Experimental(
-            Some(
-              io.Metadata(
-                Uri.uri("https://my_pipeline.my_domain.com/iglu"),
-                5.minutes,
-                UUID.fromString("c5f3a09f-75f8-4309-bec5-fea560f78455"),
-                UUID.fromString("75a13583-5c99-40e3-81fc-541084dfc784")
-              )
-            )
-          )
-        ),
-        adaptersSchemas
-      )
-      ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
-    }
-
-    "parse reference example for RabbitMQ" in {
-      val configPath = Paths.get(getClass.getResource("/config.rabbitmq.extended.hocon").toURI)
-      val expected = ConfigFile(
-        io.Input.RabbitMQ(
-          io.RabbitMQConfig(
-            NonEmptyList.one(
-              io.RabbitMQNode("localhost", 5672)
-            ),
-            "guest",
-            "guest",
-            "/",
-            5,
-            false,
-            1000,
-            100,
-            true
-          ),
-          "raw",
-          io.BackoffPolicy(100.millis, 10.seconds, Some(10))
-        ),
-        io.Outputs(
-          io.Output.RabbitMQ(
-            io.RabbitMQConfig(
-              NonEmptyList.one(
-                io.RabbitMQNode("localhost", 5672)
-              ),
-              "guest",
-              "guest",
-              "/",
-              5,
-              false,
-              1000,
-              100,
-              true
-            ),
-            "enriched",
-            "enriched",
-            io.BackoffPolicy(100.millis, 10.seconds, Some(10))
-          ),
-          None,
-          io.Output.RabbitMQ(
-            io.RabbitMQConfig(
-              NonEmptyList.one(
-                io.RabbitMQNode("localhost", 5672)
-              ),
-              "guest",
-              "guest",
-              "/",
-              5,
-              false,
-              1000,
-              100,
-              true
-            ),
-            "bad-1",
-            "bad-1",
-            io.BackoffPolicy(100.millis, 10.seconds, Some(10))
-          )
-        ),
-        io.Concurrency(256, 3),
-        Some(7.days),
-        io.RemoteAdapterConfigs(
-          10.seconds,
-          45.seconds,
-          10,
-          List(
-            io.RemoteAdapterConfig("com.example", "v1", "https://remote-adapter.com")
-          )
-        ),
-        io.Monitoring(
-          Some(Sentry(URI.create("http://sentry.acme.com"))),
-          io.MetricsReporters(
-            Some(io.MetricsReporters.StatsD("localhost", 8125, Map("app" -> "enrich"), 10.seconds, None)),
-            Some(io.MetricsReporters.Stdout(10.seconds, None)),
-            true
-          )
-        ),
-        io.Telemetry(
-          false,
-          15.minutes,
-          "POST",
-          "collector-g.snowplowanalytics.com",
-          443,
-          true,
-          Some("my_pipeline"),
-          Some("hfy67e5ydhtrd"),
-          Some("665bhft5u6udjf"),
-          Some("enrich-rabbitmq-ce"),
           Some("1.0.0")
         ),
         io.FeatureFlags(

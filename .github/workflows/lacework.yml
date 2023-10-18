@@ -74,20 +74,6 @@ jobs:
           LW_SCANNER_SAVE_RESULTS: ${{ !contains(steps.version.outputs.tag, 'rc') }}
         run: ./lw-scanner image evaluate snowplow/snowplow-enrich-kafka ${{ steps.ver.outputs.tag }}-distroless --build-id ${{ github.run_id }} --no-pull
 
-      - name: Scan enrich-rabbitmq
-        env:
-          LW_ACCESS_TOKEN: ${{ secrets.LW_ACCESS_TOKEN }}
-          LW_ACCOUNT_NAME: ${{ secrets.LW_ACCOUNT_NAME }}
-          LW_SCANNER_SAVE_RESULTS: ${{ !contains(steps.version.outputs.tag, 'rc') }}
-        run: ./lw-scanner image evaluate snowplow/snowplow-enrich-rabbitmq ${{ steps.ver.outputs.tag }} --build-id ${{ github.run_id }} --no-pull
-
-      - name: Scan enrich-rabbitmq distroless
-        env:
-          LW_ACCESS_TOKEN: ${{ secrets.LW_ACCESS_TOKEN }}
-          LW_ACCOUNT_NAME: ${{ secrets.LW_ACCOUNT_NAME }}
-          LW_SCANNER_SAVE_RESULTS: ${{ !contains(steps.version.outputs.tag, 'rc') }}
-        run: ./lw-scanner image evaluate snowplow/snowplow-enrich-rabbitmq ${{ steps.ver.outputs.tag }}-distroless --build-id ${{ github.run_id }} --no-pull
-
       - name: Scan enrich-nsq
         env:
           LW_ACCESS_TOKEN: ${{ secrets.LW_ACCESS_TOKEN }}

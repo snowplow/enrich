@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -18,7 +18,6 @@ import java.net.URI
 import java.util.UUID
 
 import cats.syntax.either._
-import cats.data.NonEmptyList
 
 import scala.concurrent.duration.{Duration, FiniteDuration}
 
@@ -76,31 +75,6 @@ object io {
     val checkpointBackoff: BackoffPolicy
   }
 
-  case class RabbitMQNode(
-    host: String,
-    port: Int
-  )
-  object RabbitMQNode {
-    implicit val rabbitMQNodeDecoder: Decoder[RabbitMQNode] = deriveConfiguredDecoder[RabbitMQNode]
-    implicit val rabbitMQNodeEncoder: Encoder[RabbitMQNode] = deriveConfiguredEncoder[RabbitMQNode]
-  }
-
-  case class RabbitMQConfig(
-    nodes: NonEmptyList[RabbitMQNode],
-    username: String,
-    password: String,
-    virtualHost: String,
-    connectionTimeout: Int,
-    ssl: Boolean,
-    internalQueueSize: Int,
-    requestedHeartbeat: Int,
-    automaticRecovery: Boolean
-  )
-  object RabbitMQConfig {
-    implicit val rabbitMQConfigDecoder: Decoder[RabbitMQConfig] = deriveConfiguredDecoder[RabbitMQConfig]
-    implicit val rabbitMQConfigEncoder: Encoder[RabbitMQConfig] = deriveConfiguredEncoder[RabbitMQConfig]
-  }
-
   sealed trait Input
 
   object Input {
@@ -149,12 +123,6 @@ object io {
       customEndpoint: Option[URI],
       dynamodbCustomEndpoint: Option[URI],
       cloudwatchCustomEndpoint: Option[URI]
-    ) extends Input
-        with RetryCheckpointing
-    case class RabbitMQ(
-      cluster: RabbitMQConfig,
-      queue: String,
-      checkpointBackoff: BackoffPolicy
     ) extends Input
         with RetryCheckpointing
 
@@ -309,12 +277,6 @@ object io {
       recordLimit: Int,
       byteLimit: Int,
       customEndpoint: Option[URI]
-    ) extends Output
-    case class RabbitMQ(
-      cluster: RabbitMQConfig,
-      exchange: String,
-      routingKey: String,
-      backoffPolicy: BackoffPolicy
     ) extends Output
 
     implicit val outputDecoder: Decoder[Output] =

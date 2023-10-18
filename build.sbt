@@ -23,7 +23,7 @@ lazy val root = project.in(file("."))
   .settings(projectSettings)
   .settings(compilerSettings)
   .settings(resolverSettings)
-  .aggregate(common, commonFs2, pubsub, kinesis, kafka, rabbitmq, nsq)
+  .aggregate(common, commonFs2, pubsub, kinesis, kafka, nsq)
 
 lazy val common = project
   .in(file("modules/common"))
@@ -109,25 +109,6 @@ lazy val kafkaDistroless = project
   .settings(sourceDirectory := (kafka / sourceDirectory).value)
   .settings(kafkaDistrolessBuildSettings)
   .settings(libraryDependencies ++= kafkaDependencies)
-  .settings(excludeDependencies ++= exclusions)
-  .settings(addCompilerPlugin(betterMonadicFor))
-  .dependsOn(commonFs2)
-
-lazy val rabbitmq = project
-  .in(file("modules/rabbitmq"))
-  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDockerPlugin)
-  .settings(rabbitmqBuildSettings)
-  .settings(libraryDependencies ++= rabbitmqDependencies)
-  .settings(excludeDependencies ++= exclusions)
-  .settings(addCompilerPlugin(betterMonadicFor))
-  .dependsOn(commonFs2)
-
-lazy val rabbitmqDistroless = project
-  .in(file("modules/distroless/rabbitmq"))
-  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDistrolessDockerPlugin)
-  .settings(sourceDirectory := (rabbitmq / sourceDirectory).value)
-  .settings(rabbitmqDistrolessBuildSettings)
-  .settings(libraryDependencies ++= rabbitmqDependencies)
   .settings(excludeDependencies ++= exclusions)
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(commonFs2)

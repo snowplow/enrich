@@ -25,6 +25,8 @@ import org.specs2.mutable.Specification
 import org.specs2.matcher.EitherMatchers
 
 class CrossNavigationEnrichmentSpec extends Specification with EitherMatchers {
+  import CrossNavigationEnrichment._
+
   val schemaKey = SchemaKey(
     CrossNavigationEnrichment.supportedSchema.vendor,
     CrossNavigationEnrichment.supportedSchema.name,
@@ -39,7 +41,7 @@ class CrossNavigationEnrichmentSpec extends Specification with EitherMatchers {
         "domain_user_id" -> Some("abc"),
         "timestamp" -> Some("2023-10-15 19:33:18.279")
       )
-      val result = CrossNavigationEnrichment.makeCrossDomainMap(input)
+      val result = CrossDomainMap.makeCrossDomainMap(input).map(_.domainMap)
       result must beEqualTo(expectedOut.asRight)
     }
 
@@ -49,7 +51,7 @@ class CrossNavigationEnrichmentSpec extends Specification with EitherMatchers {
         "domain_user_id" -> Some("abc"),
         "timestamp" -> None
       )
-      val result = CrossNavigationEnrichment.makeCrossDomainMap(input)
+      val result = CrossDomainMap.makeCrossDomainMap(input).map(_.domainMap)
       result must beEqualTo(expectedOut.asRight)
     }
 
@@ -59,7 +61,7 @@ class CrossNavigationEnrichmentSpec extends Specification with EitherMatchers {
         "domain_user_id" -> Some(null),
         "timestamp" -> Some("2023-10-15 19:33:18.279")
       )
-      val result = CrossNavigationEnrichment.makeCrossDomainMap(input)
+      val result = CrossDomainMap.makeCrossDomainMap(input).map(_.domainMap)
       result must beEqualTo(expectedOut.asRight)
     }
 
@@ -74,7 +76,7 @@ class CrossNavigationEnrichmentSpec extends Specification with EitherMatchers {
         "source_platform" -> Some("web"),
         "reason" -> Some("testing_reason")
       )
-      val result = CrossNavigationEnrichment.makeCrossDomainMap(input)
+      val result = CrossDomainMap.makeCrossDomainMap(input).map(_.domainMap)
       result must beEqualTo(expectedOut.asRight)
     }
 
@@ -89,7 +91,7 @@ class CrossNavigationEnrichmentSpec extends Specification with EitherMatchers {
         "source_platform" -> Some("web"),
         "reason" -> Some("testing_reason")
       )
-      val result = CrossNavigationEnrichment.makeCrossDomainMap(input)
+      val result = CrossDomainMap.makeCrossDomainMap(input).map(_.domainMap)
       result must beEqualTo(expectedOut.asRight)
     }
 
@@ -104,7 +106,7 @@ class CrossNavigationEnrichmentSpec extends Specification with EitherMatchers {
         "source_platform" -> Some("web"),
         "reason" -> Some("testing_reason")
       )
-      val result = CrossNavigationEnrichment.makeCrossDomainMap(input)
+      val result = CrossDomainMap.makeCrossDomainMap(input).map(_.domainMap)
       result must beEqualTo(expectedOut.asRight)
     }
 
@@ -116,7 +118,7 @@ class CrossNavigationEnrichmentSpec extends Specification with EitherMatchers {
         "user_id" -> Some("tester"),
         "source_platform" -> Some("web")
       )
-      val result = CrossNavigationEnrichment.makeCrossDomainMap(input)
+      val result = CrossDomainMap.makeCrossDomainMap(input).map(_.domainMap)
       result must beEqualTo(expectedOut.asRight)
     }
 
@@ -127,7 +129,7 @@ class CrossNavigationEnrichmentSpec extends Specification with EitherMatchers {
         "timestamp" -> None,
         "session_id" -> Some("176ff68a-4769-4566-ad0e-3792c1c8148f")
       )
-      val result = CrossNavigationEnrichment.makeCrossDomainMap(input)
+      val result = CrossDomainMap.makeCrossDomainMap(input).map(_.domainMap)
       result must beEqualTo(expectedOut.asRight)
     }
 
@@ -137,14 +139,14 @@ class CrossNavigationEnrichmentSpec extends Specification with EitherMatchers {
         "domain_user_id" -> Some("abc"),
         "timestamp" -> Some("2023-10-13 05:44:03.762")
       )
-      val result = CrossNavigationEnrichment.makeCrossDomainMap(input)
+      val result = CrossDomainMap.makeCrossDomainMap(input).map(_.domainMap)
       result must beEqualTo(expectedOut.asRight)
     }
 
     "return empty map on invalid format" >> {
       val input = "abc.1697175843762.176ff68a-4769-4566-ad0e-3792c1c8148f.dGVzdGVy.c29tZVNvdXJjZUlk.web.dGVzdGluZ19yZWFzb24...foo..bar..."
       val expectedOut = Map.empty[String, Option[String]]
-      val result = CrossNavigationEnrichment.makeCrossDomainMap(input)
+      val result = CrossDomainMap.makeCrossDomainMap(input).map(_.domainMap)
       result must beEqualTo(expectedOut.asRight)
     }
 
@@ -158,7 +160,7 @@ class CrossNavigationEnrichmentSpec extends Specification with EitherMatchers {
           "not in the expected format: ms since epoch"
         )
       )
-      val result = CrossNavigationEnrichment.makeCrossDomainMap(input)
+      val result = CrossDomainMap.makeCrossDomainMap(input).map(_.domainMap)
       result must beEqualTo(expectedOut.asLeft)
     }
 
@@ -172,18 +174,16 @@ class CrossNavigationEnrichmentSpec extends Specification with EitherMatchers {
           "formatting as 37179-09-17 07:18:31.111 is not Redshift-compatible"
         )
       )
-      val result = CrossNavigationEnrichment.makeCrossDomainMap(input)
+      val result = CrossDomainMap.makeCrossDomainMap(input).map(_.domainMap)
       result must beEqualTo(expectedOut.asLeft)
     }
   }
 
   "getCrossNavigationContext" should {
-    val cne = new CrossNavigationEnrichment(schemaKey)
-
     "return Nil if input is empty Map" >> {
       val input = Map.empty[String, Option[String]]
       val expectedOut: List[SelfDescribingData[Json]] = Nil
-      val result = cne.getCrossNavigationContext(input)
+      val result = CrossDomainMap(input).getCrossNavigationContext
       result must beEqualTo(expectedOut)
     }
 
@@ -211,7 +211,7 @@ class CrossNavigationEnrichmentSpec extends Specification with EitherMatchers {
           ).asJson
         )
       )
-      val result = cne.getCrossNavigationContext(input)
+      val result = CrossDomainMap(input).getCrossNavigationContext
       result must beEqualTo(expectedOut)
     }
   }

@@ -614,7 +614,7 @@ object EnrichmentManager {
       case (event, _) =>
         pageQsMap match {
           case Some(qsMap) =>
-            WPE
+            CNE
               .parseCrossDomain(qsMap)
               .bimap(
                 err =>
@@ -623,15 +623,10 @@ object EnrichmentManager {
                     case None => NonEmptyList.one(err)
                   },
                 crossNavMap => {
-                  val crossNavKeys = crossNavMap.keySet
-                  val duidKey = CNE.CrossNavProps(0)
-                  val tstampKey = CNE.CrossNavProps(1)
-                  if (crossNavKeys.contains(duidKey))
-                    crossNavMap(duidKey).foreach(event.refr_domain_userid = _)
-                  if (crossNavKeys.contains(tstampKey))
-                    crossNavMap(tstampKey).foreach(event.refr_dvce_tstamp = _)
+                  crossNavMap.duid.foreach(event.refr_domain_userid = _)
+                  crossNavMap.tstamp.foreach(event.refr_dvce_tstamp = _)
                   crossNavEnrichment match {
-                    case Some(cn) => cn.getCrossNavigationContext(crossNavMap)
+                    case Some(_) => crossNavMap.getCrossNavigationContext
                     case None => Nil
                   }
                 }

@@ -18,7 +18,6 @@ import java.net.URI
 
 import cats.syntax.either._
 
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{CrossNavigationEnrichment => CNE}
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
 import utils.{ConversionUtils => CU}
@@ -46,19 +45,4 @@ object PageEnrichments {
         FailureDetails.EnrichmentFailureMessage.Simple(f)
       )
     )
-
-  /**
-   * Extract the referrer domain user ID and timestamp from the "_sp={{DUID}}.{{TSTAMP}}"
-   * portion of the querystring
-   * @param qsMap The querystring parameters
-   * @return Validation boxing a pair of optional strings corresponding to the two fields
-   */
-  def parseCrossDomain(qsMap: QueryStringParameters): Either[FailureDetails.EnrichmentFailure, Map[String, Option[String]]] =
-    qsMap.toMap
-      .map { case (k, v) => (k, v.getOrElse("")) }
-      .get("_sp") match {
-      case Some("") => Map.empty[String, Option[String]].asRight
-      case Some(sp) => CNE.makeCrossDomainMap(sp)
-      case None => Map.empty[String, Option[String]].asRight
-    }
 }

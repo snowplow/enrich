@@ -10,7 +10,7 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.pubsub
+package com.snowplowanalytics.snowplow.enrich.nsq
 
 import java.net.URI
 import java.util.UUID
@@ -25,8 +25,9 @@ import org.http4s.Uri
 
 import cats.effect.testing.specs2.CatsIO
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config._
-
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.BackoffPolicy
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{ConfigFile, Sentry}
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
 
 import org.specs2.mutable.Specification
@@ -34,43 +35,53 @@ import org.specs2.mutable.Specification
 class ConfigSpec extends Specification with CatsIO {
 
   "parse" should {
-    "parse reference example for PubSub" in {
-      val configPath = Paths.get(getClass.getResource("/config.pubsub.extended.hocon").toURI)
+    "parse reference example for NSQ" in {
+      val configPath = Paths.get(getClass.getResource("/config.nsq.extended.hocon").toURI)
       val expected = ConfigFile(
-        io.Input.PubSub(
-          "projects/test-project/subscriptions/collector-payloads-sub",
-          1,
+        io.Input.Nsq(
+          "collector-payloads",
+          "collector-payloads-channel",
+          "127.0.0.1",
+          4161,
           3000,
-          50000000,
-          1.hour,
-          io.GcpUserAgent("Snowplow OSS")
+          BackoffPolicy(
+            minBackoff = 100.milliseconds,
+            maxBackoff = 10.seconds,
+            maxRetries = Some(10)
+          )
         ),
         io.Outputs(
-          io.Output.PubSub(
-            "projects/test-project/topics/enriched",
-            Some(Set("app_id")),
-            200.milliseconds,
-            1000,
-            8000000,
-            io.GcpUserAgent("Snowplow OSS")
-          ),
-          Some(
-            io.Output.PubSub(
-              "projects/test-project/topics/pii",
-              None,
-              200.milliseconds,
-              1000,
-              8000000,
-              io.GcpUserAgent("Snowplow OSS")
+          io.Output.Nsq(
+            "enriched",
+            "127.0.0.1",
+            4150,
+            BackoffPolicy(
+              minBackoff = 100.milliseconds,
+              maxBackoff = 10.seconds,
+              maxRetries = Some(10)
             )
           ),
-          io.Output.PubSub(
-            "projects/test-project/topics/bad",
-            None,
-            200.milliseconds,
-            1000,
-            8000000,
-            io.GcpUserAgent("Snowplow OSS")
+          Some(
+            io.Output.Nsq(
+              "pii",
+              "127.0.0.1",
+              4150,
+              BackoffPolicy(
+                minBackoff = 100.milliseconds,
+                maxBackoff = 10.seconds,
+                maxRetries = Some(10)
+              )
+            )
+          ),
+          io.Output.Nsq(
+            "bad",
+            "127.0.0.1",
+            4150,
+            BackoffPolicy(
+              minBackoff = 100.milliseconds,
+              maxBackoff = 10.seconds,
+              maxRetries = Some(10)
+            )
           )
         ),
         io.Concurrency(256, 3),
@@ -101,7 +112,7 @@ class ConfigSpec extends Specification with CatsIO {
           Some("my_pipeline"),
           Some("hfy67e5ydhtrd"),
           Some("665bhft5u6udjf"),
-          Some("enrich-kinesis-ce"),
+          Some("enrich-nsq-ce"),
           Some("1.0.0")
         ),
         io.FeatureFlags(
@@ -122,39 +133,51 @@ class ConfigSpec extends Specification with CatsIO {
           )
         ),
         adaptersSchemas,
-        io.BlobStorageClients(gcs = true, s3 = false, azureStorage = None)
+        io.BlobStorageClients(
+          gcs = true,
+          s3 = true,
+          azureStorage = Some(io.BlobStorageClients.AzureStorage("storageAccount"))
+        )
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
     }
 
-    "parse minimal example for PubSub" in {
-      val configPath = Paths.get(getClass.getResource("/config.pubsub.minimal.hocon").toURI)
+    "parse minimal example for NSQ" in {
+      val configPath = Paths.get(getClass.getResource("/config.nsq.minimal.hocon").toURI)
       val expected = ConfigFile(
-        io.Input.PubSub(
-          "projects/test-project/subscriptions/collector-payloads-sub",
-          1,
+        io.Input.Nsq(
+          "collector-payloads",
+          "collector-payloads-channel",
+          "127.0.0.1",
+          4161,
           3000,
-          50000000,
-          1.hour,
-          io.GcpUserAgent("Snowplow OSS")
+          BackoffPolicy(
+            minBackoff = 100.milliseconds,
+            maxBackoff = 10.seconds,
+            maxRetries = Some(10)
+          )
         ),
         io.Outputs(
-          io.Output.PubSub(
-            "projects/test-project/topics/enriched",
-            None,
-            200.milliseconds,
-            1000,
-            8000000,
-            io.GcpUserAgent("Snowplow OSS")
+          io.Output.Nsq(
+            "enriched",
+            "127.0.0.1",
+            4150,
+            BackoffPolicy(
+              minBackoff = 100.milliseconds,
+              maxBackoff = 10.seconds,
+              maxRetries = Some(10)
+            )
           ),
           None,
-          io.Output.PubSub(
-            "projects/test-project/topics/bad",
-            None,
-            200.milliseconds,
-            1000,
-            8000000,
-            io.GcpUserAgent("Snowplow OSS")
+          io.Output.Nsq(
+            "bad",
+            "127.0.0.1",
+            4150,
+            BackoffPolicy(
+              minBackoff = 100.milliseconds,
+              maxBackoff = 10.seconds,
+              maxRetries = Some(10)
+            )
           )
         ),
         io.Concurrency(256, 3),
@@ -193,7 +216,7 @@ class ConfigSpec extends Specification with CatsIO {
         ),
         None,
         adaptersSchemas,
-        io.BlobStorageClients(gcs = true, s3 = false, azureStorage = None)
+        io.BlobStorageClients(gcs = true, s3 = true, azureStorage = None)
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
     }

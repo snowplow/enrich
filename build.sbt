@@ -41,6 +41,26 @@ lazy val commonFs2 = project
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(common % "test->test;compile->compile")
 
+lazy val awsUtils = project
+  .in(file("modules/cloudutils/aws"))
+  .settings(awsUtilsBuildSettings)
+  .settings(libraryDependencies ++= awsUtilsDependencies)
+  .settings(addCompilerPlugin(betterMonadicFor))
+  .dependsOn(commonFs2 % "test->test;compile->compile")
+
+lazy val gcpUtils = project
+  .in(file("modules/cloudutils/gcp"))
+  .settings(gcpUtilsBuildSettings)
+  .settings(libraryDependencies ++= gcpUtilsDependencies)
+  .settings(addCompilerPlugin(betterMonadicFor))
+  .dependsOn(commonFs2 % "test->test;compile->compile")
+
+lazy val azureUtils = project
+  .in(file("modules/cloudutils/azure"))
+  .settings(azureUtilsBuildSettings)
+  .settings(libraryDependencies ++= azureUtilsDependencies)
+  .settings(addCompilerPlugin(betterMonadicFor))
+  .dependsOn(commonFs2 % "test->test;compile->compile")
 
 lazy val pubsub = project
   .in(file("modules/pubsub"))
@@ -50,6 +70,7 @@ lazy val pubsub = project
   .settings(excludeDependencies ++= exclusions)
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(commonFs2 % "test->test;compile->compile")
+  .dependsOn(gcpUtils % "compile->compile")
 
 lazy val pubsubDistroless = project
   .in(file("modules/distroless/pubsub"))
@@ -60,7 +81,7 @@ lazy val pubsubDistroless = project
   .settings(excludeDependencies ++= exclusions)
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(commonFs2 % "test->test;compile->compile")
-
+  .dependsOn(gcpUtils % "compile->compile")
 
 lazy val kinesis = project
   .in(file("modules/kinesis"))
@@ -69,7 +90,8 @@ lazy val kinesis = project
   .settings(libraryDependencies ++= kinesisDependencies)
   .settings(excludeDependencies ++= exclusions)
   .settings(addCompilerPlugin(betterMonadicFor))
-  .dependsOn(commonFs2)
+  .dependsOn(commonFs2 % "test->test;compile->compile")
+  .dependsOn(awsUtils % "compile->compile")
 
 lazy val kinesisDistroless = project
   .in(file("modules/distroless/kinesis"))
@@ -84,6 +106,7 @@ lazy val kinesisDistroless = project
   .settings(excludeDependencies ++= exclusions)
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(commonFs2 % "compile->compile;it->it")
+  .dependsOn(awsUtils % "compile->compile")
   .settings(Defaults.itSettings)
   .configs(IntegrationTest)
   .settings((IntegrationTest / test) := (IntegrationTest / test).dependsOn(Docker / publishLocal).value)
@@ -101,7 +124,10 @@ lazy val kafka = project
   .settings(Defaults.itSettings)
   .configs(IntegrationTest)
   .settings(addCompilerPlugin(betterMonadicFor))
-  .dependsOn(commonFs2 % "compile->compile;it->it")
+  .dependsOn(commonFs2 % "compile->compile;test->test;it->it")
+  .dependsOn(awsUtils % "compile->compile")
+  .dependsOn(gcpUtils % "compile->compile")
+  .dependsOn(azureUtils % "compile->compile")
 
 lazy val kafkaDistroless = project
   .in(file("modules/distroless/kafka"))
@@ -112,6 +138,9 @@ lazy val kafkaDistroless = project
   .settings(excludeDependencies ++= exclusions)
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(commonFs2)
+  .dependsOn(awsUtils % "compile->compile")
+  .dependsOn(gcpUtils % "compile->compile")
+  .dependsOn(azureUtils % "compile->compile")
 
 lazy val nsq = project
   .in(file("modules/nsq"))
@@ -120,7 +149,10 @@ lazy val nsq = project
   .settings(libraryDependencies ++= nsqDependencies)
   .settings(excludeDependencies ++= exclusions)
   .settings(addCompilerPlugin(betterMonadicFor))
-  .dependsOn(commonFs2)
+  .dependsOn(commonFs2 % "compile->compile;test->test")
+  .dependsOn(awsUtils % "compile->compile")
+  .dependsOn(gcpUtils % "compile->compile")
+  .dependsOn(azureUtils % "compile->compile")
 
 lazy val nsqDistroless = project
   .in(file("modules/distroless/nsq"))
@@ -135,6 +167,9 @@ lazy val nsqDistroless = project
   .settings(excludeDependencies ++= exclusions)
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(commonFs2 % "compile->compile;it->it")
+  .dependsOn(awsUtils % "compile->compile")
+  .dependsOn(gcpUtils % "compile->compile")
+  .dependsOn(azureUtils % "compile->compile")
   .settings(Defaults.itSettings)
   .configs(IntegrationTest)
   .settings((IntegrationTest / test) := (IntegrationTest / test).dependsOn(Docker / publishLocal).value)

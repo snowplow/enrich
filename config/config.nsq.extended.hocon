@@ -227,6 +227,21 @@
     "tryBase64Decoding": false
   }
 
+  # Optional. Configuration for blob storage clients used to download
+  # enrichment resources
+  "blobStorage": {
+    # Optional. Whether S3 client should be enabled.
+    "s3": true
+    # Optional. Whether GCS client should be enabled.
+    "gcs": true
+    # Optional. Azure blob storage client configuration.
+    # ABS client won't be enabled if it isn't given.
+    "azureStorage": {
+      # Azure blob storage account name
+      "storageAccountName": "storageAccount"
+    }
+  }
+
   # Optional. Configuration for experimental/preview features
   "experimental": {
     # Whether to export metadata using a webhook URL.

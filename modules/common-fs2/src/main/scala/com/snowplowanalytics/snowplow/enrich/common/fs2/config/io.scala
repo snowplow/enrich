@@ -486,6 +486,24 @@ object io {
       deriveConfiguredEncoder[GcpUserAgent]
   }
 
+  case class BlobStorageClients(
+    gcs: Boolean,
+    s3: Boolean,
+    azureStorage: Option[BlobStorageClients.AzureStorage]
+  )
+  object BlobStorageClients {
+    case class AzureStorage(storageAccountName: String)
+
+    implicit val azureStorageDecoder: Decoder[AzureStorage] =
+      deriveConfiguredDecoder[AzureStorage]
+    implicit val azureStorageEncoder: Encoder[AzureStorage] =
+      deriveConfiguredEncoder[AzureStorage]
+    implicit val blobStorageClientDecoder: Decoder[BlobStorageClients] =
+      deriveConfiguredDecoder[BlobStorageClients]
+    implicit val blobStorageClientEncoder: Encoder[BlobStorageClients] =
+      deriveConfiguredEncoder[BlobStorageClients]
+  }
+
   object AdaptersSchemasEncoderDecoders {
     implicit val adaptersSchemasDecoder: Decoder[AdaptersSchemas] =
       deriveConfiguredDecoder[AdaptersSchemas]

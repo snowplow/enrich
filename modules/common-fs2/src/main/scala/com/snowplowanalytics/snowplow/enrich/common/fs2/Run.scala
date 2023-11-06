@@ -28,7 +28,15 @@ import retry.syntax.all._
 
 import com.snowplowanalytics.snowplow.badrows.Processor
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{BackoffPolicy, Cloud, Input, Monitoring, Output, RetryCheckpointing}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{
+  BackoffPolicy,
+  BlobStorageClients,
+  Cloud,
+  Input,
+  Monitoring,
+  Output,
+  RetryCheckpointing
+}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{CliConfig, ParsedConfigs}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.{FileSink, Retries, Source}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.Client
@@ -49,7 +57,7 @@ object Run {
     mkSinkPii: (Blocker, Output) => Resource[F, AttributedByteSink[F]],
     mkSinkBad: (Blocker, Output) => Resource[F, ByteSink[F]],
     checkpoint: List[A] => F[Unit],
-    mkClients: List[Blocker => Resource[F, Client[F]]],
+    mkClients: BlobStorageClients => List[Blocker => Resource[F, Client[F]]],
     getPayload: A => Array[Byte],
     maxRecordSize: Int,
     cloud: Option[Cloud],
@@ -79,7 +87,7 @@ object Run {
                                 case _ =>
                                   mkSinkBad(blocker, file.output.bad)
                               }
-                    clients = mkClients.map(mk => mk(blocker)).sequence
+                    clients = mkClients(file.blobStorage).map(mk => mk(blocker)).sequence
                     exit <- file.input match {
                               case p: Input.FileSystem =>
                                 val env = Environment

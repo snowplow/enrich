@@ -26,6 +26,8 @@ import com.permutive.pubsub.consumer.ConsumerRecord
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Cloud
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Run
 
+import com.snowplowanalytics.snowplow.enrich.gcp.GcsClient
+
 import com.snowplowanalytics.snowplow.enrich.pubsub.generated.BuildInfo
 
 object Main extends IOApp.WithContext {
@@ -68,7 +70,7 @@ object Main extends IOApp.WithContext {
       (_, out) => Sink.initAttributed(out),
       (_, out) => Sink.init(out),
       checkpoint,
-      List(b => Resource.eval(GcsClient.mk[IO](b))),
+      _ => List(b => Resource.eval(GcsClient.mk[IO](b))),
       _.value,
       MaxRecordSize,
       Some(Cloud.Gcp),

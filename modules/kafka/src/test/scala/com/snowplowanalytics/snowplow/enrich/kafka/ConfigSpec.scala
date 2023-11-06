@@ -10,7 +10,7 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.pubsub
+package com.snowplowanalytics.snowplow.enrich.kafka
 
 import java.net.URI
 import java.util.UUID
@@ -25,8 +25,8 @@ import org.http4s.Uri
 
 import cats.effect.testing.specs2.CatsIO
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config._
-
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{ConfigFile, Sentry}
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
 
 import org.specs2.mutable.Specification
@@ -34,46 +34,45 @@ import org.specs2.mutable.Specification
 class ConfigSpec extends Specification with CatsIO {
 
   "parse" should {
-    "parse reference example for PubSub" in {
-      val configPath = Paths.get(getClass.getResource("/config.pubsub.extended.hocon").toURI)
+    "parse reference example for Kafka" in {
+      val configPath = Paths.get(getClass.getResource("/config.kafka.extended.hocon").toURI)
       val expected = ConfigFile(
-        io.Input.PubSub(
-          "projects/test-project/subscriptions/collector-payloads-sub",
-          1,
-          3000,
-          50000000,
-          1.hour,
-          io.GcpUserAgent("Snowplow OSS")
-        ),
-        io.Outputs(
-          io.Output.PubSub(
-            "projects/test-project/topics/enriched",
-            Some(Set("app_id")),
-            200.milliseconds,
-            1000,
-            8000000,
-            io.GcpUserAgent("Snowplow OSS")
-          ),
-          Some(
-            io.Output.PubSub(
-              "projects/test-project/topics/pii",
-              None,
-              200.milliseconds,
-              1000,
-              8000000,
-              io.GcpUserAgent("Snowplow OSS")
-            )
-          ),
-          io.Output.PubSub(
-            "projects/test-project/topics/bad",
-            None,
-            200.milliseconds,
-            1000,
-            8000000,
-            io.GcpUserAgent("Snowplow OSS")
+        io.Input.Kafka(
+          "collector-payloads",
+          "localhost:9092",
+          Map(
+            "auto.offset.reset" -> "earliest",
+            "session.timeout.ms" -> "45000",
+            "enable.auto.commit" -> "false",
+            "group.id" -> "enrich"
           )
         ),
-        io.Concurrency(256, 3),
+        io.Outputs(
+          io.Output.Kafka(
+            "enriched",
+            "localhost:9092",
+            "app_id",
+            Set("app_id"),
+            Map("acks" -> "all")
+          ),
+          Some(
+            io.Output.Kafka(
+              "pii",
+              "localhost:9092",
+              "app_id",
+              Set("app_id"),
+              Map("acks" -> "all")
+            )
+          ),
+          io.Output.Kafka(
+            "bad",
+            "localhost:9092",
+            "",
+            Set(),
+            Map("acks" -> "all")
+          )
+        ),
+        io.Concurrency(256, 1),
         Some(7.days),
         io.RemoteAdapterConfigs(
           10.seconds,
@@ -88,7 +87,7 @@ class ConfigSpec extends Specification with CatsIO {
           io.MetricsReporters(
             Some(io.MetricsReporters.StatsD("localhost", 8125, Map("app" -> "enrich"), 10.seconds, None)),
             Some(io.MetricsReporters.Stdout(10.seconds, None)),
-            false
+            true
           )
         ),
         io.Telemetry(
@@ -101,7 +100,7 @@ class ConfigSpec extends Specification with CatsIO {
           Some("my_pipeline"),
           Some("hfy67e5ydhtrd"),
           Some("665bhft5u6udjf"),
-          Some("enrich-kinesis-ce"),
+          Some("enrich-kafka-ce"),
           Some("1.0.0")
         ),
         io.FeatureFlags(
@@ -122,42 +121,41 @@ class ConfigSpec extends Specification with CatsIO {
           )
         ),
         adaptersSchemas,
-        io.BlobStorageClients(gcs = true, s3 = false, azureStorage = None)
+        io.BlobStorageClients(gcs = false, s3 = false, azureStorage = None)
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
     }
 
-    "parse minimal example for PubSub" in {
-      val configPath = Paths.get(getClass.getResource("/config.pubsub.minimal.hocon").toURI)
+    "parse minimal example for Kafka" in {
+      val configPath = Paths.get(getClass.getResource("/config.kafka.minimal.hocon").toURI)
       val expected = ConfigFile(
-        io.Input.PubSub(
-          "projects/test-project/subscriptions/collector-payloads-sub",
-          1,
-          3000,
-          50000000,
-          1.hour,
-          io.GcpUserAgent("Snowplow OSS")
-        ),
-        io.Outputs(
-          io.Output.PubSub(
-            "projects/test-project/topics/enriched",
-            None,
-            200.milliseconds,
-            1000,
-            8000000,
-            io.GcpUserAgent("Snowplow OSS")
-          ),
-          None,
-          io.Output.PubSub(
-            "projects/test-project/topics/bad",
-            None,
-            200.milliseconds,
-            1000,
-            8000000,
-            io.GcpUserAgent("Snowplow OSS")
+        io.Input.Kafka(
+          "collector-payloads",
+          "localhost:9092",
+          Map(
+            "auto.offset.reset" -> "earliest",
+            "enable.auto.commit" -> "false",
+            "group.id" -> "enrich"
           )
         ),
-        io.Concurrency(256, 3),
+        io.Outputs(
+          io.Output.Kafka(
+            "enriched",
+            "localhost:9092",
+            "",
+            Set(),
+            Map("acks" -> "all")
+          ),
+          None,
+          io.Output.Kafka(
+            "bad",
+            "localhost:9092",
+            "",
+            Set(),
+            Map("acks" -> "all")
+          )
+        ),
+        io.Concurrency(256, 1),
         None,
         io.RemoteAdapterConfigs(
           10.seconds,
@@ -170,7 +168,7 @@ class ConfigSpec extends Specification with CatsIO {
           io.MetricsReporters(
             None,
             None,
-            false
+            true
           )
         ),
         io.Telemetry(
@@ -193,9 +191,10 @@ class ConfigSpec extends Specification with CatsIO {
         ),
         None,
         adaptersSchemas,
-        io.BlobStorageClients(gcs = true, s3 = false, azureStorage = None)
+        io.BlobStorageClients(gcs = false, s3 = false, azureStorage = None)
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
     }
   }
+
 }

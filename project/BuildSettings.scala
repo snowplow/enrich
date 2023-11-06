@@ -50,6 +50,24 @@ object BuildSettings {
     description := "Common functionality for streaming enrich applications built on top of functional streams"
   )
 
+  lazy val awsUtilsProjectSettings = projectSettings ++ Seq(
+    name := "snowplow-enrich-aws-utils",
+    moduleName := "snowplow-enrich-aws-utils",
+    description := "AWS specific utils"
+  )
+
+  lazy val gcpUtilsProjectSettings = projectSettings ++ Seq(
+    name := "snowplow-enrich-gcp-utils",
+    moduleName := "snowplow-enrich-gcp-utils",
+    description := "GCP specific utils"
+  )
+
+  lazy val azureUtilsProjectSettings = projectSettings ++ Seq(
+    name := "snowplow-enrich-azure-utils",
+    moduleName := "snowplow-enrich-azure-utils",
+    description := "Azure specific utils"
+  )
+
   lazy val pubsubProjectSettings = projectSettings ++ Seq(
     name := "snowplow-enrich-pubsub",
     moduleName := "snowplow-enrich-pubsub",
@@ -211,6 +229,27 @@ object BuildSettings {
     scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp
   }
 
+  lazy val awsUtilsBuildSettings = {
+    // Project
+    awsUtilsProjectSettings ++ buildSettings ++
+    // Tests
+    scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp
+  }
+
+  lazy val gcpUtilsBuildSettings = {
+    // Project
+    gcpUtilsProjectSettings ++ buildSettings ++
+    // Tests
+    scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp
+  }
+
+  lazy val azureUtilsBuildSettings = {
+    // Project
+    azureUtilsProjectSettings ++ buildSettings ++
+    // Tests
+    scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp
+  }
+
   lazy val pubsubBuildSettings = {
     // Project
     pubsubProjectSettings ++ buildSettings ++
@@ -230,7 +269,7 @@ object BuildSettings {
     assemblySettings ++ dockerSettingsFocal ++
       Seq(Docker / packageName := "snowplow-enrich-kinesis") ++
     // Tests
-    scoverageSettings ++ noParallelTestExecution ++ Seq(Test / fork := true)
+    scoverageSettings ++ noParallelTestExecution ++ Seq(Test / fork := true) ++ addExampleConfToTestCp
   }
 
   lazy val kinesisDistrolessBuildSettings = kinesisBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
@@ -242,7 +281,7 @@ object BuildSettings {
     assemblySettings ++ dockerSettingsFocal ++
       Seq(Docker / packageName := "snowplow-enrich-kafka") ++
     // Tests
-    scoverageSettings ++ noParallelTestExecution
+    scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp
   }
 
   lazy val kafkaDistrolessBuildSettings = kafkaBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
@@ -254,7 +293,7 @@ object BuildSettings {
       assemblySettings ++ dockerSettingsFocal ++
       Seq(Docker / packageName := "snowplow-enrich-nsq") ++
       // Tests
-      scoverageSettings ++ noParallelTestExecution
+      scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp
   }
 
   lazy val nsqDistrolessBuildSettings = nsqBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless

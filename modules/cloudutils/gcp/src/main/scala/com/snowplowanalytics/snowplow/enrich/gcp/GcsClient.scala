@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2021 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2023 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -10,7 +10,7 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.enrich.pubsub
+package com.snowplowanalytics.snowplow.enrich.gcp
 
 import java.net.URI
 
@@ -32,9 +32,9 @@ object GcsClient {
   def mk[F[_]: ConcurrentEffect: ContextShift: Timer](blocker: Blocker): F[Client[F]] =
     ConcurrentEffect[F].delay(StorageOptions.getDefaultInstance.getService).map { service =>
       new Client[F] {
-        val prefixes = List("gs")
-
         val store = GcsStore.builder(service, blocker).unsafe
+
+        def canDownload(uri: URI): Boolean = uri.getScheme == "gs"
 
         def download(uri: URI): Stream[F, Byte] =
           Stream.eval(Url.parseF[F](uri.toString)).flatMap { url =>

@@ -86,6 +86,7 @@ object Dependencies {
     val fs2Aws           = "3.1.1"
     val fs2Kafka         = "1.10.0"
     val fs2BlobStorage   = "0.8.6"
+    val azureIdentity    = "1.11.0"
     val http4s           = "0.21.34"
     val log4cats         = "1.3.0"
     val catsRetry        = "2.1.0"
@@ -192,12 +193,14 @@ object Dependencies {
                            .exclude("software.amazon.glue", "schema-registry-common")
                            .exclude("software.amazon.glue", "schema-registry-serde")
     val stsSdk2          = "software.amazon.awssdk"           %  "sts"                                   % V.awsSdk2         % Runtime
+    val azureIdentity    = "com.azure"                        % "azure-identity"                         % V.azureIdentity
     val http4sClient     = "org.http4s"                       %% "http4s-blaze-client"                   % V.http4s
     val http4sCirce      = "org.http4s"                       %% "http4s-circe"                          % V.http4s
     val log4cats         = "org.typelevel"                    %% "log4cats-slf4j"                        % V.log4cats
     val catsRetry        = "com.github.cb372"                 %% "cats-retry"                            % V.catsRetry
     val fs2BlobS3        = "com.github.fs2-blobstore"         %% "s3"                                    % V.fs2BlobStorage
     val fs2BlobGcs       = "com.github.fs2-blobstore"         %% "gcs"                                   % V.fs2BlobStorage
+    val fs2BlobAzure     = "com.github.fs2-blobstore"         %% "azure"                                 % V.fs2BlobStorage
     val http4sDsl        = "org.http4s"                       %% "http4s-dsl"                            % V.http4s          % Test
     val http4sServer     = "org.http4s"                       %% "http4s-blaze-server"                   % V.http4s          % Test
     val trackerCore      = "com.snowplowanalytics"            %% "snowplow-scala-tracker-core"           % V.snowplowTracker
@@ -282,6 +285,21 @@ object Dependencies {
       circeParser % Test
     )
 
+    val awsUtilsDependencies = Seq(
+      fs2BlobS3,
+      s3Sdk2
+    )
+
+    val gcpUtilsDependencies = Seq(
+      fs2BlobGcs,
+      gcs
+    )
+
+    val azureUtilsDependencies = Seq(
+      fs2BlobAzure,
+      azureIdentity
+    )
+
     val pubsubDependencies = Seq(
       fs2BlobGcs,
       gcs,
@@ -302,20 +320,25 @@ object Dependencies {
       kinesisClient2,
       stsSdk2,
       sts,
-      specs2
+      specs2,
+      specs2CE
     )
 
     val kafkaDependencies = Seq(
       fs2Kafka,
       kafkaClients, // override kafka-clients 2.8.1 from fs2Kafka to address https://security.snyk.io/vuln/SNYK-JAVA-ORGAPACHEKAFKA-3027430
-      mskAuth
+      mskAuth,
+      specs2,
+      specs2CE
     )
 
     val nsqDependencies = Seq(
       nsqClient,
       fs2BlobS3,
       fs2BlobGcs,
-      log4j // for security vulnerabilities
+      log4j, // for security vulnerabilities
+      specs2,
+      specs2CE
     )
 
     // exclusions

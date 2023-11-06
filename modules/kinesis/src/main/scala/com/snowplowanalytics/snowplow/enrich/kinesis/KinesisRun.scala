@@ -30,6 +30,8 @@ import software.amazon.kinesis.exceptions.ShutdownException
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Cloud
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Run
 
+import com.snowplowanalytics.snowplow.enrich.aws.S3Client
+
 import com.snowplowanalytics.snowplow.enrich.kinesis.generated.BuildInfo
 
 object KinesisRun {
@@ -53,7 +55,7 @@ object KinesisRun {
       (blocker, out) => Sink.initAttributed(blocker, out),
       (blocker, out) => Sink.init(blocker, out),
       checkpoint[F],
-      List(_ => S3Client.mk[F]),
+      _ => List(_ => S3Client.mk[F]),
       getPayload,
       MaxRecordSize,
       Some(Cloud.Aws),

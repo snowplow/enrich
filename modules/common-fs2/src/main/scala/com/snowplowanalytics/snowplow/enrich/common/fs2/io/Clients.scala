@@ -33,7 +33,7 @@ case class Clients[F[_]: ConcurrentEffect](clients: List[Client[F]]) {
 
   /** Download a URI as a stream of bytes, using the appropriate client */
   def download(uri: URI): Stream[F, Byte] =
-    clients.find(_.prefixes.contains(uri.getScheme())) match {
+    clients.find(_.canDownload(uri)) match {
       case Some(client) =>
         client.download(uri)
       case None =>
@@ -47,7 +47,10 @@ object Clients {
 
   def wrapHttpClient[F[_]: ConcurrentEffect](client: Http4sClient[F]): Client[F] =
     new Client[F] {
-      val prefixes = List("http", "https")
+      def canDownload(uri: URI): Boolean =
+        // Since Azure Blob Storage urls' scheme are https as well and we want to fetch them with
+        // their own client, we added second condition to not pick up those urls
+        (uri.getScheme == "http" || uri.getScheme == "https") && !uri.toString.contains("core.windows.net")
 
       def download(uri: URI): Stream[F, Byte] = {
         val request = Request[F](uri = Uri.unsafeFromString(uri.toString))
@@ -97,7 +100,7 @@ object Clients {
   }
 
   trait Client[F[_]] {
-    val prefixes: List[String]
+    def canDownload(uri: URI): Boolean
     def download(uri: URI): Stream[F, Byte]
   }
 }

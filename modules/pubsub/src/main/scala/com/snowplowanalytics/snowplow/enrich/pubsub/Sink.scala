@@ -61,7 +61,8 @@ object Sink {
       batchSize = output.maxBatchSize,
       requestByteThreshold = Some(output.maxBatchBytes),
       delayThreshold = output.delayThreshold,
-      onFailedTerminate = err => Logger[F].error(err)("PubSub sink termination error")
+      onFailedTerminate = err => Logger[F].error(err)("PubSub sink termination error"),
+      customizePublisher = Some(_.setHeaderProvider(Utils.createPubsubUserAgentHeader(output.gcpUserAgent)))
     )
 
     GooglePubsubProducer

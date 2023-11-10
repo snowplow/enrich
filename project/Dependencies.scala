@@ -338,7 +338,9 @@ object Dependencies {
     val pubsubDependencies = Seq(
       fs2BlobGcs,
       gcs,
-      fs2PubSub
+      fs2PubSub,
+      specs2,
+      specs2CE
     )
 
     val kinesisDependencies = Seq(

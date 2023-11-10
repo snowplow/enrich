@@ -147,7 +147,7 @@ object ParsedConfigs {
 
   private[config] def outputAttributes(output: OutputConfig): EnrichedEvent => Map[String, String] =
     output match {
-      case OutputConfig.PubSub(_, Some(attributes), _, _, _) => attributesFromFields(attributes)
+      case OutputConfig.PubSub(_, Some(attributes), _, _, _, _) => attributesFromFields(attributes)
       case OutputConfig.Kafka(_, _, _, headers, _) => attributesFromFields(headers)
       case _ => _ => Map.empty
     }

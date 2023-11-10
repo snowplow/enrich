@@ -23,7 +23,7 @@ lazy val root = project.in(file("."))
   .settings(projectSettings)
   .settings(compilerSettings)
   .settings(resolverSettings)
-  .aggregate(common, commonFs2, pubsub, pubsubDistroless, kinesis, kinesisDistroless, streamCommon, streamKinesis, streamKinesisDistroless, streamKafka, streamKafkaDistroless, streamNsq, streamNsqDistroless, streamStdin, kafka, kafkaDistroless, rabbitmq, rabbitmqDistroless, nsq, nsqDistroless)
+  .aggregate(common, commonFs2, pubsub, kinesis, streamCommon, streamKinesis, streamKafka, streamNsq, streamStdin, kafka, rabbitmq, nsq)
 
 lazy val common = project
   .in(file("modules/common"))
@@ -115,7 +115,7 @@ lazy val pubsub = project
   .settings(libraryDependencies ++= pubsubDependencies)
   .settings(excludeDependencies ++= exclusions)
   .settings(addCompilerPlugin(betterMonadicFor))
-  .dependsOn(commonFs2)
+  .dependsOn(commonFs2 % "test->test;compile->compile")
 
 lazy val pubsubDistroless = project
   .in(file("modules/distroless/pubsub"))
@@ -125,7 +125,7 @@ lazy val pubsubDistroless = project
   .settings(libraryDependencies ++= pubsubDependencies)
   .settings(excludeDependencies ++= exclusions)
   .settings(addCompilerPlugin(betterMonadicFor))
-  .dependsOn(commonFs2)
+  .dependsOn(commonFs2 % "test->test;compile->compile")
 
 
 lazy val kinesis = project

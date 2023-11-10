@@ -49,7 +49,7 @@ object Dependencies {
     val log4j            = "2.20.0"
     val thrift           = "0.15.0" // override transitive dependency to mitigate security vulnerabilities
     val sprayJson        = "1.3.6" // override transitive dependency to mitigate security vulnerabilities
-    val netty            = "4.1.87.Final" // override transitive dependency to mitigate security vulnerabilities
+    val netty            = "4.1.100.Final" // override transitive dependency to mitigate security vulnerabilities
     val protobuf         = "3.21.9" // override transitive dependency to mitigate security vulnerabilities
 
     val refererParser    = "1.1.0"

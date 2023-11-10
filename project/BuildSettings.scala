@@ -218,7 +218,7 @@ object BuildSettings {
     assemblySettings ++ dockerSettingsFocal ++
       Seq(Docker / packageName := "snowplow-enrich-pubsub") ++
     // Tests
-    scoverageSettings ++ noParallelTestExecution
+    scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp
   }
 
   lazy val pubsubDistrolessBuildSettings = pubsubBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless

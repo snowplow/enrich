@@ -62,7 +62,10 @@ object Source {
         parallelPullCount = input.parallelPullCount,
         maxQueueSize = input.maxQueueSize,
         maxAckExtensionPeriod = input.maxAckExtensionPeriod,
-        customizeSubscriber = Some(builder => builder.setFlowControlSettings(flowControlSettings))
+        customizeSubscriber = Some {
+          _.setFlowControlSettings(flowControlSettings)
+            .setHeaderProvider(Utils.createPubsubUserAgentHeader(input.gcpUserAgent))
+        }
       )
 
     val projectId = Model.ProjectId(input.project)

@@ -34,67 +34,6 @@ import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
 
 class ConfigFileSpec extends Specification with CatsIO {
   "parse" should {
-    "parse reference example for PubSub" in {
-      val configPath = Paths.get(getClass.getResource("/config.pubsub.extended.hocon").toURI)
-      val expected = ConfigFile(
-        io.Input.PubSub("projects/test-project/subscriptions/collector-payloads-sub", 1, 3000, 50000000, 1.hour),
-        io.Outputs(
-          io.Output.PubSub("projects/test-project/topics/enriched", Some(Set("app_id")), 200.milliseconds, 1000, 8000000),
-          Some(io.Output.PubSub("projects/test-project/topics/pii", None, 200.milliseconds, 1000, 8000000)),
-          io.Output.PubSub("projects/test-project/topics/bad", None, 200.milliseconds, 1000, 8000000)
-        ),
-        io.Concurrency(256, 3),
-        Some(7.days),
-        io.RemoteAdapterConfigs(
-          10.seconds,
-          45.seconds,
-          10,
-          List(
-            io.RemoteAdapterConfig("com.example", "v1", "https://remote-adapter.com")
-          )
-        ),
-        io.Monitoring(
-          Some(Sentry(URI.create("http://sentry.acme.com"))),
-          io.MetricsReporters(
-            Some(io.MetricsReporters.StatsD("localhost", 8125, Map("app" -> "enrich"), 10.seconds, None)),
-            Some(io.MetricsReporters.Stdout(10.seconds, None)),
-            true
-          )
-        ),
-        io.Telemetry(
-          false,
-          15.minutes,
-          "POST",
-          "collector-g.snowplowanalytics.com",
-          443,
-          true,
-          Some("my_pipeline"),
-          Some("hfy67e5ydhtrd"),
-          Some("665bhft5u6udjf"),
-          Some("enrich-kinesis-ce"),
-          Some("1.0.0")
-        ),
-        io.FeatureFlags(
-          false,
-          false,
-          false
-        ),
-        Some(
-          io.Experimental(
-            Some(
-              io.Metadata(
-                Uri.uri("https://my_pipeline.my_domain.com/iglu"),
-                5.minutes,
-                UUID.fromString("c5f3a09f-75f8-4309-bec5-fea560f78455"),
-                UUID.fromString("75a13583-5c99-40e3-81fc-541084dfc784")
-              )
-            )
-          )
-        ),
-        adaptersSchemas
-      )
-      ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
-    }
 
     "parse reference example for Kinesis" in {
       val configPath = Paths.get(getClass.getResource("/config.kinesis.extended.hocon").toURI)
@@ -309,7 +248,10 @@ class ConfigFileSpec extends Specification with CatsIO {
             "parallelPullCount": 1,
             "maxQueueSize": 3000,
             "maxRequestBytes": 50000000,
-            "maxAckExtensionPeriod": 1 hour
+            "maxAckExtensionPeriod": 1 hour,
+            "gcpUserAgent": {
+              "productName": "Snowplow OSS"
+            }
           },
           "output": {
             "good": {
@@ -317,21 +259,30 @@ class ConfigFileSpec extends Specification with CatsIO {
               "topic": "projects/test-project/topics/good-topic",
               "delayThreshold": "200 milliseconds",
               "maxBatchSize": 1000,
-              "maxBatchBytes": 8000000
+              "maxBatchBytes": 8000000,
+              "gcpUserAgent": {
+                "productName": "Snowplow OSS"
+              }
             },
             "pii": {
               "type": "PubSub",
               "topic": "projects/test-project/topics/pii-topic",
               "delayThreshold": "200 milliseconds",
               "maxBatchSize": 1000,
-              "maxBatchBytes": 8000000
+              "maxBatchBytes": 8000000,
+              "gcpUserAgent": {
+                "productName": "Snowplow OSS"
+              }
             },
             "bad": {
               "type": "PubSub",
               "topic": "projects/test-project/topics/bad-topic",
               "delayThreshold": "200 milliseconds",
               "maxBatchSize": 1000,
-              "maxBatchBytes": 8000000
+              "maxBatchBytes": 8000000,
+              "gcpUserAgent": {
+                "productName": "Snowplow OSS"
+              }
             }
           },
           "concurrency": {

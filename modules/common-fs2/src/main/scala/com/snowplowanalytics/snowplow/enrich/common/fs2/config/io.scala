@@ -100,7 +100,8 @@ object io {
       parallelPullCount: Int,
       maxQueueSize: Int,
       maxRequestBytes: Int,
-      maxAckExtensionPeriod: FiniteDuration
+      maxAckExtensionPeriod: FiniteDuration,
+      gcpUserAgent: GcpUserAgent
     ) extends Input {
       val (project, name) =
         subscription.split("/").toList match {
@@ -192,7 +193,7 @@ object io {
     implicit val inputDecoder: Decoder[Input] =
       deriveConfiguredDecoder[Input]
         .emap {
-          case s @ PubSub(sub, _, _, _, _) =>
+          case s @ PubSub(sub, _, _, _, _, _) =>
             sub.split("/").toList match {
               case List("projects", _, "subscriptions", _) =>
                 s.asRight
@@ -204,13 +205,13 @@ object io {
           case other => other.asRight
         }
         .emap {
-          case PubSub(_, p, _, _, _) if p <= 0 =>
+          case PubSub(_, p, _, _, _, _) if p <= 0 =>
             "PubSub parallelPullCount must be > 0".asLeft
-          case PubSub(_, _, m, _, _) if m <= 0 =>
+          case PubSub(_, _, m, _, _, _) if m <= 0 =>
             "PubSub maxQueueSize must be > 0".asLeft
-          case PubSub(_, _, _, m, _) if m <= 0 =>
+          case PubSub(_, _, _, m, _, _) if m <= 0 =>
             "PubSub maxRequestBytes must be > 0".asLeft
-          case PubSub(_, _, _, _, m) if m < Duration.Zero =>
+          case PubSub(_, _, _, _, m, _) if m < Duration.Zero =>
             "PubSub maxAckExtensionPeriod must be >= 0".asLeft
           case other =>
             other.asRight
@@ -253,7 +254,8 @@ object io {
       attributes: Option[Set[String]],
       delayThreshold: FiniteDuration,
       maxBatchSize: Long,
-      maxBatchBytes: Long
+      maxBatchBytes: Long,
+      gcpUserAgent: GcpUserAgent
     ) extends Output {
       val (project, name) =
         topic.split("/").toList match {
@@ -282,7 +284,7 @@ object io {
         .emap {
           case Kafka(topicName, bootstrapServers, _, _, _) if topicName.isEmpty ^ bootstrapServers.isEmpty =>
             "Both topicName and bootstrapServers have to be set".asLeft
-          case s @ PubSub(top, _, _, _, _) if top.nonEmpty =>
+          case s @ PubSub(top, _, _, _, _, _) if top.nonEmpty =>
             top.split("/").toList match {
               case List("projects", _, "topics", _) =>
                 s.asRight
@@ -473,6 +475,15 @@ object io {
         acceptInvalid = ff.acceptInvalid,
         legacyEnrichmentOrder = ff.legacyEnrichmentOrder
       )
+  }
+
+  case class GcpUserAgent(productName: String)
+
+  object GcpUserAgent {
+    implicit val gcpUserAgentDecoder: Decoder[GcpUserAgent] =
+      deriveConfiguredDecoder[GcpUserAgent]
+    implicit val gcpUserAgentEncoder: Encoder[GcpUserAgent] =
+      deriveConfiguredEncoder[GcpUserAgent]
   }
 
   object AdaptersSchemasEncoderDecoders {

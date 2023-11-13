@@ -94,6 +94,8 @@ object CrossNavigationEnrichment extends ParseableEnrichment {
     def getCrossNavigationContext: List[SelfDescribingData[Json]] =
       domainMap match {
         case m: Map[String, Option[String]] if m.isEmpty => Nil
+        case m: Map[String, Option[String]] if m.get(CrossDomainMap.domainUserIdFieldName).flatten == None => Nil
+        case m: Map[String, Option[String]] if m.get(CrossDomainMap.timestampFieldName).flatten == None => Nil
         case _ =>
           List(
             SelfDescribingData(
@@ -126,7 +128,7 @@ object CrossNavigationEnrichment extends ParseableEnrichment {
     val timestampFieldName = "timestamp"
     val CrossNavProps: List[(String, CrossNavTransformation)] =
       List(
-        (domainUserIdFieldName, CU.makeTsvSafe(_).some.asRight),
+        (domainUserIdFieldName, CU.fixTabsNewlines(_).asRight),
         (timestampFieldName, extractTstamp),
         ("session_id", Option(_: String).filter(_.trim.nonEmpty).asRight),
         ("user_id", decodeWithFailure),
@@ -156,7 +158,7 @@ object CrossNavigationEnrichment extends ParseableEnrichment {
               case (value, (propName, f)) => f(value).map(propName -> _)
             }
             .sequence
-            .map(_.filterNot { case (key, value) => key != timestampFieldName && value.isEmpty }.toMap)
+            .map(_.toMap)
         else Map.empty[String, Option[String]].asRight
       result.map(CrossDomainMap(_))
     }

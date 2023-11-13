@@ -1093,7 +1093,12 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
           CrossNavigationEnrichment.outputSchema,
           Map(
             "domain_user_id" -> Some("abc"),
-            "timestamp" -> Some("2023-10-13T05:44:03.762Z")
+            "timestamp" -> Some("2023-10-13T05:44:03.762Z"),
+            "session_id" -> None,
+            "user_id" -> None,
+            "source_id" -> None,
+            "source_platform" -> None,
+            "reason" -> None
           ).asJson
         )
       )

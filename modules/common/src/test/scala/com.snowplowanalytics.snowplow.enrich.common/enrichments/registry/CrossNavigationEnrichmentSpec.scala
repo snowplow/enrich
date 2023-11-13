@@ -39,7 +39,12 @@ class CrossNavigationEnrichmentSpec extends Specification with EitherMatchers {
       val input = "abc.1697398398279"
       val expectedOut: Map[String, Option[String]] = Map(
         "domain_user_id" -> Some("abc"),
-        "timestamp" -> Some("2023-10-15 19:33:18.279")
+        "timestamp" -> Some("2023-10-15 19:33:18.279"),
+        "session_id" -> None,
+        "user_id" -> None,
+        "source_id" -> None,
+        "source_platform" -> None,
+        "reason" -> None
       )
       val result = CrossDomainMap.makeCrossDomainMap(input).map(_.domainMap)
       result must beEqualTo(expectedOut.asRight)
@@ -49,7 +54,12 @@ class CrossNavigationEnrichmentSpec extends Specification with EitherMatchers {
       val input = "abc"
       val expectedOut: Map[String, Option[String]] = Map(
         "domain_user_id" -> Some("abc"),
-        "timestamp" -> None
+        "timestamp" -> None,
+        "session_id" -> None,
+        "user_id" -> None,
+        "source_id" -> None,
+        "source_platform" -> None,
+        "reason" -> None
       )
       val result = CrossDomainMap.makeCrossDomainMap(input).map(_.domainMap)
       result must beEqualTo(expectedOut.asRight)
@@ -58,8 +68,13 @@ class CrossNavigationEnrichmentSpec extends Specification with EitherMatchers {
     "return expected Map on original format when missing duid" >> {
       val input = ".1697398398279"
       val expectedOut: Map[String, Option[String]] = Map(
-        "domain_user_id" -> Some(null),
-        "timestamp" -> Some("2023-10-15 19:33:18.279")
+        "domain_user_id" -> None,
+        "timestamp" -> Some("2023-10-15 19:33:18.279"),
+        "session_id" -> None,
+        "user_id" -> None,
+        "source_id" -> None,
+        "source_platform" -> None,
+        "reason" -> None
       )
       val result = CrossDomainMap.makeCrossDomainMap(input).map(_.domainMap)
       result must beEqualTo(expectedOut.asRight)
@@ -98,7 +113,7 @@ class CrossNavigationEnrichmentSpec extends Specification with EitherMatchers {
     "return expected Map on extended format when missing duid" >> {
       val input = "..176ff68a-4769-4566-ad0e-3792c1c8148f.dGVzdGVy.c29tZVNvdXJjZUlk.web.dGVzdGluZ19yZWFzb24"
       val expectedOut: Map[String, Option[String]] = Map(
-        "domain_user_id" -> Some(null),
+        "domain_user_id" -> None,
         "timestamp" -> None,
         "session_id" -> Some("176ff68a-4769-4566-ad0e-3792c1c8148f"),
         "user_id" -> Some("tester"),
@@ -115,8 +130,11 @@ class CrossNavigationEnrichmentSpec extends Specification with EitherMatchers {
       val expectedOut: Map[String, Option[String]] = Map(
         "domain_user_id" -> Some("abc"),
         "timestamp" -> Some("2023-10-13 05:44:03.762"),
+        "session_id" -> None,
         "user_id" -> Some("tester"),
-        "source_platform" -> Some("web")
+        "source_id" -> None,
+        "source_platform" -> Some("web"),
+        "reason" -> None
       )
       val result = CrossDomainMap.makeCrossDomainMap(input).map(_.domainMap)
       result must beEqualTo(expectedOut.asRight)
@@ -127,7 +145,11 @@ class CrossNavigationEnrichmentSpec extends Specification with EitherMatchers {
       val expectedOut: Map[String, Option[String]] = Map(
         "domain_user_id" -> Some("abc"),
         "timestamp" -> None,
-        "session_id" -> Some("176ff68a-4769-4566-ad0e-3792c1c8148f")
+        "session_id" -> Some("176ff68a-4769-4566-ad0e-3792c1c8148f"),
+        "user_id" -> None,
+        "source_id" -> None,
+        "source_platform" -> None,
+        "reason" -> None
       )
       val result = CrossDomainMap.makeCrossDomainMap(input).map(_.domainMap)
       result must beEqualTo(expectedOut.asRight)
@@ -137,7 +159,12 @@ class CrossNavigationEnrichmentSpec extends Specification with EitherMatchers {
       val input = "abc.1697175843762....."
       val expectedOut: Map[String, Option[String]] = Map(
         "domain_user_id" -> Some("abc"),
-        "timestamp" -> Some("2023-10-13 05:44:03.762")
+        "timestamp" -> Some("2023-10-13 05:44:03.762"),
+        "session_id" -> None,
+        "user_id" -> None,
+        "source_id" -> None,
+        "source_platform" -> None,
+        "reason" -> None
       )
       val result = CrossDomainMap.makeCrossDomainMap(input).map(_.domainMap)
       result must beEqualTo(expectedOut.asRight)
@@ -182,6 +209,24 @@ class CrossNavigationEnrichmentSpec extends Specification with EitherMatchers {
   "getCrossNavigationContext" should {
     "return Nil if input is empty Map" >> {
       val input = Map.empty[String, Option[String]]
+      val expectedOut: List[SelfDescribingData[Json]] = Nil
+      val result = CrossDomainMap(input).getCrossNavigationContext
+      result must beEqualTo(expectedOut)
+    }
+
+    "return Nil if missing domain_user_id (required)" >> {
+      val input: Map[String, Option[String]] = Map(
+        "timestamp" -> Some("2023-10-13 05:44:03.762")
+      )
+      val expectedOut: List[SelfDescribingData[Json]] = Nil
+      val result = CrossDomainMap(input).getCrossNavigationContext
+      result must beEqualTo(expectedOut)
+    }
+
+    "return Nil if missing timestamp (required)" >> {
+      val input: Map[String, Option[String]] = Map(
+        "domain_user_id" -> Some("abcd")
+      )
       val expectedOut: List[SelfDescribingData[Json]] = Nil
       val result = CrossDomainMap(input).getCrossNavigationContext
       result must beEqualTo(expectedOut)

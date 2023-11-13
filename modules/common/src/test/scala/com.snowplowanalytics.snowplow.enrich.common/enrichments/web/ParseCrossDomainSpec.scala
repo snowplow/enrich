@@ -55,12 +55,28 @@ class ParseCrossDomainSpec extends Specification with DataTables {
 
   def e5 =
     CrossNavigationEnrichment.parseCrossDomain(List(("_sp" -> Some("abc")))).map(_.domainMap) must beRight(
-      Map("domain_user_id" -> "abc".some, "timestamp" -> None)
+      Map(
+        "domain_user_id" -> "abc".some,
+        "timestamp" -> None,
+        "session_id" -> None,
+        "user_id" -> None,
+        "source_id" -> None,
+        "source_platform" -> None,
+        "reason" -> None
+      )
     )
 
   def e6 =
     CrossNavigationEnrichment.parseCrossDomain(List(("_sp" -> Some("abc.1426245561368")))).map(_.domainMap) must beRight(
-      Map("domain_user_id" -> "abc".some, "timestamp" -> "2015-03-13 11:19:21.368".some)
+      Map(
+        "domain_user_id" -> "abc".some,
+        "timestamp" -> "2015-03-13 11:19:21.368".some,
+        "session_id" -> None,
+        "user_id" -> None,
+        "source_id" -> None,
+        "source_platform" -> None,
+        "reason" -> None
+      )
     )
 
   def e7 =

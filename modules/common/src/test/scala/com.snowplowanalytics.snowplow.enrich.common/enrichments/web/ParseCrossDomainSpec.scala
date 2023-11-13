@@ -34,7 +34,9 @@ class ParseCrossDomainSpec extends Specification with DataTables {
     CrossNavigationEnrichment.parseCrossDomain(Nil).map(_.domainMap) must beRight(Map.empty[String, Option[String]])
 
   def e2 =
-    CrossNavigationEnrichment.parseCrossDomain(List(("foo" -> Some("bar")))).map(_.domainMap) must beRight(Map.empty[String, Option[String]])
+    CrossNavigationEnrichment.parseCrossDomain(List(("foo" -> Some("bar")))).map(_.domainMap) must beRight(
+      Map.empty[String, Option[String]]
+    )
 
   def e3 =
     CrossNavigationEnrichment.parseCrossDomain(List(("_sp" -> None))).map(_.domainMap) must beRight(Map.empty[String, Option[String]])
@@ -52,7 +54,9 @@ class ParseCrossDomainSpec extends Specification with DataTables {
   }
 
   def e5 =
-    CrossNavigationEnrichment.parseCrossDomain(List(("_sp" -> Some("abc")))).map(_.domainMap) must beRight(Map("domain_user_id" -> "abc".some, "timestamp" -> None))
+    CrossNavigationEnrichment.parseCrossDomain(List(("_sp" -> Some("abc")))).map(_.domainMap) must beRight(
+      Map("domain_user_id" -> "abc".some, "timestamp" -> None)
+    )
 
   def e6 =
     CrossNavigationEnrichment.parseCrossDomain(List(("_sp" -> Some("abc.1426245561368")))).map(_.domainMap) must beRight(

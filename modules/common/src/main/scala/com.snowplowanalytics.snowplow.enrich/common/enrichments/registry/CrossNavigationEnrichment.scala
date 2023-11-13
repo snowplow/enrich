@@ -141,17 +141,23 @@ object CrossNavigationEnrichment extends ParseableEnrichment {
      * @return either a map of query string parameters or enrichment failure
      */
     def makeCrossDomainMap(sp: String): Either[FailureDetails.EnrichmentFailure, CrossDomainMap] = {
-      val values = sp.split("\\.", -1)
+      val values = sp
+        .split("\\.", -1)
         .padTo(
           CrossNavProps.size,
           ""
-        ).toList
-      val result = if (values.size == CrossNavProps.size)
-        values.zip(CrossNavProps).map {
-          case (value, (propName, f)) => f(value).map(propName -> _)
-        }.sequence
-          .map(_.filterNot { case (key, value) => key != timestampFieldName && value.isEmpty }.toMap)
-      else Map.empty[String, Option[String]].asRight
+        )
+        .toList
+      val result =
+        if (values.size == CrossNavProps.size)
+          values
+            .zip(CrossNavProps)
+            .map {
+              case (value, (propName, f)) => f(value).map(propName -> _)
+            }
+            .sequence
+            .map(_.filterNot { case (key, value) => key != timestampFieldName && value.isEmpty }.toMap)
+        else Map.empty[String, Option[String]].asRight
       result.map(CrossDomainMap(_))
     }
 

@@ -1,4 +1,4 @@
-3.9.0 (2023-11-14)
+3.9.0-rc1 (2023-11-14)
 ------------------
 enrich-pubsub: set UserAgent header in Pubsub publisher and consumer (#826)
 Bump sbt-snowplow-release to 0.3.1 (#827)

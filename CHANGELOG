@@ -1,4 +1,4 @@
-3.8.3 (2023-11-14)
+3.8.3-rc7 (2023-11-14)
 ------------------
 Bump netty to 4.1.100.Final (#829)
 Bump sbt-snowplow-release to 0.3.1 (#829)

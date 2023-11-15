@@ -13,7 +13,7 @@
 package com.snowplowanalytics.snowplow.enrich.common.adapters.registry.snowplow
 
 import cats.Monad
-import cats.data.{NonEmptyList, ValidatedNel}
+import cats.data.NonEmptyList
 
 import cats.effect.Clock
 import cats.syntax.validated._
@@ -25,6 +25,7 @@ import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
 import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.Adapter
+import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.Adapter.Adapted
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 
 /** Version 1 of the Tracker Protocol is GET only. All data comes in on the querystring. */
@@ -37,9 +38,11 @@ object Tp1Adapter extends Adapter {
    * @param client The Iglu client used for schema lookup and validation
    * @return a Validation boxing either a NEL of RawEvents on Success, or a NEL of Failure Strings
    */
-  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock](payload: CollectorPayload, client: IgluCirceClient[F]): F[
-    ValidatedNel[FailureDetails.AdapterFailureOrTrackerProtocolViolation, NonEmptyList[RawEvent]]
-  ] = {
+  override def toRawEvents[F[_]: Monad: Clock](
+    payload: CollectorPayload,
+    client: IgluCirceClient[F],
+    registryLookup: RegistryLookup[F]
+  ): F[Adapted] = {
     val _ = client
     val params = toMap(payload.querystring)
     if (params.isEmpty) {

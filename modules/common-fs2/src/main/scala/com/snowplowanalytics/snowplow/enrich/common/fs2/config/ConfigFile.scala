@@ -16,7 +16,8 @@ import scala.concurrent.duration.FiniteDuration
 
 import cats.implicits._
 import cats.data.EitherT
-import cats.effect.Sync
+
+import cats.effect.kernel.Sync
 
 import _root_.io.circe.{Decoder, Encoder}
 import _root_.io.circe.config.syntax._

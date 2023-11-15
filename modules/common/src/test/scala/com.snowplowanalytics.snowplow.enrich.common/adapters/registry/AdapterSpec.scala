@@ -55,14 +55,16 @@ class AdapterSpec extends Specification with DataTables with ValidatedMatchers {
   // TODO: add test for buildFormatter()
 
   object BaseAdapter extends Adapter {
-    override def toRawEvents[F[_]: Monad: RegistryLookup: Clock](payload: CollectorPayload, client: IgluCirceClient[F]) = {
-      val _ = client
+    override def toRawEvents[F[_]: Monad: Clock](
+      payload: CollectorPayload,
+      client: IgluCirceClient[F],
+      registryLookup: RegistryLookup[F]
+    ) =
       Monad[F].pure(
         FailureDetails.AdapterFailure
           .InputData("base", None, payload.body.getOrElse("base"))
           .invalidNel
       )
-    }
   }
 
   object Shared {

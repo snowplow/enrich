@@ -13,15 +13,21 @@
 package com.snowplowanalytics.snowplow.enrich.common
 
 import java.util.concurrent.Executors
+import java.nio.file.NoSuchFileException
 
 import scala.concurrent.ExecutionContext
 
 import cats.implicits._
+
 import cats.effect.IO
+import cats.effect.kernel.Resource
+import cats.effect.unsafe.implicits.global
 
-import org.http4s.client.blaze.BlazeClientBuilder
+import org.http4s.blaze.client.BlazeClientBuilder
 
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
+
+import fs2.io.file.{Files, Path}
 
 import io.circe.Json
 import io.circe.literal._
@@ -29,7 +35,9 @@ import io.circe.literal._
 import org.apache.http.NameValuePair
 import org.apache.http.message.BasicNameValuePair
 
-import com.snowplowanalytics.iglu.client.IgluCirceClient
+import com.snowplowanalytics.iglu.client.{IgluCirceClient, Resolver}
+import com.snowplowanalytics.iglu.client.resolver.registries.Registry
+import com.snowplowanalytics.iglu.client.resolver.registries.JavaNetRegistryLookup
 
 import com.snowplowanalytics.iglu.core.SelfDescribingData
 import com.snowplowanalytics.iglu.core.circe.implicits._
@@ -39,7 +47,9 @@ import com.snowplowanalytics.lrumap.CreateLruMap._
 import com.snowplowanalytics.snowplow.enrich.common.adapters._
 import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, JsonUtils}
 
-object SpecHelpers extends CatsIO {
+object SpecHelpers extends CatsEffect {
+
+  val StaticTime = 1599750938180L
 
   // Standard Iglu configuration
   private val igluConfig = json"""{
@@ -78,8 +88,10 @@ object SpecHelpers extends CatsIO {
     .unsafeRunSync()
     .getOrElse(throw new RuntimeException("invalid resolver configuration"))
 
+  val registryLookup = JavaNetRegistryLookup.ioLookupInstance[IO]
+
   val blockingEC = ExecutionContext.fromExecutorService(Executors.newCachedThreadPool)
-  private val http4sClient = BlazeClientBuilder[IO](blockingEC).resource
+  private val http4sClient = BlazeClientBuilder[IO].resource
   val httpClient = http4sClient.map(HttpClient.fromHttp4sClient[IO])
 
   private type NvPair = (String, String)
@@ -122,6 +134,21 @@ object SpecHelpers extends CatsIO {
   implicit class MapOps[A, B](underlying: Map[A, B]) {
     def toOpt: Map[A, Option[B]] = underlying.map { case (a, b) => (a, Option(b)) }
   }
+
+  /** Clean-up predefined list of files */
+  def filesCleanup(files: List[Path]): IO[Unit] =
+    files.traverse_ { path =>
+      Files[IO].deleteIfExists(path).recover {
+        case _: NoSuchFileException => false
+      }
+    }
+
+  /** Make sure files don't exist before and after test starts */
+  def filesResource(files: List[Path]): Resource[IO, Unit] =
+    Resource.make(filesCleanup(files))(_ => filesCleanup(files))
+
+  def createIgluClient(registries: List[Registry]): IO[IgluCirceClient[IO]] =
+    IgluCirceClient.fromResolver[IO](Resolver(registries, None), cacheSize = 0)
 
   val callrailSchemas = CallrailSchemas(
     call_complete = "iglu:com.callrail/call_complete/jsonschema/1-0-2"

@@ -16,9 +16,10 @@ import scala.concurrent.duration._
 
 import cats.data.Validated
 
-import cats.effect.{Blocker, IO, Resource}
+import cats.effect.IO
+import cats.effect.kernel.Resource
 
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 
 import fs2.{Pipe, Stream}
 
@@ -29,7 +30,7 @@ import com.snowplowanalytics.snowplow.badrows.BadRow
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test.Utils
 
-object utils extends CatsIO {
+object utils extends CatsEffect {
 
   sealed trait OutputRow
   object OutputRow {
@@ -42,12 +43,11 @@ object utils extends CatsIO {
     uuid: String
   ): Resource[IO, Pipe[IO, Array[Byte], OutputRow]] =
     for {
-      blocker <- Blocker[IO]
-      streams = KinesisConfig.getStreams(uuid)
-      rawSink <- Sink.init[IO](blocker, KinesisConfig.rawStreamConfig(localstackPort, streams.raw))
+      streams <- Resource.pure(KinesisConfig.getStreams(uuid))
+      rawSink <- Sink.init[IO](KinesisConfig.rawStreamConfig(localstackPort, streams.raw))
     } yield {
-      val enriched = asGood(outputStream(blocker, KinesisConfig.enrichedStreamConfig(localstackPort, streams.enriched)))
-      val bad = asBad(outputStream(blocker, KinesisConfig.badStreamConfig(localstackPort, streams.bad)))
+      val enriched = asGood(outputStream(KinesisConfig.enrichedStreamConfig(localstackPort, streams.enriched)))
+      val bad = asBad(outputStream(KinesisConfig.badStreamConfig(localstackPort, streams.bad)))
 
       collectorPayloads =>
         enriched.merge(bad)
@@ -55,9 +55,9 @@ object utils extends CatsIO {
           .concurrently(collectorPayloads.evalMap(bytes => rawSink(List(bytes))))
     }
 
-  private def outputStream(blocker: Blocker, config: Input.Kinesis): Stream[IO, Array[Byte]] =
-    Source.init[IO](blocker, config, KinesisConfig.monitoring)
-      .map(KinesisRun.getPayload)
+  private def outputStream(config: Input.Kinesis): Stream[IO, Array[Byte]] =
+    Source.init[IO](config, KinesisConfig.monitoring)
+      .map(Main.getPayload)
 
   private def asGood(source: Stream[IO, Array[Byte]]): Stream[IO, OutputRow.Good] =
     source.map { bytes =>

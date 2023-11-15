@@ -65,9 +65,10 @@ object IgluAdapter extends Adapter {
    * @param client The Iglu client used for schema lookup and validation
    * @return a Validation boxing either a NEL of RawEvents on Success, or a NEL of Failure Strings
    */
-  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock](
+  override def toRawEvents[F[_]: Monad: Clock](
     payload: CollectorPayload,
-    client: IgluCirceClient[F]
+    client: IgluCirceClient[F],
+    registryLookup: RegistryLookup[F]
   ): F[Adapted] = {
     val _ = client
     val params = toMap(payload.querystring)

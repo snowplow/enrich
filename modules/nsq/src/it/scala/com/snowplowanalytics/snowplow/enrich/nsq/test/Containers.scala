@@ -17,7 +17,7 @@ import org.slf4j.LoggerFactory
 
 import cats.implicits._
 
-import cats.effect.{Resource, Sync, Async, ContextShift, Blocker}
+import cats.effect.kernel.{Async, Resource, Sync}
 
 import org.http4s.client.{JavaNetClientBuilder, Client => Http4sClient}
 import org.http4s.{Request ,Method, Uri}
@@ -58,7 +58,7 @@ object Containers {
    * integration tests and NSQ messages sent to first nsqd instance will be replicated
    * to second nsqd instance with nsq_to_nsq tool.
    */
-  def createContainers[F[_]: Async: ContextShift](blocker: Blocker): Resource[F, NetworkTopology] =
+  def createContainers[F[_]: Async]: Resource[F, NetworkTopology] =
     for {
       network <- network()
       topology = NetworkTopology(
@@ -82,7 +82,7 @@ object Containers {
           topology.nsqd2,
           lookupAddress = s"${topology.lookup2.networkAlias}:${topology.lookup2.tcpPort}"
         )
-      _ <- Resource.eval(createTopics[F](blocker, topology))
+      _ <- Resource.eval(createTopics[F](topology))
       _ <- nsqToNsq(
           network,
           sourceAddress = s"${topology.nsqd1.networkAlias}:${topology.nsqd1.tcpPort}",
@@ -100,8 +100,8 @@ object Containers {
       _ <- enrich(network, topology)
     } yield topology
 
-  private def createTopics[F[_] : Async : ContextShift](blocker: Blocker, topology: NetworkTopology): F[Unit] = {
-    val client = JavaNetClientBuilder[F](blocker).create
+  private def createTopics[F[_] : Async](topology: NetworkTopology): F[Unit] = {
+    val client = JavaNetClientBuilder[F].create
     for {
       _ <- createTopic(client, topology.sourceTopic, 4151)
       _ <- createTopic(client, topology.goodDestTopic, 4151)
@@ -111,7 +111,7 @@ object Containers {
     } yield ()
   }
 
-  private def createTopic[F[_] : Async : ContextShift](client: Http4sClient[F], topic: String, port: Int): F[Unit] = {
+  private def createTopic[F[_] : Async](client: Http4sClient[F], topic: String, port: Int): F[Unit] = {
     val request = Request[F](
       method = Method.POST,
       Uri.unsafeFromString(s"http://127.0.0.1:$port/topic/create?topic=$topic")
@@ -186,7 +186,7 @@ object Containers {
       e => Sync[F].delay(e.stop())
     )
 
-  private def nsqToNsq[F[_] : Sync](
+  private def nsqToNsq[F[_]: Sync](
     network: Network,
     sourceAddress: String,
     sourceTopic: String,
@@ -212,7 +212,7 @@ object Containers {
       e => Sync[F].delay(e.stop())
     )
 
-  private def enrich[F[_] : Sync](
+  private def enrich[F[_]: Sync](
     network: Network,
     topology: NetworkTopology
   ): Resource[F, JGenericContainer[_]] =

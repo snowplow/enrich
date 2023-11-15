@@ -33,7 +33,7 @@ import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
  * The AdapterRegistry lets us convert a CollectorPayload into one or more RawEvents, using a given
  * adapter.
  */
-class AdapterRegistry[F[_]: Clock: Monad: RegistryLookup](
+class AdapterRegistry[F[_]: Clock: Monad](
   remoteAdapters: Map[(String, String), RemoteAdapter[F]],
   adaptersSchemas: AdaptersSchemas
 ) {
@@ -93,15 +93,16 @@ class AdapterRegistry[F[_]: Clock: Monad: RegistryLookup](
   def toRawEvents(
     payload: CollectorPayload,
     client: IgluCirceClient[F],
-    processor: Processor
+    processor: Processor,
+    registryLookup: RegistryLookup[F]
   ): F[Validated[BadRow, NonEmptyList[RawEvent]]] =
     (adapters.get((payload.api.vendor, payload.api.version)) match {
       case Some(adapter) =>
-        adapter.toRawEvents(payload, client)
+        adapter.toRawEvents(payload, client, registryLookup)
       case None =>
         remoteAdapters.get((payload.api.vendor, payload.api.version)) match {
           case Some(adapter) =>
-            adapter.toRawEvents(payload, client)
+            adapter.toRawEvents(payload)
           case None =>
             val f = FailureDetails.AdapterFailure.InputData(
               "vendor/version",

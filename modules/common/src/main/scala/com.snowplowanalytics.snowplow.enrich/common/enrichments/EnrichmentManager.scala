@@ -58,18 +58,19 @@ object EnrichmentManager {
    * @param invalidCount Function to increment the count of invalid events
    * @return Enriched event or bad row if a problem occured
    */
-  def enrichEvent[F[_]: Monad: RegistryLookup: Clock](
+  def enrichEvent[F[_]: Monad: Clock](
     registry: EnrichmentRegistry[F],
     client: IgluCirceClient[F],
     processor: Processor,
     etlTstamp: DateTime,
     raw: RawEvent,
     featureFlags: EtlPipeline.FeatureFlags,
-    invalidCount: F[Unit]
+    invalidCount: F[Unit],
+    registryLookup: RegistryLookup[F]
   ): EitherT[F, BadRow, EnrichedEvent] =
     for {
       enriched <- EitherT.fromEither[F](setupEnrichedEvent(raw, etlTstamp, processor))
-      extractResult <- IgluUtils.extractAndValidateInputJsons(enriched, client, raw, processor)
+      extractResult <- IgluUtils.extractAndValidateInputJsons(enriched, client, raw, processor, registryLookup)
       _ = {
         ME.formatUnstructEvent(extractResult.unstructEvent).foreach(e => enriched.unstruct_event = e)
         ME.formatContexts(extractResult.contexts).foreach(c => enriched.contexts = c)
@@ -85,7 +86,7 @@ object EnrichmentManager {
                              )
       _ = ME.formatContexts(enrichmentsContexts ::: extractResult.validationInfoContexts).foreach(c => enriched.derived_contexts = c)
       _ <- IgluUtils
-             .validateEnrichmentsContexts[F](client, enrichmentsContexts, raw, processor, enriched)
+             .validateEnrichmentsContexts[F](client, enrichmentsContexts, raw, processor, enriched, registryLookup)
       _ <- EitherT.rightT[F, BadRow](
              anonIp(enriched, registry.anonIp).foreach(enriched.user_ipaddress = _)
            )
@@ -758,7 +759,7 @@ object EnrichmentManager {
    * For now it's possible to accept enriched events that are not valid.
    * See https://github.com/snowplow/enrich/issues/517#issuecomment-1033910690
    */
-  private def validateEnriched[F[_]: Clock: Monad: RegistryLookup](
+  private def validateEnriched[F[_]: Monad](
     enriched: EnrichedEvent,
     raw: RawEvent,
     processor: Processor,
@@ -766,7 +767,6 @@ object EnrichmentManager {
     invalidCount: F[Unit]
   ): EitherT[F, BadRow, Unit] =
     EitherT {
-
       //We're using static field's length validation. See more in https://github.com/snowplow/enrich/issues/608
       AtomicFieldsLengthValidator.validate[F](enriched, raw, processor, acceptInvalid, invalidCount)
     }

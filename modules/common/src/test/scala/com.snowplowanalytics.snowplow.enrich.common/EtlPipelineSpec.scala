@@ -16,7 +16,7 @@ import cats.data.Validated
 import cats.syntax.validated._
 
 import cats.effect.IO
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 
 import org.apache.thrift.TSerializer
 
@@ -42,7 +42,7 @@ import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
 
-class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsIO {
+class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffect {
   def is = s2"""
   EtlPipeline should always produce either bad or good row for each event of the payload   $e1
   Processing of events with malformed query string should be supported                     $e2
@@ -73,7 +73,8 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsIO {
                     dateTime,
                     Some(collectorPayloadBatched).validNel,
                     AcceptInvalid.featureFlags,
-                    IO.unit
+                    IO.unit,
+                    SpecHelpers.registryLookup
                   )
     } yield output must be like {
       case a :: b :: c :: d :: Nil =>
@@ -98,7 +99,8 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsIO {
                     dateTime,
                     Some(collectorPayload).validNel,
                     AcceptInvalid.featureFlags,
-                    IO.unit
+                    IO.unit,
+                    SpecHelpers.registryLookup
                   )
     } yield output must beLike {
       case Validated.Valid(_: EnrichedEvent) :: Nil => ok
@@ -118,7 +120,8 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsIO {
                     dateTime,
                     invalidCollectorPayload,
                     AcceptInvalid.featureFlags,
-                    IO.unit
+                    IO.unit,
+                    SpecHelpers.registryLookup
                   )
     } yield output must be like {
       case Validated.Invalid(_: BadRow.CPFormatViolation) :: Nil => ok
@@ -138,7 +141,8 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsIO {
                     dateTime,
                     collectorPayload.validNel[BadRow],
                     AcceptInvalid.featureFlags,
-                    IO.unit
+                    IO.unit,
+                    SpecHelpers.registryLookup
                   )
     } yield output must beEqualTo(Nil)
 }

@@ -12,8 +12,8 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2.test
 
-import cats.effect.{Blocker, IO, Resource}
-import cats.effect.concurrent.Ref
+import cats.effect.IO
+import cats.effect.kernel.{Ref, Resource}
 
 import io.circe.literal._
 
@@ -24,19 +24,17 @@ import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import org.http4s.HttpRoutes
 import org.http4s.Method.GET
-import org.http4s.server.blaze.BlazeServerBuilder
+import org.http4s.blaze.server.BlazeServerBuilder
 import org.http4s.dsl.io._
 import org.http4s.syntax.all._
 
-import cats.effect.testing.specs2.CatsIO
-
-import com.snowplowanalytics.snowplow.enrich.common.fs2.SpecHelpers
+import cats.effect.testing.specs2.CatsEffect
 
 /**
  * Embedded HTTP Server for testing, mostly for assets refresh,
  * but can serve
  */
-object HttpServer extends CatsIO {
+object HttpServer extends CatsEffect {
 
   private val logger: Logger[IO] =
     Slf4jLogger.getLogger[IO]
@@ -54,11 +52,11 @@ object HttpServer extends CatsIO {
     HttpRoutes
       .of[IO] {
         case r @ GET -> Root / "counter" =>
-          logger.debug(r.pathInfo) *> counter.updateAndGet(_ + 1).flatMap { i =>
+          logger.debug(r.pathInfo.toString) *> counter.updateAndGet(_ + 1).flatMap { i =>
             Ok(s"counter $i")
           }
         case r @ GET -> Root / "flaky" =>
-          logger.debug(r.pathInfo) *> counter.update(_ + 1) *>
+          logger.debug(r.pathInfo.toString) *> counter.update(_ + 1) *>
             counter.get.flatMap { i =>
               val s = i.toString
               if (i == 1 || i == 2) NotFound(s)
@@ -68,7 +66,7 @@ object HttpServer extends CatsIO {
         case GET -> Root / "maxmind" / "GeoIP2-City.mmdb" =>
           counter.updateAndGet(_ + 1).flatMap { i =>
             val is = readMaxMindDb(i)
-            Ok(Blocker[IO].use(b => readInputStream[IO](is, 256, b).compile.to(Array)))
+            Ok(readInputStream[IO](is, 256).compile.to(Array))
           }
         case GET -> Root / "iab" / file =>
           counter.updateAndGet(_ + 1).flatMap { i =>
@@ -91,7 +89,7 @@ object HttpServer extends CatsIO {
   def resource: Resource[IO, Unit] =
     for {
       counter <- Resource.eval(Ref.of[IO, Int](0))
-      _ <- BlazeServerBuilder[IO](SpecHelpers.blockingEC)
+      _ <- BlazeServerBuilder[IO]
              .bindHttp(8080)
              .withHttpApp(routes(counter).orNotFound)
              .withoutBanner

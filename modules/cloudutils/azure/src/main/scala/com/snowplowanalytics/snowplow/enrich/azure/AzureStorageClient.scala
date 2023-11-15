@@ -12,22 +12,28 @@
  */
 package com.snowplowanalytics.snowplow.enrich.azure
 
+import java.net.URI
+
+import com.azure.identity.DefaultAzureCredentialBuilder
+import com.azure.storage.blob.{BlobServiceClientBuilder, BlobUrlParts}
+
 import blobstore.azure.AzureStore
 import blobstore.url.exception.{AuthorityParseError, MultipleUrlValidationException, Throwables}
 import blobstore.url.{Authority, Path, Url}
+
 import cats.data.Validated.{Invalid, Valid}
 import cats.data.ValidatedNec
-import cats.effect._
 import cats.implicits._
-import com.azure.identity.DefaultAzureCredentialBuilder
-import com.azure.storage.blob.{BlobServiceClientBuilder, BlobUrlParts}
+
+import cats.effect.kernel.{Async, Resource, Sync}
+
 import fs2.Stream
-import java.net.URI
+
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.Client
 
 object AzureStorageClient {
 
-  def mk[F[_]: ConcurrentEffect](storageAccountName: String): Resource[F, Client[F]] =
+  def mk[F[_]: Async](storageAccountName: String): Resource[F, Client[F]] =
     for {
       store <- createStore(storageAccountName)
     } yield new Client[F] {
@@ -41,10 +47,10 @@ object AzureStorageClient {
         }
     }
 
-  private def createStore[F[_]: ConcurrentEffect: Async](storageAccountName: String): Resource[F, AzureStore[F]] =
+  private def createStore[F[_]: Async](storageAccountName: String): Resource[F, AzureStore[F]] =
     for {
       client <- Resource.eval {
-        ConcurrentEffect[F].delay {
+        Sync[F].delay {
           val builder = new BlobServiceClientBuilder().credential(new DefaultAzureCredentialBuilder().build)
           val storageEndpoint = createStorageEndpoint(storageAccountName)
           builder.endpoint(storageEndpoint).buildAsyncClient()
@@ -54,7 +60,7 @@ object AzureStorageClient {
         .builder[F](client)
         .build
         .fold(
-          errors => Resource.eval(ConcurrentEffect[F].raiseError(errors.reduce(Throwables.collapsingSemigroup))),
+          errors => Resource.eval(Sync[F].raiseError(errors.reduce(Throwables.collapsingSemigroup))),
           s => Resource.pure[F, AzureStore[F]](s)
         )
     } yield store

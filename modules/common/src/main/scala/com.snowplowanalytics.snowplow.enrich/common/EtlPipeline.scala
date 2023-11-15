@@ -58,7 +58,7 @@ object EtlPipeline {
    * @return the ValidatedMaybeCanonicalOutput. Thanks to flatMap, will include any validation
    * errors contained within the ValidatedMaybeCanonicalInput
    */
-  def processEvents[F[_]: Clock: Monad: RegistryLookup](
+  def processEvents[F[_]: Clock: Monad](
     adapterRegistry: AdapterRegistry[F],
     enrichmentRegistry: EnrichmentRegistry[F],
     client: IgluCirceClient[F],
@@ -66,12 +66,13 @@ object EtlPipeline {
     etlTstamp: DateTime,
     input: ValidatedNel[BadRow, Option[CollectorPayload]],
     featureFlags: FeatureFlags,
-    invalidCount: F[Unit]
+    invalidCount: F[Unit],
+    registryLookup: RegistryLookup[F]
   ): F[List[Validated[BadRow, EnrichedEvent]]] =
     input match {
       case Validated.Valid(Some(payload)) =>
         adapterRegistry
-          .toRawEvents(payload, client, processor)
+          .toRawEvents(payload, client, processor, registryLookup)
           .flatMap {
             case Validated.Valid(rawEvents) =>
               rawEvents.toList.traverse { event =>
@@ -83,7 +84,8 @@ object EtlPipeline {
                     etlTstamp,
                     event,
                     featureFlags,
-                    invalidCount
+                    invalidCount,
+                    registryLookup
                   )
                   .toValidated
               }

@@ -14,7 +14,7 @@ package com.snowplowanalytics.snowplow.enrich.common.fs2.blackbox.adapters
 
 import org.specs2.mutable.Specification
 
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 
 import cats.effect.IO
 
@@ -25,9 +25,9 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.Enrich
 import com.snowplowanalytics.snowplow.enrich.common.fs2.EnrichSpec
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test.TestEnvironment
 import com.snowplowanalytics.snowplow.enrich.common.fs2.blackbox.BlackBoxTesting
-import com.snowplowanalytics.snowplow.enrich.common.fs2.SpecHelpers.createIgluClient
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 
-class Tp2AdapterSpec extends Specification with CatsIO {
+class Tp2AdapterSpec extends Specification with CatsEffect {
   "enrichWith" should {
     "enrich with Tp2Adapter" in {
       val input = BlackBoxTesting.buildCollectorPayload(
@@ -35,7 +35,7 @@ class Tp2AdapterSpec extends Specification with CatsIO {
         body = Tp2AdapterSpec.body.some,
         contentType = "application/json".some
       )
-      createIgluClient(List(TestEnvironment.embeddedRegistry)).flatMap { igluClient =>
+      SpecHelpers.createIgluClient(List(TestEnvironment.embeddedRegistry)).flatMap { igluClient =>
         Enrich
           .enrichWith(
             TestEnvironment.enrichmentReg.pure[IO],
@@ -44,7 +44,8 @@ class Tp2AdapterSpec extends Specification with CatsIO {
             None,
             EnrichSpec.processor,
             EnrichSpec.featureFlags,
-            IO.unit
+            IO.unit,
+            SpecHelpers.registryLookup
           )(
             input
           )

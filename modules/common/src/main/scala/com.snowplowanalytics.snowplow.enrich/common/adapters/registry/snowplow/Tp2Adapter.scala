@@ -32,6 +32,7 @@ import com.snowplowanalytics.snowplow.badrows.FailureDetails
 import com.snowplowanalytics.snowplow.enrich.common.RawEventParameters
 import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.Adapter
+import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.Adapter.Adapted
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.common.utils.{JsonUtils => JU}
 
@@ -57,9 +58,11 @@ object Tp2Adapter extends Adapter {
    * @param client The Iglu client used for schema lookup and validation
    * @return a Validation boxing either a NEL of RawEvents on Success, or a NEL of Failure Strings
    */
-  def toRawEvents[F[_]: Monad: RegistryLookup: Clock](payload: CollectorPayload, client: IgluCirceClient[F]): F[
-    ValidatedNel[FailureDetails.AdapterFailureOrTrackerProtocolViolation, NonEmptyList[RawEvent]]
-  ] = {
+  override def toRawEvents[F[_]: Monad: Clock](
+    payload: CollectorPayload,
+    client: IgluCirceClient[F],
+    registryLookup: RegistryLookup[F]
+  ): F[Adapted] = {
     val qsParams = toMap(payload.querystring)
 
     // Verify: body + content type set; content type matches expected; body contains expected JSON Schema; body passes schema validation
@@ -106,7 +109,7 @@ object Tp2Adapter extends Adapter {
         case (None, None) => Monad[F].pure(NonEmptyList.one(qsParams).valid)
         case (Some(bdy), Some(_)) => // Build our NEL of parameters
           (for {
-            json <- extractAndValidateJson(PayloadDataSchema, bdy, client)
+            json <- extractAndValidateJson(PayloadDataSchema, bdy, client, registryLookup)
             nel <- EitherT.fromEither[F](toParametersNel(json, qsParams))
           } yield nel).toValidated
       }
@@ -208,11 +211,13 @@ object Tp2Adapter extends Adapter {
    * @return an Option-boxed Validation containing either a Nel of JsonNodes error message on
    * Failure, or a singular JsonNode on success
    */
-  private def extractAndValidateJson[F[_]: Monad: RegistryLookup: Clock](
+  private def extractAndValidateJson[F[_]: Monad: Clock](
     schemaCriterion: SchemaCriterion,
     instance: String,
-    client: IgluCirceClient[F]
-  ): EitherT[F, NonEmptyList[FailureDetails.TrackerProtocolViolation], Json] =
+    client: IgluCirceClient[F],
+    registryLookup: RegistryLookup[F]
+  ): EitherT[F, NonEmptyList[FailureDetails.TrackerProtocolViolation], Json] = {
+    implicit val rl = registryLookup
     (for {
       j <- EitherT.fromEither[F](
              JU.extractJson(instance)
@@ -254,4 +259,5 @@ object Tp2Adapter extends Adapter {
                }
              }
     } yield sd.data).leftWiden[NonEmptyList[FailureDetails.TrackerProtocolViolation]]
+  }
 }

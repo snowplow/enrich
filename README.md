@@ -23,16 +23,7 @@ Snowplow Enrich provides record-level enrichment only: feeding in 1 raw Snowplow
 
 ## Copyright and license
 
-Snowplow Enrich is copyright 2012-2022 Snowplow Analytics Ltd.
-
-Licensed under the [Apache License, Version 2.0][license] (the "License");
-you may not use this software except in compliance with the License.
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+Licensed under the [Snowplow Community License][license]. _(If you are uncertain how it applies to your use case, check our answers to [frequently asked questions][faq].)_
 
 [techdocs-image]: https://d3i6fms1cm1j0i.cloudfront.net/github/images/techdocs.png
 [setup-image]: https://d3i6fms1cm1j0i.cloudfront.net/github/images/setup.png
@@ -47,8 +38,10 @@ limitations under the License.
 [ci]: https://github.com/snowplow/enrich/actions?query=workflow%3ACI
 [ci-image]: https://github.com/snowplow/enrich/workflows/CI/badge.svg
 
-[license]: http://www.apache.org/licenses/LICENSE-2.0
-[license-image]: http://img.shields.io/badge/license-Apache--2-blue.svg?style=flat
+[license]: https://docs.snowplow.io/community-license-1.0
+[license-image]: https://img.shields.io/badge/license-Snowplow--Community-blue.svg?style=flat
+
+[faq]: https://docs.snowplow.io/docs/contributing/community-license-faq/
 
 [coveralls]: https://coveralls.io/github/snowplow/enrich?branch=master
 [coveralls-image]: https://coveralls.io/repos/github/snowplow/enrich/badge.svg?branch=master

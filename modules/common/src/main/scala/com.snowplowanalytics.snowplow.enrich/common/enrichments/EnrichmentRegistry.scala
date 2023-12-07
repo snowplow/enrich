@@ -145,7 +145,7 @@ object EnrichmentRegistry {
             enrichment <- EitherT.right(c.enrichment[F](blocker))
             registry <- er
           } yield registry.copy(ipLookups = enrichment.some)
-        case c: JavascriptScriptConf => er.map(_.copy(javascriptScript = c.enrichment.some))
+        case c: JavascriptScriptConf => er.map(v => v.copy(javascriptScript = v.javascriptScript :+ c.enrichment))
         case c: RefererParserConf =>
           for {
             enrichment <- c.enrichment[F]
@@ -245,7 +245,7 @@ final case class EnrichmentRegistry[F[_]](
   httpHeaderExtractor: Option[HttpHeaderExtractorEnrichment] = None,
   iab: Option[IabEnrichment] = None,
   ipLookups: Option[IpLookupsEnrichment[F]] = None,
-  javascriptScript: Option[JavascriptScriptEnrichment] = None,
+  javascriptScript: List[JavascriptScriptEnrichment] = Nil,
   refererParser: Option[RefererParserEnrichment] = None,
   uaParser: Option[UaParserEnrichment[F]] = None,
   userAgentUtils: Option[UserAgentUtilsEnrichment] = None,

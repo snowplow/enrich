@@ -136,7 +136,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       val jsEnrichConf =
         JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
       val jsEnrich = JavascriptScriptEnrichment(jsEnrichConf.schemaKey, jsEnrichConf.rawFunction)
-      val enrichmentReg = EnrichmentRegistry[Id](javascriptScript = Some(jsEnrich))
+      val enrichmentReg = EnrichmentRegistry[Id](javascriptScript = List(jsEnrich))
 
       val parameters = Map(
         "e" -> "pp",
@@ -201,7 +201,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       val jsEnrichConf =
         JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
       val jsEnrich = JavascriptScriptEnrichment(jsEnrichConf.schemaKey, jsEnrichConf.rawFunction)
-      val enrichmentReg = EnrichmentRegistry[Id](javascriptScript = Some(jsEnrich))
+      val enrichmentReg = EnrichmentRegistry[Id](javascriptScript = List(jsEnrich))
 
       val parameters = Map(
         "e" -> "pp",
@@ -799,7 +799,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         SchemaVer.Full(1, 0, 0)
       )
       val enrichmentReg = EnrichmentRegistry[Id](
-        javascriptScript = Some(JavascriptScriptEnrichment(schemaKey, script)),
+        javascriptScript = List(JavascriptScriptEnrichment(schemaKey, script)),
         httpHeaderExtractor = Some(HttpHeaderExtractorEnrichment(".*"))
       )
 

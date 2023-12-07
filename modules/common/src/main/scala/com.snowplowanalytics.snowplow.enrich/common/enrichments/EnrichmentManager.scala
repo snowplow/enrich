@@ -211,7 +211,7 @@ object EnrichmentManager {
         _       <- getHttpHeaderContexts                                              // Execute header extractor enrichment
         _       <- getYauaaContext[F](registry.yauaa, raw.context.headers)            // Runs YAUAA enrichment (gets info thanks to user agent)
         _       <- extractSchemaFields[F](unstructEvent)                              // Extract the event vendor/name/format/version
-        _       <- getJsScript[F](registry.javascriptScript)                          // Execute the JavaScript scripting enrichment
+        _       <- registry.javascriptScript.traverse(getJsScript[F](_))              // Execute the JavaScript scripting enrichment
         _       <- getCurrency[F](raw.context.timestamp, registry.currencyConversion) // Finalize the currency conversion
         _       <- getWeatherContext[F](registry.weather)                             // Fetch weather context
         _       <- geoLocation[F](registry.ipLookups)                                 // Execute IP lookup enrichment
@@ -240,7 +240,7 @@ object EnrichmentManager {
         _       <- getYauaaContext[F](registry.yauaa, raw.context.headers)            // Runs YAUAA enrichment (gets info thanks to user agent)
         _       <- extractSchemaFields[F](unstructEvent)                              // Extract the event vendor/name/format/version
         _       <- geoLocation[F](registry.ipLookups)                                 // Execute IP lookup enrichment
-        _       <- getJsScript[F](registry.javascriptScript)                          // Execute the JavaScript scripting enrichment
+        _       <- registry.javascriptScript.traverse(getJsScript[F](_))              // Execute the JavaScript scripting enrichment
         _       <- sqlContexts                                                        // Derive some contexts with custom SQL Query enrichment
         _       <- apiContexts                                                        // Derive some contexts with custom API Request enrichment
         // format: on
@@ -659,16 +659,12 @@ object EnrichmentManager {
 
   // Execute the JavaScript scripting enrichment
   def getJsScript[F[_]: Applicative](
-    javascriptScript: Option[JavascriptScriptEnrichment]
+    javascriptScript: JavascriptScriptEnrichment
   ): EStateT[F, Unit] =
     EStateT.fromEither {
       case (event, derivedContexts) =>
-        javascriptScript match {
-          case Some(jse) =>
-            ME.formatContexts(derivedContexts).foreach(c => event.derived_contexts = c)
-            jse.process(event).leftMap(NonEmptyList.one)
-          case None => Nil.asRight
-        }
+        ME.formatContexts(derivedContexts).foreach(c => event.derived_contexts = c)
+        javascriptScript.process(event).leftMap(NonEmptyList.one)
     }
 
   def headerContexts[F[_]: Applicative, A](

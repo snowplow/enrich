@@ -298,6 +298,39 @@ class EnrichmentConfigsSpec extends Specification with ValidatedMatchers with Da
       val result = JavascriptScriptEnrichment.parse(javascriptScriptEnrichmentJson, schemaKey)
       result must beValid // TODO: check the result's contents by evaluating some JavaScript
     }
+    "parse the additional arguments" in {
+      val params = json"""{"foo": 3, "nested": {"bar": 42}}""".asObject.get
+      val script =
+        s"""|function process(event, params) {
+            |  return [];
+            |}
+            |""".stripMargin
+      val javascriptScriptEnrichmentJson = {
+        val encoder = new Base64(true)
+        val encoded = new String(encoder.encode(script.getBytes)).trim // Newline being appended by some Base64 versions
+        parse(s"""{
+          "enabled": true,
+          "parameters": {
+            "script": "$encoded",
+            "config": {
+              "foo": 3,
+              "nested": {
+                "bar": 42
+              }
+            }
+          }
+        }""").toOption.get
+      }
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow",
+        "javascript_script_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val result = JavascriptScriptEnrichment.parse(javascriptScriptEnrichmentJson, schemaKey)
+      result must beValid
+      result.map(_.params).toOption mustEqual Some(params)
+    }
   }
 
   "Parsing a valid event_fingerprint_config enrichment JSON" should {

@@ -160,7 +160,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       val jsEnrichConf =
         JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
       val jsEnrich = JavascriptScriptEnrichment(jsEnrichConf.schemaKey, jsEnrichConf.rawFunction)
-      val enrichmentReg = EnrichmentRegistry[IO](javascriptScript = Some(jsEnrich))
+      val enrichmentReg = EnrichmentRegistry[IO](javascriptScript = List(jsEnrich))
 
       val parameters = Map(
         "e" -> "pp",
@@ -230,7 +230,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       val jsEnrichConf =
         JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
       val jsEnrich = JavascriptScriptEnrichment(jsEnrichConf.schemaKey, jsEnrichConf.rawFunction)
-      val enrichmentReg = EnrichmentRegistry[IO](javascriptScript = Some(jsEnrich))
+      val enrichmentReg = EnrichmentRegistry[IO](javascriptScript = List(jsEnrich))
 
       val parameters = Map(
         "e" -> "pp",
@@ -876,7 +876,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         SchemaVer.Full(1, 0, 0)
       )
       val enrichmentReg = EnrichmentRegistry[IO](
-        javascriptScript = Some(JavascriptScriptEnrichment(schemaKey, script)),
+        javascriptScript = List(JavascriptScriptEnrichment(schemaKey, script)),
         httpHeaderExtractor = Some(HttpHeaderExtractorEnrichment(".*"))
       )
 

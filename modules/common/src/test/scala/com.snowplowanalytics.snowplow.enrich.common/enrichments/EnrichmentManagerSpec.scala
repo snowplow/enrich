@@ -160,7 +160,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       val jsEnrichConf =
         JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
       val jsEnrich = JavascriptScriptEnrichment(jsEnrichConf.schemaKey, jsEnrichConf.rawFunction)
-      val enrichmentReg = EnrichmentRegistry[IO](javascriptScript = Some(jsEnrich))
+      val enrichmentReg = EnrichmentRegistry[IO](javascriptScript = List(jsEnrich))
 
       val parameters = Map(
         "e" -> "pp",
@@ -230,7 +230,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       val jsEnrichConf =
         JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
       val jsEnrich = JavascriptScriptEnrichment(jsEnrichConf.schemaKey, jsEnrichConf.rawFunction)
-      val enrichmentReg = EnrichmentRegistry[IO](javascriptScript = Some(jsEnrich))
+      val enrichmentReg = EnrichmentRegistry[IO](javascriptScript = List(jsEnrich))
 
       val parameters = Map(
         "e" -> "pp",
@@ -876,7 +876,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         SchemaVer.Full(1, 0, 0)
       )
       val enrichmentReg = EnrichmentRegistry[IO](
-        javascriptScript = Some(JavascriptScriptEnrichment(schemaKey, script)),
+        javascriptScript = List(JavascriptScriptEnrichment(schemaKey, script)),
         httpHeaderExtractor = Some(HttpHeaderExtractorEnrichment(".*"))
       )
 
@@ -900,6 +900,57 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       )
       enriched.value.map { e =>
         e.map(_.app_id) must beRight("moo")
+      }
+    }
+
+    "run multiple JavaScript enrichments" >> {
+      val script1 =
+        """
+        function process(event) {
+          event.setApp_id("test_app_id");
+          return [];
+        }"""
+
+      val script2 =
+        """
+        function process(event) {
+          event.setPlatform("test_platform");
+          return [];
+        }"""
+
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow",
+        "javascript_script_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val enrichmentReg = EnrichmentRegistry[IO](
+        javascriptScript = List(
+          JavascriptScriptEnrichment(schemaKey, script1),
+          JavascriptScriptEnrichment(schemaKey, script2)
+        )
+      )
+
+      val parameters = Map(
+        "e" -> "pp",
+        "tv" -> "js-0.13.1",
+        "p" -> "web"
+      ).toOpt
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      val enriched = EnrichmentManager.enrichEvent[IO](
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent,
+        AcceptInvalid.featureFlags,
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
+      )
+      enriched.value.map { e =>
+        (e.map(_.app_id) must beRight("test_app_id")) and
+          (e.map(_.platform) must beRight("test_platform"))
       }
     }
 

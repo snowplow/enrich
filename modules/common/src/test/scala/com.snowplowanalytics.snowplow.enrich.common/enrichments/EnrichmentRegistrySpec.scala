@@ -29,6 +29,7 @@ class EnrichmentRegistrySpec extends Specification with CatsEffect {
   EnrichmentRegistry should parse array of enrichments without any JS enrichment correctly $noJSEnrichment
   EnrichmentRegistry should parse array of enrichments with single JS enrichment correctly $singleJSEnrichment
   EnrichmentRegistry should parse array of enrichments with multiple JS enrichments correctly $multipleJSEnrichments
+  EnrichmentRegistry should parse JS enrichment with config field correctly $jsEnrichmentWithConfig
   """
 
   def noJSEnrichment =
@@ -67,7 +68,7 @@ class EnrichmentRegistrySpec extends Specification with CatsEffect {
 
   def multipleJSEnrichments = {
     val jsReturns = List("return1", "return2")
-    val jsEnrichments = jsReturns.map(jsEnrichment)
+    val jsEnrichments = jsReturns.map(jsEnrichment(_))
     EnrichmentRegistry
       .parse[IO](
         enrichmentConfig(jsEnrichments),
@@ -85,18 +86,50 @@ class EnrichmentRegistrySpec extends Specification with CatsEffect {
         }
       }
   }
+
+  def jsEnrichmentWithConfig = {
+    val jsEnrichments = List(jsEnrichment(addConfig = true))
+    EnrichmentRegistry
+      .parse[IO](
+        enrichmentConfig(jsEnrichments),
+        SpecHelpers.client,
+        localMode = false,
+        SpecHelpers.registryLookup
+      )
+      .map { res =>
+        val jsConfs = res.getOrElse(List.empty).filter {
+          case _: EnrichmentConf.JavascriptScriptConf => true
+          case _ => false
+        }
+        jsConfs.size must beEqualTo(1)
+      }
+  }
 }
 
 object EnrichmentRegistrySpec {
 
-  def jsEnrichment(jsReturn: String = "defaultReturn"): Json = {
+  def jsEnrichment(jsReturn: String = "defaultReturn", addConfig: Boolean = false): Json = {
     val script = s"""
       function process(event) {
         return $jsReturn;
       }
     """
 
-    json"""{
+    val config = json"""{
+      "schema": "iglu:com.snowplowanalytics.snowplow/javascript_script_config/jsonschema/1-0-1",
+      "data": {
+        "parameters": {
+          "config": {
+            "foo": 3,
+            "nested": {
+              "bar": 42
+            }
+          }
+        }
+      }
+    }"""
+
+    val jsEnrichment = json"""{
       "schema": "iglu:com.snowplowanalytics.snowplow/javascript_script_config/jsonschema/1-0-0",
       "data": {
         "vendor": "com.snowplowanalytics.snowplow",
@@ -107,6 +140,7 @@ object EnrichmentRegistrySpec {
         }
       }
     }"""
+    if (addConfig) jsEnrichment.deepMerge(config) else jsEnrichment
   }
 
   // Vendor and name are intentionally tweaked in the first enrichment

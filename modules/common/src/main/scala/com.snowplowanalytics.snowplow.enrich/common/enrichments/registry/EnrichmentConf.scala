@@ -20,6 +20,8 @@ import cats.data.EitherT
 
 import cats.effect.kernel.{Async, Sync}
 
+import io.circe.JsonObject
+
 import org.joda.money.CurrencyUnit
 
 import com.snowplowanalytics.iglu.core.SchemaKey
@@ -192,8 +194,12 @@ object EnrichmentConf {
       )
   }
 
-  final case class JavascriptScriptConf(schemaKey: SchemaKey, rawFunction: String) extends EnrichmentConf {
-    def enrichment: JavascriptScriptEnrichment = JavascriptScriptEnrichment(schemaKey, rawFunction)
+  final case class JavascriptScriptConf(
+    schemaKey: SchemaKey,
+    rawFunction: String,
+    params: JsonObject
+  ) extends EnrichmentConf {
+    def enrichment: JavascriptScriptEnrichment = JavascriptScriptEnrichment(schemaKey, rawFunction, params)
   }
 
   final case class RefererParserConf(

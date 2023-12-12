@@ -187,7 +187,10 @@ object BuildSettings {
     // Build and publish
     publishSettings ++
     // Tests
-    scoverageSettings ++ noParallelTestExecution
+    scoverageSettings ++ noParallelTestExecution ++ Seq(
+      Test / fork := true,
+      Test / javaOptions := Seq("-Dnashorn.args=--language=es6")
+    )
   }
 
   lazy val commonFs2BuildSettings = {

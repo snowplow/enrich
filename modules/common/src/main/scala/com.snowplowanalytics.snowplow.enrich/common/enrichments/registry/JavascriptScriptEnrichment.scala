@@ -73,15 +73,17 @@ final case class JavascriptScriptEnrichment(
     .asInstanceOf[ScriptEngine with Invocable with Compilable]
 
   private val stringified = rawFunction + s"""
-    var _params = ${params.asJson.noSpaces};
-    function getJavascriptContexts(event) {
-      var result = process(event, _params);
-      if (result == null) {
-        return "[]"
-      } else {
-        return JSON.stringify(result);
+    var getJavascriptContexts = function() {
+      const params = ${params.asJson.noSpaces};
+      return function(event) {
+        const result = process(event, params);
+        if (result == null) {
+          return "[]"
+        } else {
+          return JSON.stringify(result);
+        }
       }
-    }
+    }()
     """
 
   private val invocable =

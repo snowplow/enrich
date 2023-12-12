@@ -13,20 +13,15 @@
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.net.URI
-
 import cats.{Functor, Monad}
 import cats.data.EitherT
-
 import org.joda.money.CurrencyUnit
-
 import com.snowplowanalytics.iglu.core.SchemaKey
-
 import com.snowplowanalytics.forex.CreateForex
 import com.snowplowanalytics.forex.model.AccountType
 import com.snowplowanalytics.maxmind.iplookups.CreateIpLookups
 import com.snowplowanalytics.refererparser.CreateParser
 import com.snowplowanalytics.weather.providers.openweather.CreateOWM
-
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest.{
   ApiRequestEnrichment,
   CreateApiRequestEnrichment,
@@ -34,6 +29,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequ
 }
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.{CreateSqlQueryEnrichment, Rdbms, SqlQueryEnrichment}
 import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, ShiftExecution}
+import io.circe.JsonObject
 
 sealed trait EnrichmentConf {
 
@@ -169,8 +165,12 @@ object EnrichmentConf {
       IpLookupsEnrichment[F](this, blocker)
   }
 
-  final case class JavascriptScriptConf(schemaKey: SchemaKey, rawFunction: String) extends EnrichmentConf {
-    def enrichment: JavascriptScriptEnrichment = JavascriptScriptEnrichment(schemaKey, rawFunction)
+  final case class JavascriptScriptConf(
+    schemaKey: SchemaKey,
+    rawFunction: String,
+    params: JsonObject
+  ) extends EnrichmentConf {
+    def enrichment: JavascriptScriptEnrichment = JavascriptScriptEnrichment(schemaKey, rawFunction, params)
   }
 
   final case class RefererParserConf(

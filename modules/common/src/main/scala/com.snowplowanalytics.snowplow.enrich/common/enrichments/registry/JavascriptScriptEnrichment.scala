@@ -17,6 +17,7 @@ import cats.implicits._
 
 import io.circe._
 import io.circe.parser._
+import io.circe.syntax._
 
 import javax.script._
 
@@ -54,11 +55,16 @@ object JavascriptScriptEnrichment extends ParseableEnrichment {
       _ <- isParseable(c, schemaKey)
       encoded <- CirceUtils.extract[String](c, "parameters", "script").toEither
       script <- ConversionUtils.decodeBase64Url(encoded)
+      params <- CirceUtils.extract[Option[JsonObject]](c, "parameters", "config").toEither
       _ <- if (script.isEmpty) Left("Provided script for JS enrichment is empty") else Right(())
-    } yield JavascriptScriptConf(schemaKey, script)).toValidatedNel
+    } yield JavascriptScriptConf(schemaKey, script, params.getOrElse(JsonObject.empty))).toValidatedNel
 }
 
-final case class JavascriptScriptEnrichment(schemaKey: SchemaKey, rawFunction: String) extends Enrichment {
+final case class JavascriptScriptEnrichment(
+  schemaKey: SchemaKey,
+  rawFunction: String,
+  params: JsonObject = JsonObject.empty
+) extends Enrichment {
   private val enrichmentInfo =
     FailureDetails.EnrichmentInformation(schemaKey, "Javascript enrichment").some
 
@@ -66,9 +72,10 @@ final case class JavascriptScriptEnrichment(schemaKey: SchemaKey, rawFunction: S
     .getEngineByMimeType("text/javascript")
     .asInstanceOf[ScriptEngine with Invocable with Compilable]
 
-  private val stringified = rawFunction + """
+  private val stringified = rawFunction + s"""
+    var _params = ${params.asJson.noSpaces};
     function getJavascriptContexts(event) {
-      var result = process(event);
+      var result = process(event, _params);
       if (result == null) {
         return "[]"
       } else {

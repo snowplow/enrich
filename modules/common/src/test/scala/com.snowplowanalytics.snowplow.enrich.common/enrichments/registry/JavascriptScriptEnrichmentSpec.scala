@@ -15,13 +15,9 @@ package com.snowplowanalytics.snowplow.enrich.common
 package enrichments.registry
 
 import io.circe.literal._
-
 import org.specs2.Specification
-
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
-
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
-
 import outputs.EnrichedEvent
 
 class JavascriptScriptEnrichmentSpec extends Specification {
@@ -37,6 +33,7 @@ class JavascriptScriptEnrichmentSpec extends Specification {
   Javascript enrichment should be able to proceed without return statement           $e9
   Javascript enrichment should be able to proceed with return null                   $e10
   Javascript enrichment should be able to update the fields without return statement $e11
+  Javascript enrichment should be able to utilize the passed parameters              $e12
   """
 
   val schemaKey =
@@ -168,6 +165,19 @@ class JavascriptScriptEnrichmentSpec extends Specification {
       }"""
     JavascriptScriptEnrichment(schemaKey, function).process(enriched)
     enriched.app_id must beEqualTo(newAppId)
+  }
+
+  def e12 = {
+    val appId = "greatApp"
+    val enriched = buildEnriched(appId)
+    val params = json"""{"foo": "bar", "nested": {"foo": "newId"}}""".asObject.get
+    val function =
+      s"""
+      function process(event, params) {
+        event.setApp_id(params.nested.foo)
+      }"""
+    JavascriptScriptEnrichment(schemaKey, function, params).process(enriched)
+    enriched.app_id must beEqualTo("newId")
   }
 
   def buildEnriched(appId: String = "my super app"): EnrichedEvent = {

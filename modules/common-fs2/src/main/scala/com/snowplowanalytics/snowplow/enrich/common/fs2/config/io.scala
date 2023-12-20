@@ -492,7 +492,7 @@ object io {
     azureStorage: Option[BlobStorageClients.AzureStorage]
   )
   object BlobStorageClients {
-    case class AzureStorage(storageAccountName: String)
+    case class AzureStorage(storageAccountNames: List[String])
 
     implicit val azureStorageDecoder: Decoder[AzureStorage] =
       deriveConfiguredDecoder[AzureStorage]

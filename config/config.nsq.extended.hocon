@@ -237,8 +237,8 @@
     # Optional. Azure blob storage client configuration.
     # ABS client won't be enabled if it isn't given.
     "azureStorage": {
-      # Azure blob storage account name
-      "storageAccountName": "storageAccount"
+      # Azure blob storage account names
+      "storageAccountNames": ["storageAccount1", "storageAccount2"]
     }
   }
 

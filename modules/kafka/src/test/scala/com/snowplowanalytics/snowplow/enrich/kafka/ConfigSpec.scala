@@ -124,7 +124,7 @@ class ConfigSpec extends Specification with CatsIO {
         io.BlobStorageClients(
           gcs = true,
           s3 = true,
-          azureStorage = Some(io.BlobStorageClients.AzureStorage("storageAccount"))
+          azureStorage = Some(io.BlobStorageClients.AzureStorage(List("storageAccount1", "storageAccount2")))
         )
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))

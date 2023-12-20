@@ -80,7 +80,7 @@ object Main extends IOApp.WithContext {
   private def createBlobStorageClient(conf: BlobStorageClientsConfig): List[Blocker => Resource[IO, Client[IO]]] = {
     val gcs = if (conf.gcs) Some((b: Blocker) => Resource.eval(GcsClient.mk[IO](b))) else None
     val aws = if (conf.s3) Some((_: Blocker) => S3Client.mk[IO]) else None
-    val azure = conf.azureStorage.map(s => (_: Blocker) => AzureStorageClient.mk[IO](s.storageAccountName))
+    val azure = conf.azureStorage.map(s => (_: Blocker) => AzureStorageClient.mk[IO](s.storageAccountNames))
     List(gcs, aws, azure).flatten
   }
 }

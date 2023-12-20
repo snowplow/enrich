@@ -13,10 +13,9 @@
 package com.snowplowanalytics.snowplow.enrich.azure
 
 import blobstore.azure.AzureStore
-import blobstore.url.exception.{AuthorityParseError, MultipleUrlValidationException, Throwables}
+import blobstore.url.exception.{MultipleUrlValidationException, Throwables}
 import blobstore.url.{Authority, Path, Url}
 import cats.data.Validated.{Invalid, Valid}
-import cats.data.ValidatedNec
 import cats.effect._
 import cats.implicits._
 import com.azure.identity.DefaultAzureCredentialBuilder
@@ -27,19 +26,30 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.Client
 
 object AzureStorageClient {
 
-  def mk[F[_]: ConcurrentEffect](storageAccountName: String): Resource[F, Client[F]] =
+  def mk[F[_]: ConcurrentEffect](storageAccountNames: List[String]): Resource[F, Client[F]] =
     for {
-      store <- createStore(storageAccountName)
+      stores <- createStores(storageAccountNames)
     } yield new Client[F] {
       def canDownload(uri: URI): Boolean =
         uri.toString.contains("core.windows.net")
 
-      def download(uri: URI): Stream[F, Byte] =
-        createStorageUrlFrom(uri.toString) match {
-          case Valid(url) => store.get(url, 16 * 1024)
-          case Invalid(errors) => Stream.raiseError[F](MultipleUrlValidationException(errors))
+      def download(uri: URI): Stream[F, Byte] = {
+        val inputParts = BlobUrlParts.parse(uri.toString)
+        stores.get(inputParts.getAccountName) match {
+          case None => Stream.raiseError[F](new Exception(s"AzureStore for storage account name '${inputParts.getAccountName}' isn't found"))
+          case Some(store) =>
+            Authority
+              .parse(inputParts.getBlobContainerName)
+              .map(authority => Url(inputParts.getScheme, authority, Path(inputParts.getBlobName))) match {
+              case Valid(url) => store.get(url, 16 * 1024)
+              case Invalid(errors) => Stream.raiseError[F](MultipleUrlValidationException(errors))
+            }
         }
+      }
     }
+
+  private def createStores[F[_]: ConcurrentEffect: Async](storageAccountNames: List[String]): Resource[F, Map[String, AzureStore[F]]] =
+    storageAccountNames.map(a => createStore(a).map(b => (a, b))).sequence.map(_.toMap)
 
   private def createStore[F[_]: ConcurrentEffect: Async](storageAccountName: String): Resource[F, AzureStore[F]] =
     for {
@@ -58,13 +68,6 @@ object AzureStorageClient {
           s => Resource.pure[F, AzureStore[F]](s)
         )
     } yield store
-
-  private def createStorageUrlFrom(input: String): ValidatedNec[AuthorityParseError, Url[String]] = {
-    val inputParts = BlobUrlParts.parse(input)
-    Authority
-      .parse(inputParts.getBlobContainerName)
-      .map(authority => Url(inputParts.getScheme, authority, Path(inputParts.getBlobName)))
-  }
 
   private def createStorageEndpoint(storageAccountName: String): String =
     s"https://$storageAccountName.blob.core.windows.net"

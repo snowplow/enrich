@@ -79,9 +79,6 @@ object ParsedConfigs {
                          }
       configFile <- ConfigFile.parse[F](config.config)
       configFile <- validateConfig[F](configFile)
-      _ <- EitherT.liftF(
-             Logger[F].info(s"Parsed config file: ${configFile}")
-           )
       goodPartitionKey = outputPartitionKey(configFile.output.good)
       piiPartitionKey = configFile.output.pii.map(outputPartitionKey).getOrElse { _: EnrichedEvent => "" }
       goodAttributes = outputAttributes(configFile.output.good)

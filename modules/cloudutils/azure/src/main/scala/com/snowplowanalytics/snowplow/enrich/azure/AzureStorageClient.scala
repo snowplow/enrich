@@ -83,7 +83,7 @@ object AzureStorageClient {
   private def createClientBuilder(account: AzureStorage.Account): BlobServiceClientBuilder = {
     val builder = new BlobServiceClientBuilder()
     account.auth match {
-      case Some(AzureStorage.Account.Auth.CredentialsChain) =>
+      case Some(AzureStorage.Account.Auth.DefaultCredentialsChain) =>
         builder.credential(new DefaultAzureCredentialBuilder().build)
       case Some(AzureStorage.Account.Auth.SasToken(tokenValue)) =>
         builder.sasToken(tokenValue)

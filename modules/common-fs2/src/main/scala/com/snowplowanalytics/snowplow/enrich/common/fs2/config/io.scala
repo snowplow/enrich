@@ -500,7 +500,7 @@ object io {
 
         sealed trait Auth
         object Auth {
-          final case object CredentialsChain extends Auth
+          final case object DefaultCredentialsChain extends Auth
           final case class SasToken(value: String) extends Auth
         }
       }
@@ -513,13 +513,13 @@ object io {
       Decoder.instance { cursor =>
         val typeCur = cursor.downField("type")
         typeCur.as[String].map(_.toLowerCase) match {
-          case Right("chain") =>
-            Right(AzureStorage.Account.Auth.CredentialsChain)
+          case Right("default") =>
+            Right(AzureStorage.Account.Auth.DefaultCredentialsChain)
           case Right("sas") =>
             cursor.as[AzureStorage.Account.Auth.SasToken]
           case Right(other) =>
             Left(
-              DecodingFailure(s"Storage account authentication type '$other' is not supported yet. Supported types: 'chain', 'sas'",
+              DecodingFailure(s"Storage account authentication type '$other' is not supported yet. Supported types: 'default', 'sas'",
                               typeCur.history
               )
             )

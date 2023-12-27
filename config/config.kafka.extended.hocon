@@ -240,7 +240,7 @@
         { "name": "storageAccount1"},
         
         # Example private account using default auth chain -> https://learn.microsoft.com/en-us/java/api/com.azure.identity.defaultazurecredential?view=azure-java-stable
-        { "name": "storageAccount2", "auth": { "type": "chain"} },
+        { "name": "storageAccount2", "auth": { "type": "default"} },
         
         # Example private account using SAS token auth
         { "name": "storageAccount3",  "auth": { "type": "sas", "value": "tokenValue"}}

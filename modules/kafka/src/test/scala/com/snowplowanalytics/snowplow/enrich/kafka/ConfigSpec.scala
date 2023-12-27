@@ -128,7 +128,7 @@ class ConfigSpec extends Specification with CatsIO {
             io.BlobStorageClients.AzureStorage(
               List(
                 AzureStorage.Account(name = "storageAccount1", auth = None),
-                AzureStorage.Account(name = "storageAccount2", auth = Some(AzureStorage.Account.Auth.CredentialsChain)),
+                AzureStorage.Account(name = "storageAccount2", auth = Some(AzureStorage.Account.Auth.DefaultCredentialsChain)),
                 AzureStorage.Account(name = "storageAccount3", auth = Some(AzureStorage.Account.Auth.SasToken("tokenValue")))
               )
             )

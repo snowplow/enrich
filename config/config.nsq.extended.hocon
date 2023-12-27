@@ -237,8 +237,16 @@
     # Optional. Azure blob storage client configuration.
     # ABS client won't be enabled if it isn't given.
     "azureStorage": {
-      # Azure blob storage account names
-      "storageAccountNames": ["storageAccount1", "storageAccount2"]
+      "accounts": [
+        # Example public account with no auth
+        { "name": "storageAccount1"},
+        
+        # Example private account using default auth chain -> https://learn.microsoft.com/en-us/java/api/com.azure.identity.defaultazurecredential?view=azure-java-stable
+        { "name": "storageAccount2", "auth": { "type": "default"} },
+        
+        # Example private account using SAS token auth
+        { "name": "storageAccount3",  "auth": { "type": "sas", "value": "tokenValue"}}
+      ]
     }
   }
 

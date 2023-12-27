@@ -19,16 +19,18 @@ import cats.data.Validated.{Invalid, Valid}
 import cats.effect._
 import cats.implicits._
 import com.azure.identity.DefaultAzureCredentialBuilder
-import com.azure.storage.blob.{BlobServiceClientBuilder, BlobUrlParts}
-import fs2.Stream
-import java.net.URI
+import com.azure.storage.blob.{BlobServiceAsyncClient, BlobServiceClientBuilder, BlobUrlParts}
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.BlobStorageClients.AzureStorage
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.Client
+import fs2.Stream
+
+import java.net.URI
 
 object AzureStorageClient {
 
-  def mk[F[_]: ConcurrentEffect](storageAccountNames: List[String]): Resource[F, Client[F]] =
+  def mk[F[_]: ConcurrentEffect](config: AzureStorage): Resource[F, Client[F]] =
     for {
-      stores <- createStores(storageAccountNames)
+      stores <- createStores(config)
     } yield new Client[F] {
       def canDownload(uri: URI): Boolean =
         uri.toString.contains("core.windows.net")
@@ -36,7 +38,8 @@ object AzureStorageClient {
       def download(uri: URI): Stream[F, Byte] = {
         val inputParts = BlobUrlParts.parse(uri.toString)
         stores.get(inputParts.getAccountName) match {
-          case None => Stream.raiseError[F](new Exception(s"AzureStore for storage account name '${inputParts.getAccountName}' isn't found"))
+          case None =>
+            Stream.raiseError[F](new Exception(s"AzureStore for storage account name '${inputParts.getAccountName}' isn't found"))
           case Some(store) =>
             Authority
               .parse(inputParts.getBlobContainerName)
@@ -48,26 +51,46 @@ object AzureStorageClient {
       }
     }
 
-  private def createStores[F[_]: ConcurrentEffect: Async](storageAccountNames: List[String]): Resource[F, Map[String, AzureStore[F]]] =
-    storageAccountNames.map(a => createStore(a).map(b => (a, b))).sequence.map(_.toMap)
-
-  private def createStore[F[_]: ConcurrentEffect: Async](storageAccountName: String): Resource[F, AzureStore[F]] =
-    for {
-      client <- Resource.eval {
-        ConcurrentEffect[F].delay {
-          val builder = new BlobServiceClientBuilder().credential(new DefaultAzureCredentialBuilder().build)
-          val storageEndpoint = createStorageEndpoint(storageAccountName)
-          builder.endpoint(storageEndpoint).buildAsyncClient()
-        }
+  private def createStores[F[_]: ConcurrentEffect: Async](config: AzureStorage): Resource[F, Map[String, AzureStore[F]]] =
+    config.accounts
+      .map { account =>
+        createStore(account).map(store => (account.name, store))
       }
+      .sequence
+      .map(_.toMap)
+
+  private def createStore[F[_]: ConcurrentEffect: Async](account: AzureStorage.Account): Resource[F, AzureStore[F]] =
+    for {
+      client <- createClient(account)
       store <- AzureStore
-        .builder[F](client)
-        .build
-        .fold(
-          errors => Resource.eval(ConcurrentEffect[F].raiseError(errors.reduce(Throwables.collapsingSemigroup))),
-          s => Resource.pure[F, AzureStore[F]](s)
-        )
+                 .builder[F](client)
+                 .build
+                 .fold(
+                   errors => Resource.eval(ConcurrentEffect[F].raiseError(errors.reduce(Throwables.collapsingSemigroup))),
+                   s => Resource.pure[F, AzureStore[F]](s)
+                 )
     } yield store
+
+  private def createClient[F[_]: ConcurrentEffect: Async](account: AzureStorage.Account): Resource[F, BlobServiceAsyncClient] =
+    Resource.eval {
+      ConcurrentEffect[F].delay {
+        createClientBuilder(account)
+          .endpoint(createStorageEndpoint(account.name))
+          .buildAsyncClient()
+      }
+    }
+
+  private def createClientBuilder(account: AzureStorage.Account): BlobServiceClientBuilder = {
+    val builder = new BlobServiceClientBuilder()
+    account.auth match {
+      case Some(AzureStorage.Account.Auth.DefaultCredentialsChain) =>
+        builder.credential(new DefaultAzureCredentialBuilder().build)
+      case Some(AzureStorage.Account.Auth.SasToken(tokenValue)) =>
+        builder.sasToken(tokenValue)
+      case None =>
+        builder
+    }
+  }
 
   private def createStorageEndpoint(storageAccountName: String): String =
     s"https://$storageAccountName.blob.core.windows.net"

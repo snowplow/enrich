@@ -32,6 +32,9 @@ import com.snowplowanalytics.snowplow.enrich.nsq.generated.BuildInfo
 
 object Containers {
 
+  //TODO Tests fail with the latest 1.3.0 version!
+  private val nsqVersion = "v1.2.1"
+  
   case class NetworkInfo(
     networkAlias: String,
     broadcastAddress: String,
@@ -135,7 +138,7 @@ object Containers {
     Resource.make (
       Sync[F].delay {
         val container = FixedHostPortGenericContainer(
-          imageName = "nsqio/nsq:latest",
+          imageName = s"nsqio/nsq:$nsqVersion",
           command = Seq(
             "/nsqlookupd",
             s"--broadcast-address=${networkInfo.broadcastAddress}",
@@ -163,7 +166,7 @@ object Containers {
     Resource.make(
       Sync[F].delay {
         val container = FixedHostPortGenericContainer(
-          imageName = "nsqio/nsq:latest",
+          imageName = s"nsqio/nsq:$nsqVersion",
           command = Seq(
             "/nsqd",
             s"--broadcast-address=${networkInfo.broadcastAddress}",
@@ -196,7 +199,7 @@ object Containers {
     Resource.make(
       Sync[F].delay {
         val container = GenericContainer(
-          dockerImage = "nsqio/nsq:latest",
+          dockerImage = s"nsqio/nsq:$nsqVersion",
           command = Seq(
             "/nsq_to_nsq",
             s"--nsqd-tcp-address=$sourceAddress",

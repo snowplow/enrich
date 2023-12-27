@@ -28,7 +28,7 @@ import cats.effect.testing.specs2.CatsIO
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{ConfigFile, Sentry}
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
-
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.BlobStorageClients.AzureStorage
 import org.specs2.mutable.Specification
 
 class ConfigSpec extends Specification with CatsIO {
@@ -124,7 +124,15 @@ class ConfigSpec extends Specification with CatsIO {
         io.BlobStorageClients(
           gcs = true,
           s3 = true,
-          azureStorage = Some(io.BlobStorageClients.AzureStorage(List("storageAccount1", "storageAccount2")))
+          azureStorage = Some(
+            io.BlobStorageClients.AzureStorage(
+              List(
+                AzureStorage.Account(name = "storageAccount1", auth = None),
+                AzureStorage.Account(name = "storageAccount2", auth = Some(AzureStorage.Account.Auth.DefaultCredentialsChain)),
+                AzureStorage.Account(name = "storageAccount3", auth = Some(AzureStorage.Account.Auth.SasToken("tokenValue")))
+              )
+            )
+          )
         )
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))

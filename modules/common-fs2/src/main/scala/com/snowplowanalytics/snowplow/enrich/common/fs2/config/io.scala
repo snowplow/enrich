@@ -20,8 +20,7 @@ import java.util.UUID
 import cats.syntax.either._
 
 import scala.concurrent.duration.{Duration, FiniteDuration}
-
-import _root_.io.circe.{Decoder, DecodingFailure, Encoder}
+import _root_.io.circe.{Codec, Decoder, DecodingFailure, Encoder}
 import _root_.io.circe.generic.extras.semiauto._
 import _root_.io.circe.config.syntax._
 
@@ -492,8 +491,47 @@ object io {
     azureStorage: Option[BlobStorageClients.AzureStorage]
   )
   object BlobStorageClients {
-    case class AzureStorage(storageAccountNames: List[String])
 
+    case class AzureStorage(accounts: List[AzureStorage.Account])
+    object AzureStorage {
+
+      final case class Account(name: String, auth: Option[Account.Auth])
+      object Account {
+
+        sealed trait Auth
+        object Auth {
+          final case object DefaultCredentialsChain extends Auth
+          final case class SasToken(value: String) extends Auth
+        }
+      }
+    }
+
+    implicit val sasTokenDecoder: Codec[AzureStorage.Account.Auth.SasToken] =
+      deriveConfiguredCodec
+
+    implicit val accountAuthDecoder: Decoder[AzureStorage.Account.Auth] =
+      Decoder.instance { cursor =>
+        val typeCur = cursor.downField("type")
+        typeCur.as[String].map(_.toLowerCase) match {
+          case Right("default") =>
+            Right(AzureStorage.Account.Auth.DefaultCredentialsChain)
+          case Right("sas") =>
+            cursor.as[AzureStorage.Account.Auth.SasToken]
+          case Right(other) =>
+            Left(
+              DecodingFailure(s"Storage account authentication type '$other' is not supported yet. Supported types: 'default', 'sas'",
+                              typeCur.history
+              )
+            )
+          case Left(other) =>
+            Left(other)
+        }
+      }
+
+    implicit val accountAuthEncoder: Encoder[AzureStorage.Account.Auth] =
+      deriveConfiguredEncoder
+    implicit val storageAccountCodec: Codec[AzureStorage.Account] =
+      deriveConfiguredCodec
     implicit val azureStorageDecoder: Decoder[AzureStorage] =
       deriveConfiguredDecoder[AzureStorage]
     implicit val azureStorageEncoder: Encoder[AzureStorage] =

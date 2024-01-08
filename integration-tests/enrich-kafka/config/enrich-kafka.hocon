@@ -1,4 +1,8 @@
 {
+  "license": {
+    "accept": true
+  }
+
   "input": {
     "type": "Kafka"
     "topicName": "it-enrich-kinesis-collector-payloads"

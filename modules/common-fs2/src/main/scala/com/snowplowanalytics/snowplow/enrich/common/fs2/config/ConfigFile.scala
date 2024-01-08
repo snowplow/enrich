@@ -48,7 +48,8 @@ final case class ConfigFile(
   featureFlags: FeatureFlags,
   experimental: Option[Experimental],
   adaptersSchemas: AdaptersSchemas,
-  blobStorage: BlobStorageClients
+  blobStorage: BlobStorageClients,
+  license: License
 )
 
 object ConfigFile {
@@ -60,16 +61,16 @@ object ConfigFile {
 
   implicit val configFileDecoder: Decoder[ConfigFile] =
     deriveConfiguredDecoder[ConfigFile].emap {
-      case ConfigFile(_, _, _, Some(aup), _, _, _, _, _, _, _) if aup._1 <= 0L =>
+      case ConfigFile(_, _, _, Some(aup), _, _, _, _, _, _, _, _) if aup._1 <= 0L =>
         "assetsUpdatePeriod in config file cannot be less than 0".asLeft // TODO: use newtype
       // Remove pii output if streamName and region empty
-      case c @ ConfigFile(_, Outputs(good, Some(output: Output.Kinesis), bad), _, _, _, _, _, _, _, _, _) if output.streamName.isEmpty =>
+      case c @ ConfigFile(_, Outputs(good, Some(output: Output.Kinesis), bad), _, _, _, _, _, _, _, _, _, _) if output.streamName.isEmpty =>
         c.copy(output = Outputs(good, None, bad)).asRight
       // Remove pii output if topic empty
-      case c @ ConfigFile(_, Outputs(good, Some(Output.PubSub(t, _, _, _, _, _)), bad), _, _, _, _, _, _, _, _, _) if t.isEmpty =>
+      case c @ ConfigFile(_, Outputs(good, Some(Output.PubSub(t, _, _, _, _, _)), bad), _, _, _, _, _, _, _, _, _, _) if t.isEmpty =>
         c.copy(output = Outputs(good, None, bad)).asRight
       // Remove pii output if topic empty
-      case c @ ConfigFile(_, Outputs(good, Some(Output.Kafka(topicName, _, _, _, _)), bad), _, _, _, _, _, _, _, _, _)
+      case c @ ConfigFile(_, Outputs(good, Some(Output.Kafka(topicName, _, _, _, _)), bad), _, _, _, _, _, _, _, _, _, _)
           if topicName.isEmpty =>
         c.copy(output = Outputs(good, None, bad)).asRight
       case other => other.asRight

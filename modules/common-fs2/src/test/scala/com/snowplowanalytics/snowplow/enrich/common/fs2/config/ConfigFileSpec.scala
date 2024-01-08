@@ -105,6 +105,9 @@ class ConfigFileSpec extends Specification with CatsIO {
           "blobStorage": {
             "gcs": true
             "s3": true
+          },
+          "license": {
+            "accept": true
           }
         }"""
 
@@ -172,6 +175,9 @@ class ConfigFileSpec extends Specification with CatsIO {
           "blobStorage": {
             "gcs": true,
             "s3": true
+          },
+          "license": {
+            "accept": true
           }
         }"""
 

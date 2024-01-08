@@ -1,4 +1,9 @@
 {
+  # Full license text available in LICENSE.md
+  "license": {
+    "accept": true
+  }
+
   # Where to read collector payloads from
   "input": {
     "type": "Kafka"

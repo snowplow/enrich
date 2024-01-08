@@ -24,7 +24,7 @@ import org.specs2.mutable.Specification
 
 import com.typesafe.config.ConfigFactory
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.BlobStorageClients
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io._
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
 
@@ -119,7 +119,8 @@ class ParsedConfigsSpec extends Specification with CatsIO {
           )
         ),
         adaptersSchemas,
-        BlobStorageClients(gcs = false, s3 = true, azureStorage = None)
+        BlobStorageClients(gcs = false, s3 = true, azureStorage = None),
+        License(accept = true)
       )
 
       ParsedConfigs.validateConfig[IO](configFile).value.map(result => result must beLeft)

@@ -1,4 +1,8 @@
 {
+  "license": {
+    "accept": true
+  }
+
   "input": {
     "type": "Kinesis"
     "appName": ${APP_NAME}

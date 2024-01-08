@@ -1,4 +1,9 @@
 {
+  # Full license text available in LICENSE.md
+  "license": {
+    "accept": true
+  }
+
   # Collector input
   "input": {
     "type": "Nsq"

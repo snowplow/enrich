@@ -1,4 +1,8 @@
 {
+  "license": {
+    "accept": true
+  }
+
   "input": {
     "topic": ${INPUT_TOPIC}
     "channel": "EnrichNsqChannel"

@@ -77,6 +77,7 @@ object Run {
                     _ <- Logger[F].info(s"Initialising resources for $name $version")
                     processor = Processor(name, version)
                     file = parsed.configFile
+                    _ <- checkLicense(file.license.accept)
                     sinkGood = initAttributedSink(blocker, file.output.good, mkSinkGood)
                     sinkPii = file.output.pii.map(out => initAttributedSink(blocker, out, mkSinkPii))
                     sinkBad = file.output.bad match {
@@ -191,4 +192,14 @@ object Run {
             .error(exception)(s"$errorMessage (${retryDetails.retriesSoFar} retries)")
       )
   }
+
+  private def checkLicense[F[_]: Sync](acceptLicense: Boolean): F[Unit] =
+    if (acceptLicense)
+      Sync[F].unit
+    else
+      Sync[F].raiseError(
+        new IllegalStateException(
+          "Please accept the terms of the Snowplow Limited Use License Agreement to proceed. See https://docs.snowplow.io/docs/pipeline-components-and-applications/stream-collector/configure/#license for more information on the license and how to configure this."
+        )
+      )
 }

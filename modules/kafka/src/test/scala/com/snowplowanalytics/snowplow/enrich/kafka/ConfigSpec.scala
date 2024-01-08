@@ -131,7 +131,8 @@ class ConfigSpec extends Specification with CatsIO {
               )
             )
           )
-        )
+        ),
+        io.License(accept = true)
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
     }
@@ -201,7 +202,8 @@ class ConfigSpec extends Specification with CatsIO {
         ),
         None,
         adaptersSchemas,
-        io.BlobStorageClients(gcs = false, s3 = false, azureStorage = None)
+        io.BlobStorageClients(gcs = false, s3 = false, azureStorage = None),
+        io.License(accept = true)
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
     }

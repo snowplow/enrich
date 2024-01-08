@@ -620,4 +620,19 @@ object io {
 
     implicit val encoder: Encoder[Cloud] = Encoder.encodeString.contramap[Cloud](_.toString().toUpperCase())
   }
+
+  case class License(
+    accept: Boolean
+  )
+
+  object License {
+    implicit val licenseDecoder: Decoder[License] = {
+      val truthy = Set("true", "yes", "on", "1")
+      Decoder
+        .forProduct1("accept")((s: String) => License(truthy(s.toLowerCase())))
+        .or(Decoder.forProduct1("accept")((b: Boolean) => License(b)))
+    }
+    implicit val licenseEncoder: Encoder[License] =
+      deriveConfiguredEncoder[License]
+  }
 }

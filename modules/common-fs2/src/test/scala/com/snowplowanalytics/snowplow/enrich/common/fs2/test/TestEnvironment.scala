@@ -32,6 +32,8 @@ import com.snowplowanalytics.iglu.client.resolver.registries.{Http4sRegistryLook
 
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 
+import com.snowplowanalytics.iglu.core.SelfDescribingData
+
 import com.snowplowanalytics.snowplow.badrows.BadRow
 
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
@@ -39,7 +41,7 @@ import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
-import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, ShiftExecution}
+import com.snowplowanalytics.snowplow.enrich.common.utils.ShiftExecution
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.{Assets, AttributedData, Enrich, EnrichSpec, Environment}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Environment.{Enrichments, StreamsSettings}
@@ -110,7 +112,6 @@ object TestEnvironment extends CatsEffect {
   def make(source: Stream[IO, Array[Byte]], enrichments: List[EnrichmentConf] = Nil): Resource[IO, TestEnvironment[Array[Byte]]] =
     for {
       http4s <- Clients.mkHttp[IO]()
-      http = HttpClient.fromHttp4sClient(http4s)
       _ <- SpecHelpers.filesResource(enrichments.flatMap(_.filesToCache).map(p => Path(p._2)))
       counter <- Resource.eval(Counter.make[IO])
       metrics = Counter.mkCounterMetrics[IO](counter)
@@ -120,7 +121,7 @@ object TestEnvironment extends CatsEffect {
       sem <- Resource.eval(Semaphore[IO](1L))
       assetsState <- Resource.eval(Assets.State.make(sem, clients, enrichments.flatMap(_.filesToCache)))
       shifter <- ShiftExecution.ofSingleThread[IO]
-      enrichmentsRef <- Enrichments.make[IO](enrichments, SpecHelpers.blockingEC, shifter, http)
+      enrichmentsRef <- Enrichments.make[IO](enrichments, SpecHelpers.blockingEC, shifter)
       goodRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
       piiRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
       badRef <- Resource.eval(Ref.of[IO, Vector[Array[Byte]]](Vector.empty))
@@ -166,7 +167,11 @@ object TestEnvironment extends CatsEffect {
         .parse(badRowStr)
         .getOrElse(throw new RuntimeException(s"Error parsing bad row json: $badRowStr"))
     parsed
-      .as[BadRow]
-      .getOrElse(throw new RuntimeException(s"Error decoding bad row: $parsed"))
+      .as[SelfDescribingData[BadRow]] match {
+      case Left(e) =>
+        throw new RuntimeException(s"Error decoding bad row $parsed", e)
+      case Right(sdj) =>
+        sdj.data
+    }
   }
 }

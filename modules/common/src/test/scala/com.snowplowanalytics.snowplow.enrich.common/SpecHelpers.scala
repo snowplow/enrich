@@ -21,7 +21,7 @@ import cats.effect.IO
 import cats.effect.kernel.Resource
 import cats.effect.unsafe.implicits.global
 
-import org.http4s.blaze.client.BlazeClientBuilder
+import org.http4s.ember.client.EmberClientBuilder
 
 import cats.effect.testing.specs2.CatsEffect
 
@@ -89,8 +89,8 @@ object SpecHelpers extends CatsEffect {
   val registryLookup = JavaNetRegistryLookup.ioLookupInstance[IO]
 
   val blockingEC = ExecutionContext.fromExecutorService(Executors.newCachedThreadPool)
-  private val http4sClient = BlazeClientBuilder[IO].resource
-  val httpClient = http4sClient.map(HttpClient.fromHttp4sClient[IO])
+
+  val httpClient = EmberClientBuilder.default[IO].build.map(HttpClient.fromHttp4sClient[IO])
 
   private type NvPair = (String, String)
 

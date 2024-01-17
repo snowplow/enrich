@@ -193,7 +193,7 @@ object Dependencies {
     val stsSdk2          = "software.amazon.awssdk"           %  "sts"                                   % V.awsSdk2         % Runtime
     val azureIdentity    = "com.azure"                        % "azure-identity"                         % V.azureIdentity
     val jacksonDfXml     = "com.fasterxml.jackson.dataformat" % "jackson-dataformat-xml"                 % V.jackson
-    val http4sClient     = "org.http4s"                       %% "http4s-blaze-client"                   % V.http4s
+    val http4sClient     = "org.http4s"                       %% "http4s-ember-client"                   % V.http4s
     val http4sCirce      = "org.http4s"                       %% "http4s-circe"                          % V.http4s
     val log4cats         = "org.typelevel"                    %% "log4cats-slf4j"                        % V.log4cats
     val catsRetry        = "com.github.cb372"                 %% "cats-retry"                            % V.catsRetry

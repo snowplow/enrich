@@ -23,9 +23,8 @@ import fs2.Stream
 import org.http4s.{Headers, Request, Uri}
 import org.http4s.client.defaults
 import org.http4s.client.{Client => Http4sClient}
-import org.http4s.client.middleware.{Retry, RetryPolicy}
-import org.http4s.blaze.client.BlazeClientBuilder
-import org.http4s.blaze.pipeline.Command
+import org.http4s.client.middleware.Retry
+import org.http4s.ember.client.EmberClientBuilder
 
 import Clients._
 
@@ -65,29 +64,16 @@ object Clients {
   def mkHttp[F[_]: Async](
     connectionTimeout: FiniteDuration = defaults.ConnectTimeout,
     readTimeout: FiniteDuration = defaults.RequestTimeout,
-    maxConnections: Int = 10 // http4s uses 10 by default
-  ): Resource[F, Http4sClient[F]] =
-    BlazeClientBuilder[F]
-      .withConnectTimeout(connectionTimeout)
-      .withRequestTimeout(readTimeout)
-      .withMaxTotalConnections(maxConnections)
-      .resource
-      .map(Retry[F](retryPolicy, redactHeadersWhen))
-
-  private def retryPolicy[F[_]] =
-    RetryPolicy[F](
-      backoff,
-      retriable = {
-        //EOF error has to be retried explicitly for blaze client, see https://github.com/snowplow/enrich/issues/692
-        case (_, Left(Command.EOF)) => true
-        case _ => false
-      }
-    )
-
-  //retry once after 100 mills
-  private def backoff(attemptNumber: Int): Option[FiniteDuration] =
-    if (attemptNumber > 1) None
-    else Some(100.millis)
+    maxConnections: Int = 100 // default of Ember client
+  ): Resource[F, Http4sClient[F]] = {
+    val builder = EmberClientBuilder
+      .default[F]
+      .withTimeout(readTimeout)
+      .withIdleConnectionTime(connectionTimeout)
+      .withMaxTotal(maxConnections)
+    val retryPolicy = builder.retryPolicy
+    builder.build.map(Retry[F](retryPolicy, redactHeadersWhen))
+  }
 
   private def redactHeadersWhen(header: CIString) =
     (Headers.SensitiveHeaders + CIString("apikey")).contains(header)

@@ -109,14 +109,14 @@ object EnrichmentRegistry {
   def build[F[_]: Async](
     confs: List[EnrichmentConf],
     shifter: ShiftExecution[F],
-    httpClient: HttpClient[F],
+    httpApiEnrichment: HttpClient[F],
     blockingEC: ExecutionContext
   ): EitherT[F, String, EnrichmentRegistry[F]] =
     confs.foldLeft(EitherT.pure[F, String](EnrichmentRegistry[F]())) { (er, e) =>
       e match {
         case c: ApiRequestConf =>
           for {
-            enrichment <- EitherT.right(c.enrichment[F](httpClient))
+            enrichment <- EitherT.right(c.enrichment[F](httpApiEnrichment))
             registry <- er
           } yield registry.copy(apiRequest = enrichment.some)
         case c: PiiPseudonymizerConf => er.map(_.copy(piiPseudonymizer = c.enrichment.some))

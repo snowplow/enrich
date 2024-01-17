@@ -44,6 +44,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequ
 import com.snowplowanalytics.snowplow.enrich.common.fs2.enrichments.ApiRequestEnrichmentSpec.unstructEvent
 import com.snowplowanalytics.snowplow.enrich.common.fs2.EnrichSpec
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test._
+import com.snowplowanalytics.snowplow.badrows.BadRow
 
 class ApiRequestEnrichmentSpec extends Specification with CatsEffect {
 
@@ -84,9 +85,44 @@ class ApiRequestEnrichmentSpec extends Specification with CatsEffect {
       testWithHttp.use { test =>
         test.run().map {
           case (bad, pii, good) =>
-            (bad must be empty)
-            (pii must be empty)
-            (good.map(_.derived_contexts) must contain(exactly(expected)))
+            bad must beEmpty
+            pii must beEmpty
+            good.map(_.derived_contexts) must contain(exactly(expected))
+        }
+      }
+    }
+
+    "generate bad rows if API server is not available" in {
+      val nbEvents = 1000
+      val input = Stream((1 to nbEvents).toList: _*)
+        .map { i =>
+          json"""{
+            "schema": "iglu:com.acme/test/jsonschema/1-0-1",
+            "data": {"path": {"id": $i}}
+          }"""
+        }
+        .map { ue =>
+          EnrichSpec.collectorPayload.copy(
+            querystring = new BasicNameValuePair("ue_px", unstructEvent(ue)) :: EnrichSpec.collectorPayload.querystring
+          )
+        }
+        .map(_.toRaw)
+
+      val enrichment = ApiRequestConf(
+        SchemaKey("com.acme", "enrichment", "jsonschema", SchemaVer.Full(1, 0, 0)),
+        List(Input.Json("key1", "unstruct_event", SchemaCriterion("com.acme", "test", "jsonschema", 1), "$.path.id")),
+        HttpApi("GET", "http://foo.bar.unassigned/{{key1}}", 2000, Authentication(None)),
+        List(RegistryOutput("iglu:com.acme/output/jsonschema/1-0-0", Some(JsonOutput("$")))),
+        Cache(1, 1000),
+        ignoreOnError = false
+      )
+
+      TestEnvironment.make(input, List(enrichment)).use { test =>
+        test.run().map {
+          case (bad, pii, good) =>
+            good must beEmpty
+            pii must beEmpty
+            bad.collect { case ef: BadRow.EnrichmentFailures => ef } must haveSize(nbEvents)
         }
       }
     }

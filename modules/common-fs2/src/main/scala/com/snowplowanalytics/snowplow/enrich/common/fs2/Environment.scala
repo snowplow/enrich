@@ -15,7 +15,7 @@ package com.snowplowanalytics.snowplow.enrich.common.fs2
 import java.util.concurrent.TimeoutException
 
 import scala.concurrent.ExecutionContext
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration._
 
 import cats.Show
 import cats.data.EitherT
@@ -44,6 +44,7 @@ import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.ApiRequestConf
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, ShiftExecution}
 
@@ -139,35 +140,41 @@ object Environment {
   final case class Enrichments[F[_]: Async](
     registry: EnrichmentRegistry[F],
     configs: List[EnrichmentConf],
-    httpClient: HttpClient[F]
+    httpApiEnrichment: HttpClient[F]
   ) {
 
     /** Initialize same enrichments, specified by configs (in case DB files updated) */
     def reinitialize(blockingEC: ExecutionContext, shifter: ShiftExecution[F]): F[Enrichments[F]] =
-      Enrichments.buildRegistry(configs, blockingEC, shifter, httpClient).map(registry => Enrichments(registry, configs, httpClient))
+      Enrichments
+        .buildRegistry(configs, blockingEC, shifter, httpApiEnrichment)
+        .map(registry => Enrichments(registry, configs, httpApiEnrichment))
   }
 
   object Enrichments {
     def make[F[_]: Async](
       configs: List[EnrichmentConf],
       blockingEC: ExecutionContext,
-      shifter: ShiftExecution[F],
-      httpClient: HttpClient[F]
+      shifter: ShiftExecution[F]
     ): Resource[F, Ref[F, Enrichments[F]]] =
-      Resource.eval {
-        for {
-          registry <- buildRegistry[F](configs, blockingEC, shifter, httpClient)
-          ref <- Ref.of(Enrichments[F](registry, configs, httpClient))
-        } yield ref
-      }
+      for {
+        // We don't want the HTTP client of API enrichment to be reinitialized each time the assets are refreshed
+        httpClient <- configs.collectFirst { case api: ApiRequestConf => api.api.timeout } match {
+                        case Some(timeout) =>
+                          Clients.mkHttp(readTimeout = timeout.millis).map(HttpClient.fromHttp4sClient[F])
+                        case None =>
+                          Resource.pure[F, HttpClient[F]](HttpClient.noop[F])
+                      }
+        registry <- Resource.eval(buildRegistry[F](configs, blockingEC, shifter, httpClient))
+        ref <- Resource.eval(Ref.of(Enrichments[F](registry, configs, httpClient)))
+      } yield ref
 
     def buildRegistry[F[_]: Async](
       configs: List[EnrichmentConf],
       blockingEC: ExecutionContext,
       shifter: ShiftExecution[F],
-      httpClient: HttpClient[F]
+      httpApiEnrichment: HttpClient[F]
     ) =
-      EnrichmentRegistry.build[F](configs, shifter, httpClient, blockingEC).value.flatMap {
+      EnrichmentRegistry.build[F](configs, shifter, httpApiEnrichment, blockingEC).value.flatMap {
         case Right(reg) => Async[F].pure(reg)
         case Left(error) => Async[F].raiseError[EnrichmentRegistry[F]](new RuntimeException(error))
       }
@@ -198,7 +205,6 @@ object Environment {
       bad <- sinkBad
       pii <- sinkPii.sequence
       http4s <- Clients.mkHttp()
-      http = HttpClient.fromHttp4sClient(http4s)
       clts <- clients.map(Clients.init(http4s, _))
       igluClient <- IgluCirceClient.parseDefault[F](parsedConfigs.igluJson).resource
       remoteAdaptersEnabled = file.remoteAdapters.configs.nonEmpty
@@ -210,7 +216,7 @@ object Environment {
       sem <- Resource.eval(Semaphore(1L))
       assetsState <- Resource.eval(Assets.State.make[F](sem, clts, assets))
       shifter <- ShiftExecution.ofSingleThread[F]
-      enrichments <- Enrichments.make[F](parsedConfigs.enrichmentConfigs, blockingEC, shifter, http)
+      enrichments <- Enrichments.make[F](parsedConfigs.enrichmentConfigs, blockingEC, shifter)
     } yield Environment[F, A](
       igluClient,
       Http4sRegistryLookup(http4s),

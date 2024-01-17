@@ -14,11 +14,10 @@ package com.snowplowanalytics.snowplow.enrich.common.utils
 
 import cats.effect.kernel.Sync
 import cats.implicits._
-import fs2.Stream
 import org.typelevel.ci.CIString
 import org.http4s.client.{Client => Http4sClient}
-import org.http4s.headers.Authorization
-import org.http4s.{BasicCredentials, EmptyBody, EntityBody, Header, Headers, Method, Request, Status, Uri}
+import org.http4s.headers.{Authorization, `Content-Type`}
+import org.http4s.{BasicCredentials, Header, Headers, MediaType, Method, Request, Status, Uri}
 
 trait HttpClient[F[_]] {
   def getResponse(
@@ -58,14 +57,17 @@ object HttpClient {
           case Left(parseFailure) =>
             Sync[F].pure(new IllegalArgumentException(s"uri [$uri] is not valid: ${parseFailure.sanitized}").asLeft[String])
           case Right(validUri) =>
-            val request = Request[F](
+            val requestWithoutBody = Request[F](
               uri = validUri,
               method = Method.fromString(method).getOrElse(Method.GET),
-              body = body.fold[EntityBody[F]](EmptyBody)(s => Stream.emits(s.getBytes)),
               headers = getHeaders(authUser, authPassword)
             )
+            val requestWithBody = body.fold(requestWithoutBody)(s =>
+              requestWithoutBody.withEntity(s).withContentType(`Content-Type`(MediaType.application.json))
+            )
+
             http4sClient
-              .run(request)
+              .run(requestWithBody)
               .use[Either[Throwable, String]] { response =>
                 val body = response.bodyText.compile.string
                 response.status.responseClass match {
@@ -75,5 +77,17 @@ object HttpClient {
               }
               .handleError(_.asLeft[String])
         }
+    }
+
+  def noop[F[_]: Sync]: HttpClient[F] =
+    new HttpClient[F] {
+      override def getResponse(
+        uri: String,
+        authUser: Option[String],
+        authPassword: Option[String],
+        body: Option[String],
+        method: String
+      ): F[Either[Throwable, String]] =
+        Sync[F].raiseError(new IllegalStateException("HTTP client not implemented"))
     }
 }

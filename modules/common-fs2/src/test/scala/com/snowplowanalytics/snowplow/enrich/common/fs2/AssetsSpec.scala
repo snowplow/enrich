@@ -29,7 +29,7 @@ import cats.effect.unsafe.implicits.global
 
 import cats.effect.testing.specs2.CatsEffect
 
-import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, ShiftExecution}
+import com.snowplowanalytics.snowplow.enrich.common.utils.ShiftExecution
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients
 
@@ -116,9 +116,7 @@ class AssetsSpec extends Specification with CatsEffect with ScalaCheck {
             for {
               shiftExecution <- ShiftExecution.ofSingleThread[IO]
               sem <- Resource.eval(Semaphore[IO](1L))
-              http4s <- Clients.mkHttp[IO]()
-              http = HttpClient.fromHttp4sClient(http4s)
-              enrichments <- Environment.Enrichments.make[IO](List(), SpecHelpers.blockingEC, shiftExecution, http)
+              enrichments <- Environment.Enrichments.make[IO](List(), SpecHelpers.blockingEC, shiftExecution)
               _ <- SpecHelpers.filesResource(TestFiles)
             } yield (shiftExecution, sem, enrichments)
 

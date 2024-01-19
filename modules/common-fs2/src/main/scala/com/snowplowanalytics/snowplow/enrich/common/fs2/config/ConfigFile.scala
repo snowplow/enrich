@@ -17,9 +17,9 @@ import cats.data.EitherT
 
 import cats.effect.kernel.Sync
 
-import _root_.io.circe.{Decoder, Encoder}
+import _root_.io.circe.Decoder
 import _root_.io.circe.config.syntax._
-import _root_.io.circe.generic.extras.semiauto.{deriveConfiguredDecoder, deriveConfiguredEncoder}
+import _root_.io.circe.generic.extras.semiauto.deriveConfiguredDecoder
 
 import com.typesafe.config.{ConfigFactory, Config => TSConfig}
 
@@ -50,34 +50,30 @@ final case class ConfigFile(
   experimental: Option[Experimental],
   adaptersSchemas: AdaptersSchemas,
   blobStorage: BlobStorageClients,
-  license: License
+  license: License,
+  validation: Validation
 )
 
 object ConfigFile {
-  import AdaptersSchemasEncoderDecoders._
-
-  // Missing in circe-config
-  implicit val finiteDurationEncoder: Encoder[FiniteDuration] =
-    implicitly[Encoder[String]].contramap(_.toString)
+  import AdaptersSchemasDecoders._
 
   implicit val configFileDecoder: Decoder[ConfigFile] =
     deriveConfiguredDecoder[ConfigFile].emap {
-      case ConfigFile(_, _, _, Some(aup), _, _, _, _, _, _, _, _) if aup._1 <= 0L =>
+      case ConfigFile(_, _, _, Some(aup), _, _, _, _, _, _, _, _, _) if aup._1 <= 0L =>
         "assetsUpdatePeriod in config file cannot be less than 0".asLeft // TODO: use newtype
       // Remove pii output if streamName and region empty
-      case c @ ConfigFile(_, Outputs(good, Some(output: Output.Kinesis), bad), _, _, _, _, _, _, _, _, _, _) if output.streamName.isEmpty =>
+      case c @ ConfigFile(_, Outputs(good, Some(output: Output.Kinesis), bad), _, _, _, _, _, _, _, _, _, _, _)
+          if output.streamName.isEmpty =>
         c.copy(output = Outputs(good, None, bad)).asRight
       // Remove pii output if topic empty
-      case c @ ConfigFile(_, Outputs(good, Some(Output.PubSub(t, _, _, _, _, _)), bad), _, _, _, _, _, _, _, _, _, _) if t.isEmpty =>
+      case c @ ConfigFile(_, Outputs(good, Some(Output.PubSub(t, _, _, _, _, _)), bad), _, _, _, _, _, _, _, _, _, _, _) if t.isEmpty =>
         c.copy(output = Outputs(good, None, bad)).asRight
       // Remove pii output if topic empty
-      case c @ ConfigFile(_, Outputs(good, Some(Output.Kafka(topicName, _, _, _, _)), bad), _, _, _, _, _, _, _, _, _, _)
+      case c @ ConfigFile(_, Outputs(good, Some(Output.Kafka(topicName, _, _, _, _)), bad), _, _, _, _, _, _, _, _, _, _, _)
           if topicName.isEmpty =>
         c.copy(output = Outputs(good, None, bad)).asRight
       case other => other.asRight
     }
-  implicit val configFileEncoder: Encoder[ConfigFile] =
-    deriveConfiguredEncoder[ConfigFile]
 
   /* Defines where to look for default values if they are not in the provided file
    *

@@ -47,6 +47,7 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.{Assets, AttributedData,
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Environment.{Enrichments, StreamsSettings}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Concurrency, Telemetry}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
 
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 
@@ -155,7 +156,8 @@ object TestEnvironment extends CatsEffect {
                       StreamsSettings(Concurrency(10000, 64), 1024 * 1024),
                       None,
                       None,
-                      EnrichSpec.featureFlags
+                      EnrichSpec.featureFlags,
+                      AtomicFields.from(valueLimits = Map.empty)
                     )
       _ <- Resource.eval(logger.info("TestEnvironment initialized"))
     } yield TestEnvironment(environment, counter, goodRef.get, piiRef.get, badRef.get)

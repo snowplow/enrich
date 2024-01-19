@@ -107,7 +107,8 @@ object Run {
                                   maxRecordSize,
                                   cloud,
                                   getRegion,
-                                  file.featureFlags
+                                  file.featureFlags,
+                                  file.validation.atomicFieldsLimits
                                 )
                               runEnvironment[F, Array[Byte]](env)
                             case input =>
@@ -136,7 +137,8 @@ object Run {
                                   maxRecordSize,
                                   cloud,
                                   getRegion,
-                                  file.featureFlags
+                                  file.featureFlags,
+                                  file.validation.atomicFieldsLimits
                                 )
                               runEnvironment[F, A](env)
                           }

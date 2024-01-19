@@ -41,7 +41,7 @@ import com.snowplowanalytics.snowplow.enrich.common.EtlPipeline
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.loaders.{CollectorPayload, ThriftLoader}
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.{AtomicFields, EnrichmentRegistry}
 import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.FeatureFlags
@@ -63,14 +63,16 @@ object Enrich {
   def run[F[_]: Async, A](env: Environment[F, A]): Stream[F, Unit] = {
     val enrichmentsRegistry: F[EnrichmentRegistry[F]] = env.enrichments.get.map(_.registry)
     val enrich: Enrich[F] =
-      enrichWith[F](enrichmentsRegistry,
-                    env.adapterRegistry,
-                    env.igluClient,
-                    env.sentry,
-                    env.processor,
-                    env.featureFlags,
-                    env.metrics.invalidCount,
-                    env.registryLookup
+      enrichWith[F](
+        enrichmentsRegistry,
+        env.adapterRegistry,
+        env.igluClient,
+        env.sentry,
+        env.processor,
+        env.featureFlags,
+        env.metrics.invalidCount,
+        env.registryLookup,
+        env.atomicFields
       )
 
     val enriched =
@@ -116,7 +118,8 @@ object Enrich {
     processor: Processor,
     featureFlags: FeatureFlags,
     invalidCount: F[Unit],
-    registryLookup: RegistryLookup[F]
+    registryLookup: RegistryLookup[F],
+    atomicFields: AtomicFields
   )(
     row: Array[Byte]
   ): F[Result] = {
@@ -136,7 +139,8 @@ object Enrich {
                       payload,
                       FeatureFlags.toCommon(featureFlags),
                       invalidCount,
-                      registryLookup
+                      registryLookup,
+                      atomicFields
                     )
       } yield (enriched, collectorTstamp)
 

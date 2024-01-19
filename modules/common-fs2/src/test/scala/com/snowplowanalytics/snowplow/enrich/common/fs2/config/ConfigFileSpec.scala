@@ -108,6 +108,9 @@ class ConfigFileSpec extends Specification with CatsEffect {
           },
           "license": {
             "accept": true
+          },
+          "validation": {
+            "atomicFieldsLimits": {}
           }
         }"""
 
@@ -178,6 +181,9 @@ class ConfigFileSpec extends Specification with CatsEffect {
           },
           "license": {
             "accept": true
+          },
+          "validation": {
+            "atomicFieldsLimits": {}
           }
         }"""
 

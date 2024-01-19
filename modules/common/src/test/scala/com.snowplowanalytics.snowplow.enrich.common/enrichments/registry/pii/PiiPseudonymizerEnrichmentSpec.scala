@@ -37,7 +37,7 @@ import com.snowplowanalytics.iglu.client.resolver.registries.Registry
 import com.snowplowanalytics.snowplow.badrows.{BadRow, Processor}
 
 import com.snowplowanalytics.snowplow.enrich.common.{EtlPipeline, SpecHelpers}
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.{AtomicFields, EnrichmentRegistry}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.IpLookupsEnrichment
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.CampaignAttributionEnrichment
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
@@ -181,7 +181,8 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
                     input,
                     AcceptInvalid.featureFlags,
                     IO.unit,
-                    SpecHelpers.registryLookup
+                    SpecHelpers.registryLookup,
+                    AtomicFields.from(Map.empty)
                   )
     } yield result
   }

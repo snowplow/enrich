@@ -43,6 +43,7 @@ import org.specs2.specification.core.{Fragment, Fragments}
 
 import java.time.Instant
 import scala.util.{Random, Try}
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
 
 class EventGenEtlPipelineSpec extends Specification with CatsEffect {
 
@@ -207,7 +208,8 @@ class EventGenEtlPipelineSpec extends Specification with CatsEffect {
       Some(e).validNel,
       EtlPipeline.FeatureFlags(acceptInvalid = false, legacyEnrichmentOrder = false),
       IO.unit,
-      SpecHelpers.registryLookup
+      SpecHelpers.registryLookup,
+      AtomicFields.from(Map.empty)
     )
 
   def rethrowBadRows[A]: Pipe[IO, ValidatedNel[BadRow, A], A] =

@@ -27,6 +27,7 @@ import com.typesafe.config.ConfigFactory
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io._
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
 
 class ParsedConfigsSpec extends Specification with CatsEffect {
   "validateConfig" should {
@@ -120,7 +121,8 @@ class ParsedConfigsSpec extends Specification with CatsEffect {
         ),
         adaptersSchemas,
         BlobStorageClients(gcs = false, s3 = true, azureStorage = None),
-        License(accept = true)
+        License(accept = true),
+        Validation(AtomicFields.from(valueLimits = Map.empty))
       )
 
       ParsedConfigs.validateConfig[IO](configFile).value.map(result => result must beLeft)

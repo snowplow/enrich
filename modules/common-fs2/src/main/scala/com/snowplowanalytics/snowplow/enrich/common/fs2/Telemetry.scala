@@ -113,7 +113,7 @@ object Telemetry {
         "moduleVersion" -> teleCfg.moduleVersion.asJson,
         "instanceId" -> teleCfg.instanceId.asJson,
         "appGeneratedId" -> java.util.UUID.randomUUID.toString.asJson,
-        "cloud" -> cloud.asJson,
+        "cloud" -> cloud.toString.toUpperCase().asJson,
         "region" -> region.asJson,
         "applicationName" -> appName.asJson,
         "applicationVersion" -> appVersion.asJson

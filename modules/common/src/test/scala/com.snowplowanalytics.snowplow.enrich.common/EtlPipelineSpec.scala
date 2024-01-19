@@ -34,7 +34,7 @@ import com.snowplowanalytics.snowplow.CollectorPayload.thrift.model1.{CollectorP
 
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.{AtomicFields, EnrichmentRegistry}
 import com.snowplowanalytics.snowplow.enrich.common.loaders.{CollectorPayload, ThriftLoader}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
@@ -72,7 +72,8 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
                     Some(collectorPayloadBatched).validNel,
                     AcceptInvalid.featureFlags,
                     IO.unit,
-                    SpecHelpers.registryLookup
+                    SpecHelpers.registryLookup,
+                    AtomicFields.from(Map.empty)
                   )
     } yield output must be like {
       case a :: b :: c :: d :: Nil =>
@@ -98,7 +99,8 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
                     Some(collectorPayload).validNel,
                     AcceptInvalid.featureFlags,
                     IO.unit,
-                    SpecHelpers.registryLookup
+                    SpecHelpers.registryLookup,
+                    AtomicFields.from(Map.empty)
                   )
     } yield output must beLike {
       case Validated.Valid(_: EnrichedEvent) :: Nil => ok
@@ -119,7 +121,8 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
                     invalidCollectorPayload,
                     AcceptInvalid.featureFlags,
                     IO.unit,
-                    SpecHelpers.registryLookup
+                    SpecHelpers.registryLookup,
+                    AtomicFields.from(Map.empty)
                   )
     } yield output must be like {
       case Validated.Invalid(_: BadRow.CPFormatViolation) :: Nil => ok
@@ -140,7 +143,8 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
                     collectorPayload.validNel[BadRow],
                     AcceptInvalid.featureFlags,
                     IO.unit,
-                    SpecHelpers.registryLookup
+                    SpecHelpers.registryLookup,
+                    AtomicFields.from(Map.empty)
                   )
     } yield output must beEqualTo(Nil)
 }

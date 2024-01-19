@@ -39,12 +39,11 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 import com.snowplowanalytics.snowplow.badrows.{BadRow, Failure, FailureDetails, Processor, Payload => BadRowPayload}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.IpLookupsEnrichment
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.MiscEnrichments
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.{AtomicFields, MiscEnrichments}
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.FeatureFlags
-
 import com.snowplowanalytics.snowplow.enrich.common.fs2.EnrichSpec.{Expected, minimalEvent, normalizeResult}
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test._
@@ -77,7 +76,8 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
             EnrichSpec.processor,
             EnrichSpec.featureFlags,
             IO.unit,
-            SpecHelpers.registryLookup
+            SpecHelpers.registryLookup,
+            AtomicFields.from(valueLimits = Map.empty)
           )(
             EnrichSpec.payload
           )
@@ -106,7 +106,8 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
                 EnrichSpec.processor,
                 EnrichSpec.featureFlags,
                 IO.unit,
-                SpecHelpers.registryLookup
+                SpecHelpers.registryLookup,
+                AtomicFields.from(valueLimits = Map.empty)
               )(
                 payload
               )
@@ -143,7 +144,8 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
             EnrichSpec.processor,
             EnrichSpec.featureFlags.copy(tryBase64Decoding = true),
             IO.unit,
-            SpecHelpers.registryLookup
+            SpecHelpers.registryLookup,
+            AtomicFields.from(valueLimits = Map.empty)
           )(
             Base64.getEncoder.encode(EnrichSpec.payload)
           )
@@ -166,7 +168,8 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
             EnrichSpec.processor,
             EnrichSpec.featureFlags,
             IO.unit,
-            SpecHelpers.registryLookup
+            SpecHelpers.registryLookup,
+            AtomicFields.from(valueLimits = Map.empty)
           )(
             Base64.getEncoder.encode(EnrichSpec.payload)
           )

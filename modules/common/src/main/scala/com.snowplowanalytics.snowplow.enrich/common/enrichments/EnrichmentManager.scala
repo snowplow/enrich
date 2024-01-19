@@ -64,7 +64,8 @@ object EnrichmentManager {
     raw: RawEvent,
     featureFlags: EtlPipeline.FeatureFlags,
     invalidCount: F[Unit],
-    registryLookup: RegistryLookup[F]
+    registryLookup: RegistryLookup[F],
+    atomicFields: AtomicFields
   ): EitherT[F, BadRow, EnrichedEvent] =
     for {
       enriched <- EitherT.fromEither[F](setupEnrichedEvent(raw, etlTstamp, processor))
@@ -93,7 +94,7 @@ object EnrichmentManager {
                enriched.pii = pii.asString
              }
            }
-      _ <- validateEnriched(enriched, raw, processor, featureFlags.acceptInvalid, invalidCount)
+      _ <- validateEnriched(enriched, raw, processor, featureFlags.acceptInvalid, invalidCount, atomicFields)
     } yield enriched
 
   /**
@@ -762,10 +763,11 @@ object EnrichmentManager {
     raw: RawEvent,
     processor: Processor,
     acceptInvalid: Boolean,
-    invalidCount: F[Unit]
+    invalidCount: F[Unit],
+    atomicFields: AtomicFields
   ): EitherT[F, BadRow, Unit] =
     EitherT {
       //We're using static field's length validation. See more in https://github.com/snowplow/enrich/issues/608
-      AtomicFieldsLengthValidator.validate[F](enriched, raw, processor, acceptInvalid, invalidCount)
+      AtomicFieldsLengthValidator.validate[F](enriched, raw, processor, acceptInvalid, invalidCount, atomicFields)
     }
 }

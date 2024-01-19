@@ -23,7 +23,7 @@ import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 import com.snowplowanalytics.snowplow.badrows.{BadRow, Processor}
 
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.{EnrichmentManager, EnrichmentRegistry}
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.{AtomicFields, EnrichmentManager, EnrichmentRegistry}
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
@@ -65,7 +65,8 @@ object EtlPipeline {
     input: ValidatedNel[BadRow, Option[CollectorPayload]],
     featureFlags: FeatureFlags,
     invalidCount: F[Unit],
-    registryLookup: RegistryLookup[F]
+    registryLookup: RegistryLookup[F],
+    atomicFields: AtomicFields
   ): F[List[Validated[BadRow, EnrichedEvent]]] =
     input match {
       case Validated.Valid(Some(payload)) =>
@@ -83,7 +84,8 @@ object EtlPipeline {
                     event,
                     featureFlags,
                     invalidCount,
-                    registryLookup
+                    registryLookup,
+                    atomicFields
                   )
                   .toValidated
               }

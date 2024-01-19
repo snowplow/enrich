@@ -47,6 +47,7 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 import com.snowplowanalytics.snowplow.enrich.common.fs2.EnrichSpec
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test.TestEnvironment
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
 
 object BlackBoxTesting extends Specification with CatsEffect {
 
@@ -102,7 +103,8 @@ object BlackBoxTesting extends Specification with CatsEffect {
               EnrichSpec.processor,
               featureFlags,
               IO.unit,
-              SpecHelpers.registryLookup
+              SpecHelpers.registryLookup,
+              AtomicFields.from(valueLimits = Map.empty)
             )(
               input
             )

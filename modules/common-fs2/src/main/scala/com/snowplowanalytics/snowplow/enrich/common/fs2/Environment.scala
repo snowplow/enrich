@@ -40,7 +40,7 @@ import com.snowplowanalytics.snowplow.badrows.Processor
 
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.{AtomicFields, EnrichmentRegistry}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.ApiRequestConf
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
@@ -126,7 +126,8 @@ final case class Environment[F[_], A](
   streamsSettings: Environment.StreamsSettings,
   region: Option[String],
   cloud: Option[Cloud],
-  featureFlags: FeatureFlags
+  featureFlags: FeatureFlags,
+  atomicFields: AtomicFields
 )
 
 object Environment {
@@ -193,7 +194,8 @@ object Environment {
     maxRecordSize: Int,
     cloud: Option[Cloud],
     getRegion: => Option[String],
-    featureFlags: FeatureFlags
+    featureFlags: FeatureFlags,
+    atomicFields: AtomicFields
   ): Resource[F, Environment[F, A]] = {
     val file = parsedConfigs.configFile
     for {
@@ -244,7 +246,8 @@ object Environment {
       StreamsSettings(file.concurrency, maxRecordSize),
       getRegionFromConfig(file).orElse(getRegion),
       cloud,
-      featureFlags
+      featureFlags,
+      atomicFields
     )
   }
 

@@ -86,7 +86,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         rawEvent,
         AcceptInvalid.featureFlags,
         IO.unit,
-        SpecHelpers.registryLookup
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
       enriched.value
         .map(_ must beLeft.like {
@@ -123,7 +124,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         rawEvent,
         AcceptInvalid.featureFlags,
         IO.unit,
-        SpecHelpers.registryLookup
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
       enriched.value
         .map(_ must beLeft.like {
@@ -171,7 +173,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         rawEvent,
         AcceptInvalid.featureFlags,
         IO.unit,
-        SpecHelpers.registryLookup
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
       enriched.value
         .map(_ must beLeft.like {
@@ -240,7 +243,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         rawEvent,
         AcceptInvalid.featureFlags,
         IO.unit,
-        SpecHelpers.registryLookup
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
       enriched.value
         .map(_ must beLeft.like {
@@ -305,7 +309,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         rawEvent,
         AcceptInvalid.featureFlags,
         IO.unit,
-        SpecHelpers.registryLookup
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
       enriched.value.map(_ must beRight)
     }
@@ -370,7 +375,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         rawEvent,
         AcceptInvalid.featureFlags,
         IO.unit,
-        SpecHelpers.registryLookup
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
       enriched.value.map(_ must beRight)
     }
@@ -435,7 +441,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         rawEvent,
         AcceptInvalid.featureFlags,
         IO.unit,
-        SpecHelpers.registryLookup
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
       enriched.value.map(_ must beRight)
     }
@@ -500,7 +507,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         rawEvent,
         AcceptInvalid.featureFlags,
         IO.unit,
-        SpecHelpers.registryLookup
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
       enriched.value.map(_ must beLeft)
     }
@@ -565,7 +573,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         rawEvent,
         AcceptInvalid.featureFlags,
         IO.unit,
-        SpecHelpers.registryLookup
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
       enriched.value.map(_ must beLeft)
     }
@@ -636,7 +645,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         rawEvent,
         AcceptInvalid.featureFlags,
         IO.unit,
-        SpecHelpers.registryLookup
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
       enriched.value.map(_ must beLeft)
     }
@@ -663,7 +673,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               rawEvent,
               AcceptInvalid.featureFlags,
               IO.unit,
-              SpecHelpers.registryLookup
+              SpecHelpers.registryLookup,
+              atomicFieldLimits
             )
             enriched.value.map(_ must beRight)
           }
@@ -692,7 +703,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               rawEvent,
               AcceptInvalid.featureFlags,
               IO.unit,
-              SpecHelpers.registryLookup
+              SpecHelpers.registryLookup,
+              atomicFieldLimits
             )
             enriched.value.map(_ must beRight)
           }
@@ -730,7 +742,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               rawEvent,
               AcceptInvalid.featureFlags,
               IO.unit,
-              SpecHelpers.registryLookup
+              SpecHelpers.registryLookup,
+              atomicFieldLimits
             )
             enriched.value.map(_ must beRight { ee: EnrichedEvent =>
               ee.se_value.toString must_== expected
@@ -756,7 +769,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         rawEvent,
         AcceptInvalid.featureFlags,
         IO.unit,
-        SpecHelpers.registryLookup
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
       enriched.value.map { e =>
         val res1 = e.map(_.useragent) must beRight(qs_ua)
@@ -781,7 +795,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         rawEvent,
         AcceptInvalid.featureFlags,
         IO.unit,
-        SpecHelpers.registryLookup
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
       enriched.value.map { e =>
         e.map(_.useragent) must beRight("header-useragent")
@@ -805,7 +820,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         rawEvent,
         AcceptInvalid.featureFlags,
         IO.unit,
-        SpecHelpers.registryLookup
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
       enriched.value.map { e =>
         e.map(_.useragent) must beRight(ua)
@@ -830,7 +846,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         rawEvent,
         AcceptInvalid.featureFlags,
         IO.unit,
-        SpecHelpers.registryLookup
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
       enriched.value.map { e =>
         val res1 = e.map(_.useragent) must beRight(qs_ua)
@@ -875,7 +892,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         rawEvent,
         AcceptInvalid.featureFlags,
         IO.unit,
-        SpecHelpers.registryLookup
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
       enriched.value.map { e =>
         e.map(_.app_id) must beRight("moo")
@@ -1027,7 +1045,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         rawEvent,
         AcceptInvalid.featureFlags,
         IO.unit,
-        SpecHelpers.registryLookup
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
 
       enriched.value.map(_ must beRight.like {
@@ -1196,7 +1215,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           RawEvent(api, fatBody, None, source, context),
           featureFlags = AcceptInvalid.featureFlags.copy(acceptInvalid = false),
           IO.unit,
-          SpecHelpers.registryLookup
+          SpecHelpers.registryLookup,
+          atomicFieldLimits
         )
         .value
 
@@ -1224,7 +1244,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           RawEvent(api, fatBody, None, source, context),
           featureFlags = AcceptInvalid.featureFlags.copy(acceptInvalid = true),
           IO.unit,
-          SpecHelpers.registryLookup
+          SpecHelpers.registryLookup,
+          atomicFieldLimits
         )
         .value
 
@@ -1250,6 +1271,8 @@ object EnrichmentManagerSpec {
     Nil,
     None
   )
+
+  val atomicFieldLimits = AtomicFields.from(Map("v_tracker" -> 100))
 
   val leanBody = Map(
     "e" -> "pp",

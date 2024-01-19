@@ -11,9 +11,7 @@
 package com.snowplowanalytics.snowplow.enrich.common.fs2.blackbox.adapters
 
 import org.specs2.mutable.Specification
-
 import cats.effect.testing.specs2.CatsEffect
-
 import cats.effect.IO
 
 import cats.implicits._
@@ -24,6 +22,7 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.EnrichSpec
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test.TestEnvironment
 import com.snowplowanalytics.snowplow.enrich.common.fs2.blackbox.BlackBoxTesting
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
 
 class Tp2AdapterSpec extends Specification with CatsEffect {
   "enrichWith" should {
@@ -43,7 +42,8 @@ class Tp2AdapterSpec extends Specification with CatsEffect {
             EnrichSpec.processor,
             EnrichSpec.featureFlags,
             IO.unit,
-            SpecHelpers.registryLookup
+            SpecHelpers.registryLookup,
+            AtomicFields.from(valueLimits = Map.empty)
           )(
             input
           )

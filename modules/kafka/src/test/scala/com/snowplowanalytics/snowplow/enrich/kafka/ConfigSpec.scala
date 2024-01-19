@@ -30,6 +30,8 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.BlobStorageCli
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{ConfigFile, Sentry}
 
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.atomicFieldLimitsDefaults
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
 
 class ConfigSpec extends Specification with CatsEffect {
 
@@ -134,7 +136,8 @@ class ConfigSpec extends Specification with CatsEffect {
             )
           )
         ),
-        io.License(accept = true)
+        io.License(accept = true),
+        io.Validation(AtomicFields.from(atomicFieldLimitsDefaults ++ Map("app_id" -> 5, "mkt_clickid" -> 100000)))
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
     }
@@ -205,7 +208,8 @@ class ConfigSpec extends Specification with CatsEffect {
         None,
         SpecHelpers.adaptersSchemas,
         io.BlobStorageClients(gcs = false, s3 = false, azureStorage = None),
-        io.License(accept = true)
+        io.License(accept = true),
+        io.Validation(AtomicFields.from(atomicFieldLimitsDefaults))
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
     }

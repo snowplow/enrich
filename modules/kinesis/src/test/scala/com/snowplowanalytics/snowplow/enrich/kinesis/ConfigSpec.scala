@@ -25,9 +25,9 @@ import org.http4s.Uri
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{ConfigFile, Sentry}
-import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
-
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.{adaptersSchemas, atomicFieldLimitsDefaults}
 import org.specs2.mutable.Specification
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
 
 class ConfigSpec extends Specification with CatsEffect {
 
@@ -131,7 +131,8 @@ class ConfigSpec extends Specification with CatsEffect {
         ),
         adaptersSchemas,
         io.BlobStorageClients(gcs = false, s3 = true, azureStorage = None),
-        io.License(accept = true)
+        io.License(accept = true),
+        io.Validation(AtomicFields.from(atomicFieldLimitsDefaults ++ Map("app_id" -> 5, "mkt_clickid" -> 100000)))
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
     }
@@ -211,7 +212,8 @@ class ConfigSpec extends Specification with CatsEffect {
         None,
         adaptersSchemas,
         io.BlobStorageClients(gcs = false, s3 = true, azureStorage = None),
-        io.License(accept = true)
+        io.License(accept = true),
+        io.Validation(AtomicFields.from(atomicFieldLimitsDefaults))
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
     }

@@ -58,6 +58,7 @@ object MiscEnrichments {
         case "cnsl" => "cnsl".asRight // Games Console
         case "tv" => "tv".asRight // Connected TV
         case "srv" => "srv".asRight // Server-side App
+        case "headset" => "headset".asRight // AR/VR Headset
         case _ =>
           val msg = "not recognized as a tracking platform"
           val f = FailureDetails.EnrichmentFailureMessage.InputData(

@@ -62,6 +62,7 @@ class ExtractPlatformSpec extends Specification with DataTables {
       "valid connected TV" !! "tv" ! "tv".asRight |
       "valid games console" !! "cnsl" ! "cnsl".asRight |
       "valid iot (internet of things)" !! "iot" ! "iot".asRight |
+      "valid headset" !! "headset" ! "headset".asRight |
       "invalid empty" !! "" ! err("").asLeft |
       "invalid null" !! null ! err(null).asLeft |
       "invalid platform" !! "ma" ! err("ma").asLeft |> { (_, input, expected) =>

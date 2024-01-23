@@ -15,13 +15,13 @@ import java.nio.file.Paths
 import cats.syntax.either._
 import cats.effect.IO
 
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 
 import com.typesafe.config.ConfigFactory
 
 import org.specs2.mutable.Specification
 
-class ConfigFileSpec extends Specification with CatsIO {
+class ConfigFileSpec extends Specification with CatsEffect {
   "parse" should {
     "parse valid 0 minutes as None" in {
       val input =

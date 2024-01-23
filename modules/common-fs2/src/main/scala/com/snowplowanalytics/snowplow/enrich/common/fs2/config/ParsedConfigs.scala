@@ -19,7 +19,7 @@ import _root_.io.circe.syntax._
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
-import cats.effect.{Async, Clock, ContextShift, Sync}
+import cats.effect.kernel.{Async, Sync}
 
 import cats.implicits._
 import cats.data.{EitherT, NonEmptyList}
@@ -31,6 +31,7 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
 import com.snowplowanalytics.iglu.client.{IgluCirceClient, Resolver}
+import com.snowplowanalytics.iglu.client.resolver.registries.JavaNetRegistryLookup
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
@@ -63,7 +64,7 @@ object ParsedConfigs {
   final val enrichedFieldsMap: Map[String, Field] = ConversionUtils.EnrichedFields.map(f => f.getName -> f).toMap
 
   /** Decode base64-encoded configs, passed via CLI. Read files, validate and parse */
-  def parse[F[_]: Async: Clock: ContextShift](config: CliConfig): Parsed[F, ParsedConfigs] =
+  def parse[F[_]: Async](config: CliConfig): Parsed[F, ParsedConfigs] =
     for {
       igluJson <- parseHoconToJson[F](config.resolver)
       enrichmentJsons <- config.enrichments match {
@@ -88,7 +89,8 @@ object ParsedConfigs {
       _ <- EitherT.liftF(
              Logger[F].info(show"Parsed Iglu Client with following registries: ${resolver.repos.map(_.config.name).mkString(", ")}")
            )
-      configs <- EitherT(EnrichmentRegistry.parse[F](enrichmentJsons, client, false).map(_.toEither)).leftMap { x =>
+      registryLookup = JavaNetRegistryLookup.ioLookupInstance[F]
+      configs <- EitherT(EnrichmentRegistry.parse[F](enrichmentJsons, client, false, registryLookup).map(_.toEither)).leftMap { x =>
                    show"Cannot decode enrichments - ${x.mkString_(", ")}"
                  }
       _ <- EitherT.liftF(Logger[F].info(show"Parsed following enrichments: ${configs.map(_.schemaKey.name).mkString(", ")}"))

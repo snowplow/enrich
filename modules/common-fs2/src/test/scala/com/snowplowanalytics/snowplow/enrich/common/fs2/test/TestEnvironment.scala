@@ -11,20 +11,20 @@
 package com.snowplowanalytics.snowplow.enrich.common.fs2.test
 
 import java.nio.charset.StandardCharsets.UTF_8
-import java.nio.file.Paths
 
 import scala.concurrent.duration._
 
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
-import cats.Monad
+import cats.effect.IO
+import cats.effect.kernel.{Ref, Resource}
+import cats.effect.std.Semaphore
 
-import cats.effect.{Blocker, Concurrent, ContextShift, IO, Resource, Timer}
-import cats.effect.concurrent.{Ref, Semaphore}
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 
 import fs2.Stream
+import fs2.io.file.Path
 
 import io.circe.parser
 
@@ -43,9 +43,10 @@ import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, ShiftExec
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.{Assets, AttributedData, Enrich, EnrichSpec, Environment}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Environment.{Enrichments, StreamsSettings}
-import com.snowplowanalytics.snowplow.enrich.common.fs2.SpecHelpers
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Concurrency, Telemetry}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients
+
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 
 case class TestEnvironment[A](
   env: Environment[IO, A],
@@ -66,16 +67,12 @@ case class TestEnvironment[A](
    */
   def run(
     updateEnv: Environment[IO, A] => Environment[IO, A] = identity
-  )(
-    implicit C: Concurrent[IO],
-    CS: ContextShift[IO],
-    T: Timer[IO]
   ): IO[(Vector[BadRow], Vector[Event], Vector[Event])] = {
     val updatedEnv = updateEnv(env)
     val stream = Enrich
       .run[IO, A](updatedEnv)
       .merge(
-        Assets.run[IO, A](updatedEnv.blocker,
+        Assets.run[IO, A](updatedEnv.blockingEC,
                           updatedEnv.shifter,
                           updatedEnv.semaphore,
                           updatedEnv.assetsUpdatePeriod,
@@ -96,13 +93,11 @@ case class TestEnvironment[A](
 
 }
 
-object TestEnvironment extends CatsIO {
+object TestEnvironment extends CatsEffect {
 
   val logger: Logger[IO] = Slf4jLogger.getLogger[IO]
 
   val enrichmentReg: EnrichmentRegistry[IO] = EnrichmentRegistry[IO]()
-
-  val ioBlocker: Resource[IO, Blocker] = Blocker[IO]
 
   val embeddedRegistry = Registry.EmbeddedRegistry
 
@@ -114,19 +109,18 @@ object TestEnvironment extends CatsIO {
    */
   def make(source: Stream[IO, Array[Byte]], enrichments: List[EnrichmentConf] = Nil): Resource[IO, TestEnvironment[Array[Byte]]] =
     for {
-      http4s <- Clients.mkHttp[IO](ec = SpecHelpers.blockingEC)
+      http4s <- Clients.mkHttp[IO]()
       http = HttpClient.fromHttp4sClient(http4s)
-      blocker <- ioBlocker
-      _ <- SpecHelpers.filesResource(blocker, enrichments.flatMap(_.filesToCache).map(p => Paths.get(p._2)))
+      _ <- SpecHelpers.filesResource(enrichments.flatMap(_.filesToCache).map(p => Path(p._2)))
       counter <- Resource.eval(Counter.make[IO])
-      metrics = Counter.mkCounterMetrics[IO](counter)(Monad[IO], SpecHelpers.ioClock)
+      metrics = Counter.mkCounterMetrics[IO](counter)
       aggregates <- Resource.eval(AggregatesSpec.init[IO])
       metadata = AggregatesSpec.metadata[IO](aggregates)
       clients = Clients.init[IO](http4s, Nil)
       sem <- Resource.eval(Semaphore[IO](1L))
-      assetsState <- Resource.eval(Assets.State.make(blocker, sem, clients, enrichments.flatMap(_.filesToCache)))
-      shifter <- ShiftExecution.ofSingleThread
-      enrichmentsRef <- Enrichments.make[IO](enrichments, blocker, shifter, http)
+      assetsState <- Resource.eval(Assets.State.make(sem, clients, enrichments.flatMap(_.filesToCache)))
+      shifter <- ShiftExecution.ofSingleThread[IO]
+      enrichmentsRef <- Enrichments.make[IO](enrichments, SpecHelpers.blockingEC, shifter, http)
       goodRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
       piiRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
       badRef <- Resource.eval(Ref.of[IO, Vector[Array[Byte]]](Vector.empty))
@@ -138,7 +132,7 @@ object TestEnvironment extends CatsIO {
                       sem,
                       assetsState,
                       http4s,
-                      blocker,
+                      SpecHelpers.blockingEC,
                       shifter,
                       source,
                       adapterRegistry,

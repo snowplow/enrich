@@ -16,20 +16,22 @@ import java.nio.file.Paths
 
 import scala.concurrent.duration._
 
+import org.specs2.mutable.Specification
+
 import cats.syntax.either._
 import cats.effect.IO
 
 import org.http4s.Uri
 
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{ConfigFile, Sentry}
-import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.BlobStorageClients.AzureStorage
-import org.specs2.mutable.Specification
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{ConfigFile, Sentry}
 
-class ConfigSpec extends Specification with CatsIO {
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
+
+class ConfigSpec extends Specification with CatsEffect {
 
   "parse" should {
     "parse reference example for Kafka" in {
@@ -110,7 +112,7 @@ class ConfigSpec extends Specification with CatsIO {
           io.Experimental(
             Some(
               io.Metadata(
-                Uri.uri("https://my_pipeline.my_domain.com/iglu"),
+                Uri.unsafeFromString("https://my_pipeline.my_domain.com/iglu"),
                 5.minutes,
                 UUID.fromString("c5f3a09f-75f8-4309-bec5-fea560f78455"),
                 UUID.fromString("75a13583-5c99-40e3-81fc-541084dfc784")
@@ -118,7 +120,7 @@ class ConfigSpec extends Specification with CatsIO {
             )
           )
         ),
-        adaptersSchemas,
+        SpecHelpers.adaptersSchemas,
         io.BlobStorageClients(
           gcs = true,
           s3 = true,
@@ -201,7 +203,7 @@ class ConfigSpec extends Specification with CatsIO {
           false
         ),
         None,
-        adaptersSchemas,
+        SpecHelpers.adaptersSchemas,
         io.BlobStorageClients(gcs = false, s3 = false, azureStorage = None),
         io.License(accept = true)
       )

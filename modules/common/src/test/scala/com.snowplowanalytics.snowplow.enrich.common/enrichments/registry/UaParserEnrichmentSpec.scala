@@ -19,8 +19,9 @@ import cats.data.EitherT
 import cats.implicits._
 
 import cats.effect.IO
+import cats.effect.unsafe.implicits.global
 
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 
 import io.circe.literal._
 
@@ -28,7 +29,7 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.UaParserConf
 
-class UaParserEnrichmentSpec extends Specification with DataTables with CatsIO {
+class UaParserEnrichmentSpec extends Specification with DataTables with CatsEffect {
 
   val mobileSafariUserAgent =
     "Mozilla/5.0 (iPhone; CPU iPhone OS 5_1_1 like Mac OS X) AppleWebKit/534.46 (KHTML, like Gecko) Version/5.1 Mobile/9B206 Safari/7534.48.3"
@@ -82,9 +83,11 @@ class UaParserEnrichmentSpec extends Specification with DataTables with CatsIO {
           c <- EitherT.rightT[IO, String](UaParserConf(schemaKey, rules))
           e <- c.enrichment[IO]
           res = e.extractUserAgent(input)
-        } yield res).value.map(_ must beLeft.like {
-          case a => a must startWith(errorPrefix)
-        })
+        } yield res).value
+          .map(_ must beLeft.like {
+            case a => a must startWith(errorPrefix)
+          })
+          .unsafeRunSync()
       }
     }
 
@@ -97,7 +100,7 @@ class UaParserEnrichmentSpec extends Specification with DataTables with CatsIO {
           c <- EitherT.rightT[IO, String](UaParserConf(schemaKey, rules))
           e <- c.enrichment[IO]
           res <- EitherT(e.extractUserAgent(input).map(_.leftMap(_.toString())))
-        } yield res).value.map(_ must beRight(expected))
+        } yield res).value.map(_ must beRight(expected)).unsafeRunSync()
       }
     }
   }

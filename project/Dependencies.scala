@@ -50,18 +50,18 @@ object Dependencies {
     val netty            = "4.1.100.Final"
     val protobuf         = "3.21.9"
 
-    val refererParser    = "1.1.0"
-    val maxmindIplookups = "0.7.1"
-    val circe            = "0.14.1"
+    val refererParser    = "2.0.0"
+    val maxmindIplookups = "0.8.1"
+    val circe            = "0.14.3"
     val circeOptics      = "0.14.1"
-    val circeConfig      = "0.7.0"
+    val circeConfig      = "0.10.1"
     val circeJackson     = "0.14.0"
-    val scalaForex       = "1.0.0"
-    val scalaWeather     = "1.0.0"
+    val scalaForex       = "3.0.0"
+    val scalaWeather     = "2.0.0"
     val gatlingJsonpath  = "0.6.14"
     val scalaUri         = "1.5.1"
-    val badRows          = "2.1.2"
-    val igluClient       = "1.5.0"
+    val badRows          = "2.3.0"
+    val igluClient       = "3.1.0"
 
     val snowplowRawEvent = "0.1.0"
     val collectorPayload = "0.0.0"
@@ -78,25 +78,25 @@ object Dependencies {
     val config           = "1.3.4"
 
     val decline          = "1.0.0"
-    val fs2              = "2.5.5"
-    val catsEffect       = "2.5.0"
-    val fs2PubSub        = "0.18.1"
-    val fs2Aws           = "3.1.1"
-    val fs2Kafka         = "1.10.0"
-    val fs2BlobStorage   = "0.8.6"
+    val fs2              = "3.9.3"
+    val catsEffect       = "3.5.2"
+    val fs2PubSub        = "0.22.0"
+    val fs2Aws           = "4.1.0"
+    val fs2Kafka         = "3.2.0"
+    val fs2BlobStorage   = "0.9.8"
     val azureIdentity    = "1.11.0"
-    val http4s           = "0.21.34"
-    val log4cats         = "1.3.0"
-    val catsRetry        = "2.1.0"
+    val http4s           = "0.23.15"
+    val log4cats         = "2.6.0"
+    val catsRetry        = "3.1.0"
     val specsDiff        = "0.6.0"
     val eventGen         = "0.2.0"
 
-    val snowplowTracker  = "1.0.0"
+    val snowplowTracker  = "2.0.0"
 
-    val specs2            = "4.17.0"
-    val specs2Cats        = "4.11.0"
-    val specs2CE          = "0.4.1"
-    val scalacheck        = "1.14.0"
+    val specs2            = "4.20.3"
+    val specs2Cats        = "4.20.3"
+    val specs2CE          = "1.5.0"
+    val scalacheck        = "1.17.0"
     val testcontainers    = "0.40.10"
     val parserCombinators = "2.1.1"
     val sentry            = "1.7.30"
@@ -156,8 +156,8 @@ object Dependencies {
     val specs2Cats         = "org.specs2"             %% "specs2-cats"                   % V.specs2Cats        % Test
     val specs2Scalacheck   = "org.specs2"             %% "specs2-scalacheck"             % V.specs2            % Test
     val specs2Mock         = "org.specs2"             %% "specs2-mock"                   % V.specs2            % Test
-    val specs2CE           = "com.codecommit"         %% "cats-effect-testing-specs2"    % V.specs2CE          % Test
-    val specs2CEIt         = "com.codecommit"         %% "cats-effect-testing-specs2"    % V.specs2CE          % IntegrationTest
+    val specs2CE           = "org.typelevel"          %% "cats-effect-testing-specs2"    % V.specs2CE          % Test
+    val specs2CEIt         = "org.typelevel"          %% "cats-effect-testing-specs2"    % V.specs2CE          % IntegrationTest
     val specsDiff          = "com.softwaremill.diffx" %% "diffx-specs2"                  % V.specsDiff         % Test
     val eventGen           = "com.snowplowanalytics"  %% "snowplow-event-generator-core" % V.eventGen          % Test
     val parserCombinators  = "org.scala-lang.modules" %% "scala-parser-combinators"      % V.parserCombinators % Test
@@ -172,12 +172,12 @@ object Dependencies {
     val config           = "com.typesafe"                     %  "config"                            % V.config
     val nsqClient        = "com.snowplowanalytics"            %  "nsq-java-client"                   % V.nsqClient
     val catsEffect       = "org.typelevel"                    %% "cats-effect"                       % V.catsEffect
-    val scalacheck       = "org.scalacheck"                   %% "scalacheck"                        % V.scalacheck      % Test
+    val scalacheck       = "org.scalacheck"                   %% "scalacheck"                        % V.scalacheck       % Test
 
     // FS2
     val decline          = "com.monovore"                     %% "decline"                               % V.decline
     val fs2PubSub        = "com.permutive"                    %% "fs2-google-pubsub-grpc"                % V.fs2PubSub
-    val fs2Aws           = ("io.laserdisc"                    %% "fs2-aws"                               % V.fs2Aws)
+    val fs2AwsKinesis    = ("io.laserdisc"                    %% "fs2-aws-kinesis"                       % V.fs2Aws)
                            .exclude("com.amazonaws", "amazon-kinesis-producer")
                            .exclude("software.amazon.kinesis", "amazon-kinesis-client")
     val fs2              = "co.fs2"                           %% "fs2-core"                              % V.fs2
@@ -312,7 +312,7 @@ object Dependencies {
       dynamodbSdk,
       kinesisSdk,
       fs2BlobS3,
-      fs2Aws,
+      fs2AwsKinesis,
       kinesisSdk2,
       dynamoDbSdk2,
       s3Sdk2,

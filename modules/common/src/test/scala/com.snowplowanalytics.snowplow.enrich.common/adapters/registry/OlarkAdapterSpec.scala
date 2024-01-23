@@ -13,7 +13,7 @@ package com.snowplowanalytics.snowplow.enrich.common.adapters.registry
 import cats.data.NonEmptyList
 import cats.syntax.option._
 
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 
 import org.joda.time.DateTime
 
@@ -28,7 +28,7 @@ import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
 
-class OlarkAdapterSpec extends Specification with DataTables with ValidatedMatchers with CatsIO {
+class OlarkAdapterSpec extends Specification with DataTables with ValidatedMatchers with CatsEffect {
   def is = s2"""
   toRawEvents must return a Success Nel if the transcript event in the payload is successful      $e1
   toRawEvents must return a Success Nel if the offline message event in the payload is successful $e2
@@ -142,7 +142,7 @@ class OlarkAdapterSpec extends Specification with DataTables with ValidatedMatch
         Shared.context
       )
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client).map(_ must beValid(expected))
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beValid(expected))
   }
 
   def e2 = {
@@ -206,14 +206,14 @@ class OlarkAdapterSpec extends Specification with DataTables with ValidatedMatch
         Shared.context
       )
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client).map(_ must beValid(expected))
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beValid(expected))
   }
 
   def e3 = {
     val payload =
       CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
       .map(
         _ must beInvalid(
           NonEmptyList.one(
@@ -230,7 +230,7 @@ class OlarkAdapterSpec extends Specification with DataTables with ValidatedMatch
     val payload =
       CollectorPayload(Shared.api, Nil, None, body.some, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
       .map(
         _ must beInvalid(
           NonEmptyList.one(
@@ -251,7 +251,7 @@ class OlarkAdapterSpec extends Specification with DataTables with ValidatedMatch
     val payload =
       CollectorPayload(Shared.api, Nil, ct.some, body.some, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
       .map(
         _ must beInvalid(
           NonEmptyList.one(
@@ -280,7 +280,7 @@ class OlarkAdapterSpec extends Specification with DataTables with ValidatedMatch
         FailureDetails.AdapterFailure
           .InputData("body", None, "empty body: no events to process")
       )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client).map(_ must beInvalid(expected))
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid(expected))
   }
 
   def e7 = {
@@ -297,7 +297,7 @@ class OlarkAdapterSpec extends Specification with DataTables with ValidatedMatch
     val expected = NonEmptyList.one(
       FailureDetails.AdapterFailure.InputData("data", None, "missing 'data' field")
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client).map(_ must beInvalid(expected))
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid(expected))
   }
 
   def e8 = {
@@ -312,7 +312,7 @@ class OlarkAdapterSpec extends Specification with DataTables with ValidatedMatch
       Shared.context
     )
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
       .map(_ must beInvalid.like {
         case nel =>
           nel.size must_== 1

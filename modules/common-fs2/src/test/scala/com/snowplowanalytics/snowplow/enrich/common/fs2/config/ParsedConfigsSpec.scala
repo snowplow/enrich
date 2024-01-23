@@ -16,7 +16,7 @@ import scala.concurrent.duration._
 
 import cats.effect.IO
 
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 
 import org.http4s.Uri
 
@@ -28,7 +28,7 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io._
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
 
-class ParsedConfigsSpec extends Specification with CatsIO {
+class ParsedConfigsSpec extends Specification with CatsEffect {
   "validateConfig" should {
     "return accumulated invalid attributes in config file" in {
 
@@ -110,7 +110,7 @@ class ParsedConfigsSpec extends Specification with CatsIO {
           io.Experimental(
             Some(
               io.Metadata(
-                Uri.uri("https://collector-g.snowplowanalytics.com"),
+                Uri.unsafeFromString("https://collector-g.snowplowanalytics.com"),
                 5.minutes,
                 UUID.fromString("c5f3a09f-75f8-4309-bec5-fea560f78455"),
                 UUID.fromString("75a13583-5c99-40e3-81fc-541084dfc784")

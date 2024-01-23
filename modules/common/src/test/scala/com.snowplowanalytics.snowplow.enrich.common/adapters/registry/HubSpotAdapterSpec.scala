@@ -13,7 +13,7 @@ package com.snowplowanalytics.snowplow.enrich.common.adapters.registry
 
 import cats.data.NonEmptyList
 import cats.syntax.option._
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 import io.circe.literal._
 import org.joda.time.DateTime
 import org.specs2.Specification
@@ -27,7 +27,7 @@ import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
 
-class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMatchers with CatsIO {
+class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMatchers with CatsEffect {
   def is = s2"""
   payloadBodyToEvents must return a Success list of event JSON's from a valid payload body $e1
   payloadBodyToEvents must return a Failure Nel for an invalid payload body being passed   $e2
@@ -99,7 +99,7 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
         Shared.context
       )
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client).map(_ must beValid(expected))
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beValid(expected))
   }
 
   def e4 = {
@@ -119,7 +119,7 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
       "no schema associated with the provided type parameter at index 0"
     )
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
       .map(
         _ must beInvalid(
           NonEmptyList.one(expected)
@@ -131,7 +131,7 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
     val payload =
       CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
       .map(
         _ must beInvalid(
           NonEmptyList.one(
@@ -146,7 +146,7 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
     val payload =
       CollectorPayload(Shared.api, Nil, None, "stub".some, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
       .map(
         _ must beInvalid(
           NonEmptyList.one(
@@ -171,7 +171,7 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
       Shared.context
     )
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
       .map(
         _ must beInvalid(
           NonEmptyList.one(

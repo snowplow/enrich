@@ -18,8 +18,7 @@ import scala.collection.JavaConverters._
 import cats.implicits._
 import cats.{Monoid, Parallel}
 
-import cats.effect.{Blocker, Concurrent, ContextShift, Resource, Sync, Timer}
-import cats.effect.concurrent.Ref
+import cats.effect.kernel.{Async, Ref, Resource, Sync}
 
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
@@ -41,16 +40,14 @@ object Sink {
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
     Slf4jLogger.getLogger[F]
 
-  def init[F[_]: Concurrent: ContextShift: Parallel: Timer](
-    blocker: Blocker,
+  def init[F[_]: Async: Parallel](
     output: Output
   ): Resource[F, ByteSink[F]] =
     for {
-      sink <- initAttributed(blocker, output)
+      sink <- initAttributed(output)
     } yield (records: List[Array[Byte]]) => sink(records.map(AttributedData(_, UUID.randomUUID().toString, Map.empty)))
 
-  def initAttributed[F[_]: Concurrent: ContextShift: Parallel: Timer](
-    blocker: Blocker,
+  def initAttributed[F[_]: Async: Parallel](
     output: Output
   ): Resource[F, AttributedByteSink[F]] =
     output match {
@@ -59,7 +56,7 @@ object Sink {
           case Some(region) =>
             for {
               producer <- Resource.eval[F, AmazonKinesis](mkProducer(o, region))
-            } yield records => writeToKinesis(blocker, o, producer, toKinesisRecords(records))
+            } yield records => writeToKinesis(o, producer, toKinesisRecords(records))
           case None =>
             Resource.eval(Sync[F].raiseError(new RuntimeException(s"Region not found in the config and in the runtime")))
         }
@@ -95,8 +92,7 @@ object Sink {
                 }
     } yield exists
 
-  private def writeToKinesis[F[_]: ContextShift: Parallel: Sync: Timer](
-    blocker: Blocker,
+  private def writeToKinesis[F[_]: Async: Parallel](
     config: Output.Kinesis,
     kinesis: AmazonKinesis,
     records: List[PutRecordsRequestEntry]
@@ -108,7 +104,7 @@ object Sink {
       for {
         records <- ref.get
         failures <- group(records, config.recordLimit, config.byteLimit, getRecordSize)
-                      .parTraverse(g => tryWriteToKinesis(blocker, config, kinesis, g, policyForErrors))
+                      .parTraverse(g => tryWriteToKinesis(config, kinesis, g, policyForErrors))
         flattened = failures.flatten
         _ <- ref.set(flattened)
       } yield flattened
@@ -118,7 +114,7 @@ object Sink {
       failures <- runAndCaptureFailures(ref)
                     .retryingOnFailures(
                       policy = policyForThrottling,
-                      wasSuccessful = _.isEmpty,
+                      wasSuccessful = failures => Sync[F].pure(failures.isEmpty),
                       onFailure = {
                         case (result, retryDetails) =>
                           val msg = failureMessageForThrottling(result, config.streamName)
@@ -174,20 +170,19 @@ object Sink {
    *  If we are throttled by kinesis, the list contains throttled records and records that gave internal errors.
    *  If there is an exception, or if all records give internal errors, then we retry using the policy.
    */
-  private def tryWriteToKinesis[F[_]: ContextShift: Sync: Timer](
-    blocker: Blocker,
+  private def tryWriteToKinesis[F[_]: Async](
     config: Output.Kinesis,
     kinesis: AmazonKinesis,
     records: List[PutRecordsRequestEntry],
     retryPolicy: RetryPolicy[F]
   ): F[Vector[PutRecordsRequestEntry]] =
     Logger[F].debug(s"Writing ${records.size} records to ${config.streamName}") *>
-      blocker
-        .blockOn(Sync[F].delay(putRecords(kinesis, config.streamName, records)))
+      Sync[F]
+        .blocking(putRecords(kinesis, config.streamName, records))
         .map(TryBatchResult.build(records, _))
         .retryingOnFailuresAndAllErrors(
           policy = retryPolicy,
-          wasSuccessful = r => !r.shouldRetrySameBatch,
+          wasSuccessful = r => Sync[F].pure(!r.shouldRetrySameBatch),
           onFailure = {
             case (result, retryDetails) =>
               val msg = failureMessageForInternalErrors(records, config.streamName, result)

@@ -12,7 +12,7 @@ package com.snowplowanalytics.snowplow.enrich.common.adapters.registry
 
 import cats.data.NonEmptyList
 import cats.syntax.option._
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 import org.joda.time.DateTime
 import org.specs2.matcher.ValidatedMatchers
 import org.specs2.mutable.Specification
@@ -25,7 +25,7 @@ import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
 
-class SendgridAdapterSpec extends Specification with ValidatedMatchers with CatsIO {
+class SendgridAdapterSpec extends Specification with ValidatedMatchers with CatsEffect {
   object Shared {
     val api = CollectorPayload.Api("com.sendgrid", "v3")
     val cljSource = CollectorPayload.Source("clj-tomcat", "UTF-8", None)
@@ -223,7 +223,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
         Shared.cljSource,
         Shared.context
       )
-    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
+    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
 
     "return the correct number of events" in {
       actual.map { output =>
@@ -272,7 +272,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
     "reject empty bodies" in {
       val invalidpayload =
         CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
-      adapterWithDefaultSchemas.toRawEvents(invalidpayload, SpecHelpers.client).map(_ must beInvalid)
+      adapterWithDefaultSchemas.toRawEvents(invalidpayload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid)
     }
 
     "reject empty content type" in {
@@ -285,7 +285,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
           Shared.cljSource,
           Shared.context
         )
-      adapterWithDefaultSchemas.toRawEvents(invalidpayload, SpecHelpers.client).map(_ must beInvalid)
+      adapterWithDefaultSchemas.toRawEvents(invalidpayload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid)
     }
 
     "reject unexpected content type" in {
@@ -298,7 +298,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
           Shared.cljSource,
           Shared.context
         )
-      adapterWithDefaultSchemas.toRawEvents(invalidpayload, SpecHelpers.client).map(_ must beInvalid)
+      adapterWithDefaultSchemas.toRawEvents(invalidpayload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid)
     }
 
     "accept content types with explicit charsets" in {
@@ -311,7 +311,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
           Shared.cljSource,
           Shared.context
         )
-      adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client).map(_ must beValid)
+      adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beValid)
     }
 
     "reject unsupported event types" in {
@@ -340,7 +340,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
           Shared.context
         )
 
-      adapterWithDefaultSchemas.toRawEvents(invalidpayload, SpecHelpers.client).map(_ must beInvalid)
+      adapterWithDefaultSchemas.toRawEvents(invalidpayload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid)
     }
 
     "reject invalid/unparsable json" in {
@@ -355,7 +355,8 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
             Shared.cljSource,
             Shared.context
           ),
-          SpecHelpers.client
+          SpecHelpers.client,
+          SpecHelpers.registryLookup
         )
         .map(_ must beInvalid)
     }
@@ -372,7 +373,8 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
             Shared.cljSource,
             Shared.context
           ),
-          SpecHelpers.client
+          SpecHelpers.client,
+          SpecHelpers.registryLookup
         )
         .map(_ must beInvalid)
     }
@@ -410,7 +412,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
           Shared.context
         )
       adapterWithDefaultSchemas
-        .toRawEvents(payload, SpecHelpers.client)
+        .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(
           _ must beInvalid(
             NonEmptyList.one(
@@ -458,7 +460,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
         """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.sendgrid/processed/jsonschema/3-0-0","data":{"timestamp":"2015-11-03T11:20:15.000Z","email":"example@test.com","marketing_campaign_name":"campaign name","sg_event_id":"sZROwMGMagFgnOEmSdvhig==","smtp-id":"\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e","marketing_campaign_version":"B","marketing_campaign_id":12345,"marketing_campaign_split_id":13471,"category":"cat facts","sg_message_id":"14c5d75ce93.dfd.64b469.filter0001.16648.5515E0B88.0"}}}"""
 
       adapterWithDefaultSchemas
-        .toRawEvents(payload, SpecHelpers.client)
+        .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(
           _ must beValid(
             NonEmptyList.one(
@@ -523,7 +525,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
         )
 
       adapterWithDefaultSchemas
-        .toRawEvents(payload, SpecHelpers.client)
+        .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(_ must beValid.like {
           case nel: NonEmptyList[RawEvent] =>
             nel.toList must have size 1
@@ -587,7 +589,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
         """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.sendgrid/deferred/jsonschema/3-0-0","data":{"timestamp":"2015-11-03T11:20:15.000Z","email":"example@test.com","marketing_campaign_name":"campaign name","sg_event_id":"jWmZXTZbtHTV2-S47asrww==","smtp-id":"<14c5d75ce93.dfd.64b469@ismtpd-555>","marketing_campaign_version":"B","response":"400 try again later","marketing_campaign_id":12345,"marketing_campaign_split_id":13471,"category":"cat facts","attempt":"5","sg_message_id":"14c5d75ce93.dfd.64b469.filter0001.16648.5515E0B88.0"}}}"""
 
       adapter
-        .toRawEvents(payload, SpecHelpers.client)
+        .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(
           _ must beValid(
             NonEmptyList.of(

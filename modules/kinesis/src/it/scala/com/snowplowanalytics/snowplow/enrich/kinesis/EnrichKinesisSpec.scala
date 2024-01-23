@@ -16,7 +16,7 @@ import scala.concurrent.duration._
 
 import cats.effect.IO
 
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 
 import org.specs2.mutable.Specification
 import org.specs2.specification.AfterAll
@@ -24,9 +24,7 @@ import org.specs2.specification.AfterAll
 import com.snowplowanalytics.snowplow.enrich.kinesis.enrichments._
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test.CollectorPayloadGen
 
-class EnrichKinesisSpec extends Specification with AfterAll with CatsIO {
-
-  implicit val concurrentIO = IO.ioConcurrentEffect
+class EnrichKinesisSpec extends Specification with AfterAll with CatsEffect {
 
   override protected val Timeout = 10.minutes
 
@@ -63,7 +61,7 @@ class EnrichKinesisSpec extends Specification with AfterAll with CatsIO {
         enrichPipe <- mkEnrichPipe(Containers.localstackMappedPort, uuid)
       } yield enrichPipe
 
-      val input = CollectorPayloadGen.generate(nbGood, nbBad)
+      val input = CollectorPayloadGen.generate[IO](nbGood, nbBad)
 
       resources.use { enrich =>
         for {
@@ -105,7 +103,7 @@ class EnrichKinesisSpec extends Specification with AfterAll with CatsIO {
         enrichPipe <- mkEnrichPipe(Containers.localstackMappedPort, uuid)
       } yield enrichPipe
 
-      val input = CollectorPayloadGen.generate(nbGood)
+      val input = CollectorPayloadGen.generate[IO](nbGood)
 
       resources.use { enrich =>
         for {

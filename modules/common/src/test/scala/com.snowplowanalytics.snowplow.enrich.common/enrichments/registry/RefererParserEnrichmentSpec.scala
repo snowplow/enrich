@@ -16,8 +16,9 @@ import cats.data.EitherT
 import cats.syntax.either._
 
 import cats.effect.IO
+import cats.effect.unsafe.implicits.global
 
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 
 import io.circe.literal._
 
@@ -32,7 +33,7 @@ import com.snowplowanalytics.refererparser._
  * A small selection of tests partially borrowed from referer-parser.
  * This is a very imcomplete set - more a tripwire than an exhaustive test.
  */
-class RefererParserEnrichmentSpec extends Specification with DataTables with CatsIO {
+class RefererParserEnrichmentSpec extends Specification with DataTables with CatsEffect {
   def is = s2"""
   parsing referer URIs should work                     $e1
   tabs and newlines in search terms should be replaced $e2
@@ -88,9 +89,11 @@ class RefererParserEnrichmentSpec extends Specification with DataTables with Cat
              )
         e <- c.enrichment[IO]
         res = e.extractRefererDetails(new URI(refererUri), PageHost)
-      } yield res).value.map(_ must beRight.like {
-        case o => o must beSome(referer)
-      })
+      } yield res).value
+        .map(_ must beRight.like {
+          case o => o must beSome(referer)
+        })
+        .unsafeRunSync()
     }
 
   def e2 =

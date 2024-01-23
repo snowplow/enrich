@@ -21,7 +21,7 @@ import cats.data.NonEmptyList
 
 import cats.effect.IO
 
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 
 import com.snowplowanalytics.snowplow.badrows._
 
@@ -45,7 +45,7 @@ import com.snowplowanalytics.snowplow.enrich.common.utils.HttpClient
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
 
-class RemoteAdapterSpec extends Specification with ValidatedMatchers with CatsIO with BeforeAll with AfterAll {
+class RemoteAdapterSpec extends Specification with ValidatedMatchers with CatsEffect with BeforeAll with AfterAll {
 
   val mockServerPort = 8091
   val mockServerPath = "myEnrichment"
@@ -176,7 +176,7 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers with CatsIO
 
     SpecHelpers.httpClient.use { http =>
       adapter(http)
-        .toRawEvents(payload, SpecHelpers.client)
+        .toRawEvents(payload)
         .map(_ must beValid(expected))
     }
   }
@@ -188,12 +188,12 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers with CatsIO
       FailureDetails.AdapterFailure.InputData(
         "body",
         None,
-        "empty body: not a valid remote adapter http://localhost:8091/myEnrichment payload"
+        s"empty body: not a valid remote adapter http://localhost:$mockServerPort/$mockServerPath payload"
       )
     )
     SpecHelpers.httpClient.use { http =>
       adapter(http)
-        .toRawEvents(emptyListPayload, SpecHelpers.client)
+        .toRawEvents(emptyListPayload)
         .map(_ must beInvalid(expected))
     }
   }
@@ -205,12 +205,12 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers with CatsIO
       FailureDetails.AdapterFailure.InputData(
         "body",
         None,
-        "empty body: not a valid remote adapter http://localhost:8091/myEnrichment payload"
+        s"empty body: not a valid remote adapter http://localhost:$mockServerPort/$mockServerPath payload"
       )
     )
     SpecHelpers.httpClient.use { http =>
       adapter(http)
-        .toRawEvents(bodylessPayload, SpecHelpers.client)
+        .toRawEvents(bodylessPayload)
         .map(_ must beInvalid(expected))
     }
   }
@@ -236,7 +236,7 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers with CatsIO
     val expected = FailureDetails.AdapterFailure.InputData(
       "body",
       Some("""{"events":"response"}"""),
-      "[REMOTE_ADAPTER] could not be decoded as a list of json objects: C[A]: DownField(events)"
+      "[REMOTE_ADAPTER] could not be decoded as a list of json objects: Got value '\"response\"' with wrong type, expecting array: DownField(events)"
     )
     SpecHelpers.httpClient.use { http =>
       IO.pure(adapter(http).processResponse(bodylessPayload, unexpectedJsonResponse) must beLeft(expected))

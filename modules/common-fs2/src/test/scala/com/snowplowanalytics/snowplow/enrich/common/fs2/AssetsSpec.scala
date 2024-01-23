@@ -11,7 +11,6 @@
 package com.snowplowanalytics.snowplow.enrich.common.fs2
 
 import java.net.URI
-import java.nio.file.Paths
 
 import org.specs2.ScalaCheck
 import org.specs2.mutable.Specification
@@ -19,20 +18,23 @@ import org.specs2.mutable.Specification
 import scala.concurrent.duration._
 
 import fs2.Stream
-import fs2.io.file.exists
+import fs2.io.file.{Files, Path}
 
-import cats.effect.{Blocker, IO, Resource}
-import cats.effect.concurrent.Semaphore
+import cats.effect.IO
+import cats.effect.kernel.Resource
+import cats.effect.std.Semaphore
+import cats.effect.unsafe.implicits.global
 
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 
 import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, ShiftExecution}
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test._
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 
-class AssetsSpec extends Specification with CatsIO with ScalaCheck {
+class AssetsSpec extends Specification with CatsEffect with ScalaCheck {
 
   private val maxmind1Hash = "0fd4bf9af00cbad44d63d9ff9c37c6c7"
   private val maxmind2Hash = "49a8954ec059847562dfab9062a2c50f"
@@ -42,8 +44,8 @@ class AssetsSpec extends Specification with CatsIO with ScalaCheck {
 
   /** List of local files that have to be deleted after every test */
   private val TestFiles = List(
-    Paths.get(maxmindFile),
-    Paths.get(flakyFile)
+    Path(maxmindFile),
+    Path(flakyFile)
   )
 
   sequential
@@ -52,36 +54,28 @@ class AssetsSpec extends Specification with CatsIO with ScalaCheck {
     "download assets" in {
       val uri = URI.create("http://localhost:8080/maxmind/GeoIP2-City.mmdb")
       val filename = maxmindFile
-      val path = Paths.get("", filename)
+      val path = Path(filename)
 
       val assetsInit =
         Stream
           .eval(
-            SpecHelpers.refreshState(List(uri -> filename)).use(_.hashes.get.map(_.get(uri)))
+            refreshState(List(uri -> filename)).use(_.hashes.get.map(_.get(uri)))
           )
           .withHttp
           .haltAfter(1.second)
           .compile
           .toList
-          .map(_ == List(Some(Assets.Hash(maxmind1Hash))))
 
-      val resources =
+      SpecHelpers.filesResource(TestFiles).use { _ =>
         for {
-          blocker <- Blocker[IO]
-          files <- SpecHelpers.filesResource(blocker, TestFiles)
-        } yield (blocker, files)
-
-      resources.use {
-        case (blocker, _) =>
-          for {
-            assetExistsBefore <- exists[IO](blocker, path)
-            hash <- assetsInit
-            assetExists <- exists[IO](blocker, path)
-          } yield {
-            assetExistsBefore must beFalse
-            hash must beTrue
-            assetExists must beTrue
-          }
+          assetExistsBefore <- Files[IO].exists(path)
+          hashes <- assetsInit
+          assetExists <- Files[IO].exists(path)
+        } yield {
+          assetExistsBefore must beFalse
+          hashes must containTheSameElementsAs(List(Some(Assets.Hash(maxmind1Hash))))
+          assetExists must beTrue
+        }
       }
     }
   }
@@ -89,19 +83,17 @@ class AssetsSpec extends Specification with CatsIO with ScalaCheck {
   "downloadAndHash" should {
     "retry downloads" in {
       val uri = URI.create("http://localhost:8080/flaky")
-      val path = Paths.get(flakyFile)
+      val path = Path(flakyFile)
 
       val resources = for {
-        blocker <- Blocker[IO]
-        state <- SpecHelpers.refreshState(Nil)
-        _ <- SpecHelpers.filesResource(blocker, TestFiles)
-      } yield (blocker, state)
+        state <- refreshState(Nil)
+        _ <- SpecHelpers.filesResource(TestFiles)
+      } yield state
 
       Stream
         .resource(resources)
-        .evalMap {
-          case (blocker, state) =>
-            Assets.downloadAndHash(blocker, state.clients, uri, path)
+        .evalMap { state =>
+          Assets.downloadAndHash(state.clients, uri, path)
         }
         .withHttp
         .haltAfter(5.second)
@@ -116,24 +108,23 @@ class AssetsSpec extends Specification with CatsIO with ScalaCheck {
       val uri = URI.create("http://localhost:8080/maxmind/GeoIP2-City.mmdb")
       val filename = "maxmind"
       Stream
-        .resource(SpecHelpers.refreshState(List(uri -> filename)))
+        .resource(refreshState(List(uri -> filename)))
         .flatMap { state =>
           val resources =
             for {
-              blocker <- Blocker[IO]
-              shiftExecution <- ShiftExecution.ofSingleThread
+              shiftExecution <- ShiftExecution.ofSingleThread[IO]
               sem <- Resource.eval(Semaphore[IO](1L))
-              http4s <- Clients.mkHttp[IO](ec = SpecHelpers.blockingEC)
+              http4s <- Clients.mkHttp[IO]()
               http = HttpClient.fromHttp4sClient(http4s)
-              enrichments <- Environment.Enrichments.make[IO](List(), blocker, shiftExecution, http)
-              _ <- SpecHelpers.filesResource(blocker, TestFiles)
-            } yield (blocker, shiftExecution, sem, enrichments)
+              enrichments <- Environment.Enrichments.make[IO](List(), SpecHelpers.blockingEC, shiftExecution, http)
+              _ <- SpecHelpers.filesResource(TestFiles)
+            } yield (shiftExecution, sem, enrichments)
 
           val update = Stream
             .resource(resources)
             .flatMap {
-              case (blocker, shift, sem, enrichments) =>
-                Assets.updateStream[IO](blocker, shift, sem, state, enrichments, 1.second, List(uri -> filename))
+              case (shift, sem, enrichments) =>
+                Assets.updateStream[IO](shift, sem, state, enrichments, 1.second, List(uri -> filename), SpecHelpers.blockingEC)
             }
             .haltAfter(2.second)
 
@@ -157,10 +148,21 @@ class AssetsSpec extends Specification with CatsIO with ScalaCheck {
     "always create a valid MD5 hash" in {
       prop { (bytes: Array[Byte]) =>
         val input = Stream.emits(bytes).covary[IO]
-        Assets.Hash.fromStream(input).map { hash =>
-          hash.s.matches("^[a-f0-9]{32}$") must beTrue
-        }
+        Assets.Hash
+          .fromStream(input)
+          .map { hash =>
+            hash.s.matches("^[a-f0-9]{32}$") must beTrue
+          }
+          .unsafeRunSync()
       }
     }
   }
+
+  def refreshState(assets: List[Assets.Asset]): Resource[IO, Assets.State[IO]] =
+    for {
+      sem <- Resource.eval(Semaphore[IO](1L))
+      http <- Clients.mkHttp[IO]()
+      clients = Clients.init[IO](http, Nil)
+      state <- Resource.eval(Assets.State.make[IO](sem, clients, assets))
+    } yield state
 }

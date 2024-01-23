@@ -12,7 +12,7 @@ package com.snowplowanalytics.snowplow.enrich.common.adapters.registry
 
 import cats.data.NonEmptyList
 import cats.syntax.option._
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 import io.circe.literal._
 import org.joda.time.DateTime
 import org.specs2.Specification
@@ -26,7 +26,7 @@ import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
 
-class MandrillAdapterSpec extends Specification with DataTables with ValidatedMatchers with CatsIO {
+class MandrillAdapterSpec extends Specification with DataTables with ValidatedMatchers with CatsEffect {
   def is = s2"""
   payloadBodyToEvents must return a Success List[JValue] for a valid events string                      $e1
   payloadBodyToEvents must return a Failure String if the mapped events string is not in a valid format $e2
@@ -214,7 +214,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
         Shared.context
       )
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client).map(_ must beValid(expected))
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beValid(expected))
   }
 
   def e5 = { // Spec for nine seperate events where two have incorrect event names and one does not have event as a parameter
@@ -245,14 +245,14 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
         "cannot determine event type: type parameter not provided at index 2"
       )
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client).map(_ must beInvalid(expected))
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid(expected))
   }
 
   def e6 = {
     val payload =
       CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
       .map(
         _ must beInvalid(
           NonEmptyList.one(
@@ -268,7 +268,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
     val payload =
       CollectorPayload(Shared.api, Nil, None, body.some, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
       .map(
         _ must beInvalid(
           NonEmptyList.one(
@@ -288,7 +288,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
     val payload =
       CollectorPayload(Shared.api, Nil, ct, body.some, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
       .map(
         _ must beInvalid(
           NonEmptyList.one(

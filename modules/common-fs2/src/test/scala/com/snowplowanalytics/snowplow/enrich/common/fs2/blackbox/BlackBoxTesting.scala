@@ -14,9 +14,10 @@ import scala.collection.JavaConverters._
 
 import org.specs2.mutable.Specification
 
-import cats.effect.{Blocker, IO, Resource}
+import cats.effect.IO
+import cats.effect.kernel.Resource
 
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 
 import cats.data.Validated
 import cats.data.Validated.{Invalid, Valid}
@@ -43,13 +44,11 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.Enrich
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.FeatureFlags
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients
 
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 import com.snowplowanalytics.snowplow.enrich.common.fs2.EnrichSpec
-import com.snowplowanalytics.snowplow.enrich.common.fs2.SpecHelpers
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test.TestEnvironment
 
-object BlackBoxTesting extends Specification with CatsIO {
-
-  val blocker: Blocker = Blocker.liftExecutionContext(SpecHelpers.blockingEC)
+object BlackBoxTesting extends Specification with CatsEffect {
 
   private val serializer: TSerializer = new TSerializer()
 
@@ -102,7 +101,8 @@ object BlackBoxTesting extends Specification with CatsIO {
               None,
               EnrichSpec.processor,
               featureFlags,
-              IO.unit
+              IO.unit,
+              SpecHelpers.registryLookup
             )(
               input
             )
@@ -136,7 +136,7 @@ object BlackBoxTesting extends Specification with CatsIO {
   private def getEnrichmentRegistry(enrichmentConfig: Option[Json], igluClient: IgluCirceClient[IO]): Resource[IO, EnrichmentRegistry[IO]] =
     for {
       shift <- ShiftExecution.ofSingleThread[IO]
-      http4s <- Clients.mkHttp[IO](ec = SpecHelpers.blockingEC)
+      http4s <- Clients.mkHttp[IO]()
       http = HttpClient.fromHttp4sClient[IO](http4s)
       registry = enrichmentConfig match {
                    case None =>
@@ -146,12 +146,12 @@ object BlackBoxTesting extends Specification with CatsIO {
                        SchemaKey("com.snowplowanalytics.snowplow", "enrichments", "jsonschema", SchemaVer.Full(1, 0, 0))
                      val enrichmentsJson = SelfDescribingData(enrichmentsSchemaKey, Json.arr(json)).asJson
                      for {
-                       parsed <- EnrichmentRegistry.parse[IO](enrichmentsJson, igluClient, true)
+                       parsed <- EnrichmentRegistry.parse[IO](enrichmentsJson, igluClient, true, SpecHelpers.registryLookup)
                        confs <- parsed match {
                                   case Invalid(e) => IO.raiseError(new IllegalArgumentException(s"can't parse enrichmentsJson: $e"))
                                   case Valid(list) => IO.pure(list)
                                 }
-                       built <- EnrichmentRegistry.build[IO](confs, blocker, shift, http).value
+                       built <- EnrichmentRegistry.build[IO](confs, shift, http, SpecHelpers.blockingEC).value
                        registry <- built match {
                                      case Left(e) => IO.raiseError(new IllegalArgumentException(s"can't build EnrichmentRegistry: $e"))
                                      case Right(r) => IO.pure(r)

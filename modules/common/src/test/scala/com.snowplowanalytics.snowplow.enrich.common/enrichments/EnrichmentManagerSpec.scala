@@ -16,7 +16,7 @@ import org.specs2.mutable.Specification
 import org.specs2.matcher.EitherMatchers
 
 import cats.effect.IO
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 
 import cats.implicits._
 import cats.data.NonEmptyList
@@ -52,7 +52,7 @@ import com.snowplowanalytics.snowplow.enrich.common.AcceptInvalid
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
 
-class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsIO {
+class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsEffect {
   import EnrichmentManagerSpec._
 
   "enrichEvent" should {
@@ -85,7 +85,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.registryLookup
       )
       enriched.value
         .map(_ must beLeft.like {
@@ -121,7 +122,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.registryLookup
       )
       enriched.value
         .map(_ must beLeft.like {
@@ -168,7 +170,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.registryLookup
       )
       enriched.value
         .map(_ must beLeft.like {
@@ -236,7 +239,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.registryLookup
       )
       enriched.value
         .map(_ must beLeft.like {
@@ -300,7 +304,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.registryLookup
       )
       enriched.value.map(_ must beRight)
     }
@@ -364,7 +369,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.registryLookup
       )
       enriched.value.map(_ must beRight)
     }
@@ -428,7 +434,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.registryLookup
       )
       enriched.value.map(_ must beRight)
     }
@@ -492,7 +499,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.registryLookup
       )
       enriched.value.map(_ must beLeft)
     }
@@ -556,7 +564,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.registryLookup
       )
       enriched.value.map(_ must beLeft)
     }
@@ -626,7 +635,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.registryLookup
       )
       enriched.value.map(_ must beLeft)
     }
@@ -652,7 +662,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
               timestamp,
               rawEvent,
               AcceptInvalid.featureFlags,
-              IO.unit
+              IO.unit,
+              SpecHelpers.registryLookup
             )
             enriched.value.map(_ must beRight)
           }
@@ -680,7 +691,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
               timestamp,
               rawEvent,
               AcceptInvalid.featureFlags,
-              IO.unit
+              IO.unit,
+              SpecHelpers.registryLookup
             )
             enriched.value.map(_ must beRight)
           }
@@ -717,7 +729,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
               timestamp,
               rawEvent,
               AcceptInvalid.featureFlags,
-              IO.unit
+              IO.unit,
+              SpecHelpers.registryLookup
             )
             enriched.value.map(_ must beRight { ee: EnrichedEvent =>
               ee.se_value.toString must_== expected
@@ -742,7 +755,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.registryLookup
       )
       enriched.value.map { e =>
         val res1 = e.map(_.useragent) must beRight(qs_ua)
@@ -766,7 +780,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.registryLookup
       )
       enriched.value.map { e =>
         e.map(_.useragent) must beRight("header-useragent")
@@ -789,7 +804,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.registryLookup
       )
       enriched.value.map { e =>
         e.map(_.useragent) must beRight(ua)
@@ -813,7 +829,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.registryLookup
       )
       enriched.value.map { e =>
         val res1 = e.map(_.useragent) must beRight(qs_ua)
@@ -857,7 +874,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.registryLookup
       )
       enriched.value.map { e =>
         e.map(_.app_id) must beRight("moo")
@@ -1008,7 +1026,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        IO.unit
+        IO.unit,
+        SpecHelpers.registryLookup
       )
 
       enriched.value.map(_ must beRight.like {
@@ -1176,7 +1195,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
           timestamp,
           RawEvent(api, fatBody, None, source, context),
           featureFlags = AcceptInvalid.featureFlags.copy(acceptInvalid = false),
-          IO.unit
+          IO.unit,
+          SpecHelpers.registryLookup
         )
         .value
 
@@ -1203,7 +1223,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsI
           timestamp,
           RawEvent(api, fatBody, None, source, context),
           featureFlags = AcceptInvalid.featureFlags.copy(acceptInvalid = true),
-          IO.unit
+          IO.unit,
+          SpecHelpers.registryLookup
         )
         .value
 

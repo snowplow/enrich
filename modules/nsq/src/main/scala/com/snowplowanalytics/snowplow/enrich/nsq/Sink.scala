@@ -12,7 +12,7 @@ package com.snowplowanalytics.snowplow.enrich.nsq
 
 import scala.collection.JavaConverters._
 
-import cats.effect.{Blocker, ContextShift, Resource, Sync, Timer}
+import cats.effect.kernel.{Async, Resource, Sync}
 
 import cats.syntax.all._
 
@@ -32,27 +32,25 @@ object Sink {
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
     Slf4jLogger.getLogger[F]
 
-  def init[F[_]: Sync: ContextShift: Timer](
-    blocker: Blocker,
+  def init[F[_]: Async](
     output: Output
   ): Resource[F, ByteSink[F]] =
     for {
-      sink <- initAttributed(blocker, output)
+      sink <- initAttributed(output)
     } yield (records: List[Array[Byte]]) => sink(records.map(AttributedData(_, "", Map.empty)))
 
-  def initAttributed[F[_]: Sync: ContextShift: Timer](
-    blocker: Blocker,
+  def initAttributed[F[_]: Async](
     output: Output
   ): Resource[F, AttributedByteSink[F]] =
     output match {
       case config: Output.Nsq =>
-        createNsqProducer(blocker, config)
-          .map(p => sinkBatch[F](blocker, p, config.topic, config.backoffPolicy))
+        createNsqProducer(config)
+          .map(p => sinkBatch[F](p, config.topic, config.backoffPolicy))
       case c =>
         Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"Output $c is not NSQ")))
     }
 
-  private def createNsqProducer[F[_]: Sync: ContextShift](blocker: Blocker, config: Output.Nsq): Resource[F, NSQProducer] =
+  private def createNsqProducer[F[_]: Sync](config: Output.Nsq): Resource[F, NSQProducer] =
     Resource.make(
       Sync[F].delay {
         val producer = new NSQProducer()
@@ -60,21 +58,20 @@ object Sink {
         producer.start()
       }
     )(producer =>
-      blocker
-        .delay(producer.shutdown())
+      Sync[F]
+        .blocking(producer.shutdown())
         .handleErrorWith(e => Logger[F].error(s"Cannot terminate NSQ producer ${e.getMessage}"))
     )
 
-  private def sinkBatch[F[_]: Sync: ContextShift: Timer](
-    blocker: Blocker,
+  private def sinkBatch[F[_]: Async](
     producer: NSQProducer,
     topic: String,
     backoffPolicy: BackoffPolicy
   )(
     records: List[AttributedData[Array[Byte]]]
   ): F[Unit] =
-    blocker
-      .delay {
+    Sync[F]
+      .blocking {
         producer.produceMulti(topic, records.map(_.data).asJava)
       }
       .retryingOnAllErrors(

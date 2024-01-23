@@ -20,8 +20,6 @@ import cats.syntax.validated._
 import io.circe.Json
 import io.circe.syntax._
 
-import com.snowplowanalytics.iglu.client.IgluCirceClient
-
 import com.snowplowanalytics.snowplow.badrows._
 
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
@@ -48,12 +46,10 @@ final case class RemoteAdapter[F[_]: Monad](
    * @return a Validation boxing either a NEL of RawEvents on Success, or a NEL of Failure Strings
    */
   def toRawEvents(
-    payload: CollectorPayload,
-    igluClient: IgluCirceClient[F]
+    payload: CollectorPayload
   ): F[Adapted] =
     payload.body match {
       case Some(body) if body.nonEmpty =>
-        val _ = igluClient
         val json = Json.obj(
           "contentType" := payload.contentType,
           "queryString" := toMap(payload.querystring),

@@ -10,13 +10,12 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments
 
-import scala.concurrent.duration.TimeUnit
+import scala.concurrent.duration._
 
 import cats.effect.Clock
-
 import cats.effect.IO
 
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 
 import io.circe.Json
 import io.circe.literal.JsonStringContext
@@ -26,8 +25,9 @@ import org.specs2.mutable.Specification
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.CachingEvaluatorSpec.{TestClock, TestContext}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.CachingEvaluator
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.CachingEvaluator._
+import cats.Applicative
 
-class CachingEvaluatorSpec extends Specification with CatsIO {
+class CachingEvaluatorSpec extends Specification with CatsEffect {
 
   private val successTtl = 5
   private val errorTtl = 2
@@ -139,7 +139,8 @@ object CachingEvaluatorSpec {
   final class TestClock extends Clock[IO] {
     var secondsCounter: Long = 0
 
-    override def realTime(unit: TimeUnit): IO[Long] = IO.pure(secondsCounter)
-    override def monotonic(unit: TimeUnit): IO[Long] = IO.pure(secondsCounter)
+    override def applicative = Applicative[IO]
+    override def realTime: IO[FiniteDuration] = IO.pure(secondsCounter.seconds)
+    override def monotonic: IO[FiniteDuration] = IO.pure(secondsCounter.seconds)
   }
 }

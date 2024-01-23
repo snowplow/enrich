@@ -12,7 +12,7 @@ package com.snowplowanalytics.snowplow.enrich.common.adapters.registry
 
 import cats.data.NonEmptyList
 import cats.syntax.option._
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 import org.joda.time.DateTime
 import org.specs2.Specification
 import org.specs2.matcher.{DataTables, ValidatedMatchers}
@@ -26,7 +26,7 @@ import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
 
-class MailgunAdapterSpec extends Specification with DataTables with ValidatedMatchers with CatsIO {
+class MailgunAdapterSpec extends Specification with DataTables with ValidatedMatchers with CatsEffect {
   def is = s2"""
   toRawEvents must return a Success Nel if every event 'delivered' in the payload is successful                $e1
   toRawEvents must return a Success Nel if every event 'opened' in the payload is successful                   $e2
@@ -144,7 +144,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
         Shared.context
       )
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client).map(_ must beValid(expected))
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beValid(expected))
   }
 
   def e2 = {
@@ -211,7 +211,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
         Shared.context
       )
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client).map(_ must beValid(expected))
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beValid(expected))
   }
 
   def e3 = {
@@ -243,7 +243,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
         Shared.context
       )
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client).map(_ must beValid(expected))
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beValid(expected))
   }
 
   def e4 = {
@@ -275,7 +275,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
         Shared.context
       )
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client).map(_ must beValid(expected))
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beValid(expected))
   }
 
   def e5 = {
@@ -360,14 +360,14 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
         Shared.context
       )
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client).map(_ must beValid(expected))
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beValid(expected))
   }
 
   def e6 = {
     val payload =
       CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
       .map(
         _ must beInvalid(
           NonEmptyList.one(
@@ -383,7 +383,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     val payload =
       CollectorPayload(Shared.api, Nil, None, body.some, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
       .map(
         _ must beInvalid(
           NonEmptyList.one(
@@ -403,7 +403,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     val payload =
       CollectorPayload(Shared.api, Nil, ct.some, body.some, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
       .map(
         _ must beInvalid(
           NonEmptyList.one(
@@ -432,7 +432,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
         FailureDetails.AdapterFailure
           .InputData("body", None, "empty body: no events to process")
       )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client).map(_ must beInvalid(expected))
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid(expected))
   }
 
   def e10 = {
@@ -452,7 +452,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
         "no `event` parameter provided: cannot determine event type"
       )
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client).map(_ must beInvalid(expected))
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid(expected))
   }
 
   def e11 = {
@@ -473,7 +473,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
         "no schema associated with the provided type parameter"
       )
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client).map(_ must beInvalid(expected))
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid(expected))
   }
 
   def e12 = {
@@ -492,7 +492,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
         FailureDetails.AdapterFailure
           .InputData("timestamp", None, "missing 'timestamp'")
       )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client).map(_ must beInvalid(expected))
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid(expected))
   }
 
   def e13 = {
@@ -509,7 +509,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     val expected = NonEmptyList.one(
       FailureDetails.AdapterFailure.InputData("token", None, "missing 'token'")
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client).map(_ must beInvalid(expected))
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid(expected))
   }
 
   def e14 = {
@@ -528,6 +528,6 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
         FailureDetails.AdapterFailure
           .InputData("signature", None, "missing 'signature'")
       )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client).map(_ must beInvalid(expected))
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid(expected))
   }
 }

@@ -79,9 +79,10 @@ case class CloudfrontAccessLogAdapter(schemas: CloudfrontAccessLogSchemas) exten
    * @param client The Iglu client used for schema lookup and validation
    * @return a validation boxing either a NEL of raw events or a NEL of failure strings
    */
-  override def toRawEvents[F[_]: Monad: RegistryLookup: Clock](
+  override def toRawEvents[F[_]: Monad: Clock](
     payload: CollectorPayload,
-    client: IgluCirceClient[F]
+    client: IgluCirceClient[F],
+    registryLookup: RegistryLookup[F]
   ): F[Adapted] =
     payload.body match {
       case Some(p) =>

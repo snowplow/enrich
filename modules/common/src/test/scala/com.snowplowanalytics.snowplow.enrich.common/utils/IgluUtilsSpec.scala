@@ -13,7 +13,7 @@ package com.snowplowanalytics.snowplow.enrich.common.utils
 import org.specs2.mutable.Specification
 import org.specs2.matcher.ValidatedMatchers
 
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 
 import io.circe.parser.parse
 
@@ -30,7 +30,7 @@ import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 
-class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
+class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect {
 
   val raw = RawEvent(
     CollectorPayload.Api("vendor", "version"),
@@ -134,7 +134,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
   "extractAndValidateUnstructEvent" should {
     "return None if unstruct_event field is empty" >> {
       IgluUtils
-        .extractAndValidateUnstructEvent(new EnrichedEvent, SpecHelpers.client)
+        .extractAndValidateUnstructEvent(new EnrichedEvent, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(_ must beValid(None))
     }
 
@@ -143,7 +143,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
       input.setUnstruct_event(notJson)
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input, SpecHelpers.client)
+        .extractAndValidateUnstructEvent(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(_ must beInvalid.like {
           case _: FailureDetails.SchemaViolation.NotJson => ok
           case err => ko(s"[$err] is not NotJson")
@@ -155,7 +155,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
       input.setUnstruct_event(notIglu)
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input, SpecHelpers.client)
+        .extractAndValidateUnstructEvent(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(_ must beInvalid.like {
           case _: FailureDetails.SchemaViolation.NotIglu => ok
           case err => ko(s"[$err] is not NotIglu")
@@ -167,7 +167,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
       input.setUnstruct_event(noSchema)
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input, SpecHelpers.client)
+        .extractAndValidateUnstructEvent(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(_ must beInvalid.like {
           case _: FailureDetails.SchemaViolation.CriterionMismatch => ok
           case err => ko(s"[$err] is not CriterionMismatch")
@@ -179,7 +179,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
       input.setUnstruct_event(buildUnstruct(notJson))
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input, SpecHelpers.client)
+        .extractAndValidateUnstructEvent(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(_ must beInvalid.like {
           case _: FailureDetails.SchemaViolation.NotJson => ok
           case err => ko(s"[$err] is not NotJson")
@@ -191,7 +191,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
       input.setUnstruct_event(buildUnstruct(notIglu))
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input, SpecHelpers.client)
+        .extractAndValidateUnstructEvent(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(_ must beInvalid.like {
           case FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)) => ok
           case ie: FailureDetails.SchemaViolation.IgluError =>
@@ -205,7 +205,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
       input.setUnstruct_event(buildUnstruct(invalidEmailSent))
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input, SpecHelpers.client)
+        .extractAndValidateUnstructEvent(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(_ must beInvalid.like {
           case FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)) => ok
           case ie: FailureDetails.SchemaViolation.IgluError =>
@@ -219,7 +219,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
       input.setUnstruct_event(buildUnstruct(noSchema))
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input, SpecHelpers.client)
+        .extractAndValidateUnstructEvent(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(_ must beInvalid.like {
           case FailureDetails.SchemaViolation.IgluError(_, ResolutionError(_)) => ok
           case ie: FailureDetails.SchemaViolation.IgluError =>
@@ -233,7 +233,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
       input.setUnstruct_event(buildUnstruct(emailSent1))
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input, SpecHelpers.client)
+        .extractAndValidateUnstructEvent(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(_ must beValid.like {
           case Some(IgluUtils.SdjExtractResult(sdj, None)) if sdj.schema == emailSentSchema => ok
           case Some(s) =>
@@ -254,7 +254,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
       val expectedValidationInfo = IgluUtils.ValidationInfo(supersedingExampleSchema100, supersedingExampleSchema101.version)
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input1, SpecHelpers.client)
+        .extractAndValidateUnstructEvent(input1, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(_ must beValid.like {
           case Some(IgluUtils.SdjExtractResult(sdj, Some(`expectedValidationInfo`))) if sdj.schema == supersedingExampleSchema101 => ok
           case Some(s) =>
@@ -266,7 +266,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
 
       // input2 wouldn't be validated with 1-0-0. It would be validated with 1-0-1 only.
       IgluUtils
-        .extractAndValidateUnstructEvent(input2, SpecHelpers.client)
+        .extractAndValidateUnstructEvent(input2, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(_ must beValid.like {
           case Some(IgluUtils.SdjExtractResult(sdj, Some(`expectedValidationInfo`))) if sdj.schema == supersedingExampleSchema101 => ok
           case Some(s) =>
@@ -281,7 +281,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
   "extractAndValidateInputContexts" should {
     "return Nil if contexts field is empty" >> {
       IgluUtils
-        .extractAndValidateInputContexts(new EnrichedEvent, SpecHelpers.client)
+        .extractAndValidateInputContexts(new EnrichedEvent, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(_ must beValid(Nil))
     }
 
@@ -290,7 +290,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
       input.setContexts(notJson)
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client)
+        .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(_ must beInvalid.like {
           case NonEmptyList(_: FailureDetails.SchemaViolation.NotJson, Nil) => ok
           case err => ko(s"[$err] is not one NotJson")
@@ -302,7 +302,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
       input.setContexts(notIglu)
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client)
+        .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(_ must beInvalid.like {
           case NonEmptyList(_: FailureDetails.SchemaViolation.NotIglu, Nil) => ok
           case err => ko(s"[$err] is not one NotIglu")
@@ -314,7 +314,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
       input.setContexts(noSchema)
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client)
+        .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(_ must beInvalid.like {
           case NonEmptyList(_: FailureDetails.SchemaViolation.CriterionMismatch, Nil) => ok
           case err => ko(s"[$err] is not one CriterionMismatch")
@@ -328,7 +328,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
       input.setContexts(notArrayContexts)
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client)
+        .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(_ must beInvalid.like {
           case NonEmptyList(FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)), Nil) =>
             ok
@@ -343,7 +343,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
       input.setContexts(buildInputContexts(List(invalidEmailSent)))
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client)
+        .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(_ must beInvalid.like {
           case NonEmptyList(FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)), Nil) =>
             ok
@@ -358,7 +358,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
       input.setContexts(buildInputContexts(List(noSchema)))
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client)
+        .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(_ must beInvalid.like {
           case NonEmptyList(FailureDetails.SchemaViolation.IgluError(_, ResolutionError(_)), Nil) =>
             ok
@@ -373,7 +373,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
       input.setContexts(buildInputContexts(List(invalidEmailSent, noSchema)))
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client)
+        .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(_ must beInvalid.like {
           case NonEmptyList(
                 FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)),
@@ -389,7 +389,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
       input.setContexts(buildInputContexts(List(emailSent1, noSchema)))
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client)
+        .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(_ must beInvalid.like {
           case NonEmptyList(_: FailureDetails.SchemaViolation.IgluError, Nil) => ok
           case err => ko(s"[$err] is not one IgluError")
@@ -401,7 +401,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
       input.setContexts(buildInputContexts(List(emailSent1, emailSent2)))
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client)
+        .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(_ must beValid.like {
           case sdjs if sdjs.size == 2 && sdjs.forall(i => i.sdj.schema == emailSentSchema && i.validationInfo.isEmpty) =>
             ok
@@ -415,7 +415,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
       input.setContexts(buildInputContexts(List(clientSession)))
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client)
+        .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(_ must beValid.like {
           case sdj if sdj.size == 1 && sdj.forall(_.sdj.schema == clientSessionSchema) =>
             ok
@@ -429,7 +429,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
       input.setContexts(buildInputContexts(List(supersedingExample1, supersedingExample2)))
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client)
+        .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .map(_ must beValid.like {
           case sdj if sdj.size == 2 && sdj.forall(_.sdj.schema == supersedingExampleSchema101) =>
             ok
@@ -446,7 +446,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
       )
 
       IgluUtils
-        .validateEnrichmentsContexts(SpecHelpers.client, contexts, raw, processor, enriched)
+        .validateEnrichmentsContexts(SpecHelpers.client, contexts, raw, processor, enriched, SpecHelpers.registryLookup)
         .value
         .map(_ must beLeft.like {
           case BadRow.EnrichmentFailures(_, failures, _) =>
@@ -472,7 +472,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
       )
 
       IgluUtils
-        .validateEnrichmentsContexts(SpecHelpers.client, contexts, raw, processor, enriched)
+        .validateEnrichmentsContexts(SpecHelpers.client, contexts, raw, processor, enriched, SpecHelpers.registryLookup)
         .value
         .map(_ must beLeft.like {
           case BadRow.EnrichmentFailures(_, failures, _) =>
@@ -506,7 +506,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
       )
 
       IgluUtils
-        .validateEnrichmentsContexts(SpecHelpers.client, contexts, raw, processor, enriched)
+        .validateEnrichmentsContexts(SpecHelpers.client, contexts, raw, processor, enriched, SpecHelpers.registryLookup)
         .value
         .map(_ must beLeft.like {
           case BadRow.EnrichmentFailures(_, failures, _) =>
@@ -532,7 +532,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
       )
 
       IgluUtils
-        .validateEnrichmentsContexts(SpecHelpers.client, contexts, raw, processor, enriched)
+        .validateEnrichmentsContexts(SpecHelpers.client, contexts, raw, processor, enriched, SpecHelpers.registryLookup)
         .value
         .map(_ must beRight)
     }
@@ -548,7 +548,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
           input,
           SpecHelpers.client,
           raw,
-          processor
+          processor,
+          SpecHelpers.registryLookup
         )
         .value
         .map(_ must beLeft.like {
@@ -566,7 +567,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
           input,
           SpecHelpers.client,
           raw,
-          processor
+          processor,
+          SpecHelpers.registryLookup
         )
         .value
         .map(_ must beLeft.like {
@@ -585,7 +587,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
           input,
           SpecHelpers.client,
           raw,
-          processor
+          processor,
+          SpecHelpers.registryLookup
         )
         .value
         .map(_ must beLeft.like {
@@ -604,7 +607,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
           input,
           SpecHelpers.client,
           raw,
-          processor
+          processor,
+          SpecHelpers.registryLookup
         )
         .value
         .map(_ must beRight.like {
@@ -637,7 +641,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsIO {
           input,
           SpecHelpers.client,
           raw,
-          processor
+          processor,
+          SpecHelpers.registryLookup
         )
         .value
         .map(_ must beRight.like {

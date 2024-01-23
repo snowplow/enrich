@@ -12,7 +12,7 @@ package com.snowplowanalytics.snowplow.enrich.common.fs2.enrichments
 
 import cats.implicits._
 
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 
 import fs2.Stream
 
@@ -29,7 +29,7 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.test._
 
 import org.specs2.mutable.Specification
 
-class YauaaEnrichmentSpec extends Specification with CatsIO {
+class YauaaEnrichmentSpec extends Specification with CatsEffect {
 
   sequential
 

@@ -16,7 +16,7 @@ import org.apache.http.message.BasicNameValuePair
 
 import cats.implicits._
 
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 
 import org.specs2.mutable.Specification
 
@@ -43,7 +43,7 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.enrichments.ApiRequestEn
 import com.snowplowanalytics.snowplow.enrich.common.fs2.EnrichSpec
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test._
 
-class ApiRequestEnrichmentSpec extends Specification with CatsIO {
+class ApiRequestEnrichmentSpec extends Specification with CatsEffect {
 
   sequential
 

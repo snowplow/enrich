@@ -12,7 +12,7 @@ package com.snowplowanalytics.snowplow.enrich.common.adapters.registry
 
 import cats.data.NonEmptyList
 import cats.syntax.option._
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 import org.joda.time.DateTime
 import org.specs2.Specification
 import org.specs2.matcher.{DataTables, ValidatedMatchers}
@@ -25,7 +25,7 @@ import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
 
-class IgluAdapterSpec extends Specification with DataTables with ValidatedMatchers with CatsIO {
+class IgluAdapterSpec extends Specification with DataTables with ValidatedMatchers with CatsEffect {
   def is = s2"""
   toRawEvents should return a NEL containing one RawEvent if the CloudFront querystring is minimally populated           $e1
   toRawEvents should return a NEL containing one RawEvent if the CloudFront querystring is maximally populated           $e2
@@ -99,7 +99,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
           |}""".stripMargin.replaceAll("[\n\r]", "")
 
     IgluAdapter
-      .toRawEvents(payload, SpecHelpers.client)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
       .map(
         _ must beValid(
           NonEmptyList.one(
@@ -149,7 +149,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
     }
 
     IgluAdapter
-      .toRawEvents(payload, SpecHelpers.client)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
       .map(
         _ must beValid(
           NonEmptyList.one(
@@ -197,7 +197,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
     }
 
     IgluAdapter
-      .toRawEvents(payload, SpecHelpers.client)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
       .map(
         _ must beValid(
           NonEmptyList.one(
@@ -229,7 +229,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
           |}""".stripMargin.replaceAll("[\n\r]", "")
 
     IgluAdapter
-      .toRawEvents(payload, SpecHelpers.client)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
       .map(
         _ must beValid(
           NonEmptyList.one(
@@ -250,7 +250,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
     val payload = CollectorPayload(Shared.api, params, None, None, Shared.cfSource, Shared.context)
 
     IgluAdapter
-      .toRawEvents(payload, SpecHelpers.client)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
       .map(
         _ must beInvalid(
           NonEmptyList.of(
@@ -270,7 +270,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
     val payload = CollectorPayload(Shared.api, params, None, None, Shared.cfSource, Shared.context)
 
     IgluAdapter
-      .toRawEvents(payload, SpecHelpers.client)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
       .map(
         _ must beInvalid(
           NonEmptyList.of(
@@ -289,7 +289,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
     val payload = CollectorPayload(Shared.api, params, None, None, Shared.cfSource, Shared.context)
 
     IgluAdapter
-      .toRawEvents(payload, SpecHelpers.client)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
       .map(
         _ must beInvalid(
           NonEmptyList
@@ -331,7 +331,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
       Shared.context
     )
 
-    IgluAdapter.toRawEvents(payload, SpecHelpers.client).map(_ must beValid(NonEmptyList.one(expected)))
+    IgluAdapter.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beValid(NonEmptyList.one(expected)))
   }
 
   def e9 = {
@@ -356,7 +356,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
       "application/badtype".some,
       "expected one of application/json, application/json; charset=utf-8, application/x-www-form-urlencoded"
     )
-    IgluAdapter.toRawEvents(payload, SpecHelpers.client).map(_ must beInvalid(NonEmptyList.one(expected)))
+    IgluAdapter.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid(NonEmptyList.one(expected)))
   }
 
   def e10 = {
@@ -377,7 +377,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
       )
 
     IgluAdapter
-      .toRawEvents(payload, SpecHelpers.client)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
       .map(
         _ must beInvalid(
           NonEmptyList.one(
@@ -399,7 +399,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
       CollectorPayload(Shared.api, params, None, jsonStr.some, Shared.cljSource, Shared.context)
 
     IgluAdapter
-      .toRawEvents(payload, SpecHelpers.client)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
       .map(
         _ must beInvalid(
           NonEmptyList.one(
@@ -440,7 +440,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
       Shared.context
     )
 
-    IgluAdapter.toRawEvents(payload, SpecHelpers.client).map(_ must beValid(NonEmptyList.one(expected)))
+    IgluAdapter.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beValid(NonEmptyList.one(expected)))
   }
 
   def e13 = {
@@ -458,7 +458,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
       )
 
     IgluAdapter
-      .toRawEvents(payload, SpecHelpers.client)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
       .map(
         _ must beInvalid(
           NonEmptyList.one(
@@ -486,7 +486,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
       )
 
     IgluAdapter
-      .toRawEvents(payload, SpecHelpers.client)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
       .map(
         _ must beInvalid(
           NonEmptyList.one(
@@ -526,7 +526,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
       Shared.context
     )
 
-    IgluAdapter.toRawEvents(payload, SpecHelpers.client).map(_ must beValid(NonEmptyList.one(expected)))
+    IgluAdapter.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beValid(NonEmptyList.one(expected)))
   }
 
   def e16 = {
@@ -560,7 +560,9 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
       Shared.context
     )
 
-    IgluAdapter.toRawEvents(payload, SpecHelpers.client).map(_ must beValid(NonEmptyList.of(expected, expected)))
+    IgluAdapter
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .map(_ must beValid(NonEmptyList.of(expected, expected)))
   }
 
   def e17 = {
@@ -581,7 +583,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
       )
 
     IgluAdapter
-      .toRawEvents(payload, SpecHelpers.client)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
       .map(
         _ must beInvalid(
           NonEmptyList.one(

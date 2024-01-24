@@ -35,7 +35,7 @@ object Dependencies {
     val uaParser         = "1.5.4"
     val snakeYaml        = "1.33"
     val postgresDriver   = "42.5.2"
-    val mysqlConnector   = "8.0.29"
+    val mysqlConnector   = "8.3.0"
     val hikariCP         = "5.0.1"
     val jaywayJsonpath   = "2.7.0"
     val jsonsmart        = "2.4.10"
@@ -113,7 +113,7 @@ object Dependencies {
     val snakeYaml        = "org.yaml"                   %  "snakeyaml"                     % V.snakeYaml
     val uaParser         = "com.github.ua-parser"       %  "uap-java"                      % V.uaParser
     val postgresDriver   = "org.postgresql"             %  "postgresql"                    % V.postgresDriver
-    val mysqlConnector   = "mysql"                      %  "mysql-connector-java"          % V.mysqlConnector
+    val mysqlConnector   = "com.mysql"                  %  "mysql-connector-j"             % V.mysqlConnector
     val hikariCP         = ("com.zaxxer"                %  "HikariCP"                      % V.hikariCP)
                              .exclude("org.slf4j", "slf4j-api")
     val jaywayJsonpath   = "com.jayway.jsonpath"        %  "json-path"                     % V.jaywayJsonpath

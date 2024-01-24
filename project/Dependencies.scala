@@ -85,7 +85,7 @@ object Dependencies {
     val fs2Kafka         = "3.2.0"
     val fs2BlobStorage   = "0.9.12"
     val azureIdentity    = "1.11.0"
-    val http4s           = "0.23.15"
+    val http4s           = "0.23.25"
     val log4cats         = "2.6.0"
     val catsRetry        = "3.1.0"
     val specsDiff        = "0.6.0"
@@ -201,7 +201,7 @@ object Dependencies {
     val fs2BlobGcs       = "com.github.fs2-blobstore"         %% "gcs"                                   % V.fs2BlobStorage
     val fs2BlobAzure     = "com.github.fs2-blobstore"         %% "azure"                                 % V.fs2BlobStorage
     val http4sDsl        = "org.http4s"                       %% "http4s-dsl"                            % V.http4s          % Test
-    val http4sServer     = "org.http4s"                       %% "http4s-blaze-server"                   % V.http4s          % Test
+    val http4sServer     = "org.http4s"                       %% "http4s-ember-server"                   % V.http4s          % Test
     val trackerCore      = "com.snowplowanalytics"            %% "snowplow-scala-tracker-core"           % V.snowplowTracker
     val emitterHttps     = "com.snowplowanalytics"            %% "snowplow-scala-tracker-emitter-http4s" % V.snowplowTracker
 

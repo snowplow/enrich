@@ -18,6 +18,7 @@ import org.typelevel.ci.CIString
 
 import cats.effect.kernel.{Async, Resource}
 
+import fs2.io.net.Network
 import fs2.Stream
 
 import org.http4s.{Headers, Request, Uri}
@@ -66,6 +67,7 @@ object Clients {
     readTimeout: FiniteDuration = defaults.RequestTimeout,
     maxConnections: Int = 100 // default of Ember client
   ): Resource[F, Http4sClient[F]] = {
+    implicit val n = Network.forAsync[F]
     val builder = EmberClientBuilder
       .default[F]
       .withTimeout(readTimeout)

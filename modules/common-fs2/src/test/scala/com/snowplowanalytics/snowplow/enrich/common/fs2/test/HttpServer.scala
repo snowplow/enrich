@@ -20,9 +20,11 @@ import fs2.io.readInputStream
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
+import com.comcast.ip4s.Port
+
 import org.http4s.HttpRoutes
 import org.http4s.Method.GET
-import org.http4s.blaze.server.BlazeServerBuilder
+import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.dsl.io._
 import org.http4s.syntax.all._
 
@@ -87,12 +89,12 @@ object HttpServer extends CatsEffect {
   def resource: Resource[IO, Unit] =
     for {
       counter <- Resource.eval(Ref.of[IO, Int](0))
-      _ <- BlazeServerBuilder[IO]
-             .bindHttp(8080)
+      port = Port.fromInt(8080).get
+      _ <- EmberServerBuilder
+             .default[IO]
+             .withPort(port)
              .withHttpApp(routes(counter).orNotFound)
-             .withoutBanner
-             .withoutSsl
-             .resource
+             .build
     } yield ()
 
   private def readMaxMindDb(req: Int) = {

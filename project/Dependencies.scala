@@ -74,7 +74,7 @@ object Dependencies {
     val kafka            = "2.8.2"
     val mskAuth          = "1.1.4"
     val nsqClient        = "1.3.0"
-    val jackson          = "2.15.2"
+    val jackson          = "2.16.1"
     val config           = "1.3.4"
 
     val decline          = "1.0.0"
@@ -297,7 +297,7 @@ object Dependencies {
     val azureUtilsDependencies = Seq(
       fs2BlobAzure,
       azureIdentity,
-      jacksonDfXml
+      jacksonDfXml // for security vulnerabilities
     )
 
     val pubsubDependencies = Seq(

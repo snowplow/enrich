@@ -10,12 +10,17 @@
  */
 package com.snowplowanalytics.snowplow.enrich.nsq
 
-import cats.Parallel
+import scala.concurrent.duration._
 
+import cats.Parallel
 import cats.implicits._
 
 import cats.effect.{ExitCode, IO, IOApp}
 import cats.effect.kernel.{Resource, Sync}
+import cats.effect.metrics.CpuStarvationWarningMetrics
+
+import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Run
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.BlobStorageClients
@@ -30,6 +35,14 @@ import com.snowplowanalytics.snowplow.enrich.azure.AzureStorageClient
 import com.snowplowanalytics.snowplow.enrich.nsq.generated.BuildInfo
 
 object Main extends IOApp {
+
+  override def runtimeConfig =
+    super.runtimeConfig.copy(cpuStarvationCheckInterval = 10.seconds)
+
+  private implicit val logger: Logger[IO] = Slf4jLogger.getLogger[IO]
+
+  override def onCpuStarvationWarn(metrics: CpuStarvationWarningMetrics): IO[Unit] =
+    Logger[IO].debug(s"Cats Effect measured responsiveness in excess of ${metrics.starvationInterval * metrics.starvationThreshold}")
 
   // Nsq records must not exceed 1MB
   private val MaxRecordSize = 1000000

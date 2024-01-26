@@ -11,11 +11,17 @@
 
 package com.snowplowanalytics.snowplow.enrich.kafka
 
+import scala.concurrent.duration._
+
 import cats.{Applicative, Parallel}
 import cats.implicits._
 
 import cats.effect.{ExitCode, IO, IOApp}
 import cats.effect.kernel.Resource
+import cats.effect.metrics.CpuStarvationWarningMetrics
+
+import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import fs2.kafka.CommittableConsumerRecord
 
@@ -32,6 +38,14 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.Client
 import com.snowplowanalytics.snowplow.enrich.kafka.generated.BuildInfo
 
 object Main extends IOApp {
+
+  override def runtimeConfig =
+    super.runtimeConfig.copy(cpuStarvationCheckInterval = 10.seconds)
+
+  private implicit val logger: Logger[IO] = Slf4jLogger.getLogger[IO]
+
+  override def onCpuStarvationWarn(metrics: CpuStarvationWarningMetrics): IO[Unit] =
+    Logger[IO].debug(s"Cats Effect measured responsiveness in excess of ${metrics.starvationInterval * metrics.starvationThreshold}")
 
   // Kafka records must not exceed 1MB
   private val MaxRecordSize = 1000000

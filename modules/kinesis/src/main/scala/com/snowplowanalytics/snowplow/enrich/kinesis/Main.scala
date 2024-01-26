@@ -11,12 +11,14 @@
 package com.snowplowanalytics.snowplow.enrich.kinesis
 
 import scala.collection.mutable.ArrayBuffer
+import scala.concurrent.duration._
 
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import cats.effect.kernel.Sync
 import cats.effect.{ExitCode, IO, IOApp}
+import cats.effect.metrics.CpuStarvationWarningMetrics
 
 import cats.Parallel
 import cats.implicits._
@@ -34,11 +36,17 @@ import com.snowplowanalytics.snowplow.enrich.kinesis.generated.BuildInfo
 
 object Main extends IOApp {
 
-  // Kinesis records must not exceed 1 MB
-  private val MaxRecordSize = 1024 * 1024
+  override def runtimeConfig =
+    super.runtimeConfig.copy(cpuStarvationCheckInterval = 10.seconds)
 
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
     Slf4jLogger.getLogger[F]
+
+  override def onCpuStarvationWarn(metrics: CpuStarvationWarningMetrics): IO[Unit] =
+    Logger[IO].debug(s"Cats Effect measured responsiveness in excess of ${metrics.starvationInterval * metrics.starvationThreshold}")
+
+  // Kinesis records must not exceed 1 MB
+  private val MaxRecordSize = 1024 * 1024
 
   def run(args: List[String]): IO[ExitCode] =
     Run.run[IO, CommittableRecord](

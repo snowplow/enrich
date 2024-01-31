@@ -32,7 +32,7 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Output.{Kafka 
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test.CollectorPayloadGen
 
-import com.snowplowanalytics.snowplow.enrich.kafka.{Sink, Source}
+import com.snowplowanalytics.snowplow.enrich.kafka._
 
 class EnrichKafkaSpec extends Specification with CatsEffect {
 
@@ -58,16 +58,20 @@ class EnrichKafkaSpec extends Specification with CatsEffect {
       "group.id" -> "it-enrich",
       "auto.offset.reset" -> "earliest",
       "key.deserializer" -> "org.apache.kafka.common.serialization.StringDeserializer",
-      "value.deserializer" -> "org.apache.kafka.common.serialization.ByteArrayDeserializer"
+      "value.deserializer" -> "org.apache.kafka.common.serialization.ByteArrayDeserializer",
+      "security.protocol" -> "PLAINTEXT",
+      "sasl.mechanism" -> "GSSAPI"
   )
 
   val producerConf: Map[String, String] = Map(
-    "acks" -> "all"
+    "acks" -> "all",
+    "security.protocol" -> "PLAINTEXT",
+    "sasl.mechanism" -> "GSSAPI"
   )
 
   def run(): IO[Aggregates] = {
 
-    val resources = Sink.init[IO](OutKafka(collectorPayloadsStream, bootstrapServers, "", Set.empty, producerConf))
+    val resources = Sink.init[IO](OutKafka(collectorPayloadsStream, bootstrapServers, "", Set.empty, producerConf), classOf[SourceAuthHandler].getName)
 
     resources.use { sink =>
       val generate =
@@ -79,10 +83,10 @@ class EnrichKafkaSpec extends Specification with CatsEffect {
         consumeGood(refGood).merge(consumeBad(refBad))
 
       def consumeGood(ref: Ref[IO, AggregateGood]): Stream[IO, Unit] =
-        Source.init[IO](InKafka(enrichedStream, bootstrapServers, consumerConf)).map(_.record.value).evalMap(aggregateGood(_, ref))
+        Source.init[IO](InKafka(enrichedStream, bootstrapServers, consumerConf), classOf[GoodSinkAuthHandler].getName).map(_.record.value).evalMap(aggregateGood(_, ref))
 
       def consumeBad(ref: Ref[IO, AggregateBad]): Stream[IO, Unit] =
-        Source.init[IO](InKafka(badRowsStream, bootstrapServers, consumerConf)).map(_.record.value).evalMap(aggregateBad(_, ref))
+        Source.init[IO](InKafka(badRowsStream, bootstrapServers, consumerConf), classOf[BadSinkAuthHandler].getName).map(_.record.value).evalMap(aggregateBad(_, ref))
 
       def aggregateGood(r: Array[Byte], ref: Ref[IO, AggregateGood]): IO[Unit] =
         for {

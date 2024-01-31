@@ -21,19 +21,23 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input
 object Source {
 
   def init[F[_]: Async](
-    input: Input
+    input: Input,
+    authCallbackClass: String
   ): Stream[F, CommittableConsumerRecord[F, String, Array[Byte]]] =
     input match {
-      case k: Input.Kafka => kafka(k)
+      case k: Input.Kafka => kafka(k, authCallbackClass)
       case i => Stream.raiseError[F](new IllegalArgumentException(s"Input $i is not Kafka"))
     }
 
   def kafka[F[_]: Async](
-    input: Input.Kafka
+    input: Input.Kafka,
+    authCallbackClass: String
   ): Stream[F, CommittableConsumerRecord[F, String, Array[Byte]]] = {
     val consumerSettings =
       ConsumerSettings[F, String, Array[Byte]]
         .withBootstrapServers(input.bootstrapServers)
+        // set before user-provided config to make it possible to override it via config
+        .withProperty("sasl.login.callback.handler.class", authCallbackClass)
         .withProperties(input.consumerConf)
         .withEnableAutoCommit(false) // prevent enabling auto-commits by setting this after user-provided config
         .withProperties(

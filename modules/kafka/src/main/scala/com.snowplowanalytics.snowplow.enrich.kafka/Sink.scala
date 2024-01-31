@@ -26,18 +26,20 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Output
 object Sink {
 
   def init[F[_]: Async: Parallel](
-    output: Output
+    output: Output,
+    authCallbackClass: String
   ): Resource[F, ByteSink[F]] =
     for {
-      sink <- initAttributed(output)
+      sink <- initAttributed(output, authCallbackClass)
     } yield (records: List[Array[Byte]]) => sink(records.map(AttributedData(_, UUID.randomUUID().toString, Map.empty)))
 
   def initAttributed[F[_]: Async: Parallel](
-    output: Output
+    output: Output,
+    authCallbackClass: String
   ): Resource[F, AttributedByteSink[F]] =
     output match {
       case k: Output.Kafka =>
-        mkProducer(k).map { producer => records =>
+        mkProducer(k, authCallbackClass).map { producer => records =>
           records.parTraverse_ { record =>
             producer
               .produceOne_(toProducerRecord(k.topicName, record))
@@ -49,11 +51,14 @@ object Sink {
     }
 
   private def mkProducer[F[_]: Async](
-    output: Output.Kafka
+    output: Output.Kafka,
+    authCallbackClass: String
   ): Resource[F, KafkaProducer[F, String, Array[Byte]]] = {
     val producerSettings =
       ProducerSettings[F, String, Array[Byte]]
         .withBootstrapServers(output.bootstrapServers)
+        // set before user-provided config to make it possible to override it via config
+        .withProperty("sasl.login.callback.handler.class", authCallbackClass)
         .withProperties(output.producerConf)
         .withProperties(
           ("key.serializer", "org.apache.kafka.common.serialization.StringSerializer"),

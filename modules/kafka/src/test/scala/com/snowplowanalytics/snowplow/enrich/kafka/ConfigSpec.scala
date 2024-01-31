@@ -46,7 +46,10 @@ class ConfigSpec extends Specification with CatsEffect {
             "auto.offset.reset" -> "earliest",
             "session.timeout.ms" -> "45000",
             "enable.auto.commit" -> "false",
-            "group.id" -> "enrich"
+            "group.id" -> "enrich",
+            "security.protocol" -> "SASL_SSL",
+            "sasl.mechanism" -> "OAUTHBEARER",
+            "sasl.jaas.config" -> "org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required;"
           )
         ),
         io.Outputs(
@@ -55,7 +58,12 @@ class ConfigSpec extends Specification with CatsEffect {
             "localhost:9092",
             "app_id",
             Set("app_id"),
-            Map("acks" -> "all")
+            Map(
+              "acks" -> "all",
+              "security.protocol" -> "SASL_SSL",
+              "sasl.mechanism" -> "OAUTHBEARER",
+              "sasl.jaas.config" -> "org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required;"
+            )
           ),
           Some(
             io.Output.Kafka(
@@ -63,7 +71,12 @@ class ConfigSpec extends Specification with CatsEffect {
               "localhost:9092",
               "app_id",
               Set("app_id"),
-              Map("acks" -> "all")
+              Map(
+                "acks" -> "all",
+                "security.protocol" -> "SASL_SSL",
+                "sasl.mechanism" -> "OAUTHBEARER",
+                "sasl.jaas.config" -> "org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required;"
+              )
             )
           ),
           io.Output.Kafka(
@@ -71,7 +84,12 @@ class ConfigSpec extends Specification with CatsEffect {
             "localhost:9092",
             "",
             Set(),
-            Map("acks" -> "all")
+            Map(
+              "acks" -> "all",
+              "security.protocol" -> "SASL_SSL",
+              "sasl.mechanism" -> "OAUTHBEARER",
+              "sasl.jaas.config" -> "org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required;"
+            )
           )
         ),
         io.Concurrency(256, 1),
@@ -151,7 +169,10 @@ class ConfigSpec extends Specification with CatsEffect {
           Map(
             "auto.offset.reset" -> "earliest",
             "enable.auto.commit" -> "false",
-            "group.id" -> "enrich"
+            "group.id" -> "enrich",
+            "security.protocol" -> "SASL_SSL",
+            "sasl.mechanism" -> "OAUTHBEARER",
+            "sasl.jaas.config" -> "org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required;"
           )
         ),
         io.Outputs(
@@ -160,7 +181,12 @@ class ConfigSpec extends Specification with CatsEffect {
             "localhost:9092",
             "",
             Set(),
-            Map("acks" -> "all")
+            Map(
+              "acks" -> "all",
+              "security.protocol" -> "SASL_SSL",
+              "sasl.mechanism" -> "OAUTHBEARER",
+              "sasl.jaas.config" -> "org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required;"
+            )
           ),
           None,
           io.Output.Kafka(
@@ -168,7 +194,12 @@ class ConfigSpec extends Specification with CatsEffect {
             "localhost:9092",
             "",
             Set(),
-            Map("acks" -> "all")
+            Map(
+              "acks" -> "all",
+              "security.protocol" -> "SASL_SSL",
+              "sasl.mechanism" -> "OAUTHBEARER",
+              "sasl.jaas.config" -> "org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required;"
+            )
           )
         ),
         io.Concurrency(256, 1),

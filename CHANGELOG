@@ -1,3 +1,7 @@
+3.8.3 (2024-02-09)
+------------------
+enrich-nsq: use default aws provider chain (#866)
+
 3.8.2 (2023-09-07)
 ------------------
 Update default schema versions for the Sendgrid adapter to 3-0-0 (#797)

@@ -74,6 +74,16 @@ object SpecHelpers extends CatsEffect {
               "path": "/iglu-schemas"
             }
           }
+        },
+        {
+          "name": "Iglu Central custom branch",
+          "priority": 10,
+          "vendorPrefixes": [],
+          "connection": {
+            "http": {
+              "uri": "https://raw.githubusercontent.com/snowplow/iglu-central/js-script-config-101"
+            }
+          }
         }
       ]
     }

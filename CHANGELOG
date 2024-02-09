@@ -1,3 +1,7 @@
+4.0.1 (2024-02-09)
+------------------
+Use default aws provider chain in S3 client (#866)
+
 4.0.0 (2024-01-29)
 ------------------
 Bump aws-msk-iam-aut to 2.0.3 (#857)

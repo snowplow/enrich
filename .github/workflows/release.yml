@@ -8,40 +8,6 @@ on:
       - 'snapshot/**'
 
 jobs:
-  github_release:
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-    - uses: coursier/cache-action@v6
-    - name: Set up JDK 11
-      uses: actions/setup-java@v1
-      with:
-        java-version: 11
-    - name: Get current version
-      id: ver
-      run: echo "::set-output name=tag::${GITHUB_REF#refs/tags/}"
-    - name: Assemble fat jars
-      run: |
-        sbt "project pubsub; set assembly / test := {}; assembly" \
-            "project kinesis; set assembly / test := {}; assembly" \
-            "project kafka; set assembly / test := {}; assembly" \
-            "project nsq; set assembly / test := {}; assembly"
-    - name: Create GitHub release and attach artifacts
-      uses: softprops/action-gh-release@v1
-      with:
-        draft: true
-        prerelease: ${{ contains(steps.ver.outputs.tag, 'rc') }}
-        name: ${{ steps.ver.outputs.tag }}
-        tag_name: ${{ steps.ver.outputs.tag }}
-        files: |
-          modules/pubsub/target/scala-2.12/snowplow-enrich-pubsub-${{ steps.ver.outputs.tag }}.jar
-          modules/kinesis/target/scala-2.12/snowplow-enrich-kinesis-${{ steps.ver.outputs.tag }}.jar
-          modules/kafka/target/scala-2.12/snowplow-enrich-kafka-${{ steps.ver.outputs.tag }}.jar
-          modules/nsq/target/scala-2.12/snowplow-enrich-nsq-${{ steps.ver.outputs.tag }}.jar
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   publish_docker:
     if: startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/heads/snapshot')
     runs-on: ubuntu-latest

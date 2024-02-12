@@ -12,7 +12,6 @@
 import sbt._
 import sbt.Keys._
 import sbt.nio.Keys.{ReloadOnSourceChanges, onChangedBuildSource}
-import sbtassembly.AssemblyPlugin.autoImport._
 import sbtbuildinfo.BuildInfoPlugin.autoImport.{BuildInfoKey, buildInfoKeys, buildInfoPackage}
 import sbtdynver.DynVerPlugin.autoImport._
 import com.typesafe.sbt.SbtNativePackager.autoImport._
@@ -147,33 +146,6 @@ object BuildSettings {
     )
   )
 
-  lazy val assemblySettings = Seq(
-    assembly / assemblyJarName := { s"${moduleName.value}-${version.value}.jar" },
-    assembly / assemblyMergeStrategy := {
-      case x if x.endsWith(".properties") => MergeStrategy.first
-      case x if x.endsWith("public-suffix-list.txt") => MergeStrategy.first
-      case x if x.endsWith("ProjectSettings$.class") => MergeStrategy.first
-      case x if x.endsWith("module-info.class") => MergeStrategy.first
-      case x if x.endsWith("nowarn.class") => MergeStrategy.first
-      case x if x.endsWith("nowarn$.class") => MergeStrategy.first
-      case x if x.endsWith("log4j.properties") => MergeStrategy.first
-      case x if x.endsWith(".proto") => MergeStrategy.first
-      case x if x.endsWith("reflection-config.json") => MergeStrategy.first
-      case x if x.endsWith("config.fmpp") => MergeStrategy.first
-      case x if x.contains("simulacrum") => MergeStrategy.first
-      case x if x.endsWith("git.properties") => MergeStrategy.discard
-      case x if x.endsWith(".json") => MergeStrategy.first
-      case x if x.endsWith("AUTHORS") => MergeStrategy.first
-      case x if x.endsWith(".config") => MergeStrategy.first
-      case x if x.endsWith(".types") => MergeStrategy.first
-      case x if x.contains("netty") => MergeStrategy.first
-      case x if x.contains("FastDoubleParser-NOTICE") => MergeStrategy.first
-      case x =>
-        val oldStrategy = (assembly / assemblyMergeStrategy).value
-        oldStrategy(x)
-    }
-  )
-
   lazy val dockerSettingsFocal = Seq(
     Universal / javaOptions ++= Seq("-Dnashorn.args=--language=es6")
   )
@@ -250,7 +222,7 @@ object BuildSettings {
     // Project
     pubsubProjectSettings ++ buildSettings ++
     // Build and publish
-    assemblySettings ++ dockerSettingsFocal ++
+    dockerSettingsFocal ++
       Seq(Docker / packageName := "snowplow-enrich-pubsub") ++
     // Tests
     scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp
@@ -262,7 +234,7 @@ object BuildSettings {
     // Project
     kinesisProjectSettings ++ buildSettings ++
     // Build and publish
-    assemblySettings ++ dockerSettingsFocal ++
+    dockerSettingsFocal ++
       Seq(Docker / packageName := "snowplow-enrich-kinesis") ++
     // Tests
     scoverageSettings ++ noParallelTestExecution ++ Seq(Test / fork := true) ++ addExampleConfToTestCp
@@ -274,7 +246,7 @@ object BuildSettings {
     // Project
     kafkaProjectSettings ++ buildSettings ++
     // Build and publish
-    assemblySettings ++ dockerSettingsFocal ++
+    dockerSettingsFocal ++
       Seq(Docker / packageName := "snowplow-enrich-kafka") ++
     // Tests
     scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp
@@ -286,7 +258,7 @@ object BuildSettings {
     // Project
     nsqProjectSettings ++ buildSettings ++
       // Build and publish
-      assemblySettings ++ dockerSettingsFocal ++
+      dockerSettingsFocal ++
       Seq(Docker / packageName := "snowplow-enrich-nsq") ++
       // Tests
       scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp

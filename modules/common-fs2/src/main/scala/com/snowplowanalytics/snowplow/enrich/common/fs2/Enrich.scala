@@ -72,7 +72,8 @@ object Enrich {
         env.featureFlags,
         env.metrics.invalidCount,
         env.registryLookup,
-        env.atomicFields
+        env.atomicFields,
+        env.sinkIncomplete.isDefined
       )
 
     val enriched =
@@ -119,7 +120,8 @@ object Enrich {
     featureFlags: FeatureFlags,
     invalidCount: F[Unit],
     registryLookup: RegistryLookup[F],
-    atomicFields: AtomicFields
+    atomicFields: AtomicFields,
+    emitIncomplete: Boolean
   )(
     row: Array[Byte]
   ): F[Result] = {
@@ -141,7 +143,7 @@ object Enrich {
                       invalidCount,
                       registryLookup,
                       atomicFields,
-                      emitIncomplete = true
+                      emitIncomplete
                     )
       } yield (enriched, collectorTstamp)
 
@@ -190,8 +192,7 @@ object Enrich {
     chunk: List[Result],
     env: Environment[F, A]
   ): F[Unit] = {
-    //val (bad, enriched, incomplete) =
-    val (bad, enriched, _) =
+    val (bad, enriched, incomplete) =
       chunk
         .flatMap(_._1)
         .foldLeft((List.empty[BadRow], List.empty[EnrichedEvent], List.empty[EnrichedEvent])) {
@@ -209,6 +210,11 @@ object Enrich {
         .map(bytes => (e, AttributedData(bytes, env.goodPartitionKey(e), env.goodAttributes(e))))
     }.separate
 
+    val (incompleteTooBig, incompleteBytes) = incomplete.map { e =>
+      serializeEnriched(e, env.processor, env.streamsSettings.maxRecordSize)
+        .map(bytes => AttributedData(bytes, env.goodPartitionKey(e), env.goodAttributes(e)))
+    }.separate
+
     val allBad = (bad ++ moreBad).map(badRowResize(env, _))
 
     List(
@@ -223,7 +229,10 @@ object Enrich {
         env.processor,
         env.streamsSettings.maxRecordSize
       ) *> env.metrics.enrichLatency(chunk.headOption.flatMap(_._2)),
-      sinkBad(allBad, env.sinkBad, env.metrics.badCount)
+      sinkBad(allBad, env.sinkBad, env.metrics.badCount),
+      if (incompleteTooBig.nonEmpty) Logger[F].warn(s"${incompleteTooBig.size} incomplete events discarded because they are too big")
+      else Sync[F].unit,
+      sinkIncomplete(incompleteBytes, env.sinkIncomplete)
     ).parSequence_
   }
 
@@ -279,6 +288,15 @@ object Enrich {
         sink(serialized) *> logging
       case None =>
         Sync[F].unit
+    }
+
+  def sinkIncomplete[F[_]: Sync](
+    incomplete: List[AttributedData[Array[Byte]]],
+    maybeSink: Option[AttributedByteSink[F]]
+  ): F[Unit] =
+    maybeSink match {
+      case Some(sink) => sink(incomplete)
+      case None => Sync[F].unit
     }
 
   def serializeEnriched(

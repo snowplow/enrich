@@ -77,7 +77,8 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
             EnrichSpec.featureFlags,
             IO.unit,
             SpecHelpers.registryLookup,
-            AtomicFields.from(valueLimits = Map.empty)
+            AtomicFields.from(valueLimits = Map.empty),
+            SpecHelpers.emitIncomplete
           )(
             EnrichSpec.payload
           )
@@ -107,7 +108,8 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
                 EnrichSpec.featureFlags,
                 IO.unit,
                 SpecHelpers.registryLookup,
-                AtomicFields.from(valueLimits = Map.empty)
+                AtomicFields.from(valueLimits = Map.empty),
+                SpecHelpers.emitIncomplete
               )(
                 payload
               )
@@ -145,7 +147,8 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
             EnrichSpec.featureFlags.copy(tryBase64Decoding = true),
             IO.unit,
             SpecHelpers.registryLookup,
-            AtomicFields.from(valueLimits = Map.empty)
+            AtomicFields.from(valueLimits = Map.empty),
+            SpecHelpers.emitIncomplete
           )(
             Base64.getEncoder.encode(EnrichSpec.payload)
           )
@@ -169,7 +172,8 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
             EnrichSpec.featureFlags,
             IO.unit,
             SpecHelpers.registryLookup,
-            AtomicFields.from(valueLimits = Map.empty)
+            AtomicFields.from(valueLimits = Map.empty),
+            SpecHelpers.emitIncomplete
           )(
             Base64.getEncoder.encode(EnrichSpec.payload)
           )

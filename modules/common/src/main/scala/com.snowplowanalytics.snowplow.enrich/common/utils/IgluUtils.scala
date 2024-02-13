@@ -225,14 +225,13 @@ object IgluUtils {
     sdjs: List[SelfDescribingData[Json]],
     registryLookup: RegistryLookup[F]
   ): IorT[F, NonEmptyList[(SchemaKey, ClientError)], List[SelfDescribingData[Json]]] =
-    sdjs
-      .map { sdj =>
-        check(client, sdj, registryLookup)
-          .map(_ => List(sdj))
-          .leftMap(NonEmptyList.one)
-          .toIor
-          .recoverWith { case errors => IorT.fromIor[F](Ior.Both(errors, Nil)) }
-      }.foldA
+    sdjs.map { sdj =>
+      check(client, sdj, registryLookup)
+        .map(_ => List(sdj))
+        .leftMap(NonEmptyList.one)
+        .toIor
+        .recoverWith { case errors => IorT.fromIor[F](Ior.Both(errors, Nil)) }
+    }.foldA
 
   /** Parse a Json as a SDJ and check that it's valid */
   private def parseAndValidateSDJ[F[_]: Monad: Clock](

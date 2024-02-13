@@ -104,7 +104,8 @@ object BlackBoxTesting extends Specification with CatsEffect {
               featureFlags,
               IO.unit,
               SpecHelpers.registryLookup,
-              AtomicFields.from(valueLimits = Map.empty)
+              AtomicFields.from(valueLimits = Map.empty),
+              SpecHelpers.emitIncomplete
             )(
               input
             )

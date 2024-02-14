@@ -14,7 +14,7 @@ import java.nio.charset.Charset
 import java.time.Instant
 import java.util.UUID
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.util.control.NonFatal
 
 import cats.data.{NonEmptyList, ValidatedNel}

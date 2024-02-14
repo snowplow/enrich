@@ -12,7 +12,7 @@ package com.snowplowanalytics.snowplow.enrich.common.fs2.io
 
 import java.nio.file.{Files, Path}
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.io.{Source => SSource}
 
 import cats.data.EitherT

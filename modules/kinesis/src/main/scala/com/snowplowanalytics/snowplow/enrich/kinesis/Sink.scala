@@ -13,7 +13,7 @@ package com.snowplowanalytics.snowplow.enrich.kinesis
 import java.nio.ByteBuffer
 import java.util.UUID
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import cats.implicits._
 import cats.{Monoid, Parallel}

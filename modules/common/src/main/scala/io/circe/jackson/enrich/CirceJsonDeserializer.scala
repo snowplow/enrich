@@ -19,7 +19,7 @@ import io.circe.jackson.{DeserializerContext, JacksonCompat, ReadingList, Readin
 import io.circe.{Json, JsonBigDecimal, JsonLong}
 
 import scala.annotation.{switch, tailrec}
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 private[jackson] final class CirceJsonDeserializer(klass: Class[_]) extends JsonDeserializer[Object] with JacksonCompat {
   override def isCachable: Boolean = true

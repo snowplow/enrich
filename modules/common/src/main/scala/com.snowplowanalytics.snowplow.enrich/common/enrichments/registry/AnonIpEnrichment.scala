@@ -150,6 +150,7 @@ final case class AnonIpEnrichment(ipv4Octets: AnonIPv4Octets.AnonIPv4Octets, ipv
         .map {
           case _: Inet4Address => anonymizeIpV4(ip)
           case ipv6: Inet6Address => anonymizeIpV6(ipv6.getHostAddress)
+          case _ => throw new IllegalStateException(s"Illegal state")
         }
         .getOrElse(tryAnonymizingInvalidIp(ip))
     }.orNull

@@ -93,7 +93,7 @@ object ApiRequestEnrichment extends ParseableEnrichment {
     UUID.nameUUIDFromBytes(contentKey.getBytes).toString
   }
 
-  def create[F[_]: Async: Clock](
+  def create[F[_]: Async](
     schemaKey: SchemaKey,
     inputs: List[Input],
     api: HttpApi,

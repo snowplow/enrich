@@ -19,7 +19,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.util.UUID
 import java.io.{PrintWriter, StringWriter}
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.util.Try
 import scala.util.control.NonFatal
 
@@ -182,7 +182,7 @@ object ConversionUtils {
   val validateInteger: (String, String) => Either[FailureDetails.EnrichmentFailure, String] =
     (field, str) => {
       Either
-        .catchNonFatal { str.toInt; str }
+        .catchNonFatal { str.toInt: Unit; str }
         .leftMap { _ =>
           val f = FailureDetails.EnrichmentFailureMessage.InputData(
             field,

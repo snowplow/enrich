@@ -100,7 +100,7 @@ object MapTransformer {
    * @param obj Any Object
    * @return the new Transformable class, with manifest attached
    */
-  implicit def makeTransformable[T <: AnyRef](obj: T)(implicit m: Manifest[T]) =
+  implicit def makeTransformable[T <: AnyRef](obj: T)(implicit m: Manifest[T]): TransformableClass[T] =
     new TransformableClass[T](obj)
 
   /** A pimped object, now transformable by using the transform method. */
@@ -166,6 +166,7 @@ object MapTransformer {
                     setters(f3).invoke(obj, result._3)
                     setters(f4).invoke(obj, result._4)
                     4.asRight // +4 to the count of fields successfully set
+                  case other => throw new IllegalStateException(s"Illegal state: $other")
                 }
             }
           case None => 0.asRight // Key not found: zero fields updated
@@ -204,5 +205,7 @@ object MapTransformer {
     c.getDeclaredMethods
       .filter(_.getName.startsWith("set"))
       .groupBy(setterToFieldName(_))
+      .view
       .mapValues(_.head)
+      .toMap
 }

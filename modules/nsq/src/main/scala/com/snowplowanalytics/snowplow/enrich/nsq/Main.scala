@@ -16,7 +16,7 @@ import cats.Parallel
 import cats.implicits._
 
 import cats.effect.{ExitCode, IO, IOApp}
-import cats.effect.kernel.{Resource, Sync}
+import cats.effect.kernel.Resource
 import cats.effect.metrics.CpuStarvationWarningMetrics
 
 import org.typelevel.log4cats.Logger
@@ -66,7 +66,7 @@ object Main extends IOApp {
       None
     )
 
-  private def checkpoint[F[_]: Parallel: Sync](records: List[Record[F]]): F[Unit] =
+  private def checkpoint[F[_]: Parallel](records: List[Record[F]]): F[Unit] =
     records.parTraverse_(_.ack)
 
   private def createBlobStorageClient(conf: BlobStorageClients): List[Resource[IO, Client[IO]]] = {

@@ -13,7 +13,7 @@ package com.snowplowanalytics.snowplow.enrich.common.adapters.registry
 import java.net.URI
 import java.nio.charset.StandardCharsets.UTF_8
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.util.{Try, Success => TS, Failure => TF}
 
 import cats.Monad

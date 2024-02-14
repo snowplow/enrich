@@ -18,8 +18,6 @@ import cats.implicits._
 
 import fs2.Stream
 
-import scala.concurrent.ExecutionContext
-
 import cats.effect.kernel.{Async, Resource, Sync}
 import cats.effect.ExitCode
 

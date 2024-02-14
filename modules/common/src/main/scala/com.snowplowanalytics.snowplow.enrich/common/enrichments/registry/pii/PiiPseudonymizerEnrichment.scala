@@ -10,8 +10,8 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii
 
-import scala.collection.JavaConverters._
-import scala.collection.mutable.MutableList
+import scala.jdk.CollectionConverters._
+import scala.collection.mutable.ListBuffer
 
 import cats.data.ValidatedNel
 import cats.implicits._
@@ -216,7 +216,7 @@ final case class PiiJson(
                                           val jObjectMap = obj.toMap
                                           val contextMapped = jObjectMap.map(mapContextTopFields(_, strategy))
                                           (
-                                            Json.obj(contextMapped.mapValues(_._1).toList: _*),
+                                            Json.obj(contextMapped.view.mapValues(_._1).toList: _*),
                                             contextMapped.values.flatMap(_._2)
                                           )
                                         }
@@ -282,7 +282,7 @@ final case class PiiJson(
   ): (Json, List[JsonModifiedField]) = {
     val objectNode = io.circe.jackson.mapper.valueToTree[ObjectNode](json)
     val documentContext = JJsonPath.using(JsonPathConf).parse(objectNode)
-    val modifiedFields = MutableList[JsonModifiedField]()
+    val modifiedFields = ListBuffer[JsonModifiedField]()
     Option(documentContext.read[AnyRef](jsonPath)) match { // check that json object not null
       case None => (jacksonToCirce(documentContext.json[JsonNode]()), modifiedFields.toList)
       case _ =>
@@ -297,7 +297,7 @@ final case class PiiJson(
 
 private final case class ScrambleMapFunction(
   strategy: PiiStrategy,
-  modifiedFields: MutableList[JsonModifiedField],
+  modifiedFields: ListBuffer[JsonModifiedField],
   fieldName: String,
   jsonPath: String,
   schema: String

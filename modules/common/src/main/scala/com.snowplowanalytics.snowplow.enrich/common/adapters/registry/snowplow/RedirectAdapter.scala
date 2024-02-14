@@ -98,6 +98,7 @@ object RedirectAdapter extends Adapter {
                  case (None, Some(Some(co))) if co == "" => newCo.asRight
                  case (None, Some(Some(co))) => addToExistingCo(json, co).map(str => Map("co" -> str))
                  case (Some(Some(cx)), _) => addToExistingCx(json, cx).map(str => Map("cx" -> str))
+                 case other => throw new IllegalStateException(s"Illegal state: $other")
                }
              } else
                // Add URI redirect as an unstructured event

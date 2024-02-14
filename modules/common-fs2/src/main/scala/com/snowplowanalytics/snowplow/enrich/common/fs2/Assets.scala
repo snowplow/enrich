@@ -14,7 +14,6 @@ import java.net.URI
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
-import scala.util.control.NonFatal
 
 import cats.Applicative
 import cats.implicits._
@@ -259,8 +258,7 @@ object Assets {
   def worthRetrying[F[_]: Applicative](e: Throwable): F[Boolean] =
     e match {
       case _: Clients.RetryableFailure => Applicative[F].pure(true)
-      case _: IllegalArgumentException => Applicative[F].pure(false)
-      case NonFatal(_) => Applicative[F].pure(false)
+      case _ => Applicative[F].pure(false)
     }
 
   def onError[F[_]: Sync](error: Throwable, details: RetryDetails): F[Unit] =

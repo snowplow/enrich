@@ -31,7 +31,7 @@ object S3Client {
 
   def mk[F[_]: Async]: Resource[F, Client[F]] =
     for {
-      s3Client <- Resource.fromAutoCloseable(Sync[F].delay(S3AsyncClient.builder().region(getRegion).build()))
+      s3Client <- Resource.fromAutoCloseable(Sync[F].delay(S3AsyncClient.builder().region(getRegion()).build()))
       store <- Resource.eval(S3Store.builder[F](s3Client).build.toEither.leftMap(_.head).pure[F].rethrow)
     } yield new Client[F] {
       def canDownload(uri: URI): Boolean =

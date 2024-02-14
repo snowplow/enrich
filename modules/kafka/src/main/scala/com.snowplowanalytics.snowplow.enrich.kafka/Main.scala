@@ -74,6 +74,7 @@ object Main extends IOApp {
     else
       records
         .groupBy(_.record.partition)
+        .view
         .mapValues(_.maxBy(_.record.offset))
         .values
         .toList

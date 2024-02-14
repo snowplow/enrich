@@ -152,7 +152,7 @@ object Enrich {
     payload.fold(_.asJson.noSpaces, _.map(_.toBadRowPayload.asJson.noSpaces).getOrElse("None"))
 
   /** Log an error, turn the problematic `CollectorPayload` into `BadRow` and notify Sentry if configured */
-  def sendToSentry[F[_]: Sync: Clock](
+  def sendToSentry[F[_]: Sync](
     original: Array[Byte],
     sentry: Option[SentryClient],
     processor: Processor,

@@ -15,7 +15,7 @@ import scala.concurrent.duration._
 import cats.Parallel
 import cats.implicits._
 
-import cats.effect.kernel.{Resource, Sync}
+import cats.effect.kernel.Resource
 import cats.effect.{ExitCode, IO, IOApp}
 import cats.effect.metrics.CpuStarvationWarningMetrics
 
@@ -68,6 +68,6 @@ object Main extends IOApp {
       None
     )
 
-  private def checkpoint[F[_]: Parallel: Sync](records: List[ConsumerRecord[F, Array[Byte]]]): F[Unit] =
+  private def checkpoint[F[_]: Parallel](records: List[ConsumerRecord[F, Array[Byte]]]): F[Unit] =
     records.parTraverse_(_.ack)
 }

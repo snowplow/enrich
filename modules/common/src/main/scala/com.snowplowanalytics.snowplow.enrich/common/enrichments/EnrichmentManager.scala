@@ -287,7 +287,7 @@ object EnrichmentManager {
   def setCollectorTstamp(event: EnrichedEvent, timestamp: Option[DateTime]): Either[FailureDetails.EnrichmentFailure, Unit] =
     EE.formatCollectorTstamp(timestamp).map { t =>
       event.collector_tstamp = t
-      ().asRight
+      ()
     }
 
   def setUseragent(

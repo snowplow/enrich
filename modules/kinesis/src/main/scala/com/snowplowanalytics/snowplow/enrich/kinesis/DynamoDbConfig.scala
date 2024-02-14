@@ -10,9 +10,8 @@
  */
 package com.snowplowanalytics.snowplow.enrich.kinesis
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.concurrent.duration.DurationLong
-import scala.util.control.NonFatal
 
 import cats.effect.kernel.{Async, Resource, Sync}
 
@@ -147,7 +146,7 @@ object DynamoDbConfig {
   private def worthRetrying[F[_]: Applicative](e: Throwable): F[Boolean] =
     e match {
       case ace: AmazonClientException if ace.isRetryable => Applicative[F].pure(true)
-      case NonFatal(_) => Applicative[F].pure(false)
+      case _ => Applicative[F].pure(false)
     }
 
   private def onError[F[_]: Sync](error: Throwable, details: RetryDetails): F[Unit] =

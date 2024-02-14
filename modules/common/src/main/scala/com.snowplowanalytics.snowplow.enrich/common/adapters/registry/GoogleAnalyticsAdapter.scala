@@ -12,7 +12,7 @@ package com.snowplowanalytics.snowplow.enrich.common.adapters.registry
 
 import scala.annotation.tailrec
 
-import cats.{Applicative, Functor, Monad}
+import cats.{Applicative, Monad}
 import cats.data.{NonEmptyList, ValidatedNel}
 import cats.implicits._
 
@@ -531,7 +531,7 @@ case class GoogleAnalyticsAdapter(schemas: GoogleAnalyticsSchemas) extends Adapt
                            )
       schemaVal = lookupSchema(
                     hitType.some,
-                    unstructEventData.mapValues(_.schemaKey)
+                    unstructEventData.view.mapValues(_.schemaKey).toMap
                   ).toValidatedNel
       simpleContexts = buildContexts(params, contextData, fieldToSchemaMap)
       compositeContexts = buildCompositeContexts(
@@ -675,7 +675,9 @@ case class GoogleAnalyticsAdapter(schemas: GoogleAnalyticsSchemas) extends Adapt
       // composite params have digits in their key
       composite <- originalParams
                      .collect { case (k, Some(v)) => (k, v) }
+                     .view
                      .filterKeys(k => k.exists(_.isDigit))
+                     .toMap
                      .asRight
       brokenDown <- composite.toList.sorted.map {
                       case (k, v) => breakDownCompField(k, v, indicator)
@@ -684,7 +686,9 @@ case class GoogleAnalyticsAdapter(schemas: GoogleAnalyticsSchemas) extends Adapt
       // we additionally make sure we have a rectangular dataset
       grouped = (partitioned._2 ++ removeConsecutiveDuplicates(partitioned._1)).flatten
                   .groupBy(_._1)
+                  .view
                   .mapValues(_.map(_._2))
+                  .toMap
       translated <- {
         val m = grouped
           .foldLeft(
@@ -821,7 +825,7 @@ case class GoogleAnalyticsAdapter(schemas: GoogleAnalyticsSchemas) extends Adapt
       case head => head :: transpose(l.collect { case _ :: tail => tail })
     }
 
-  private def traverseMap[G[_]: Functor: Applicative, K, V](m: Map[K, G[V]]): G[Map[K, V]] =
+  private def traverseMap[G[_]: Applicative, K, V](m: Map[K, G[V]]): G[Map[K, V]] =
     m.toList
       .traverse {
         case (name, vnel) =>

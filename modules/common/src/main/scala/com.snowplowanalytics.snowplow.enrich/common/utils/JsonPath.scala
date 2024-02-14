@@ -18,7 +18,7 @@ import com.jayway.jsonpath.{Configuration, JsonPath => JaywayJsonPath, Option =>
 import io.circe._
 import io.circe.jackson.{circeToJackson, jacksonToCirce}
 
-import scala.jdk.CollectionConverters.asScalaIteratorConverter
+import scala.jdk.CollectionConverters._
 
 /** Wrapper for `com.jayway.jsonpath` for circe */
 object JsonPath {

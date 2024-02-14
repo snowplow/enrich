@@ -10,7 +10,7 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import cats.data.ValidatedNel
 import cats.syntax.either._
@@ -64,7 +64,7 @@ object YauaaEnrichment extends ParseableEnrichment {
     s match {
       case _ if s.isEmpty => s
       case _ if s.length == 1 => s.toLowerCase
-      case _ => s.charAt(0).toLower + s.substring(1)
+      case _ => Character.toString(s.charAt(0).toLower) + s.substring(1)
     }
 }
 
@@ -112,7 +112,9 @@ final case class YauaaEnrichment(cacheSize: Option[Int]) extends Enrichment {
         parsedUA.getAvailableFieldNamesSorted.asScala
           .map(field => decapitalize(field) -> parsedUA.getValue(field))
           .toMap
+          .view
           .filterKeys(validFields)
+          .toMap
     }
 
   /** Yauaa 7.x added many new fields which are not in the 1-0-4 schema */

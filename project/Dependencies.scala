@@ -58,7 +58,6 @@ object Dependencies {
     val circeJackson     = "0.14.0"
     val scalaForex       = "3.0.0"
     val scalaWeather     = "2.0.0"
-    val gatlingJsonpath  = "0.6.14"
     val scalaUri         = "1.5.1"
     val badRows          = "2.3.0"
     val igluClient       = "3.1.0"
@@ -132,7 +131,6 @@ object Dependencies {
     val circeOptics      = "io.circe"                   %% "circe-optics"                  % V.circeOptics
     val circeJackson     = "io.circe"                   %% "circe-jackson210"              % V.circeJackson
     val scalaUri         = "io.lemonlabs"               %% "scala-uri"                     % V.scalaUri
-    val gatlingJsonpath  = "io.gatling"                 %% "jsonpath"                      % V.gatlingJsonpath
     val scalaForex       = "com.snowplowanalytics"      %% "scala-forex"                   % V.scalaForex
     val refererParser    = "com.snowplowanalytics"      %% "scala-referer-parser"          % V.refererParser
     val maxmindIplookups = "com.snowplowanalytics"      %% "scala-maxmind-iplookups"       % V.maxmindIplookups
@@ -232,7 +230,6 @@ object Dependencies {
       scalaUri,
       scalaForex,
       scalaWeather,
-      gatlingJsonpath,
       badRows,
       igluClient,
       snowplowRawEvent,

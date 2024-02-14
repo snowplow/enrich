@@ -21,7 +21,7 @@ class JsonPathSpec extends Specification {
   test query of non-exist value           $e2
   test query of empty array               $e3
   test primitive JSON type (JString)      $e6
-  invalid JSONPath (JQ syntax) must fail  $e4
+  test invalid JSONPath (JQ syntax)       $e4
   invalid JSONPath must fail              $e5
   test query of long                      $e7
   test query of integer                   $e8
@@ -81,13 +81,12 @@ class JsonPathSpec extends Specification {
     JsonPath.query("$.store.unicorns", someJson) must beRight(Nil)
 
   def e4 =
-    JsonPath.query(".notJsonPath", someJson) must beLeft.like {
-      case f => f must beEqualTo("'$' expected but '.' found")
-    }
+    //TODO it's not failure anymore because `.notJsonPath` is not treated as invalid jsonpath by jayway
+    JsonPath.query(".notJsonPath", someJson) must beRight(Nil)
 
   def e5 =
     JsonPath.query("$.store.book[a]", someJson) must beLeft.like {
-      case f => f must beEqualTo("':' expected but 'a' found")
+      case f => f must beEqualTo("Could not parse token starting at position 12. Expected ?, ', 0-9, * ")
     }
 
   def e6 =

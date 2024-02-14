@@ -27,8 +27,8 @@ class ExtractEventTypeSpec extends Specification with DataTables {
   """
 
   val FieldName = "e"
-  def err: AtomicError =
-    AtomicError.ParseError("Not a valid event type", FieldName)
+  def err(value: String): AtomicError =
+    AtomicError.ParseError("Not a valid event type", FieldName, Option(value))
 
   def e1 =
     "SPEC NAME" || "INPUT VAL" | "EXPECTED OUTPUT" |
@@ -45,10 +45,10 @@ class ExtractEventTypeSpec extends Specification with DataTables {
 
   def e2 =
     "SPEC NAME" || "INPUT VAL" | "EXPECTED OUTPUT" |
-      "null" !! null ! err |
-      "empty string" !! "" ! err |
-      "unrecognized #1" !! "e" ! err |
-      "unrecognized #2" !! "evnt" ! err |> { (_, input, expected) =>
+      "null" !! null ! err(null) |
+      "empty string" !! "" ! err("") |
+      "unrecognized #1" !! "e" ! err("e") |
+      "unrecognized #2" !! "evnt" ! err("evnt") |> { (_, input, expected) =>
       EventEnrichments.extractEventType(FieldName, input) must beLeft(expected)
     }
 
@@ -58,9 +58,9 @@ class ExtractEventTypeSpec extends Specification with DataTables {
   def e3 =
 // format: off
     "SPEC NAME"          || "INPUT VAL"     | "EXPECTED OUTPUT" |
-    "None"               !! None            ! AtomicError.ParseError("Field not set", "collector_tstamp").asLeft |
-    "Negative timestamp" !! BCTstamp        ! AtomicError.ParseError("Formatted as -0030-01-01 00:00:00.000 is not Redshift-compatible", "collector_tstamp").asLeft |
-    ">10k timestamp"     !! FarAwayTstamp   ! AtomicError.ParseError("Formatted as 11970-01-01 00:00:00.000 is not Redshift-compatible", "collector_tstamp").asLeft |
+    "None"               !! None            ! AtomicError.ParseError("Field not set", "collector_tstamp", None).asLeft |
+    "Negative timestamp" !! BCTstamp        ! AtomicError.ParseError("Formatted as -0030-01-01 00:00:00.000 is not Redshift-compatible", "collector_tstamp", BCTstamp.map(_.toString)).asLeft |
+    ">10k timestamp"     !! FarAwayTstamp   ! AtomicError.ParseError("Formatted as 11970-01-01 00:00:00.000 is not Redshift-compatible", "collector_tstamp", FarAwayTstamp.map(_.toString)).asLeft |
     "Valid timestamp"    !! SeventiesTstamp ! "1970-01-01 00:00:00.000".asRight |> {
 // format: on
       (_, input, expected) =>
@@ -69,11 +69,12 @@ class ExtractEventTypeSpec extends Specification with DataTables {
 
   def e4 =
     "SPEC NAME" || "INPUT VAL" | "EXPECTED OUTPUT" |
-      "Not long" !! (("f", "v")) ! AtomicError.ParseError("Not in the expected format: ms since epoch", "f").asLeft |
+      "Not long" !! (("f", "v")) ! AtomicError.ParseError("Not in the expected format: ms since epoch", "f", Some("v")).asLeft |
       "Too long" !! (("f", "1111111111111111")) ! AtomicError
         .ParseError(
           "Formatting as 37179-09-17 07:18:31.111 is not Redshift-compatible",
-          "f"
+          "f",
+          Some("1111111111111111")
         )
         .asLeft |
       "Valid ts" !! (("f", "1")) ! "1970-01-01 00:00:00.001".asRight |> { (_, input, expected) =>

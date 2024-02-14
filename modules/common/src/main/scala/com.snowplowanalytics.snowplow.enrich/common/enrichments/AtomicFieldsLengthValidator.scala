@@ -14,11 +14,8 @@ import org.slf4j.LoggerFactory
 
 import cats.Monad
 import cats.data.Validated.{Invalid, Valid}
-import cats.data.NonEmptyList
-
+import cats.data.{Ior, IorT, NonEmptyList}
 import cats.implicits._
-
-import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields.LimitedAtomicField
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
@@ -36,32 +33,38 @@ object AtomicFieldsLengthValidator {
     event: EnrichedEvent,
     acceptInvalid: Boolean,
     invalidCount: F[Unit],
-    atomicFields: AtomicFields
-  ): F[Either[FailureDetails.SchemaViolation, Unit]] =
-    atomicFields.value
-      .map(field => validateField(event, field).toValidatedNel)
-      .combineAll match {
-      case Invalid(errors) if acceptInvalid =>
-        handleAcceptableErrors(invalidCount, event, errors) *> Monad[F].pure(Right(()))
-      case Invalid(errors) =>
-        Monad[F].pure(AtomicFields.errorsToSchemaViolation(errors).asLeft)
-      case Valid(()) =>
-        Monad[F].pure(Right(()))
+    atomicFields: AtomicFields,
+    emitIncomplete: Boolean
+  ): IorT[F, Failure.SchemaViolation, Unit] =
+    IorT {
+      atomicFields.value
+        .map(validateField(event, _, emitIncomplete).toValidatedNel)
+        .combineAll match {
+        case Invalid(errors) if acceptInvalid =>
+          handleAcceptableErrors(invalidCount, event, errors) *> Monad[F].pure(Ior.Right(()))
+        case Invalid(errors) =>
+          Monad[F].pure(Ior.Both(AtomicFields.errorsToSchemaViolation(errors), ()))
+        case Valid(()) =>
+          Monad[F].pure(Ior.Right(()))
+      }
     }
 
   private def validateField(
     event: EnrichedEvent,
-    atomicField: LimitedAtomicField
+    atomicField: LimitedAtomicField,
+    emitIncomplete: Boolean
   ): Either[AtomicError.FieldLengthError, Unit] = {
     val actualValue = atomicField.value.enrichedValueExtractor(event)
-    if (actualValue != null && actualValue.length > atomicField.limit)
+    if (actualValue != null && actualValue.length > atomicField.limit) {
+      if (emitIncomplete) atomicField.value.nullify(event)
       AtomicError
         .FieldLengthError(
           s"Field is longer than maximum allowed size ${atomicField.limit}",
-          atomicField.value.name
+          atomicField.value.name,
+          Option(actualValue)
         )
         .asLeft
-    else
+    } else
       Right(())
   }
 

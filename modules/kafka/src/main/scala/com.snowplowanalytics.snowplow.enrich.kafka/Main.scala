@@ -61,6 +61,7 @@ object Main extends IOApp {
       out => Sink.initAttributed(out, classOf[GoodSinkAuthHandler].getName),
       out => Sink.initAttributed(out, classOf[PiiSinkAuthHandler].getName),
       out => Sink.init(out, classOf[BadSinkAuthHandler].getName),
+      out => Sink.initAttributed(out, classOf[IncompleteSinkAuthHandler].getName),
       checkpoint,
       createBlobStorageClient,
       _.record.value,

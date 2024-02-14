@@ -56,7 +56,8 @@ case class TestEnvironment[A](
   counter: Ref[IO, Counter],
   good: IO[Vector[AttributedData[Array[Byte]]]],
   pii: IO[Vector[AttributedData[Array[Byte]]]],
-  bad: IO[Vector[Array[Byte]]]
+  bad: IO[Vector[Array[Byte]]],
+  incomplete: IO[Vector[AttributedData[Array[Byte]]]]
 ) {
 
   /**
@@ -70,7 +71,7 @@ case class TestEnvironment[A](
    */
   def run(
     updateEnv: Environment[IO, A] => Environment[IO, A] = identity
-  ): IO[(Vector[BadRow], Vector[Event], Vector[Event])] = {
+  ): IO[(Vector[BadRow], Vector[Event], Vector[Event], Vector[Event])] = {
     val updatedEnv = updateEnv(env)
     val stream = Enrich
       .run[IO, A](updatedEnv)
@@ -88,9 +89,11 @@ case class TestEnvironment[A](
       goodVec <- good
       piiVec <- pii
       badVec <- bad
+      incompleteVec <- incomplete
     } yield (badVec.map(TestEnvironment.parseBad(_)),
              piiVec.flatMap(p => EnrichSpec.normalize(new String(p.data, UTF_8)).toOption),
-             goodVec.flatMap(g => EnrichSpec.normalize(new String(g.data, UTF_8)).toOption)
+             goodVec.flatMap(g => EnrichSpec.normalize(new String(g.data, UTF_8)).toOption),
+             incompleteVec.flatMap(i => EnrichSpec.normalize(new String(i.data, UTF_8)).toOption)
     )
   }
 
@@ -126,6 +129,7 @@ object TestEnvironment extends CatsEffect {
       goodRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
       piiRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
       badRef <- Resource.eval(Ref.of[IO, Vector[Array[Byte]]](Vector.empty))
+      incompleteRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
       igluClient <- Resource.eval(SpecHelpers.createIgluClient(List(embeddedRegistry)))
       environment = Environment[IO, Array[Byte]](
                       igluClient,
@@ -141,6 +145,7 @@ object TestEnvironment extends CatsEffect {
                       g => goodRef.update(_ ++ g),
                       Some(p => piiRef.update(_ ++ p)),
                       b => badRef.update(_ ++ b),
+                      Some(i => incompleteRef.update(_ ++ i)),
                       _ => IO.unit,
                       identity,
                       None,
@@ -160,7 +165,7 @@ object TestEnvironment extends CatsEffect {
                       AtomicFields.from(valueLimits = Map.empty)
                     )
       _ <- Resource.eval(logger.info("TestEnvironment initialized"))
-    } yield TestEnvironment(environment, counter, goodRef.get, piiRef.get, badRef.get)
+    } yield TestEnvironment(environment, counter, goodRef.get, piiRef.get, badRef.get, incompleteRef.get)
 
   def parseBad(bytes: Array[Byte]): BadRow = {
     val badRowStr = new String(bytes, UTF_8)

@@ -19,7 +19,7 @@ import cats.effect.IO
 import cats.effect.testing.specs2.CatsEffect
 
 import cats.implicits._
-import cats.data.NonEmptyList
+import cats.data.{Ior, NonEmptyList}
 
 import io.circe.Json
 import io.circe.literal._
@@ -29,8 +29,10 @@ import io.circe.syntax._
 import org.joda.time.DateTime
 
 import com.snowplowanalytics.snowplow.badrows._
+import com.snowplowanalytics.snowplow.badrows.{Failure => BadRowFailure}
 
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
+import com.snowplowanalytics.iglu.core.circe.implicits._
 
 import com.snowplowanalytics.snowplow.enrich.common.QueryStringParameters
 import com.snowplowanalytics.snowplow.enrich.common.loaders._
@@ -42,7 +44,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii.{
   PiiStrategyPseudonymize
 }
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
+import com.snowplowanalytics.snowplow.enrich.common.utils.{AtomicError, ConversionUtils}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{
   CrossNavigationEnrichment,
   HttpHeaderExtractorEnrichment,
@@ -89,13 +91,13 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value
-        .map(_ must beLeft.like {
-          case _: BadRow.SchemaViolations => ok
-          case br => ko(s"bad row [$br] is not SchemaViolations")
-        })
+      enriched.value map {
+        case Ior.Left(_: BadRow.SchemaViolations) => ok
+        case other => ko(s"[$other] is not a SchemaViolations bad row")
+      }
     }
 
     "return a SchemaViolations bad row if the input unstructured event is invalid" >> {
@@ -127,13 +129,13 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value
-        .map(_ must beLeft.like {
-          case _: BadRow.SchemaViolations => ok
-          case br => ko(s"bad row [$br] is not SchemaViolations")
-        })
+      enriched.value map {
+        case Ior.Left(_: BadRow.SchemaViolations) => ok
+        case other => ko(s"[$other] is not a SchemaViolations bad row")
+      }
     }
 
     "return a SchemaViolations bad row that contains 1 ValidationError for the atomic field and 1 ValidationError for the unstruct event" >> {
@@ -167,29 +169,32 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           AcceptInvalid.featureFlags,
           IO.unit,
           SpecHelpers.registryLookup,
-          atomicFieldLimits
+          atomicFieldLimits,
+          emitIncomplete
         )
         .value
-        .map(_ must beLeft.like {
-          case BadRow.SchemaViolations(
-                _,
-                Failure.SchemaViolations(_,
-                                         NonEmptyList(FailureDetails.SchemaViolation.IgluError(schemaKey1, clientError1),
-                                                      List(FailureDetails.SchemaViolation.IgluError(schemaKey2, clientError2))
-                                         )
-                ),
-                _
+        .map {
+          case Ior.Left(
+                BadRow.SchemaViolations(
+                  _,
+                  BadRowFailure.SchemaViolations(_,
+                                                 NonEmptyList(FailureDetails.SchemaViolation.IgluError(schemaKey1, clientError1),
+                                                              List(FailureDetails.SchemaViolation.IgluError(schemaKey2, clientError2))
+                                                 )
+                  ),
+                  _
+                )
               ) =>
-            schemaKey1 must beEqualTo(emailSentSchema)
-            clientError1.toString must contain(
+            schemaKey1 must beEqualTo(AtomicFields.atomicSchema)
+            clientError1.toString must contain("tr_tt")
+            clientError1.toString must contain("Cannot be converted to java.math.BigDecimal")
+            schemaKey2 must beEqualTo(emailSentSchema)
+            clientError2.toString must contain(
               "unallowedAdditionalField: is not defined in the schema and the schema does not allow additional properties"
             )
-            schemaKey2 must beEqualTo(AtomicFields.atomicSchema)
-            clientError2.toString must contain("tr_tt")
-            clientError2.toString must contain("Cannot be converted to java.math.BigDecimal")
           case other =>
-            ko(s"[$other] is not a SchemaViolations bad row with 2 IgluError")
-        })
+            ko(s"[$other] is not a SchemaViolations bad row with 2 expected IgluError")
+        }
     }
 
     "return an EnrichmentFailures bad row if one of the enrichment (JS enrichment here) fails" >> {
@@ -232,13 +237,14 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value
-        .map(_ must beLeft.like {
-          case BadRow.EnrichmentFailures(
+      enriched.value map {
+        case Ior.Left(
+              BadRow.EnrichmentFailures(
                 _,
-                Failure.EnrichmentFailures(
+                BadRowFailure.EnrichmentFailures(
                   _,
                   NonEmptyList(
                     FailureDetails.EnrichmentFailure(
@@ -249,13 +255,11 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
                   )
                 ),
                 _
-              ) =>
-            ok
-          case br =>
-            ko(
-              s"bad row [$br] is not an EnrichmentFailures containing one EnrichmentFailureMessage.Simple"
-            )
-        })
+              )
+            ) =>
+          ok
+        case other => ko(s"[$other] is not an EnrichmentFailures bad row with one EnrichmentFailureMessage.Simple")
+      }
     }
 
     "return a SchemaViolations bad row containing one IgluError if one of the contexts added by the enrichments is invalid" >> {
@@ -302,24 +306,26 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value
-        .map(_ must beLeft.like {
-          case BadRow.SchemaViolations(
+      enriched.value map {
+        case Ior.Left(
+              BadRow.SchemaViolations(
                 _,
-                Failure.SchemaViolations(
+                BadRowFailure.SchemaViolations(
                   _,
                   NonEmptyList(
                     _: FailureDetails.SchemaViolation.IgluError,
                     Nil
                   )
                 ),
-                payload
-              ) if payload.enriched.derived_contexts.isDefined =>
-            ok
-          case br => ko(s"[$br] is not a SchemaViolations bad row containing one IgluError and with derived_contexts defined")
-        })
+                _
+              )
+            ) =>
+          ok
+        case other => ko(s"[$other] is not a SchemaViolations bad row with one IgluError")
+      }
     }
 
     "emit an EnrichedEvent if everything goes well" >> {
@@ -365,9 +371,13 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value.map(_ must beRight)
+      enriched.value.map {
+        case Ior.Right(_) => ok
+        case other => ko(s"[$other] is not an enriched event")
+      }
     }
 
     "emit an EnrichedEvent if a PII value that needs to be hashed is an empty string" >> {
@@ -431,9 +441,13 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value.map(_ must beRight)
+      enriched.value.map {
+        case Ior.Right(_) => ok
+        case other => ko(s"[$other] is not an enriched event")
+      }
     }
 
     "emit an EnrichedEvent if a PII value that needs to be hashed is null" >> {
@@ -497,9 +511,13 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value.map(_ must beRight)
+      enriched.value.map {
+        case Ior.Right(_) => ok
+        case other => ko(s"[$other] is not an enriched event")
+      }
     }
 
     "fail to emit an EnrichedEvent if a PII value that needs to be hashed is an empty object" >> {
@@ -563,9 +581,13 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value.map(_ must beLeft)
+      enriched.value.map {
+        case Ior.Left(_) => ok
+        case other => ko(s"[$other] is not a bad row")
+      }
     }
 
     "fail to emit an EnrichedEvent if a context PII value that needs to be hashed is an empty object" >> {
@@ -629,9 +651,13 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value.map(_ must beLeft)
+      enriched.value.map {
+        case Ior.Left(_) => ok
+        case other => ko(s"[$other] is not a bad row")
+      }
     }
 
     "fail to emit an EnrichedEvent if a PII value needs to be hashed in both co and ue and is invalid in one of them" >> {
@@ -701,9 +727,13 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value.map(_ must beLeft)
+      enriched.value.map {
+        case Ior.Left(_) => ok
+        case other => ko(s"[$other] is not a bad row")
+      }
     }
 
     "emit an EnrichedEvent for valid integer fields" >> {
@@ -729,9 +759,13 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               AcceptInvalid.featureFlags,
               IO.unit,
               SpecHelpers.registryLookup,
-              atomicFieldLimits
+              atomicFieldLimits,
+              emitIncomplete
             )
-            enriched.value.map(_ must beRight)
+            enriched.value.map {
+              case Ior.Right(_) => ok
+              case other => ko(s"[$other] is not an enriched event")
+            }
           }
         }
     }
@@ -759,9 +793,13 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               AcceptInvalid.featureFlags,
               IO.unit,
               SpecHelpers.registryLookup,
-              atomicFieldLimits
+              atomicFieldLimits,
+              emitIncomplete
             )
-            enriched.value.map(_ must beRight)
+            enriched.value.map {
+              case Ior.Right(_) => ok
+              case other => ko(s"[$other] is not an enriched event")
+            }
           }
         }
     }
@@ -798,11 +836,13 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               AcceptInvalid.featureFlags,
               IO.unit,
               SpecHelpers.registryLookup,
-              atomicFieldLimits
+              atomicFieldLimits,
+              emitIncomplete
             )
-            enriched.value.map(_ must beRight { ee: EnrichedEvent =>
-              ee.se_value.toString must_== expected
-            })
+            enriched.value.map {
+              case Ior.Right(enriched) => enriched.se_value.toString must_== expected
+              case other => ko(s"[$other] is not an enriched event")
+            }
         }
     }
 
@@ -825,12 +865,14 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value.map { e =>
-        val res1 = e.map(_.useragent) must beRight(qs_ua)
-        val res2 = e.map(_.derived_contexts) must beRight((_: String).contains("\"agentName\":\"Firefox\""))
-        res1 and res2
+      enriched.value.map {
+        case Ior.Right(enriched) =>
+          enriched.useragent must_== qs_ua
+          enriched.derived_contexts must contain("\"agentName\":\"Firefox\"")
+        case other => ko(s"[$other] is not an enriched event")
       }
     }
 
@@ -851,10 +893,12 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value.map { e =>
-        e.map(_.useragent) must beRight("header-useragent")
+      enriched.value.map {
+        case Ior.Right(enriched) => enriched.useragent must_== "header-useragent"
+        case other => ko(s"[$other] is not an enriched event")
       }
     }
 
@@ -876,10 +920,12 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value.map { e =>
-        e.map(_.useragent) must beRight(ua)
+      enriched.value.map {
+        case Ior.Right(enriched) => enriched.useragent must_== ua
+        case other => ko(s"[$other] is not an enriched event")
       }
     }
 
@@ -902,12 +948,14 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value.map { e =>
-        val res1 = e.map(_.useragent) must beRight(qs_ua)
-        val res2 = e.map(_.derived_contexts) must beRight((_: String).contains("\"agentName\":\"%1$S\""))
-        res1 and res2
+      enriched.value.map {
+        case Ior.Right(enriched) =>
+          enriched.useragent must_== qs_ua
+          enriched.derived_contexts must contain("\"agentName\":\"%1$S\"")
+        case other => ko(s"[$other] is not an enriched event")
       }
     }
 
@@ -948,10 +996,12 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value.map { e =>
-        e.map(_.app_id) must beRight("moo")
+      enriched.value.map {
+        case Ior.Right(enriched) => enriched.app_id must_== "moo"
+        case other => ko(s"[$other] is not an enriched event")
       }
     }
 
@@ -998,11 +1048,14 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value.map { e =>
-        (e.map(_.app_id) must beRight("test_app_id")) and
-          (e.map(_.platform) must beRight("test_platform"))
+      enriched.value.map {
+        case Ior.Right(enriched) =>
+          enriched.app_id must_== "test_app_id"
+          enriched.platform must_== "test_platform"
+        case other => ko(s"[$other] is not an enriched event")
       }
     }
 
@@ -1152,20 +1205,646 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
 
-      enriched.value.map(_ must beRight.like {
-        case e: EnrichedEvent =>
-          val p = EnrichedEvent.toPartiallyEnrichedEvent(e)
+      enriched.value.map {
+        case Ior.Right(enriched) =>
+          val p = EnrichedEvent.toPartiallyEnrichedEvent(enriched)
           val contextsJson = jparse(p.contexts.get).toOption.get
           val derivedContextsJson = jparse(p.derived_contexts.get).toOption.get
           val ueJson = jparse(p.unstruct_event.get).toOption.get
           (contextsJson must beEqualTo(expectedContexts)) and
             (derivedContextsJson must beEqualTo(expectedDerivedContexts)) and
             (ueJson must beEqualTo(expectedUnstructEvent))
-        case _ => ko
-      })
+        case other => ko(s"[$other] is not an enriched event")
+      }
+    }
+
+    "remove the invalid unstructured event and enrich the event if emitIncomplete is set to true" >> {
+      val script =
+        s"""
+        function process(event) {
+          return [ ${emailSent} ];
+        }"""
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow",
+        "javascript_script_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val enrichmentReg = EnrichmentRegistry[IO](
+        javascriptScript = List(
+          JavascriptScriptEnrichment(schemaKey, script)
+        )
+      )
+      val invalidUeData =
+        """{
+             "emailAddress": "hello@world.com",
+             "emailAddress2": "foo@bar.org",
+             "unallowedAdditionalField": "foo@bar.org"
+           }"""
+      val invalidUe =
+        s"""{
+             "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+             "data": $invalidUeData
+           }"""
+
+      val parameters = Map(
+        "e" -> "pp",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "co" ->
+          s"""
+          {
+            "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
+            "data": [
+              $clientSession
+            ]
+          }
+        """,
+        "ue_pr" ->
+          s"""
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data":$invalidUe
+          }"""
+      ).toOpt
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      def expectedDerivedContexts(enriched: EnrichedEvent): Boolean = {
+        val emailSentSDJ = SelfDescribingData.parse[Json](jparse(emailSent).toOption.get).toOption.get
+        SpecHelpers.listContexts(enriched.derived_contexts) match {
+          case List(SelfDescribingData(Failure.`failureSchemaKey`, feJson), `emailSentSDJ`)
+              if feJson.field("failureType") == "ValidationError".asJson &&
+                feJson.field("errors") == Json.arr(
+                  Json.obj(
+                    "message" := "$.unallowedAdditionalField: is not defined in the schema and the schema does not allow additional properties",
+                    "source" := "unstruct",
+                    "path" := "$",
+                    "keyword" := "additionalProperties",
+                    "targets" := List("unallowedAdditionalField")
+                  )
+                ) &&
+                feJson.field("schema") == emailSentSchema.asJson &&
+                feJson.field("data") == jparse(invalidUeData).toOption.get =>
+            true
+          case _ => false
+        }
+      }
+
+      val enriched = EnrichmentManager.enrichEvent[IO](
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent,
+        AcceptInvalid.featureFlags,
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits,
+        emitIncomplete = true
+      )
+
+      enriched.value.map {
+        case Ior.Both(_: BadRow.SchemaViolations, enriched)
+            if Option(enriched.unstruct_event).isEmpty &&
+              SpecHelpers.listContextsSchemas(enriched.contexts) == List(clientSessionSchema) &&
+              expectedDerivedContexts(enriched) =>
+          ok
+        case other => ko(s"[$other] is not a SchemaViolations bad row and an enriched event without the unstructured event")
+      }
+    }
+
+    "remove the invalid context and enrich the event if emitIncomplete is set to true" >> {
+      val script =
+        s"""
+        function process(event) {
+          return [ ${emailSent} ];
+        }"""
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow",
+        "javascript_script_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val enrichmentReg = EnrichmentRegistry[IO](
+        javascriptScript = List(
+          JavascriptScriptEnrichment(schemaKey, script)
+        )
+      )
+      val invalidContextData =
+        """{
+            "foo": "hello@world.com",
+            "emailAddress2": "foo@bar.org"
+          }"""
+      val invalidContext =
+        s"""{
+            "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+            "data": $invalidContextData
+          }"""
+
+      val parameters = Map(
+        "e" -> "pp",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "co" ->
+          s"""
+          {
+            "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
+            "data": [$invalidContext]
+          }
+        """,
+        "ue_pr" ->
+          s"""
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data": $clientSession
+          }"""
+      ).toOpt
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      def expectedDerivedContexts(enriched: EnrichedEvent): Boolean = {
+        val emailSentSDJ = SelfDescribingData.parse[Json](jparse(emailSent).toOption.get).toOption.get
+        SpecHelpers.listContexts(enriched.derived_contexts) match {
+          case List(SelfDescribingData(Failure.`failureSchemaKey`, feJson), `emailSentSDJ`)
+              if feJson.field("failureType") == "ValidationError".asJson &&
+                feJson.field("errors") == Json.arr(
+                  Json.obj(
+                    "message" := "$.emailAddress: is missing but it is required",
+                    "source" := "contexts",
+                    "path" := "$",
+                    "keyword" := "required",
+                    "targets" := List("emailAddress")
+                  ),
+                  Json.obj(
+                    "message" := "$.foo: is not defined in the schema and the schema does not allow additional properties",
+                    "source" := "contexts",
+                    "path" := "$",
+                    "keyword" := "additionalProperties",
+                    "targets" := List("foo")
+                  )
+                ) &&
+                feJson.field("schema") == emailSentSchema.asJson &&
+                feJson.field("data") == jparse(invalidContextData).toOption.get =>
+            true
+          case _ => false
+        }
+      }
+
+      val enriched = EnrichmentManager.enrichEvent[IO](
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent,
+        AcceptInvalid.featureFlags,
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits,
+        emitIncomplete = true
+      )
+      enriched.value.map {
+        case Ior.Both(_: BadRow.SchemaViolations, enriched)
+            if Option(enriched.contexts).isEmpty &&
+              SpecHelpers.getUnstructSchema(enriched.unstruct_event) == clientSessionSchema &&
+              expectedDerivedContexts(enriched) =>
+          ok
+        case other => ko(s"[$other] is not a SchemaViolations bad row and an enriched event with no input contexts")
+      }
+    }
+
+    "remove one invalid context (out of 2) and enrich the event if emitIncomplete is set to true" >> {
+      val script =
+        s"""
+        function process(event) {
+          return [ ${emailSent} ];
+        }"""
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow",
+        "javascript_script_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val enrichmentReg = EnrichmentRegistry[IO](
+        javascriptScript = List(
+          JavascriptScriptEnrichment(schemaKey, script)
+        )
+      )
+      val invalidContextData =
+        """
+          {
+            "foo": "hello@world.com",
+            "emailAddress2": "foo@bar.org"
+          }"""
+      val invalidContext =
+        s"""
+          {
+            "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+            "data": $invalidContextData
+          }"""
+
+      val parameters = Map(
+        "e" -> "pp",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "co" ->
+          s"""
+          {
+            "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
+            "data": [
+              $invalidContext,
+              $clientSession
+            ]
+          }
+        """,
+        "ue_pr" ->
+          s"""
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data": $clientSession
+          }"""
+      ).toOpt
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      def expectedDerivedContexts(enriched: EnrichedEvent): Boolean = {
+        val emailSentSDJ = SelfDescribingData.parse[Json](jparse(emailSent).toOption.get).toOption.get
+        SpecHelpers.listContexts(enriched.derived_contexts) match {
+          case List(SelfDescribingData(Failure.`failureSchemaKey`, feJson), `emailSentSDJ`)
+              if feJson.field("failureType") == "ValidationError".asJson &&
+                feJson.field("errors") == Json.arr(
+                  Json.obj(
+                    "message" := "$.emailAddress: is missing but it is required",
+                    "source" := "contexts",
+                    "path" := "$",
+                    "keyword" := "required",
+                    "targets" := List("emailAddress")
+                  ),
+                  Json.obj(
+                    "message" := "$.foo: is not defined in the schema and the schema does not allow additional properties",
+                    "source" := "contexts",
+                    "path" := "$",
+                    "keyword" := "additionalProperties",
+                    "targets" := List("foo")
+                  )
+                ) &&
+                feJson.field("schema") == emailSentSchema.asJson &&
+                feJson.field("data") == jparse(invalidContextData).toOption.get =>
+            true
+          case _ => false
+        }
+      }
+
+      val enriched = EnrichmentManager.enrichEvent[IO](
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent,
+        AcceptInvalid.featureFlags,
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits,
+        emitIncomplete = true
+      )
+      enriched.value.map {
+        case Ior.Both(_: BadRow.SchemaViolations, enriched)
+            if SpecHelpers.getUnstructSchema(enriched.unstruct_event) == clientSessionSchema &&
+              SpecHelpers.listContextsSchemas(enriched.contexts) == List(clientSessionSchema) &&
+              expectedDerivedContexts(enriched) =>
+          ok
+        case other => ko(s"[$other] is not a SchemaViolations bad row and an enriched event with 1 input context")
+      }
+    }
+
+    "return the enriched event after an enrichment exception if emitIncomplete is set to true" >> {
+      val script =
+        s"""
+        function process(event) {
+          throw "Javascript exception";
+          return [ $emailSent ];
+        }"""
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow",
+        "javascript_script_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val enrichmentReg = EnrichmentRegistry[IO](
+        yauaa = Some(YauaaEnrichment(None)),
+        javascriptScript = List(
+          JavascriptScriptEnrichment(schemaKey, script)
+        )
+      )
+
+      val parameters = Map(
+        "e" -> "pp",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "ue_pr" ->
+          s"""
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data": $clientSession
+          }"""
+      ).toOpt
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      def expectedDerivedContexts(enriched: EnrichedEvent): Boolean =
+        SpecHelpers.listContexts(enriched.derived_contexts) match {
+          case List(
+                SelfDescribingData(Failure.`failureSchemaKey`, feJson),
+                SelfDescribingData(SchemaKey("nl.basjes", "yauaa_context", "jsonschema", _), _)
+              )
+              if feJson.field("failureType") == "EnrichmentError: Javascript enrichment".asJson &&
+                feJson.field("errors") == Json.arr(
+                  Json.obj(
+                    "message" := "Error during execution of JavaScript function: [Javascript exception in <eval> at line number 3 at column number 10]"
+                  )
+                ) &&
+                feJson.field("schema") == JavascriptScriptEnrichment.supportedSchema.copy(addition = 0.some).asString.asJson &&
+                feJson.field("data") == Json.Null =>
+            true
+          case _ => false
+        }
+
+      val enriched = EnrichmentManager.enrichEvent[IO](
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent,
+        AcceptInvalid.featureFlags,
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits,
+        emitIncomplete = true
+      )
+      enriched.value.map {
+        case Ior.Both(_: BadRow.EnrichmentFailures, enriched)
+            if SpecHelpers.getUnstructSchema(enriched.unstruct_event) == clientSessionSchema &&
+              expectedDerivedContexts(enriched) =>
+          ok
+        case other => ko(s"[$other] is not an EnrichmentFailures bad row and an enriched event")
+      }
+    }
+
+    "return a SchemaViolations bad row in the Left in case of both a schema violation and an enrichment failure if emitIncomplete is set to true" >> {
+      val script =
+        s"""
+        function process(event) {
+          throw "Javascript exception";
+          return [ $emailSent ];
+        }"""
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow",
+        "javascript_script_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val enrichmentReg = EnrichmentRegistry[IO](
+        javascriptScript = List(
+          JavascriptScriptEnrichment(schemaKey, script)
+        )
+      )
+
+      val parameters = Map(
+        "e" -> "pp",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "tr_tt" -> "foo",
+        "ue_pr" ->
+          s"""
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data": $clientSession
+          }"""
+      ).toOpt
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      def expectedDerivedContexts(enriched: EnrichedEvent): Boolean =
+        SpecHelpers.listContexts(enriched.derived_contexts) match {
+          case List(
+                SelfDescribingData(Failure.`failureSchemaKey`, validationError),
+                SelfDescribingData(Failure.`failureSchemaKey`, enrichmentError)
+              )
+              if validationError.field("failureType") == "ValidationError".asJson &&
+                validationError.field("errors") == Json.arr(
+                  Json.obj(
+                    "message" := "Cannot be converted to java.math.BigDecimal. Error : Character f is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark.",
+                    "source" := AtomicError.source,
+                    "path" := "tr_tt",
+                    "keyword" := AtomicError.keywordParse,
+                    "targets" := Json.arr()
+                  )
+                ) &&
+                validationError.field("schema") == AtomicFields.atomicSchema.asJson &&
+                validationError.field("data") == Json.obj("tr_tt" := "foo") &&
+                enrichmentError.field("failureType") == "EnrichmentError: Javascript enrichment".asJson &&
+                enrichmentError.field("errors") == Json.arr(
+                  Json.obj(
+                    "message" := "Error during execution of JavaScript function: [Javascript exception in <eval> at line number 3 at column number 10]"
+                  )
+                ) &&
+                enrichmentError.field("schema") == JavascriptScriptEnrichment.supportedSchema.copy(addition = 0.some).asString.asJson &&
+                enrichmentError.field("data") == Json.Null =>
+            true
+          case _ => false
+        }
+
+      val enriched = EnrichmentManager.enrichEvent[IO](
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent,
+        AcceptInvalid.featureFlags,
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits,
+        emitIncomplete = true
+      )
+      enriched.value.map {
+        case Ior.Both(_: BadRow.SchemaViolations, enriched) if expectedDerivedContexts(enriched) => ok
+        case other => ko(s"[$other] doesn't have a SchemaViolations bad row in the Left")
+      }
+    }
+
+    "remove an invalid enrichment context and return the enriched event if emitIncomplete is set to true" >> {
+      val invalidContextData =
+        """
+          {
+            "foo": "hello@world.com",
+            "emailAddress2": "foo@bar.org"
+          }"""
+      val invalidContext =
+        s"""
+          {
+            "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+            "data": $invalidContextData
+          }"""
+      val script =
+        s"""
+        function process(event) {
+          return [
+            $invalidContext
+          ];
+        }"""
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow",
+        "javascript_script_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val enrichmentReg = EnrichmentRegistry[IO](
+        yauaa = Some(YauaaEnrichment(None)),
+        javascriptScript = List(
+          JavascriptScriptEnrichment(schemaKey, script)
+        )
+      )
+
+      val parameters = Map(
+        "e" -> "pp",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "ue_pr" ->
+          s"""
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data": $clientSession
+          }"""
+      ).toOpt
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      def expectedDerivedContexts(enriched: EnrichedEvent): Boolean =
+        SpecHelpers.listContexts(enriched.derived_contexts) match {
+          case List(
+                SelfDescribingData(Failure.`failureSchemaKey`, feJson),
+                SelfDescribingData(SchemaKey("nl.basjes", "yauaa_context", "jsonschema", _), _)
+              )
+              if feJson.field("failureType") == "ValidationError".asJson &&
+                feJson.field("errors") == Json.arr(
+                  Json.obj(
+                    "message" := "$.emailAddress: is missing but it is required",
+                    "source" := "derived_contexts",
+                    "path" := "$",
+                    "keyword" := "required",
+                    "targets" := List("emailAddress")
+                  ),
+                  Json.obj(
+                    "message" := "$.foo: is not defined in the schema and the schema does not allow additional properties",
+                    "source" := "derived_contexts",
+                    "path" := "$",
+                    "keyword" := "additionalProperties",
+                    "targets" := List("foo")
+                  )
+                ) &&
+                feJson.field("schema") == emailSentSchema.asJson &&
+                feJson.field("data") == jparse(invalidContextData).toOption.get =>
+            true
+          case _ => false
+        }
+
+      val enriched = EnrichmentManager.enrichEvent[IO](
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent,
+        AcceptInvalid.featureFlags,
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits,
+        emitIncomplete = true
+      )
+      enriched.value.map {
+        case Ior.Both(_: BadRow.SchemaViolations, enriched)
+            if SpecHelpers.getUnstructSchema(enriched.unstruct_event) == clientSessionSchema &&
+              expectedDerivedContexts(enriched) =>
+          ok
+        case other => ko(s"[$other] is not a SchemaViolations bad row and an enriched event without the faulty enrichment context")
+      }
+    }
+
+    "return a bad row that contains validation errors only from ue if there is validation error in both ue and derived contexts when emitIncomplete is set to true" >> {
+      val invalidContext =
+        """
+          {
+            "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+            "data": {
+              "foo": "hello@world.com",
+              "emailAddress2": "foo@bar.org"
+            }
+          }"""
+      val invalidUe =
+        """{
+             "schema":"iglu:com.snowplowanalytics.snowplow/client_session/jsonschema/1-0-1",
+             "data": {
+               "unallowedAdditionalField": "foo@bar.org"
+             }
+           }"""
+      val script =
+        s"""
+        function process(event) {
+          return [
+            $invalidContext
+          ];
+        }"""
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow",
+        "javascript_script_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val enrichmentReg = EnrichmentRegistry[IO](
+        javascriptScript = List(
+          JavascriptScriptEnrichment(schemaKey, script)
+        )
+      )
+      val parameters = Map(
+        "e" -> "pp",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "ue_pr" ->
+          s"""
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data": $invalidUe
+          }"""
+      ).toOpt
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      val enriched = EnrichmentManager.enrichEvent[IO](
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent,
+        AcceptInvalid.featureFlags,
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits,
+        emitIncomplete = true
+      )
+      def expectedDerivedContexts(enriched: EnrichedEvent): Boolean =
+        SpecHelpers.listContextsSchemas(enriched.derived_contexts).count(_ == Failure.failureSchemaKey) == 2
+
+      def expectedBadRow(badRow: BadRow): Boolean =
+        badRow match {
+          case BadRow.SchemaViolations(
+                _,
+                BadRowFailure.SchemaViolations(
+                  _,
+                  NonEmptyList(FailureDetails.SchemaViolation.IgluError(`clientSessionSchema`, _), Nil)
+                ),
+                _
+              ) =>
+            true
+          case _ => false
+        }
+
+      enriched.value.map {
+        case Ior.Both(badRow, enriched)
+            if Option(enriched.unstruct_event).isEmpty &&
+              expectedDerivedContexts(enriched) &&
+              expectedBadRow(badRow) =>
+          ok
+        case other => ko(s"[$other] is not expected one")
+      }
     }
   }
 
@@ -1630,7 +2309,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
 
   "validateEnriched" should {
     "create a SchemaViolations bad row if an atomic field is oversized" >> {
-      val result = EnrichmentManager
+      EnrichmentManager
         .enrichEvent[IO](
           enrichmentReg,
           client,
@@ -1640,26 +2319,28 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           featureFlags = AcceptInvalid.featureFlags.copy(acceptInvalid = false),
           IO.unit,
           SpecHelpers.registryLookup,
-          atomicFieldLimits
+          atomicFieldLimits,
+          emitIncomplete
         )
-
-      result.value
-        .map(_ must beLeft.like {
-          case BadRow.SchemaViolations(
-                _,
-                Failure.SchemaViolations(_, NonEmptyList(FailureDetails.SchemaViolation.IgluError(schemaKey, clientError), Nil)),
-                _
+        .value
+        .map {
+          case Ior.Left(
+                BadRow.SchemaViolations(
+                  _,
+                  BadRowFailure.SchemaViolations(_, NonEmptyList(FailureDetails.SchemaViolation.IgluError(schemaKey, clientError), Nil)),
+                  _
+                )
               ) =>
             schemaKey must beEqualTo(AtomicFields.atomicSchema)
             clientError.toString must contain("v_tracker")
             clientError.toString must contain("Field is longer than maximum allowed size")
           case other =>
             ko(s"[$other] is not a SchemaViolations bad row with one IgluError")
-        })
+        }
     }
 
     "not create a bad row if an atomic field is oversized and acceptInvalid is set to true" >> {
-      val result = EnrichmentManager
+      EnrichmentManager
         .enrichEvent[IO](
           enrichmentReg,
           client,
@@ -1669,11 +2350,14 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           featureFlags = AcceptInvalid.featureFlags.copy(acceptInvalid = true),
           IO.unit,
           SpecHelpers.registryLookup,
-          atomicFieldLimits
+          atomicFieldLimits,
+          emitIncomplete
         )
         .value
-
-      result.map(_ must beRight[EnrichedEvent])
+        .map {
+          case Ior.Right(_) => ok
+          case other => ko(s"[$other] is not an enriched event")
+        }
     }
 
     "return a SchemaViolations bad row containing both the atomic field length error and the invalid enrichment context error" >> {
@@ -1716,27 +2400,94 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           AcceptInvalid.featureFlags,
           IO.unit,
           SpecHelpers.registryLookup,
-          atomicFieldLimits
+          atomicFieldLimits,
+          emitIncomplete
         )
         .value
-        .map(_ must beLeft.like {
-          case BadRow.SchemaViolations(
-                _,
-                Failure.SchemaViolations(_,
-                                         NonEmptyList(FailureDetails.SchemaViolation.IgluError(schemaKey1, clientError1),
-                                                      List(FailureDetails.SchemaViolation.IgluError(schemaKey2, clientError2))
-                                         )
-                ),
-                _
+        .map {
+          case Ior.Left(
+                BadRow.SchemaViolations(
+                  _,
+                  BadRowFailure.SchemaViolations(_,
+                                                 NonEmptyList(FailureDetails.SchemaViolation.IgluError(schemaKey1, clientError1),
+                                                              List(FailureDetails.SchemaViolation.IgluError(schemaKey2, clientError2))
+                                                 )
+                  ),
+                  _
+                )
               ) =>
-            schemaKey1 must beEqualTo(AtomicFields.atomicSchema)
-            clientError1.toString must contain("v_tracker")
-            clientError1.toString must contain("Field is longer than maximum allowed size")
-            schemaKey2 must beEqualTo(emailSentSchema)
-            clientError2.toString must contain("emailAddress2: is missing but it is required")
+            schemaKey1 must beEqualTo(emailSentSchema)
+            clientError1.toString must contain("emailAddress2: is missing but it is required")
+            schemaKey2 must beEqualTo(AtomicFields.atomicSchema)
+            clientError2.toString must contain("v_tracker")
+            clientError2.toString must contain("Field is longer than maximum allowed size")
           case other =>
             ko(s"[$other] is not a SchemaViolations bad row with 2 IgluError")
-        })
+        }
+    }
+
+    "remove an oversized atomic field if emitIncomplete is set to true" >> {
+      val enriched = EnrichmentManager
+        .enrichEvent[IO](
+          enrichmentReg,
+          client,
+          processor,
+          timestamp,
+          RawEvent(api, fatBody, None, source, context),
+          featureFlags = AcceptInvalid.featureFlags.copy(acceptInvalid = false),
+          IO.unit,
+          SpecHelpers.registryLookup,
+          atomicFieldLimits,
+          emitIncomplete = true
+        )
+
+      enriched.value.map {
+        case Ior.Both(_: BadRow.SchemaViolations, enriched) if Option(enriched.v_tracker).isEmpty => ok
+        case other => ko(s"[$other] is not a SchemaViolations bad row and an enriched event without tracker version")
+      }
+    }
+  }
+
+  "setDerivedContexts" should {
+    val sv = Failure.SchemaViolation(
+      schemaViolation = FailureDetails.SchemaViolation.NotJson("testField", "testValue".some, "testError"),
+      source = "testSource",
+      data = Json.obj("testKey" := "testValue")
+    )
+    val ef = Failure.EnrichmentFailure(
+      FailureDetails.EnrichmentFailure(
+        None,
+        FailureDetails.EnrichmentFailureMessage.Simple("testError")
+      )
+    )
+    val emailSentSDJ = SelfDescribingData.parse[Json](jparse(emailSent).toOption.get).toOption.get
+    "set derived contexts correctly if enrichment result is Ior.Left" >> {
+      val enriched = new EnrichedEvent()
+      val enrichmentResult = Ior.Left(NonEmptyList.of(NonEmptyList.of(sv, ef), NonEmptyList.of(sv, ef)))
+      EnrichmentManager.setDerivedContexts(enriched, enrichmentResult, processor)
+      val schemas = SpecHelpers.listContextsSchemas(enriched.derived_contexts)
+      schemas.size must beEqualTo(4)
+      forall(schemas)(s => s must beEqualTo(Failure.failureSchemaKey))
+    }
+    "set derived contexts correctly if enrichment result is Ior.Right" >> {
+      val enriched = new EnrichedEvent()
+      val enrichmentResult = Ior.Right(List(emailSentSDJ, emailSentSDJ))
+      EnrichmentManager.setDerivedContexts(enriched, enrichmentResult, processor)
+      val schemas = SpecHelpers.listContextsSchemas(enriched.derived_contexts)
+      schemas.size must beEqualTo(2)
+      forall(schemas)(s => s must beEqualTo(emailSentSchema))
+    }
+    "set derived contexts correctly if enrichment result is Ior.Both" >> {
+      val enriched = new EnrichedEvent()
+      val enrichmentResult = Ior.Both(
+        NonEmptyList.of(NonEmptyList.of(sv, ef), NonEmptyList.of(sv, ef)),
+        List(emailSentSDJ, emailSentSDJ)
+      )
+      EnrichmentManager.setDerivedContexts(enriched, enrichmentResult, processor)
+      val schemas = SpecHelpers.listContextsSchemas(enriched.derived_contexts)
+      schemas.size must beEqualTo(6)
+      schemas.count(_ == Failure.failureSchemaKey) must beEqualTo(4)
+      schemas.count(_ == emailSentSchema) must beEqualTo(2)
     }
   }
 }
@@ -1813,4 +2564,37 @@ object EnrichmentManagerSpec {
       "jsonschema",
       SchemaVer.Full(1, 0, 0)
     )
+
+  val emailSent = s"""{
+    "schema": "${emailSentSchema.toSchemaUri}",
+    "data": {
+      "emailAddress": "hello@world.com",
+      "emailAddress2": "foo@bar.org"
+    }
+  }"""
+
+  val clientSessionSchema =
+    SchemaKey(
+      "com.snowplowanalytics.snowplow",
+      "client_session",
+      "jsonschema",
+      SchemaVer.Full(1, 0, 1)
+    )
+
+  val clientSession = s"""{
+    "schema": "${clientSessionSchema.toSchemaUri}",
+    "data": {
+      "sessionIndex": 1,
+      "storageMechanism": "LOCAL_STORAGE",
+      "firstEventId": "5c33fccf-6be5-4ce6-afb1-e34026a3ca75",
+      "sessionId": "21c2a0dd-892d-42d1-b156-3a9d4e147eef",
+      "previousSessionId": null,
+      "userId": "20d631b8-7837-49df-a73e-6da73154e6fd"
+    }
+  }"""
+
+  implicit class JsonFieldGetter(json: Json) {
+    def field(f: String): Json =
+      json.hcursor.downField(f).as[Json].toOption.get
+  }
 }

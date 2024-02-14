@@ -82,9 +82,10 @@ class ApiRequestEnrichmentSpec extends Specification with CatsEffect {
       val testWithHttp = HttpServer.resource *> TestEnvironment.make(input, List(enrichment))
       testWithHttp.use { test =>
         test.run().map {
-          case (bad, pii, good) =>
+          case (bad, pii, good, incomplete) =>
             bad must beEmpty
             pii must beEmpty
+            incomplete must beEmpty
             good.map(_.derived_contexts) must contain(exactly(expected))
         }
       }
@@ -117,9 +118,10 @@ class ApiRequestEnrichmentSpec extends Specification with CatsEffect {
 
       TestEnvironment.make(input, List(enrichment)).use { test =>
         test.run().map {
-          case (bad, pii, good) =>
+          case (bad, pii, good, incomplete) =>
             good must beEmpty
             pii must beEmpty
+            incomplete must haveSize(nbEvents)
             bad.collect { case ef: BadRow.EnrichmentFailures => ef } must haveSize(nbEvents)
         }
       }

@@ -44,6 +44,8 @@ class BadSinkAuthHandler extends AzureAuthenticationCallbackHandler
 
 class PiiSinkAuthHandler extends AzureAuthenticationCallbackHandler
 
+class IncompleteSinkAuthHandler extends AzureAuthenticationCallbackHandler
+
 class AzureAuthenticationCallbackHandler extends AuthenticateCallbackHandler {
 
   val credentials = new DefaultAzureCredentialBuilder().build()

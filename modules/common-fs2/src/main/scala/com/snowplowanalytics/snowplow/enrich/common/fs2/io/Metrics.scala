@@ -43,6 +43,9 @@ trait Metrics[F[_]] {
   /** Increment bad events */
   def badCount(nb: Int): F[Unit]
 
+  /** Increment incomplete events */
+  def incompleteCount(nb: Int): F[Unit]
+
   /** Increment invalid enriched events count */
   def invalidCount: F[Unit]
 
@@ -63,6 +66,7 @@ object Metrics {
   val RawCounterName = "raw"
   val GoodCounterName = "good"
   val BadCounterName = "bad"
+  val IncompleteCounterName = "incomplete"
   val InvalidCounterName = "invalid_enriched"
   val RemoteAdaptersSuccessCounterName = "remote_adapters_success"
   val RemoteAdaptersFailureCounterName = "remote_adapters_failure"
@@ -73,6 +77,7 @@ object Metrics {
     rawCount: Int,
     goodCount: Int,
     badCount: Int,
+    incompleteCount: Option[Int],
     invalidCount: Int,
     remoteAdaptersSuccessCount: Option[Int],
     remoteAdaptersFailureCount: Option[Int],
@@ -85,33 +90,35 @@ object Metrics {
 
   def build[F[_]: Async](
     config: MetricsReporters,
-    remoteAdaptersEnabled: Boolean
+    remoteAdaptersEnabled: Boolean,
+    incompleteEventsEnabled: Boolean
   ): F[Metrics[F]] =
     config match {
       case MetricsReporters(None, None, _) => noop[F].pure[F]
-      case MetricsReporters(statsd, stdout, _) => impl[F](statsd, stdout, remoteAdaptersEnabled)
+      case MetricsReporters(statsd, stdout, _) => impl[F](statsd, stdout, remoteAdaptersEnabled, incompleteEventsEnabled)
     }
 
   private def impl[F[_]: Async](
     statsd: Option[MetricsReporters.StatsD],
     stdout: Option[MetricsReporters.Stdout],
-    remoteAdaptersEnabled: Boolean
+    remoteAdaptersEnabled: Boolean,
+    incompleteEventsEnabled: Boolean
   ): F[Metrics[F]] =
     for {
-      refsStatsd <- MetricRefs.init[F](remoteAdaptersEnabled)
-      refsStdout <- MetricRefs.init[F](remoteAdaptersEnabled)
+      refsStatsd <- MetricRefs.init[F](remoteAdaptersEnabled, incompleteEventsEnabled)
+      refsStdout <- MetricRefs.init[F](remoteAdaptersEnabled, incompleteEventsEnabled)
     } yield new Metrics[F] {
       def report: Stream[F, Unit] = {
 
         val rep1 = statsd
           .map { config =>
-            reporterStream(StatsDReporter.make[F](config), refsStatsd, config.period, remoteAdaptersEnabled)
+            reporterStream(StatsDReporter.make[F](config), refsStatsd, config.period, remoteAdaptersEnabled, incompleteEventsEnabled)
           }
           .getOrElse(Stream.never[F])
 
         val rep2 = stdout
           .map { config =>
-            reporterStream(Resource.eval(stdoutReporter(config)), refsStdout, config.period, remoteAdaptersEnabled)
+            reporterStream(Resource.eval(stdoutReporter(config)), refsStdout, config.period, remoteAdaptersEnabled, incompleteEventsEnabled)
           }
           .getOrElse(Stream.never[F])
 
@@ -142,6 +149,10 @@ object Metrics {
         refsStatsd.badCount.update(_ + nb) *>
           refsStdout.badCount.update(_ + nb)
 
+      def incompleteCount(nb: Int): F[Unit] =
+        refsStatsd.incompleteCount.update(_.map(_ + nb)) *>
+          refsStdout.incompleteCount.update(_.map(_ + nb))
+
       def invalidCount: F[Unit] =
         refsStatsd.invalidCount.update(_ + 1) *>
           refsStdout.invalidCount.update(_ + 1)
@@ -161,6 +172,7 @@ object Metrics {
     rawCount: Ref[F, Int],
     goodCount: Ref[F, Int],
     badCount: Ref[F, Int],
+    incompleteCount: Ref[F, Option[Int]],
     invalidCount: Ref[F, Int],
     remoteAdaptersSuccessCount: Ref[F, Option[Int]],
     remoteAdaptersFailureCount: Ref[F, Option[Int]],
@@ -168,12 +180,13 @@ object Metrics {
   )
 
   private object MetricRefs {
-    def init[F[_]: Sync](remoteAdaptersEnabled: Boolean): F[MetricRefs[F]] =
+    def init[F[_]: Sync](remoteAdaptersEnabled: Boolean, incompleteEventsEnabled: Boolean): F[MetricRefs[F]] =
       for {
         latency <- Ref.of[F, Option[Long]](None)
         rawCounter <- Ref.of[F, Int](0)
         goodCounter <- Ref.of[F, Int](0)
         badCounter <- Ref.of[F, Int](0)
+        incompleteCounter <- Ref.of[F, Option[Int]](if (incompleteEventsEnabled) Some(0) else None)
         invalidCounter <- Ref.of[F, Int](0)
         remoteAdaptersSuccessCounter <- Ref.of[F, Option[Int]](if (remoteAdaptersEnabled) Some(0) else None)
         remoteAdaptersFailureCounter <- Ref.of[F, Option[Int]](if (remoteAdaptersEnabled) Some(0) else None)
@@ -183,18 +196,24 @@ object Metrics {
         rawCounter,
         goodCounter,
         badCounter,
+        incompleteCounter,
         invalidCounter,
         remoteAdaptersSuccessCounter,
         remoteAdaptersFailureCounter,
         remoteAdaptersTimeoutCounter
       )
 
-    def snapshot[F[_]: Monad](refs: MetricRefs[F], remoteAdaptersEnabled: Boolean): F[MetricSnapshot] =
+    def snapshot[F[_]: Monad](
+      refs: MetricRefs[F],
+      remoteAdaptersEnabled: Boolean,
+      incompleteEventsEnabled: Boolean
+    ): F[MetricSnapshot] =
       for {
         latency <- refs.latency.getAndSet(None)
         rawCount <- refs.rawCount.getAndSet(0)
         goodCount <- refs.goodCount.getAndSet(0)
         badCount <- refs.badCount.getAndSet(0)
+        incompleteCount <- refs.incompleteCount.getAndSet(if (incompleteEventsEnabled) Some(0) else None)
         invalidCount <- refs.invalidCount.getAndSet(0)
         remoteAdaptersSuccessCount <- refs.remoteAdaptersSuccessCount.getAndSet(if (remoteAdaptersEnabled) Some(0) else None)
         remoteAdaptersFailureCount <- refs.remoteAdaptersFailureCount.getAndSet(if (remoteAdaptersEnabled) Some(0) else None)
@@ -203,6 +222,7 @@ object Metrics {
                              rawCount,
                              goodCount,
                              badCount,
+                             incompleteCount,
                              invalidCount,
                              remoteAdaptersSuccessCount,
                              remoteAdaptersFailureCount,
@@ -214,12 +234,13 @@ object Metrics {
     reporter: Resource[F, Reporter[F]],
     metrics: MetricRefs[F],
     period: FiniteDuration,
-    remoteAdaptersEnabled: Boolean
+    remoteAdaptersEnabled: Boolean,
+    incompleteEventsEnabled: Boolean
   ): Stream[F, Unit] =
     for {
       rep <- Stream.resource(reporter)
       _ <- Stream.fixedDelay[F](period)
-      snapshot <- Stream.eval(MetricRefs.snapshot(metrics, remoteAdaptersEnabled))
+      snapshot <- Stream.eval(MetricRefs.snapshot(metrics, remoteAdaptersEnabled, incompleteEventsEnabled))
       _ <- Stream.eval(rep.report(snapshot))
     } yield ()
 
@@ -234,6 +255,9 @@ object Metrics {
           _ <- logger.info(s"${MetricsReporters.normalizeMetric(config.prefix, RawCounterName)} = ${snapshot.rawCount}")
           _ <- logger.info(s"${MetricsReporters.normalizeMetric(config.prefix, GoodCounterName)} = ${snapshot.goodCount}")
           _ <- logger.info(s"${MetricsReporters.normalizeMetric(config.prefix, BadCounterName)} = ${snapshot.badCount}")
+          _ <- snapshot.incompleteCount
+                 .map(cnt => logger.info(s"${MetricsReporters.normalizeMetric(config.prefix, IncompleteCounterName)} = $cnt"))
+                 .getOrElse(Applicative[F].unit)
           _ <- logger.info(s"${MetricsReporters.normalizeMetric(config.prefix, InvalidCounterName)} = ${snapshot.invalidCount}")
           _ <- snapshot.enrichLatency
                  .map(latency => logger.info(s"${MetricsReporters.normalizeMetric(config.prefix, LatencyGaugeName)} = $latency"))
@@ -257,6 +281,7 @@ object Metrics {
       def rawCount(nb: Int): F[Unit] = Applicative[F].unit
       def goodCount(nb: Int): F[Unit] = Applicative[F].unit
       def badCount(nb: Int): F[Unit] = Applicative[F].unit
+      def incompleteCount(nb: Int): F[Unit] = Applicative[F].unit
       def invalidCount: F[Unit] = Applicative[F].unit
       def remoteAdaptersSuccessCount: F[Unit] = Applicative[F].unit
       def remoteAdaptersFailureCount: F[Unit] = Applicative[F].unit

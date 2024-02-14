@@ -19,7 +19,7 @@ import cats.effect.IO
 import cats.effect.testing.specs2.CatsEffect
 
 import cats.implicits._
-import cats.data.NonEmptyList
+import cats.data.{Ior, NonEmptyList}
 
 import io.circe.Json
 import io.circe.literal._
@@ -90,13 +90,13 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value
-        .map(_ must beLeft.like {
-          case _: BadRow.SchemaViolations => ok
-          case br => ko(s"bad row [$br] is not SchemaViolations")
-        })
+      enriched.value map {
+        case Ior.Left(_: BadRow.SchemaViolations) => ok
+        case other => ko(s"[$other] is not a SchemaViolations bad row")
+      }
     }
 
     "return a SchemaViolations bad row if the input unstructured event is invalid" >> {
@@ -128,13 +128,13 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value
-        .map(_ must beLeft.like {
-          case _: BadRow.SchemaViolations => ok
-          case br => ko(s"bad row [$br] is not SchemaViolations")
-        })
+      enriched.value map {
+        case Ior.Left(_: BadRow.SchemaViolations) => ok
+        case other => ko(s"[$other] is not a SchemaViolations bad row")
+      }
     }
 
     "return an EnrichmentFailures bad row if one of the enrichment (JS enrichment here) fails" >> {
@@ -177,11 +177,12 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value
-        .map(_ must beLeft.like {
-          case BadRow.EnrichmentFailures(
+      enriched.value map {
+        case Ior.Left(
+              BadRow.EnrichmentFailures(
                 _,
                 Failure.EnrichmentFailures(
                   _,
@@ -194,13 +195,11 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
                   )
                 ),
                 _
-              ) =>
-            ok
-          case br =>
-            ko(
-              s"bad row [$br] is not an EnrichmentFailures containing one EnrichmentFailureMessage.Simple"
-            )
-        })
+              )
+            ) =>
+          ok
+        case other => ko(s"[$other] is not an EnrichmentFailures bad row with one EnrichmentFailureMessage.Simple")
+      }
     }
 
     "return an EnrichmentFailures bad row containing one IgluError if one of the contexts added by the enrichments is invalid" >> {
@@ -247,11 +246,12 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value
-        .map(_ must beLeft.like {
-          case BadRow.EnrichmentFailures(
+      enriched.value map {
+        case Ior.Left(
+              BadRow.EnrichmentFailures(
                 _,
                 Failure.EnrichmentFailures(
                   _,
@@ -263,11 +263,12 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
                     Nil
                   )
                 ),
-                payload
-              ) if payload.enriched.derived_contexts.isDefined =>
-            ok
-          case br => ko(s"bad row [$br] is not an EnrichmentFailures containing one IgluError and with derived_contexts defined")
-        })
+                _
+              )
+            ) =>
+          ok
+        case other => ko(s"[$other] is not an EnrichmentFailures bad row with one IgluError")
+      }
     }
 
     "emit an EnrichedEvent if everything goes well" >> {
@@ -313,9 +314,13 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value.map(_ must beRight)
+      enriched.value.map {
+        case Ior.Right(_) => ok
+        case other => ko(s"[$other] is not an enriched event")
+      }
     }
 
     "emit an EnrichedEvent if a PII value that needs to be hashed is an empty string" >> {
@@ -379,9 +384,13 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value.map(_ must beRight)
+      enriched.value.map {
+        case Ior.Right(_) => ok
+        case other => ko(s"[$other] is not an enriched event")
+      }
     }
 
     "emit an EnrichedEvent if a PII value that needs to be hashed is null" >> {
@@ -445,9 +454,13 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value.map(_ must beRight)
+      enriched.value.map {
+        case Ior.Right(_) => ok
+        case other => ko(s"[$other] is not an enriched event")
+      }
     }
 
     "fail to emit an EnrichedEvent if a PII value that needs to be hashed is an empty object" >> {
@@ -511,9 +524,13 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value.map(_ must beLeft)
+      enriched.value.map {
+        case Ior.Left(_) => ok
+        case other => ko(s"[$other] is not a bad row")
+      }
     }
 
     "fail to emit an EnrichedEvent if a context PII value that needs to be hashed is an empty object" >> {
@@ -577,9 +594,13 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value.map(_ must beLeft)
+      enriched.value.map {
+        case Ior.Left(_) => ok
+        case other => ko(s"[$other] is not a bad row")
+      }
     }
 
     "fail to emit an EnrichedEvent if a PII value needs to be hashed in both co and ue and is invalid in one of them" >> {
@@ -649,9 +670,13 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value.map(_ must beLeft)
+      enriched.value.map {
+        case Ior.Left(_) => ok
+        case other => ko(s"[$other] is not a bad row")
+      }
     }
 
     "emit an EnrichedEvent for valid integer fields" >> {
@@ -677,9 +702,13 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               AcceptInvalid.featureFlags,
               IO.unit,
               SpecHelpers.registryLookup,
-              atomicFieldLimits
+              atomicFieldLimits,
+              emitIncomplete
             )
-            enriched.value.map(_ must beRight)
+            enriched.value.map {
+              case Ior.Right(_) => ok
+              case other => ko(s"[$other] is not a bad row")
+            }
           }
         }
     }
@@ -707,9 +736,13 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               AcceptInvalid.featureFlags,
               IO.unit,
               SpecHelpers.registryLookup,
-              atomicFieldLimits
+              atomicFieldLimits,
+              emitIncomplete
             )
-            enriched.value.map(_ must beRight)
+            enriched.value.map {
+              case Ior.Right(_) => ok
+              case other => ko(s"[$other] is not an enriched event")
+            }
           }
         }
     }
@@ -746,11 +779,13 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               AcceptInvalid.featureFlags,
               IO.unit,
               SpecHelpers.registryLookup,
-              atomicFieldLimits
+              atomicFieldLimits,
+              emitIncomplete
             )
-            enriched.value.map(_ must beRight { ee: EnrichedEvent =>
-              ee.se_value.toString must_== expected
-            })
+            enriched.value.map {
+              case Ior.Right(enriched) => enriched.se_value.toString must_== expected
+              case other => ko(s"[$other] is not an enriched event")
+            }
         }
     }
 
@@ -773,12 +808,15 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value.map { e =>
-        val res1 = e.map(_.useragent) must beRight(qs_ua)
-        val res2 = e.map(_.derived_contexts) must beRight((_: String).contains("\"agentName\":\"Firefox\""))
-        res1 and res2
+      enriched.value.map {
+        case Ior.Right(enriched) =>
+          val res1 = enriched.useragent must_== qs_ua
+          val res2 = enriched.derived_contexts must contain("\"agentName\":\"Firefox\"")
+          res1 and res2
+        case other => ko(s"[$other] is not an enriched event")
       }
     }
 
@@ -799,10 +837,12 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value.map { e =>
-        e.map(_.useragent) must beRight("header-useragent")
+      enriched.value.map {
+        case Ior.Right(enriched) => enriched.useragent must_== "header-useragent"
+        case other => ko(s"[$other] is not an enriched event")
       }
     }
 
@@ -824,10 +864,12 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value.map { e =>
-        e.map(_.useragent) must beRight(ua)
+      enriched.value.map {
+        case Ior.Right(enriched) => enriched.useragent must_== ua
+        case other => ko(s"[$other] is not an enriched event")
       }
     }
 
@@ -850,12 +892,15 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value.map { e =>
-        val res1 = e.map(_.useragent) must beRight(qs_ua)
-        val res2 = e.map(_.derived_contexts) must beRight((_: String).contains("\"agentName\":\"%1$S\""))
-        res1 and res2
+      enriched.value.map {
+        case Ior.Right(enriched) =>
+          val res1 = enriched.useragent must_== qs_ua
+          val res2 = enriched.derived_contexts must contain("\"agentName\":\"%1$S\"")
+          res1 and res2
+        case other => ko(s"[$other] is not an enriched event")
       }
     }
 
@@ -896,10 +941,12 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value.map { e =>
-        e.map(_.app_id) must beRight("moo")
+      enriched.value.map {
+        case Ior.Right(enriched) => enriched.app_id must_== "moo"
+        case other => ko(s"[$other] is not an enriched event")
       }
     }
 
@@ -946,11 +993,15 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
-      enriched.value.map { e =>
-        (e.map(_.app_id) must beRight("test_app_id")) and
-          (e.map(_.platform) must beRight("test_platform"))
+      enriched.value.map {
+        case Ior.Right(enriched) =>
+          val res1 = enriched.app_id must_== "test_app_id"
+          val res2 = enriched.platform must_== "test_platform"
+          res1 and res2
+        case other => ko(s"[$other] is not an enriched event")
       }
     }
 
@@ -1100,20 +1151,21 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         AcceptInvalid.featureFlags,
         IO.unit,
         SpecHelpers.registryLookup,
-        atomicFieldLimits
+        atomicFieldLimits,
+        emitIncomplete
       )
 
-      enriched.value.map(_ must beRight.like {
-        case e: EnrichedEvent =>
-          val p = EnrichedEvent.toPartiallyEnrichedEvent(e)
+      enriched.value.map {
+        case Ior.Right(enriched) =>
+          val p = EnrichedEvent.toPartiallyEnrichedEvent(enriched)
           val contextsJson = jparse(p.contexts.get).toOption.get
           val derivedContextsJson = jparse(p.derived_contexts.get).toOption.get
           val ueJson = jparse(p.unstruct_event.get).toOption.get
           (contextsJson must beEqualTo(expectedContexts)) and
             (derivedContextsJson must beEqualTo(expectedDerivedContexts)) and
             (ueJson must beEqualTo(expectedUnstructEvent))
-        case _ => ko
-      })
+        case other => ko(s"[$other] is not an enriched event")
+      }
     }
   }
 
@@ -1588,22 +1640,23 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           featureFlags = AcceptInvalid.featureFlags.copy(acceptInvalid = false),
           IO.unit,
           SpecHelpers.registryLookup,
-          atomicFieldLimits
+          atomicFieldLimits,
+          emitIncomplete
         )
         .value
 
-      result.map(_ must beLeft.like {
-        case badRow: BadRow.EnrichmentFailures =>
-          val firstError = badRow.failure.messages.head.message
-          val secondError = badRow.failure.messages.last.message
+      result.map {
+        case Ior.Left(ef: BadRow.EnrichmentFailures) =>
+          val firstError = ef.failure.messages.head.message
+          val secondError = ef.failure.messages.last.message
 
           firstError must beEqualTo(
             EnrichmentFailureMessage.Simple("Enriched event does not conform to atomic schema field's length restrictions")
           )
           secondError must beEqualTo(EnrichmentFailureMessage.Simple("Field v_tracker longer than maximum allowed size 100"))
-        case br =>
-          ko(s"bad row [$br] is not BadRow.EnrichmentFailures")
-      })
+        case other =>
+          ko(s"[$other] is not an EnrichmentFailures bad row")
+      }
     }
 
     "not create a bad row if a field is oversized and acceptInvalid is set to true" >> {
@@ -1617,11 +1670,15 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           featureFlags = AcceptInvalid.featureFlags.copy(acceptInvalid = true),
           IO.unit,
           SpecHelpers.registryLookup,
-          atomicFieldLimits
+          atomicFieldLimits,
+          emitIncomplete
         )
         .value
 
-      result.map(_ must beRight[EnrichedEvent])
+      result.map {
+        case Ior.Right(_) => ok
+        case other => ko(s"[$other] is not an enriched event")
+      }
     }
   }
 }

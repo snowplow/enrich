@@ -71,7 +71,8 @@ class ParsedConfigsSpec extends Specification with CatsEffect {
             1000,
             10000000,
             io.GcpUserAgent("Snowplow OSS")
-          )
+          ),
+          None
         ),
         io.Concurrency(10000, 64),
         Some(7.days),

@@ -31,7 +31,7 @@ object Transform {
    * to "user_ipaddress" in the enriched event
    * @param enriched /!\ MUTABLE enriched event, mutated IN-PLACE /!\
    */
-  private[enrichments] def transform(raw: RawEvent, enriched: EnrichedEvent): ValidatedNel[FailureDetails.EnrichmentFailure, Unit] = {
+  private[enrichments] def transform(raw: RawEvent, enriched: EnrichedEvent): ValidatedNel[FailureDetails.SchemaViolation, Unit] = {
     val sourceMap: SourceMap = raw.parameters.collect { case (k, Some(v)) => (k, v) }
     val firstPassTransform = enriched.transform(sourceMap, firstPassTransformMap)
     val secondPassTransform = enriched.transform(sourceMap, secondPassTransformMap)
@@ -56,9 +56,9 @@ object Transform {
       ("fp", (ME.toTsvSafe, "user_fingerprint")),
       ("vid", (CU.stringToJInteger2, "domain_sessionidx")),
       ("sid", (CU.validateUuid, "domain_sessionid")),
-      ("dtm", (EE.extractTimestamp, "dvce_created_tstamp")),
-      ("ttm", (EE.extractTimestamp, "true_tstamp")),
-      ("stm", (EE.extractTimestamp, "dvce_sent_tstamp")),
+      ("dtm", (EE.extractTimestamp_sv, "dvce_created_tstamp")),
+      ("ttm", (EE.extractTimestamp_sv, "true_tstamp")),
+      ("stm", (EE.extractTimestamp_sv, "dvce_sent_tstamp")),
       ("tna", (ME.toTsvSafe, "name_tracker")),
       ("tv", (ME.toTsvSafe, "v_tracker")),
       ("cv", (ME.toTsvSafe, "v_collector")),

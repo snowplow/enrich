@@ -11,7 +11,7 @@
 package com.snowplowanalytics.snowplow.enrich.common
 
 import cats.Monad
-import cats.data.{Validated, ValidatedNel}
+import cats.data.{Ior, Validated, ValidatedNel}
 import cats.effect.Clock
 import cats.implicits._
 
@@ -41,10 +41,6 @@ object EtlPipeline {
   case class FeatureFlags(acceptInvalid: Boolean, legacyEnrichmentOrder: Boolean)
 
   /**
-   * A helper method to take a ValidatedMaybeCanonicalInput and transform it into a List (possibly
-   * empty) of ValidatedCanonicalOutputs.
-   * We have to do some unboxing because enrichEvent expects a raw CanonicalInput as its argument,
-   * not a MaybeCanonicalInput.
    * @param adapterRegistry Contains all of the events adapters
    * @param enrichmentRegistry Contains configuration for all enrichments to apply
    * @param client Our Iglu client, for schema lookups and validation
@@ -53,8 +49,6 @@ object EtlPipeline {
    * @param input The ValidatedMaybeCanonicalInput
    * @param featureFlags The feature flags available in the current version of Enrich
    * @param invalidCount Function to increment the count of invalid events
-   * @return the ValidatedMaybeCanonicalOutput. Thanks to flatMap, will include any validation
-   * errors contained within the ValidatedMaybeCanonicalInput
    */
   def processEvents[F[_]: Clock: Monad](
     adapterRegistry: AdapterRegistry[F],
@@ -66,8 +60,9 @@ object EtlPipeline {
     featureFlags: FeatureFlags,
     invalidCount: F[Unit],
     registryLookup: RegistryLookup[F],
-    atomicFields: AtomicFields
-  ): F[List[Validated[BadRow, EnrichedEvent]]] =
+    atomicFields: AtomicFields,
+    emitIncomplete: Boolean
+  ): F[List[Ior[BadRow, EnrichedEvent]]] =
     input match {
       case Validated.Valid(Some(payload)) =>
         adapterRegistry
@@ -85,16 +80,17 @@ object EtlPipeline {
                     featureFlags,
                     invalidCount,
                     registryLookup,
-                    atomicFields
+                    atomicFields,
+                    emitIncomplete
                   )
-                  .toValidated
+                  .value
               }
             case Validated.Invalid(badRow) =>
-              Monad[F].pure(List(badRow.invalid[EnrichedEvent]))
+              Monad[F].pure(List(Ior.left(badRow)))
           }
       case Validated.Invalid(badRows) =>
-        Monad[F].pure(badRows.map(_.invalid[EnrichedEvent])).map(_.toList)
+        Monad[F].pure(badRows.toList.map(br => Ior.left(br)))
       case Validated.Valid(None) =>
-        Monad[F].pure(List.empty[Validated[BadRow, EnrichedEvent]])
+        Monad[F].pure(Nil)
     }
 }

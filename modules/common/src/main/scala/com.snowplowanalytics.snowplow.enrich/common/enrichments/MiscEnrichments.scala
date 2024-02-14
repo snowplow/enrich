@@ -44,7 +44,7 @@ object MiscEnrichments {
    * @param platform The code for the platform generating this event.
    * @return a Scalaz ValidatedString.
    */
-  val extractPlatform: (String, String) => Either[FailureDetails.EnrichmentFailure, String] =
+  val extractPlatform: (String, String) => Either[FailureDetails.SchemaViolation, String] =
     (field, platform) =>
       platform match {
         case "web" => "web".asRight // Web, including Mobile Web
@@ -58,16 +58,13 @@ object MiscEnrichments {
         case "headset" => "headset".asRight // AR/VR Headset
         case _ =>
           val msg = "not recognized as a tracking platform"
-          val f = FailureDetails.EnrichmentFailureMessage.InputData(
-            field,
-            Option(platform),
-            msg
-          )
-          FailureDetails.EnrichmentFailure(None, f).asLeft
+          FailureDetails.SchemaViolation
+            .NotJson(field, Option(platform), msg)
+            .asLeft
       }
 
   /** Make a String TSV safe */
-  val toTsvSafe: (String, String) => Either[FailureDetails.EnrichmentFailure, String] =
+  val toTsvSafe: (String, String) => Either[FailureDetails.SchemaViolation, String] =
     (_, value) => CU.makeTsvSafe(value).asRight
 
   /**
@@ -76,7 +73,7 @@ object MiscEnrichments {
    * Here we retrieve the first one as it is supposed to be the client one, c.f.
    * https://en.m.wikipedia.org/wiki/X-Forwarded-For#Format
    */
-  val extractIp: (String, String) => Either[FailureDetails.EnrichmentFailure, String] =
+  val extractIp: (String, String) => Either[FailureDetails.SchemaViolation, String] =
     (_, value) => {
       val lastIp = Option(value).map(_.split("[,|, ]").head).orNull
       CU.makeTsvSafe(lastIp).asRight

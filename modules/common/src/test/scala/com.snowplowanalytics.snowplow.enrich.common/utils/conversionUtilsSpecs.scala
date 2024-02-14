@@ -263,14 +263,8 @@ class ValidateUuidSpec extends Specification with DataTables with ScalaCheck {
   def e2 =
     prop { (str: String) =>
       ConversionUtils.validateUuid(FieldName, str) must beLeft(
-        FailureDetails.EnrichmentFailure(
-          None,
-          FailureDetails.EnrichmentFailureMessage.InputData(
-            FieldName,
-            Option(str),
-            "not a valid UUID"
-          )
-        )
+        FailureDetails.SchemaViolation
+          .NotJson(FieldName, Option(str), "not a valid UUID")
       )
     }
 }
@@ -288,14 +282,8 @@ class ValidateIntegerSpec extends Specification {
   def e2 = {
     val str = "abc"
     ConversionUtils.validateInteger(FieldName, str) must beLeft(
-      FailureDetails.EnrichmentFailure(
-        None,
-        FailureDetails.EnrichmentFailureMessage.InputData(
-          FieldName,
-          Some(str),
-          "not a valid integer"
-        )
-      )
+      FailureDetails.SchemaViolation
+        .NotJson(FieldName, Some(str), "not a valid integer")
     )
   }
 }
@@ -326,16 +314,10 @@ class StringToDoubleLikeSpec extends Specification with DataTables {
   """
 
   val FieldName = "val"
-  def err: String => FailureDetails.EnrichmentFailure =
+  def err: String => FailureDetails.SchemaViolation =
     input =>
-      FailureDetails.EnrichmentFailure(
-        None,
-        FailureDetails.EnrichmentFailureMessage.InputData(
-          FieldName,
-          Option(input),
-          "cannot be converted to Double-like"
-        )
-      )
+      FailureDetails.SchemaViolation
+        .NotJson(FieldName, Option(input), "cannot be converted to Double-like")
 
   def e1 =
     "SPEC NAME" || "INPUT STR" | "EXPECTED" |
@@ -410,16 +392,10 @@ class StringToBooleanLikeJByteSpec extends Specification with DataTables {
   """
 
   val FieldName = "val"
-  def err: String => FailureDetails.EnrichmentFailure =
+  def err: String => FailureDetails.SchemaViolation =
     input =>
-      FailureDetails.EnrichmentFailure(
-        None,
-        FailureDetails.EnrichmentFailureMessage.InputData(
-          FieldName,
-          Option(input),
-          "cannot be converted to Boolean-like java.lang.Byte"
-        )
-      )
+      FailureDetails.SchemaViolation
+        .NotJson(FieldName, Option(input), "cannot be converted to Boolean-like java.lang.Byte")
 
   def e1 =
     "SPEC NAME" || "INPUT STR" | "EXPECTED" |

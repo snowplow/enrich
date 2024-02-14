@@ -47,22 +47,22 @@ object EventEnrichments {
    * @param Optional collectorTstamp
    * @return Validation boxing the result of making the timestamp Redshift-compatible
    */
-  def formatCollectorTstamp(collectorTstamp: Option[DateTime]): Either[FailureDetails.EnrichmentFailure, String] =
-    (collectorTstamp match {
+  def formatCollectorTstamp(collectorTstamp: Option[DateTime]): Either[FailureDetails.SchemaViolation, String] =
+    collectorTstamp match {
       case None =>
-        FailureDetails.EnrichmentFailureMessage
-          .InputData("collector_tstamp", None, "should be set")
+        FailureDetails.SchemaViolation
+          .NotJson("collector_tstamp", None, "not set")
           .asLeft
       case Some(t) =>
         val formattedTimestamp = toTimestamp(t)
         if (formattedTimestamp.startsWith("-") || t.getYear > 9999 || t.getYear < 0) {
           val msg = s"formatted as $formattedTimestamp is not Redshift-compatible"
-          FailureDetails.EnrichmentFailureMessage
-            .InputData("collector_tstamp", t.toString.some, msg)
+          FailureDetails.SchemaViolation
+            .NotJson("collector_tstamp", t.toString.some, msg)
             .asLeft
         } else
           formattedTimestamp.asRight
-    }).leftMap(FailureDetails.EnrichmentFailure(None, _))
+    }
 
   /**
    * Calculate the derived timestamp
@@ -110,36 +110,53 @@ object EventEnrichments {
         }
     }
 
+  case class FormatError(
+    field: String,
+    value: Option[String],
+    msg: String
+  )
+
+  val extractTimestamp_ef: (String, String) => Either[FailureDetails.EnrichmentFailure, String] =
+    (field, tstamp) =>
+      extractTimestamp(field, tstamp).leftMap { error =>
+        val f = FailureDetails.EnrichmentFailureMessage.InputData(
+          error.field,
+          error.value,
+          error.msg
+        )
+        FailureDetails.EnrichmentFailure(None, f)
+      }
+
+  val extractTimestamp_sv: (String, String) => Either[FailureDetails.SchemaViolation, String] =
+    (field, tstamp) =>
+      extractTimestamp(field, tstamp).leftMap(error => FailureDetails.SchemaViolation.NotJson(error.field, error.value, error.msg))
+
   /**
    * Extracts the timestamp from the format as laid out in the Tracker Protocol:
    * https://github.com/snowplow/snowplow/wiki/snowplow-tracker-protocol#wiki-common-params
    * @param tstamp The timestamp as stored in the Tracker Protocol
    * @return a Tuple of two Strings (date and time), or an error message if the format was invalid
    */
-  val extractTimestamp: (String, String) => Either[FailureDetails.EnrichmentFailure, String] =
+  val extractTimestamp: (String, String) => Either[FormatError, String] =
     (field, tstamp) =>
       try {
         val dt = new DateTime(tstamp.toLong)
         val timestampString = toTimestamp(dt)
-        if (timestampString.startsWith("-") || dt.getYear > 9999 || dt.getYear < 0) {
-          val msg = s"formatting as $timestampString is not Redshift-compatible"
-          val f = FailureDetails.EnrichmentFailureMessage.InputData(
+        if (timestampString.startsWith("-") || dt.getYear > 9999 || dt.getYear < 0)
+          FormatError(
             field,
             Option(tstamp),
-            msg
-          )
-          FailureDetails.EnrichmentFailure(None, f).asLeft
-        } else
+            s"formatting as $timestampString is not Redshift-compatible"
+          ).asLeft
+        else
           timestampString.asRight
       } catch {
         case _: NumberFormatException =>
-          val msg = "not in the expected format: ms since epoch"
-          val f = FailureDetails.EnrichmentFailureMessage.InputData(
+          FormatError(
             field,
             Option(tstamp),
-            msg
-          )
-          FailureDetails.EnrichmentFailure(None, f).asLeft
+            "not in the expected format: ms since epoch"
+          ).asLeft
       }
 
   /**
@@ -149,7 +166,7 @@ object EventEnrichments {
    * @param eventCode The event code
    * @return the event type, or an error message if not recognised, boxed in a Scalaz Validation
    */
-  val extractEventType: (String, String) => Either[FailureDetails.EnrichmentFailure, String] =
+  val extractEventType: (String, String) => Either[FailureDetails.SchemaViolation, String] =
     (field, code) =>
       code match {
         case "se" => "struct".asRight
@@ -162,12 +179,9 @@ object EventEnrichments {
         case "pp" => "page_ping".asRight
         case _ =>
           val msg = "not recognized as an event type"
-          val f = FailureDetails.EnrichmentFailureMessage.InputData(
-            field,
-            Option(code),
-            msg
-          )
-          FailureDetails.EnrichmentFailure(None, f).asLeft
+          FailureDetails.SchemaViolation
+            .NotJson(field, Option(code), msg)
+            .asLeft
       }
 
   /**

@@ -10,8 +10,8 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common
 
-import cats.data.Validated
 import cats.syntax.validated._
+import cats.data.Ior
 
 import cats.effect.IO
 import cats.effect.testing.specs2.CatsEffect
@@ -36,7 +36,6 @@ import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.{AtomicFields, EnrichmentRegistry}
 import com.snowplowanalytics.snowplow.enrich.common.loaders.{CollectorPayload, ThriftLoader}
-import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
 
@@ -73,11 +72,12 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
                     AcceptInvalid.featureFlags,
                     IO.unit,
                     SpecHelpers.registryLookup,
-                    AtomicFields.from(Map.empty)
+                    AtomicFields.from(Map.empty),
+                    emitIncomplete
                   )
     } yield output must be like {
-      case a :: b :: c :: d :: Nil =>
-        (a must beValid).and(b must beInvalid).and(c must beInvalid).and(d must beInvalid)
+      case Ior.Right(_) :: Ior.Left(_) :: Ior.Left(_) :: Ior.Left(_) :: Nil => ok
+      case other => ko(s"[$other] is not a list with 1 enriched event and 3 bad rows")
     }
 
   def e2 =
@@ -100,11 +100,12 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
                     AcceptInvalid.featureFlags,
                     IO.unit,
                     SpecHelpers.registryLookup,
-                    AtomicFields.from(Map.empty)
+                    AtomicFields.from(Map.empty),
+                    emitIncomplete
                   )
-    } yield output must beLike {
-      case Validated.Valid(_: EnrichedEvent) :: Nil => ok
-      case res => ko(s"[$res] doesn't contain one enriched event")
+    } yield output must be like {
+      case Ior.Right(_) :: Nil => ok
+      case other => ko(s"[$other] is not a list with 1 enriched event")
     }
 
   def e3 =
@@ -122,11 +123,12 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
                     AcceptInvalid.featureFlags,
                     IO.unit,
                     SpecHelpers.registryLookup,
-                    AtomicFields.from(Map.empty)
+                    AtomicFields.from(Map.empty),
+                    emitIncomplete
                   )
     } yield output must be like {
-      case Validated.Invalid(_: BadRow.CPFormatViolation) :: Nil => ok
-      case other => ko(s"One invalid CPFormatViolation expected, got ${other}")
+      case Ior.Left(_: BadRow.CPFormatViolation) :: Nil => ok
+      case other => ko(s"[$other] is not a CPFormatViolation bad row")
     }
 
   def e4 =
@@ -144,7 +146,8 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
                     AcceptInvalid.featureFlags,
                     IO.unit,
                     SpecHelpers.registryLookup,
-                    AtomicFields.from(Map.empty)
+                    AtomicFields.from(Map.empty),
+                    emitIncomplete
                   )
     } yield output must beEqualTo(Nil)
 }

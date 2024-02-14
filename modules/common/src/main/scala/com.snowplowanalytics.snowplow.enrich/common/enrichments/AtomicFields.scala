@@ -133,7 +133,7 @@ object AtomicFields {
     AtomicFields(withLimits)
   }
 
-  def atomicErrorsToSchemaViolation(errors: NonEmptyList[ValidatorReport]): FailureDetails.SchemaViolation = {
+  def errorsToSchemaViolation(errors: NonEmptyList[ValidatorReport]): FailureDetails.SchemaViolation = {
     val clientError = ValidationError(ValidatorError.InvalidData(errors), None)
 
     FailureDetails.SchemaViolation.IgluError(

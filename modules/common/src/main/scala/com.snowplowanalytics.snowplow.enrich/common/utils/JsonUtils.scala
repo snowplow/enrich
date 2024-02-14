@@ -31,20 +31,13 @@ object JsonUtils {
   private val JsonSchemaDateTimeFormat =
     DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(DateTimeZone.UTC)
 
-  /** Validates a String as correct JSON. */
   val extractUnencJson: (String, String) => Either[ValidatorReport, String] =
-    (field, str) =>
-      validateAndReformatJson(str)
-        .leftMap { e =>
-          ValidatorReport(e, Some(field), Nil, Option(str))
-        }
+    (_, str) => Right(str)
 
-  /** Decodes a Base64 (URL safe)-encoded String then validates it as correct JSON. */
   val extractBase64EncJson: (String, String) => Either[ValidatorReport, String] =
     (field, str) =>
       ConversionUtils
         .decodeBase64Url(str)
-        .flatMap(validateAndReformatJson)
         .leftMap { e =>
           ValidatorReport(e, Some(field), Nil, Option(str))
         }
@@ -122,16 +115,6 @@ object JsonUtils {
     }
     (key, v)
   }
-
-  /**
-   * Validates and reformats a JSON:
-   * 1. Checks the JSON is valid
-   * 2. Reformats, including removing unnecessary whitespace
-   * @param str the String hopefully containing JSON
-   * @return either an error String or the reformatted JSON String
-   */
-  private[utils] def validateAndReformatJson(str: String): Either[String, String] =
-    extractJson(str).map(_.noSpaces)
 
   /**
    * Converts a JSON string into an EIther[String, Json]

@@ -15,8 +15,8 @@ import java.net.URI
 import java.time.Instant
 import org.joda.time.DateTime
 import io.circe.Json
-import cats.{Applicative, Monad}
-import cats.data.{EitherT, NonEmptyList, OptionT, StateT}
+import cats.{Applicative, Functor, Monad}
+import cats.data.{EitherT, Ior, IorT, NonEmptyList, OptionT, StateT}
 import cats.effect.Clock
 import cats.implicits._
 
@@ -45,6 +45,24 @@ import com.snowplowanalytics.snowplow.enrich.common.utils.{IgluUtils, Conversion
 
 object EnrichmentManager {
 
+  private sealed trait EnrichFailure
+  private case class SchemaViolationWrapper(value: FailureDetails.SchemaViolation) extends EnrichFailure
+  private case class EnrichmentFailuresWrapper(value: BadRow.EnrichmentFailures) extends EnrichFailure
+
+  private implicit class IorTOps[F[_], A, B](val iorT: IorT[F, A, B]) extends AnyVal {
+    /** If the incomplete events feature is disabled, then convert a Both to a Left, so we don't waste time enriching the Event */
+    def possiblyExitingEarly(emitIncomplete: Boolean)(implicit F: Functor[F]): IorT[F, A, B] =
+      if (emitIncomplete) iorT
+      else {
+        IorT {
+          iorT.value.map {
+            case Ior.Both(bad, _) => Ior.Left(bad)
+            case other => other
+          }
+        }
+      }
+  }
+
   /**
    * Run the enrichment workflow
    * @param registry Contain configuration for all enrichments to apply
@@ -65,15 +83,19 @@ object EnrichmentManager {
     featureFlags: EtlPipeline.FeatureFlags,
     invalidCount: F[Unit],
     registryLookup: RegistryLookup[F],
-    atomicFields: AtomicFields
-  ): EitherT[F, BadRow, EnrichedEvent] =
-    for {
-      enriched <- EitherT.fromEither[F](setupEnrichedEvent(raw, etlTstamp, processor))
-      extractResult <- IgluUtils.extractAndValidateInputJsons(enriched, client, raw, processor, registryLookup)
-      _ = {
-        ME.formatUnstructEvent(extractResult.unstructEvent).foreach(e => enriched.unstruct_event = e)
-        ME.formatContexts(extractResult.contexts).foreach(c => enriched.contexts = c)
-      }
+    atomicFields: AtomicFields,
+    emitIncomplete: Boolean = true
+  ): IorT[F, BadRow, EnrichedEvent] = {
+    val iorT: IorT[F, NonEmptyList[EnrichFailure], EnrichedEvent] = for {
+      enriched <- IorT.fromIor[F](setupEnrichedEvent(raw, etlTstamp, processor))
+                    .possiblyExitingEarly(emitIncomplete)
+      extractResult <- IgluUtils
+                         .extractAndValidateInputJsons(enriched, client, registryLookup)
+                         .leftMap(_.map[EnrichFailure](SchemaViolationWrapper(_)))
+                         .possiblyExitingEarly(emitIncomplete)
+      _ = ME.formatUnstructEvent(extractResult.unstructEvent).foreach(e => enriched.unstruct_event = e)
+      _ = ME.formatContexts(extractResult.contexts).foreach(c => enriched.contexts = c)
+
       enrichmentsContexts <- runEnrichments(
                                registry,
                                processor,
@@ -83,19 +105,28 @@ object EnrichmentManager {
                                extractResult.unstructEvent,
                                featureFlags.legacyEnrichmentOrder
                              )
+                         .possiblyExitingEarly(emitIncomplete)
       _ = ME.formatContexts(enrichmentsContexts ::: extractResult.validationInfoContexts).foreach(c => enriched.derived_contexts = c)
       _ <- IgluUtils
              .validateEnrichmentsContexts[F](client, enrichmentsContexts, raw, processor, enriched, registryLookup)
-      _ <- EitherT.rightT[F, BadRow](
+             .leftMap(ef => NonEmptyList.one(EnrichmentFailuresWrapper(ef)))
+      _ <- IorT.rightT[F, NonEmptyList[EnrichFailure]](
              anonIp(enriched, registry.anonIp).foreach(enriched.user_ipaddress = _)
            )
-      _ <- EitherT.rightT[F, BadRow] {
+      _ <- IorT.rightT[F, NonEmptyList[EnrichFailure]] {
              piiTransform(enriched, registry.piiPseudonymizer).foreach { pii =>
                enriched.pii = pii.asString
              }
            }
       _ <- validateEnriched(enriched, raw, processor, featureFlags.acceptInvalid, invalidCount, atomicFields)
     } yield enriched
+
+    iorT.leftMap(createBadRow)
+  }
+
+  /** Untangle the incremental errors, and figure out what to emit as the final BadRow */
+  private def createBadRow(failures: NonEmptyList[EnrichFailure]): BadRow =
+    ???
 
   /**
    * Run all the enrichments and aggregate the errors if any
@@ -112,22 +143,28 @@ object EnrichmentManager {
     inputContexts: List[SelfDescribingData[Json]],
     unstructEvent: Option[SelfDescribingData[Json]],
     legacyOrder: Boolean
-  ): EitherT[F, BadRow.EnrichmentFailures, List[SelfDescribingData[Json]]] =
-    EitherT {
+  ): IorT[F, NonEmptyList[EnrichFailure], List[SelfDescribingData[Json]]] =
+    IorT {
       accState(registry, raw, inputContexts, unstructEvent, legacyOrder)
         .runS(Accumulation(enriched, Nil, Nil))
         .map {
           case Accumulation(_, failures, contexts) =>
             failures.toNel match {
               case Some(nel) =>
-                buildEnrichmentFailuresBadRow(
-                  nel,
-                  EnrichedEvent.toPartiallyEnrichedEvent(enriched),
-                  RawEvent.toRawEvent(raw),
-                  processor
-                ).asLeft
+                Ior.left(
+                  NonEmptyList.one(
+                    EnrichmentFailuresWrapper(
+                      buildEnrichmentFailuresBadRow(
+                        nel,
+                        EnrichedEvent.toPartiallyEnrichedEvent(enriched),
+                        RawEvent.toRawEvent(raw),
+                        processor
+                      )
+                    )
+                  )
+                )
               case None =>
-                contexts.asRight
+                Ior.right(contexts)
             }
         }
     }
@@ -253,7 +290,7 @@ object EnrichmentManager {
     raw: RawEvent,
     etlTstamp: DateTime,
     processor: Processor
-  ): Either[BadRow.EnrichmentFailures, EnrichedEvent] = {
+  ): Ior[NonEmptyList[EnrichFailure], EnrichedEvent] = {
     val e = new EnrichedEvent()
     e.event_id = EE.generateEventId() // May be updated later if we have an `eid` parameter
     e.v_collector = raw.source.name // May be updated later if we have a `cv` parameter
@@ -280,8 +317,9 @@ object EnrichmentManager {
           processor
         )
       }
-      .as(e)
-      .toEither
+      .toIor
+      .putRight(e)
+      .leftMap(ef => NonEmptyList.one(EnrichmentFailuresWrapper(ef)))
   }
 
   def setCollectorTstamp(event: EnrichedEvent, timestamp: Option[DateTime]): Either[FailureDetails.EnrichmentFailure, Unit] =
@@ -773,9 +811,11 @@ object EnrichmentManager {
     acceptInvalid: Boolean,
     invalidCount: F[Unit],
     atomicFields: AtomicFields
-  ): EitherT[F, BadRow, Unit] =
+  ): IorT[F, NonEmptyList[EnrichFailure], Unit] =
     EitherT {
       //We're using static field's length validation. See more in https://github.com/snowplow/enrich/issues/608
       AtomicFieldsLengthValidator.validate[F](enriched, raw, processor, acceptInvalid, invalidCount, atomicFields)
     }
+      .leftMap(ef => NonEmptyList.one[EnrichFailure](EnrichmentFailuresWrapper(ef)))
+      .toIor
 }

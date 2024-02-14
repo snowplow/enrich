@@ -40,7 +40,7 @@ object AtomicFieldsLengthValidator {
     acceptInvalid: Boolean,
     invalidCount: F[Unit],
     atomicFields: AtomicFields
-  ): F[Either[BadRow, Unit]] =
+  ): F[Either[BadRow.EnrichmentFailures, Unit]] =
     atomicFields.value
       .map(validateField(event))
       .combineAll match {

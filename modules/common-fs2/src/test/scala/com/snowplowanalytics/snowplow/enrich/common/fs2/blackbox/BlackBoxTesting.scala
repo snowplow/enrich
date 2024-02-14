@@ -19,7 +19,7 @@ import cats.effect.kernel.Resource
 
 import cats.effect.testing.specs2.CatsEffect
 
-import cats.data.Validated
+import cats.data.Ior
 import cats.data.Validated.{Invalid, Valid}
 
 import io.circe.Json
@@ -104,12 +104,13 @@ object BlackBoxTesting extends Specification with CatsEffect {
               featureFlags,
               IO.unit,
               SpecHelpers.registryLookup,
-              AtomicFields.from(valueLimits = Map.empty)
+              AtomicFields.from(valueLimits = Map.empty),
+              SpecHelpers.emitIncomplete
             )(
               input
             )
             .map {
-              case (List(Validated.Valid(enriched)), _) => checkEnriched(enriched, expected)
+              case (List(Ior.Right(enriched)), _) => checkEnriched(enriched, expected)
               case other => ko(s"there should be one enriched event but got $other")
             }
         }

@@ -16,7 +16,7 @@ import java.util.Base64
 
 import org.joda.time.DateTime
 
-import cats.data.{NonEmptyList, ValidatedNel}
+import cats.data.{Ior, NonEmptyList, ValidatedNel}
 import cats.{Monad, Parallel}
 import cats.implicits._
 
@@ -72,7 +72,8 @@ object Enrich {
         env.featureFlags,
         env.metrics.invalidCount,
         env.registryLookup,
-        env.atomicFields
+        env.atomicFields,
+        env.sinkIncomplete.isDefined
       )
 
     val enriched =
@@ -119,7 +120,8 @@ object Enrich {
     featureFlags: FeatureFlags,
     invalidCount: F[Unit],
     registryLookup: RegistryLookup[F],
-    atomicFields: AtomicFields
+    atomicFields: AtomicFields,
+    emitIncomplete: Boolean
   )(
     row: Array[Byte]
   ): F[Result] = {
@@ -140,7 +142,8 @@ object Enrich {
                       FeatureFlags.toCommon(featureFlags),
                       invalidCount,
                       registryLookup,
-                      atomicFields
+                      atomicFields,
+                      emitIncomplete
                     )
       } yield (enriched, collectorTstamp)
 
@@ -170,7 +173,7 @@ object Enrich {
              case None =>
                Sync[F].unit
            }
-    } yield (List(badRow.invalid), collectorTstamp)
+    } yield (List(Ior.left(badRow)), collectorTstamp)
 
   /** Build a `generic_error` bad row for unhandled runtime errors */
   def genericBadRow(
@@ -189,15 +192,27 @@ object Enrich {
     chunk: List[Result],
     env: Environment[F, A]
   ): F[Unit] = {
-    val (bad, enriched) =
+    val (bad, enriched, incomplete) =
       chunk
         .flatMap(_._1)
-        .map(_.toEither)
-        .separate
+        .foldLeft((List.empty[BadRow], List.empty[EnrichedEvent], List.empty[EnrichedEvent])) {
+          case (previous, item) =>
+            val (bad, enriched, incomplete) = previous
+            item match {
+              case Ior.Right(e) => (bad, e :: enriched, incomplete)
+              case Ior.Left(br) => (br :: bad, enriched, incomplete)
+              case Ior.Both(br, i) => (br :: bad, enriched, i :: incomplete)
+            }
+        }
 
     val (moreBad, good) = enriched.map { e =>
       serializeEnriched(e, env.processor, env.streamsSettings.maxRecordSize)
         .map(bytes => (e, AttributedData(bytes, env.goodPartitionKey(e), env.goodAttributes(e))))
+    }.separate
+
+    val (incompleteTooBig, incompleteBytes) = incomplete.map { e =>
+      serializeEnriched(e, env.processor, env.streamsSettings.maxRecordSize)
+        .map(bytes => AttributedData(bytes, env.goodPartitionKey(e), env.goodAttributes(e)))
     }.separate
 
     val allBad = (bad ++ moreBad).map(badRowResize(env, _))
@@ -214,7 +229,10 @@ object Enrich {
         env.processor,
         env.streamsSettings.maxRecordSize
       ) *> env.metrics.enrichLatency(chunk.headOption.flatMap(_._2)),
-      sinkBad(allBad, env.sinkBad, env.metrics.badCount)
+      sinkBad(allBad, env.sinkBad, env.metrics.badCount),
+      if (incompleteTooBig.nonEmpty) Logger[F].warn(s"${incompleteTooBig.size} incomplete events discarded because they are too big")
+      else Sync[F].unit,
+      sinkIncomplete(incompleteBytes, env.sinkIncomplete, env.metrics.incompleteCount)
     ).parSequence_
   }
 
@@ -270,6 +288,16 @@ object Enrich {
         sink(serialized) *> logging
       case None =>
         Sync[F].unit
+    }
+
+  def sinkIncomplete[F[_]: Sync](
+    incomplete: List[AttributedData[Array[Byte]]],
+    maybeSink: Option[AttributedByteSink[F]],
+    incMetrics: Int => F[Unit]
+  ): F[Unit] =
+    maybeSink match {
+      case Some(sink) => sink(incomplete) *> incMetrics(incomplete.size)
+      case None => Sync[F].unit
     }
 
   def serializeEnriched(

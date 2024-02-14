@@ -99,6 +99,7 @@ object Dependencies {
     val specs2CE          = "1.5.0"
     val scalacheck        = "1.17.0"
     val testcontainers    = "0.40.10"
+    val dockerJava        = "3.3.6"
     val parserCombinators = "2.1.1"
     val sentry            = "1.7.30"
 
@@ -163,6 +164,7 @@ object Dependencies {
     val eventGen           = "com.snowplowanalytics"  %% "snowplow-event-generator-core" % V.eventGen          % Test
     val parserCombinators  = "org.scala-lang.modules" %% "scala-parser-combinators"      % V.parserCombinators % Test
     val testContainersIt   = "com.dimafeng"           %% "testcontainers-scala-core"     % V.testcontainers    % IntegrationTest
+    val dockerJavaIt       = "com.github.docker-java" %  "docker-java"                   % V.dockerJava        % IntegrationTest
 
     val kinesisSdk       = "com.amazonaws"                    %  "aws-java-sdk-kinesis"              % V.awsSdk
     val dynamodbSdk      = "com.amazonaws"                    %  "aws-java-sdk-dynamodb"             % V.awsSdk

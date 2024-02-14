@@ -10,7 +10,6 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii
 
-import cats.data.Validated
 import cats.syntax.option._
 import cats.syntax.validated._
 
@@ -63,7 +62,7 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
   removeAddedFields should remove fields added by PII enrichment                                              $e9
   """
 
-  def commonSetup(enrichmentReg: EnrichmentRegistry[IO]): IO[List[Validated[BadRow, EnrichedEvent]]] = {
+  def commonSetup(enrichmentReg: EnrichmentRegistry[IO]): IO[List[Either[BadRow, EnrichedEvent]]] = {
     val context =
       CollectorPayload.Context(
         Some(DateTime.parse("2017-07-14T03:39:39.000+00:00")),
@@ -182,9 +181,10 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
                     AcceptInvalid.featureFlags,
                     IO.unit,
                     SpecHelpers.registryLookup,
-                    AtomicFields.from(Map.empty)
+                    AtomicFields.from(Map.empty),
+                    emitIncomplete
                   )
-    } yield result
+    } yield result.map(_.toEither)
   }
 
   private val ipEnrichment = {
@@ -319,7 +319,7 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
 
     actual.map { output =>
       val size = output.size must_== 1
-      val validOut = output.head must beValid.like {
+      val validOut = output.head must beRight.like {
         case enrichedEvent =>
           (enrichedEvent.app_id must_== expected.app_id) and
             (enrichedEvent.geo_city must_== expected.geo_city) and
@@ -414,7 +414,7 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
 
     actual.map { output =>
       val size = output.size must_== 1
-      val validOut = output.head must beValid.like {
+      val validOut = output.head must beRight.like {
         case enrichedEvent =>
           val contextJ = parse(enrichedEvent.contexts).toOption.get.hcursor
           val contextJFirstElement = contextJ.downField("data").downArray
@@ -523,7 +523,7 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
 
     actual.map { output =>
       val size = output.size must_== 1
-      val validOut = output.head must beValid.like {
+      val validOut = output.head must beRight.like {
         case enrichedEvent =>
           val contextJ = parse(enrichedEvent.contexts).toOption.get.hcursor.downField("data")
           val firstElem = contextJ.downArray.downField("data")
@@ -574,7 +574,7 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
 
     actual.map { output =>
       val size = output.size must_== 1
-      val validOut = output.head must beValid.like {
+      val validOut = output.head must beRight.like {
         case enrichedEvent =>
           val contextJ = parse(enrichedEvent.contexts).toOption.get.hcursor.downField("data")
           val firstElem = contextJ.downArray.downField("data")
@@ -628,7 +628,7 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
 
     actual.map { output =>
       val size = output.size must_== 1
-      val validOut = output.head must beValid.like {
+      val validOut = output.head must beRight.like {
         case enrichedEvent =>
           val contextJ = parse(enrichedEvent.contexts).toOption.get.hcursor.downField("data")
           val firstElem = contextJ.downArray.downField("data")
@@ -682,7 +682,7 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
 
     actual.map { output =>
       val size = output.size must_== 1
-      val validOut = output.head must beValid.like {
+      val validOut = output.head must beRight.like {
         case enrichedEvent =>
           val contextJ = parse(enrichedEvent.contexts).toOption.get.hcursor.downField("data")
           val firstElem = contextJ.downArray.downField("data")
@@ -746,7 +746,7 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
 
     actual.map { output =>
       val size = output.size must_== 1
-      val validOut = output.head must beValid.like {
+      val validOut = output.head must beRight.like {
         case enrichedEvent =>
           val contextJ = parse(enrichedEvent.contexts).toOption.get.hcursor.downField("data")
           val firstElem = contextJ.downArray.downField("data")
@@ -801,7 +801,7 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
 
     actual.map { output =>
       val size = output.size must_== 1
-      val validOut = output.head must beValid.like {
+      val validOut = output.head must beRight.like {
         case enrichedEvent =>
           val context = parse(enrichedEvent.contexts).toOption.get.hcursor.downField("data").downArray
           val data = context.downField("data")

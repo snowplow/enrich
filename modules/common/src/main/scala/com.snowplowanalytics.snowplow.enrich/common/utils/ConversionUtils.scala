@@ -164,7 +164,7 @@ object ConversionUtils {
       val uuid = Try(UUID.fromString(str)).toOption.filter(check(str))
       uuid match {
         case Some(_) => str.toLowerCase.asRight
-        case None => AtomicError.ParseError("Not a valid UUID", field).asLeft
+        case None => AtomicError.ParseError("Not a valid UUID", field, Option(str)).asLeft
       }
     }
 
@@ -178,7 +178,7 @@ object ConversionUtils {
       Either
         .catchNonFatal { str.toInt; str }
         .leftMap { _ =>
-          AtomicError.ParseError("Not a valid integer", field)
+          AtomicError.ParseError("Not a valid integer", field, Option(str))
         }
     }
 
@@ -326,7 +326,7 @@ object ConversionUtils {
   val stringToJInteger2: (String, String) => Either[AtomicError.ParseError, JInteger] =
     (field, str) =>
       stringToJInteger(str).leftMap { e =>
-        AtomicError.ParseError(e, field)
+        AtomicError.ParseError(e, field, Option(str))
       }
 
   val stringToJBigDecimal: String => Either[String, JBigDecimal] = str =>
@@ -351,7 +351,7 @@ object ConversionUtils {
   val stringToJBigDecimal2: (String, String) => Either[AtomicError.ParseError, JBigDecimal] =
     (field, str) =>
       stringToJBigDecimal(str).leftMap { e =>
-        AtomicError.ParseError(e, field)
+        AtomicError.ParseError(e, field, Option(str))
       }
 
   /**
@@ -377,7 +377,7 @@ object ConversionUtils {
         }
         .leftMap { _ =>
           val msg = "Cannot be converted to Double-like"
-          AtomicError.ParseError(msg, field)
+          AtomicError.ParseError(msg, field, Option(str))
         }
 
   /**
@@ -397,7 +397,7 @@ object ConversionUtils {
           jbigdec.doubleValue().some
         }
       }
-      .leftMap(_ => AtomicError.ParseError("Cannot be converted to Double", field))
+      .leftMap(_ => AtomicError.ParseError("Cannot be converted to Double", field, Option(str)))
 
   /** Convert a java BigDecimal to a Double */
   def jBigDecimalToDouble(field: String, f: JBigDecimal): Either[AtomicError.ParseError, Option[Double]] =
@@ -405,7 +405,7 @@ object ConversionUtils {
       .catchNonFatal {
         Option(f).map(_.doubleValue)
       }
-      .leftMap(_ => AtomicError.ParseError("Cannot be converted to Double", field))
+      .leftMap(_ => AtomicError.ParseError("Cannot be converted to Double", field, Option(f).map(_.toString)))
 
   /** Convert a java BigDecimal to a Double */
   def jBigDecimalToDouble(
@@ -431,7 +431,7 @@ object ConversionUtils {
       .catchNonFatal {
         d.map(dd => new JBigDecimal(dd))
       }
-      .leftMap(_ => AtomicError.ParseError("Cannot be converted to java BigDecimal", field))
+      .leftMap(_ => AtomicError.ParseError("Cannot be converted to java BigDecimal", field, d.map(_.toString)))
 
   /**
    * Converts a String to a Double with two decimal places. Used to honor schemas with
@@ -466,7 +466,7 @@ object ConversionUtils {
         case "0" => (0.toByte: JByte).asRight
         case _ =>
           val msg = "Cannot be converted to Boolean-like java.lang.Byte"
-          AtomicError.ParseError(msg, field).asLeft
+          AtomicError.ParseError(msg, field, Option(str)).asLeft
       }
 
   /**

@@ -35,16 +35,10 @@ class EtlVersionSpec extends MutSpecification {
 /** Tests the extractPlatform function. Uses DataTables. */
 class ExtractPlatformSpec extends Specification with DataTables {
   val FieldName = "p"
-  def err: String => FailureDetails.EnrichmentFailure =
+  def err: String => FailureDetails.SchemaViolation =
     input =>
-      FailureDetails.EnrichmentFailure(
-        None,
-        FailureDetails.EnrichmentFailureMessage.InputData(
-          FieldName,
-          Option(input),
-          "not recognized as a tracking platform"
-        )
-      )
+      FailureDetails.SchemaViolation
+        .NotJson(FieldName, Option(input), "not recognized as a tracking platform")
 
   def is = s2"""
   Extracting platforms with extractPlatform should work $e1

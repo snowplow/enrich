@@ -192,7 +192,7 @@ object CrossNavigationEnrichment extends ParseableEnrichment {
     private def extractTstamp(str: String): Either[FailureDetails.EnrichmentFailure, Option[String]] =
       str match {
         case "" => None.asRight
-        case s => EE.extractTimestamp("sp_dtm", s).map(_.some)
+        case s => EE.extractTimestamp_ef("sp_dtm", s).map(_.some)
       }
 
     /**

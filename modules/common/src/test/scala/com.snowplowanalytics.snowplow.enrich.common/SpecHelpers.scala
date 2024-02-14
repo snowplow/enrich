@@ -148,6 +148,8 @@ object SpecHelpers extends CatsEffect {
   def createIgluClient(registries: List[Registry]): IO[IgluCirceClient[IO]] =
     IgluCirceClient.fromResolver[IO](Resolver(registries, None), cacheSize = 0)
 
+  val emitIncomplete = false
+
   val callrailSchemas = CallrailSchemas(
     call_complete = "iglu:com.callrail/call_complete/jsonschema/1-0-2"
   )

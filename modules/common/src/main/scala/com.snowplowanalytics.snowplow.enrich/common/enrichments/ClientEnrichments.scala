@@ -36,7 +36,7 @@ object ClientEnrichments {
    * @param res The packed string holding the screen dimensions
    * @return the ResolutionTuple or an error message, boxed in a Scalaz Validation
    */
-  val extractViewDimensions: (String, String) => Either[FailureDetails.EnrichmentFailure, (JInteger, JInteger)] =
+  val extractViewDimensions: (String, String) => Either[FailureDetails.SchemaViolation, (JInteger, JInteger)] =
     (field, res) =>
       (res match {
         case ResRegex(width, height) =>
@@ -45,12 +45,8 @@ object ClientEnrichments {
             .leftMap(_ => "could not be converted to java.lang.Integer s")
         case _ => s"does not conform to regex ${ResRegex.toString}".asLeft
       }).leftMap { msg =>
-        val f = FailureDetails.EnrichmentFailureMessage.InputData(
-          field,
-          Option(res),
-          msg
-        )
-        FailureDetails.EnrichmentFailure(None, f)
+        FailureDetails.SchemaViolation
+          .NotJson(field, Option(res), msg)
       }
 
 }

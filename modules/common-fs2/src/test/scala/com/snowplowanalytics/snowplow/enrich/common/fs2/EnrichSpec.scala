@@ -15,7 +15,7 @@ import java.util.{Base64, UUID}
 
 import scala.concurrent.duration._
 
-import cats.data.{NonEmptyList, Validated}
+import cats.data.{Ior, NonEmptyList, Validated}
 import cats.implicits._
 
 import cats.effect.IO
@@ -83,7 +83,7 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
           )
           .map(normalizeResult)
           .map {
-            case List(Validated.Valid(event)) => event must beEqualTo(expected)
+            case List(Ior.Right(event)) => event must beEqualTo(expected)
             case other => ko(s"Expected one valid event, got $other")
           }
       }
@@ -113,7 +113,7 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
               )
               .map(normalizeResult)
               .map {
-                case List(Validated.Valid(e)) => e.event must beSome("page_view")
+                case List(Ior.Right(e)) => e.event must beSome("page_view")
                 case other => ko(s"Expected one valid event, got $other")
               }
           }
@@ -151,7 +151,7 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
           )
           .map(normalizeResult)
           .map {
-            case List(Validated.Valid(event)) => event must beEqualTo(expected)
+            case List(Ior.Right(event)) => event must beEqualTo(expected)
             case other => ko(s"Expected one valid event, got $other")
           }
       }
@@ -175,7 +175,7 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
           )
           .map(normalizeResult)
           .map {
-            case List(Validated.Invalid(badRow)) => println(badRow); ok
+            case List(Ior.Left(_)) => ok
             case other => ko(s"Expected one bad row, got $other")
           }
       }
@@ -449,16 +449,16 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
   def sinkGood(
     environment: Environment[IO, Array[Byte]],
     enriched: EnrichedEvent
-  ): IO[Unit] = sinkOne(environment, Validated.Valid(enriched))
+  ): IO[Unit] = sinkOne(environment, Ior.Right(enriched))
 
   def sinkBad(
     environment: Environment[IO, Array[Byte]],
     badRow: BadRow
-  ): IO[Unit] = sinkOne(environment, Validated.Invalid(badRow))
+  ): IO[Unit] = sinkOne(environment, Ior.Left(badRow))
 
   def sinkOne(
     environment: Environment[IO, Array[Byte]],
-    event: Validated[BadRow, EnrichedEvent]
+    event: Ior[BadRow, EnrichedEvent]
   ): IO[Unit] = Enrich.sinkChunk(List((List(event), None)), environment)
 }
 
@@ -491,10 +491,11 @@ object EnrichSpec {
         Validated.Invalid(badRow)
     }
 
-  def normalizeResult(payload: Result): List[Validated[BadRow, Event]] =
+  def normalizeResult(payload: Result): List[Ior[BadRow, Event]] =
     payload._1.map {
-      case Validated.Valid(a) => normalize(ConversionUtils.tabSeparatedEnrichedEvent(a))
-      case Validated.Invalid(e) => e.invalid
+      case Ior.Right(enriched) => normalize(ConversionUtils.tabSeparatedEnrichedEvent(enriched)).toIor
+      case Ior.Left(err) => Ior.Left(err)
+      case Ior.Both(_, enriched) => normalize(ConversionUtils.tabSeparatedEnrichedEvent(enriched)).toIor
     }
 
   val minimalEvent = Event

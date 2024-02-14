@@ -48,7 +48,7 @@ class Tp2AdapterSpec extends Specification with CatsEffect {
             input
           )
           .map {
-            case (l, _) if l.forall(_.isValid) => l must haveSize(10)
+            case (l, _) if l.forall(_.isRight) => l must haveSize(10)
             case other => ko(s"there should be 10 enriched events, got $other")
           }
       }

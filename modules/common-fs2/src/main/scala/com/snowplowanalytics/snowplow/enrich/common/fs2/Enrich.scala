@@ -16,7 +16,7 @@ import java.util.Base64
 
 import org.joda.time.DateTime
 
-import cats.data.{NonEmptyList, ValidatedNel}
+import cats.data.{Ior, NonEmptyList, ValidatedNel}
 import cats.{Monad, Parallel}
 import cats.implicits._
 
@@ -140,7 +140,8 @@ object Enrich {
                       FeatureFlags.toCommon(featureFlags),
                       invalidCount,
                       registryLookup,
-                      atomicFields
+                      atomicFields,
+                      emitIncomplete = true
                     )
       } yield (enriched, collectorTstamp)
 
@@ -170,7 +171,7 @@ object Enrich {
              case None =>
                Sync[F].unit
            }
-    } yield (List(badRow.invalid), collectorTstamp)
+    } yield (List(Ior.left(badRow)), collectorTstamp)
 
   /** Build a `generic_error` bad row for unhandled runtime errors */
   def genericBadRow(
@@ -189,11 +190,19 @@ object Enrich {
     chunk: List[Result],
     env: Environment[F, A]
   ): F[Unit] = {
-    val (bad, enriched) =
+    //val (bad, enriched, incomplete) =
+    val (bad, enriched, _) =
       chunk
         .flatMap(_._1)
-        .map(_.toEither)
-        .separate
+        .foldLeft((List.empty[BadRow], List.empty[EnrichedEvent], List.empty[EnrichedEvent])) {
+          case (previous, item) =>
+            val (bad, enriched, incomplete) = previous
+            item match {
+              case Ior.Right(e) => (bad, e :: enriched, incomplete)
+              case Ior.Left(br) => (br :: bad, enriched, incomplete)
+              case Ior.Both(br, i) => (br :: bad, enriched, i :: incomplete)
+            }
+        }
 
     val (moreBad, good) = enriched.map { e =>
       serializeEnriched(e, env.processor, env.streamsSettings.maxRecordSize)

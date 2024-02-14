@@ -223,7 +223,8 @@ class InputSpec extends Specification with ValidatedMatchers with CatsEffect {
       unstructEvent = None
     )
     templateContext must beInvalid.like {
-      case errors => errors.toList must have length 3
+      case errors =>
+        errors.toList must have length 2 // TODO it's not 3 anymore because `"*.invalidJsonPath"` path doesn't fail during jsonpath compilation
     }
   }
 

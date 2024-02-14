@@ -16,7 +16,7 @@ import cats.data.ValidatedNel
 import cats.implicits._
 
 import io.circe.{Json => JSON, DecodingFailure, Decoder}
-import io.gatling.jsonpath.{JsonPath => GatlingJsonPath}
+import com.jayway.jsonpath.{JsonPath => JaywayJsonPath}
 
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SelfDescribingData}
 import com.snowplowanalytics.snowplow.badrows.igluSchemaCriterionDecoder
@@ -34,7 +34,7 @@ sealed trait Input extends Product with Serializable {
 
   // We could short-circuit enrichment process on invalid JSONPath,
   // but it won't give user meaningful error message
-  def validatedJsonPath: Either[String, GatlingJsonPath] =
+  def validatedJsonPath: Either[String, JaywayJsonPath] =
     this match {
       case json: Input.Json => compileQuery(json.jsonPath)
       case _ => "No JSON Path given".asLeft

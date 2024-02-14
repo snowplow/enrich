@@ -126,6 +126,7 @@ object TestEnvironment extends CatsEffect {
       goodRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
       piiRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
       badRef <- Resource.eval(Ref.of[IO, Vector[Array[Byte]]](Vector.empty))
+      incompleteRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
       igluClient <- Resource.eval(SpecHelpers.createIgluClient(List(embeddedRegistry)))
       environment = Environment[IO, Array[Byte]](
                       igluClient,
@@ -141,6 +142,7 @@ object TestEnvironment extends CatsEffect {
                       g => goodRef.update(_ ++ g),
                       Some(p => piiRef.update(_ ++ p)),
                       b => badRef.update(_ ++ b),
+                      Some(i => incompleteRef.update(_ ++ i)),
                       _ => IO.unit,
                       identity,
                       None,

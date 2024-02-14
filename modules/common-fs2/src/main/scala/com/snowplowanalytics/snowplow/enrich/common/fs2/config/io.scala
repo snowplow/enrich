@@ -209,7 +209,8 @@ object io {
   case class Outputs(
     good: Output,
     pii: Option[Output],
-    bad: Output
+    bad: Output,
+    incomplete: Option[Output]
   )
   object Outputs {
     implicit val outputsDecoder: Decoder[Outputs] = deriveConfiguredDecoder[Outputs]

@@ -86,6 +86,7 @@ object Containers extends CatsEffect {
         "STREAM_RAW" -> streams.raw,
         "STREAM_ENRICHED" -> streams.enriched,
         "STREAM_BAD" -> streams.bad,
+        "STREAM_INCOMPLETE" -> streams.incomplete,
         "LOCALSTACK_ENDPOINT" -> s"http://$localstackAlias:$localstackPort"
       ),
       fileSystemBind = Seq(
@@ -225,7 +226,7 @@ object Containers extends CatsEffect {
     region: String,
     streams: KinesisConfig.Streams
   ): Unit =
-    List(streams.raw, streams.enriched, streams.bad).foreach { stream =>
+    List(streams.raw, streams.enriched, streams.bad, streams.incomplete).foreach { stream =>
       localstack.execInContainer(
         "aws",
         s"--endpoint-url=http://127.0.0.1:$port",

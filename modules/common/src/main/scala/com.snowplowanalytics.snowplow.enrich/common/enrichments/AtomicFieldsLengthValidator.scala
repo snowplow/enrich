@@ -14,8 +14,7 @@ import org.slf4j.LoggerFactory
 
 import cats.Monad
 import cats.data.Validated.{Invalid, Valid}
-import cats.data.NonEmptyList
-
+import cats.data.{Ior, IorT, NonEmptyList}
 import cats.implicits._
 
 import com.snowplowanalytics.iglu.client.validator.ValidatorReport
@@ -38,16 +37,18 @@ object AtomicFieldsLengthValidator {
     acceptInvalid: Boolean,
     invalidCount: F[Unit],
     atomicFields: AtomicFields
-  ): F[Either[FailureDetails.SchemaViolation, Unit]] =
-    atomicFields.value
-      .map(field => validateField(event, field).toValidatedNel)
-      .combineAll match {
-      case Invalid(errors) if acceptInvalid =>
-        handleAcceptableErrors(invalidCount, event, errors) *> Monad[F].pure(Right(()))
-      case Invalid(errors) =>
-        Monad[F].pure(AtomicFields.errorsToSchemaViolation(errors).asLeft)
-      case Valid(()) =>
-        Monad[F].pure(Right(()))
+  ): IorT[F, FailureDetails.SchemaViolation, Unit] =
+    IorT {
+      atomicFields.value
+        .map(validateField(event, _).toValidatedNel)
+        .combineAll match {
+        case Invalid(errors) if acceptInvalid =>
+          handleAcceptableErrors(invalidCount, event, errors) *> Monad[F].pure(Ior.Right(()))
+        case Invalid(errors) =>
+          Monad[F].pure(Ior.Both(AtomicFields.errorsToSchemaViolation(errors), ()))
+        case Valid(()) =>
+          Monad[F].pure(Ior.Right(()))
+      }
     }
 
   private def validateField(

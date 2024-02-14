@@ -51,12 +51,12 @@ object EventEnrichments {
    */
   def formatCollectorTstamp(collectorTstamp: Option[DateTime]): Either[AtomicError.ParseError, String] =
     collectorTstamp match {
-      case None => AtomicError.ParseError("Field not set", "collector_tstamp").asLeft
+      case None => AtomicError.ParseError("Field not set", "collector_tstamp", None).asLeft
       case Some(t) =>
         val formattedTimestamp = toTimestamp(t)
         if (formattedTimestamp.startsWith("-") || t.getYear > 9999 || t.getYear < 0) {
           val msg = s"Formatted as $formattedTimestamp is not Redshift-compatible"
-          AtomicError.ParseError(msg, "collector_tstamp").asLeft
+          AtomicError.ParseError(msg, "collector_tstamp", Option(t).map(_.toString)).asLeft
         } else
           formattedTimestamp.asRight
     }
@@ -122,7 +122,8 @@ object EventEnrichments {
           AtomicError
             .ParseError(
               s"Formatting as $timestampString is not Redshift-compatible",
-              field
+              field,
+              Option(tstamp)
             )
             .asLeft
         else
@@ -132,7 +133,8 @@ object EventEnrichments {
           AtomicError
             .ParseError(
               "Not in the expected format: ms since epoch",
-              field
+              field,
+              Option(tstamp)
             )
             .asLeft
       }
@@ -157,7 +159,7 @@ object EventEnrichments {
         case "pp" => "page_ping".asRight
         case _ =>
           val msg = "Not a valid event type"
-          AtomicError.ParseError(msg, field).asLeft
+          AtomicError.ParseError(msg, field, Option(code)).asLeft
       }
 
   /**

@@ -45,7 +45,7 @@ object ClientEnrichments {
             .leftMap(_ => "Could not be converted to java.lang.Integer s")
         case _ => s"Does not conform to regex ${ResRegex.toString}".asLeft
       }).leftMap { msg =>
-        AtomicError.ParseError(msg, field)
+        AtomicError.ParseError(msg, field, Option(res))
       }
 
 }

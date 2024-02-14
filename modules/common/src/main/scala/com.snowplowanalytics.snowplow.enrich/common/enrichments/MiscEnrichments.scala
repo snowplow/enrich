@@ -58,7 +58,7 @@ object MiscEnrichments {
         case "headset" => "headset".asRight // AR/VR Headset
         case _ =>
           val msg = "Not a valid platform"
-          AtomicError.ParseError(msg, field).asLeft
+          AtomicError.ParseError(msg, field, Option(platform)).asLeft
       }
 
   /** Make a String TSV safe */

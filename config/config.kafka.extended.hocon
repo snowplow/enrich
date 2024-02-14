@@ -89,6 +89,25 @@
         "acks": "all"
       }
     }
+
+    # Optional. Incomplete events output.
+    # If set, an incomplete enriched event holding the errors in derived_context will get emitted on top of a bad row
+    "incomplete": {
+      "type": "Kafka"
+
+      # Name of the Kafka topic to write to
+      "topicName": "incomplete"
+
+      # A list of host:port pairs to use for establishing the initial connection to the Kafka cluster
+      # This list should be in the form host1:port1,host2:port2,...
+      "bootstrapServers": "localhost:9092"
+
+      # Optional, Kafka producer configuration
+      # See https://kafka.apache.org/documentation/#producerconfigs for all properties
+      "producerConf": {
+        "acks": "all"
+      }
+    }
   }
 
   # Optional. Concurrency of the app

@@ -43,12 +43,13 @@ class Tp2AdapterSpec extends Specification with CatsEffect {
             EnrichSpec.featureFlags,
             IO.unit,
             SpecHelpers.registryLookup,
-            AtomicFields.from(valueLimits = Map.empty)
+            AtomicFields.from(valueLimits = Map.empty),
+            SpecHelpers.emitIncomplete
           )(
             input
           )
           .map {
-            case (l, _) if l.forall(_.isValid) => l must haveSize(10)
+            case (l, _) if l.forall(_.isRight) => l must haveSize(10)
             case other => ko(s"there should be 10 enriched events, got $other")
           }
       }

@@ -263,7 +263,7 @@ class ValidateUuidSpec extends Specification with DataTables with ScalaCheck {
   def e2 =
     prop { (str: String) =>
       ConversionUtils.validateUuid(FieldName, str) must beLeft(
-        AtomicError.ParseError("Not a valid UUID", FieldName)
+        AtomicError.ParseError("Not a valid UUID", FieldName, Option(str))
       )
     }
 }
@@ -281,7 +281,7 @@ class ValidateIntegerSpec extends Specification {
   def e2 = {
     val str = "abc"
     ConversionUtils.validateInteger(FieldName, str) must beLeft(
-      AtomicError.ParseError("Not a valid integer", FieldName)
+      AtomicError.ParseError("Not a valid integer", FieldName, Some(str))
     )
   }
 }
@@ -312,19 +312,19 @@ class StringToDoubleLikeSpec extends Specification with DataTables {
   """
 
   val FieldName = "val"
-  def err: AtomicError =
-    AtomicError.ParseError("Cannot be converted to Double-like", FieldName)
+  def err(value: String): AtomicError =
+    AtomicError.ParseError("Cannot be converted to Double-like", FieldName, Option(value))
 
   def e1 =
     "SPEC NAME" || "INPUT STR" | "EXPECTED" |
-      "Empty string" !! "" ! err |
-      "Number with commas" !! "19,999.99" ! err |
-      "Hexadecimal number" !! "0x54" ! err |
-      "Bad sci. notation" !! "-7.51E^9" ! err |
-      "German number" !! "1.000,3932" ! err |
-      "NaN" !! "NaN" ! err |
-      "English string" !! "hi & bye" ! err |
-      "Vietnamese name" !! "Trịnh Công Sơn" ! err |> { (_, str, expected) =>
+      "Empty string" !! "" ! err("") |
+      "Number with commas" !! "19,999.99" ! err("19,999.99") |
+      "Hexadecimal number" !! "0x54" ! err("0x54") |
+      "Bad sci. notation" !! "-7.51E^9" ! err("-7.51E^9") |
+      "German number" !! "1.000,3932" ! err("1.000,3932") |
+      "NaN" !! "NaN" ! err("NaN") |
+      "English string" !! "hi & bye" ! err("hi & bye") |
+      "Vietnamese name" !! "Trịnh Công Sơn" ! err("Trịnh Công Sơn") |> { (_, str, expected) =>
       ConversionUtils.stringToDoubleLike(FieldName, str) must beLeft(expected)
     }
 
@@ -388,18 +388,18 @@ class StringToBooleanLikeJByteSpec extends Specification with DataTables {
   """
 
   val FieldName = "val"
-  def err: AtomicError =
-    AtomicError.ParseError("Cannot be converted to Boolean-like java.lang.Byte", FieldName)
+  def err(value: String): AtomicError =
+    AtomicError.ParseError("Cannot be converted to Boolean-like java.lang.Byte", FieldName, Option(value))
 
   def e1 =
     "SPEC NAME" || "INPUT STR" | "EXPECTED" |
-      "Empty string" !! "" ! err |
-      "Small number" !! "2" ! err |
-      "Negative number" !! "-1" ! err |
-      "Floating point number" !! "0.0" ! err |
-      "Large number" !! "19,999.99" ! err |
-      "Text #1" !! "a" ! err |
-      "Text #2" !! "0x54" ! err |> { (_, str, expected) =>
+      "Empty string" !! "" ! err("") |
+      "Small number" !! "2" ! err("2") |
+      "Negative number" !! "-1" ! err("-1") |
+      "Floating point number" !! "0.0" ! err("0.0") |
+      "Large number" !! "19,999.99" ! err("19,999.99") |
+      "Text #1" !! "a" ! err("a") |
+      "Text #2" !! "0x54" ! err("0x54") |> { (_, str, expected) =>
       ConversionUtils.stringToBooleanLikeJByte(FieldName, str) must beLeft(expected)
     }
 

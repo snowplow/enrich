@@ -15,24 +15,32 @@ import com.snowplowanalytics.iglu.client.validator.ValidatorReport
 sealed trait AtomicError {
   def message: String
   def field: String
-  def repr: String
+  def value: Option[String]
+  def keyword: String
+  // IMPORTANT: `value` should never be put in ValidatorReport
   def toValidatorReport: ValidatorReport =
-    ValidatorReport(message, Some(field), Nil, Some(repr))
+    ValidatorReport(message, Some(field), Nil, Some(keyword))
 }
 
 object AtomicError {
 
+  val source = "atomic_field"
+  val keywordParse = s"${source}_parse_error"
+  val keywordLength = s"${source}_length_exceeded"
+
   case class ParseError(
     message: String,
-    field: String
+    field: String,
+    value: Option[String]
   ) extends AtomicError {
-    override def repr: String = "atomic_field_parse_error"
+    override def keyword: String = keywordParse
   }
 
   case class FieldLengthError(
     message: String,
-    field: String
+    field: String,
+    value: Option[String]
   ) extends AtomicError {
-    override def repr: String = "atomic_field_length_exceeded"
+    override def keyword: String = keywordLength
   }
 }

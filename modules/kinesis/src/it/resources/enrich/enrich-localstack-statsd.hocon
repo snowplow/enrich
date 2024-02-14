@@ -41,6 +41,15 @@
       "stdout": {
         "period": "10 seconds"
       }
+      "statsd": {
+        "hostname": statsd
+        "port": 8125
+        "period": "10 seconds"
+        "tags": {
+          "env": test
+        }
+        "prefix": "snowplow.enrich."
+      }
       "cloudwatch": true
     }
   }

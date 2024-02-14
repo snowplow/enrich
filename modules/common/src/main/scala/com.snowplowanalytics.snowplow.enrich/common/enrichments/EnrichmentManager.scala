@@ -15,10 +15,10 @@ import java.net.URI
 import java.time.Instant
 import org.joda.time.DateTime
 import io.circe.Json
-import cats.{Applicative, Monad}
-import cats.data.{EitherT, NonEmptyList, OptionT, StateT}
-import cats.effect.kernel.{Clock, Sync}
+import cats.{Applicative, Functor, Monad}
+import cats.data.{EitherT, Ior, IorT, NonEmptyList, OptionT, StateT}
 import cats.implicits._
+import cats.effect.kernel.{Clock, Sync}
 
 import com.snowplowanalytics.refererparser._
 
@@ -26,11 +26,11 @@ import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 import com.snowplowanalytics.snowplow.enrich.common.utils.AtomicError
 
-import com.snowplowanalytics.iglu.core.SelfDescribingData
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
 import com.snowplowanalytics.snowplow.badrows._
-import com.snowplowanalytics.snowplow.badrows.{FailureDetails, Payload, Processor}
+import com.snowplowanalytics.snowplow.badrows.{Failure => BadRowFailure}
 
 import com.snowplowanalytics.snowplow.enrich.common.{EtlPipeline, QueryStringParameters, RawEventParameters}
 import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
@@ -43,8 +43,6 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquer
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.web.{PageEnrichments => WPE}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.{IgluUtils, ConversionUtils => CU}
-import _root_.com.snowplowanalytics.iglu.core.SchemaKey
-import com.snowplowanalytics.iglu.core.SchemaVer
 
 object EnrichmentManager {
 
@@ -57,7 +55,9 @@ object EnrichmentManager {
    * @param raw Canonical input event to enrich
    * @param featureFlags The feature flags available in the current version of Enrich
    * @param invalidCount Function to increment the count of invalid events
-   * @return Enriched event or bad row if a problem occured
+   * @return Right(EnrichedEvent) if everything went well.
+   *         Left(BadRow) if something went wrong and incomplete events are not enabled.
+   *         Both(BadRow, EnrichedEvent) if something went wrong but incomplete events are enabled.
    */
   def enrichEvent[F[_]: Sync](
     registry: EnrichmentRegistry[F],
@@ -68,44 +68,112 @@ object EnrichmentManager {
     featureFlags: EtlPipeline.FeatureFlags,
     invalidCount: F[Unit],
     registryLookup: RegistryLookup[F],
-    atomicFields: AtomicFields
-  ): EitherT[F, BadRow, EnrichedEvent] =
-    for {
-      enriched <- EitherT.rightT[F, BadRow](new EnrichedEvent)
-      extractResult <- mapAndValidateInput(
-                         raw,
-                         enriched,
-                         etlTstamp,
-                         processor,
-                         client,
-                         registryLookup
-                       )
-      _ = {
-        ME.formatUnstructEvent(extractResult.unstructEvent).foreach(e => enriched.unstruct_event = e)
-        ME.formatContexts(extractResult.contexts).foreach(c => enriched.contexts = c)
-      }
-      enrichmentsContexts <- runEnrichments(
-                               registry,
-                               processor,
-                               raw,
-                               enriched,
-                               extractResult.contexts,
-                               extractResult.unstructEvent,
-                               featureFlags.legacyEnrichmentOrder
-                             )
-      _ = ME.formatContexts(enrichmentsContexts ::: extractResult.validationInfoContexts).foreach(c => enriched.derived_contexts = c)
-      _ <- validateEnriched(
-             enriched,
-             raw,
-             enrichmentsContexts,
-             client,
-             processor,
-             registryLookup,
-             featureFlags.acceptInvalid,
-             invalidCount,
-             atomicFields
-           )
-    } yield enriched
+    atomicFields: AtomicFields,
+    emitIncomplete: Boolean
+  ): IorT[F, BadRow, EnrichedEvent] = {
+    def enrich(enriched: EnrichedEvent): IorT[F, NonEmptyList[NonEmptyList[Failure]], List[SelfDescribingData[Json]]] =
+      for {
+        extractResult <- mapAndValidateInput(
+                           raw,
+                           enriched,
+                           etlTstamp,
+                           processor,
+                           client,
+                           registryLookup
+                         )
+                           .leftMap(NonEmptyList.one)
+                           .possiblyExitingEarly(emitIncomplete)
+        _ = {
+          enriched.contexts = ME.formatContexts(extractResult.contexts).orNull
+          enriched.unstruct_event = ME.formatUnstructEvent(extractResult.unstructEvent).orNull
+        }
+        enrichmentsContexts <- runEnrichments(
+                                 registry,
+                                 raw,
+                                 enriched,
+                                 extractResult.contexts,
+                                 extractResult.unstructEvent,
+                                 featureFlags.legacyEnrichmentOrder
+                               )
+                                 .leftMap(NonEmptyList.one)
+                                 .possiblyExitingEarly(emitIncomplete)
+        validContexts <- validateEnriched(
+                           enriched,
+                           enrichmentsContexts,
+                           client,
+                           registryLookup,
+                           featureFlags.acceptInvalid,
+                           invalidCount,
+                           atomicFields,
+                           emitIncomplete
+                         )
+                           .leftMap(NonEmptyList.one)
+                           .possiblyExitingEarly(emitIncomplete)
+        derivedContexts = validContexts ::: extractResult.validationInfoContexts
+      } yield derivedContexts
+
+    // derived contexts are set lastly because we want to include failure entities
+    // to derived contexts as well and we can get failure entities only in the end
+    // of the enrichment process
+    IorT(
+      for {
+        enrichedEvent <- Sync[F].delay(new EnrichedEvent)
+        enrichmentResult <- enrich(enrichedEvent).value
+        now = Instant.now()
+        _ = setDerivedContexts(enrichedEvent, enrichmentResult, now, processor)
+        result = enrichmentResult
+                   .leftMap { fe =>
+                     createBadRow(
+                       fe,
+                       EnrichedEvent.toPartiallyEnrichedEvent(enrichedEvent),
+                       RawEvent.toRawEvent(raw),
+                       now,
+                       processor
+                     )
+                   }
+                   .map(_ => enrichedEvent)
+      } yield result
+    )
+  }
+
+  private def createBadRow(
+    fe: NonEmptyList[NonEmptyList[Failure]],
+    pe: Payload.PartiallyEnrichedEvent,
+    re: Payload.RawEvent,
+    timestamp: Instant,
+    processor: Processor
+  ): BadRow = {
+    val firstList = fe.head
+    firstList.head match {
+      case h: Failure.SchemaViolation =>
+        val sv = firstList.tail.collect { case f: Failure.SchemaViolation => f }
+        BadRow.SchemaViolations(
+          processor,
+          BadRowFailure.SchemaViolations(timestamp, NonEmptyList(h, sv).map(_.schemaViolation)),
+          Payload.EnrichmentPayload(pe, re)
+        )
+      case h: Failure.EnrichmentFailure =>
+        val ef = firstList.tail.collect { case f: Failure.EnrichmentFailure => f }
+        BadRow.EnrichmentFailures(
+          processor,
+          BadRowFailure.EnrichmentFailures(timestamp, NonEmptyList(h, ef).map(_.enrichmentFailure)),
+          Payload.EnrichmentPayload(pe, re)
+        )
+    }
+  }
+
+  def setDerivedContexts(
+    enriched: EnrichedEvent,
+    enrichmentResult: Ior[NonEmptyList[NonEmptyList[Failure]], List[SelfDescribingData[Json]]],
+    timestamp: Instant,
+    processor: Processor
+  ): Unit = {
+    val derivedContexts = enrichmentResult.leftMap { ll =>
+      ll.flatten.toList
+        .map(_.toSDJ(timestamp, processor))
+    }.merge
+    ME.formatContexts(derivedContexts).foreach(c => enriched.derived_contexts = c)
+  }
 
   private def mapAndValidateInput[F[_]: Sync](
     raw: RawEvent,
@@ -114,80 +182,62 @@ object EnrichmentManager {
     processor: Processor,
     client: IgluCirceClient[F],
     registryLookup: RegistryLookup[F]
-  ): EitherT[F, BadRow, IgluUtils.EventExtractResult] =
-    EitherT {
-      for {
-        setup <- setupEnrichedEvent[F](raw, enrichedEvent, etlTstamp, processor).map(_.toValidatedNel)
-        iglu <- IgluUtils.extractAndValidateInputJsons(enrichedEvent, client, registryLookup)
-      } yield (iglu <* setup).leftMap { violations =>
-        buildSchemaViolationsBadRow(
-          violations,
-          EnrichedEvent.toPartiallyEnrichedEvent(enrichedEvent),
-          RawEvent.toRawEvent(raw),
-          processor
-        )
-      }.toEither
-    }
+  ): IorT[F, NonEmptyList[Failure], IgluUtils.EventExtractResult] =
+    for {
+      _ <- setupEnrichedEvent[F](raw, enrichedEvent, etlTstamp, processor)
+             .leftMap(NonEmptyList.one)
+      extract <- IgluUtils
+                   .extractAndValidateInputJsons(enrichedEvent, client, registryLookup)
+                   .leftMap { l: NonEmptyList[Failure] => l }
+    } yield extract
 
   /**
-   * Run all the enrichments and aggregate the errors if any
+   * Run all the enrichments
    * @param enriched /!\ MUTABLE enriched event, mutated IN-PLACE /!\
-   * @return List of contexts to attach to the enriched event if all the enrichments went well
-   *         or [[BadRow.EnrichmentFailures]] if something wrong happened
-   *         with at least one enrichment
+   * @return All the contexts produced by the enrichments are in the Right.
+   *         All the errors are aggregated in the bad row in the Left.
    */
   private def runEnrichments[F[_]: Monad](
     registry: EnrichmentRegistry[F],
-    processor: Processor,
     raw: RawEvent,
     enriched: EnrichedEvent,
     inputContexts: List[SelfDescribingData[Json]],
     unstructEvent: Option[SelfDescribingData[Json]],
     legacyOrder: Boolean
-  ): EitherT[F, BadRow, List[SelfDescribingData[Json]]] =
-    EitherT {
+  ): IorT[F, NonEmptyList[Failure], List[SelfDescribingData[Json]]] =
+    IorT {
       accState(registry, raw, inputContexts, unstructEvent, legacyOrder)
         .runS(Accumulation(enriched, Nil, Nil))
         .map {
           case Accumulation(_, failures, contexts) =>
             failures.toNel match {
               case Some(nel) =>
-                buildEnrichmentFailuresBadRow(
-                  nel,
-                  EnrichedEvent.toPartiallyEnrichedEvent(enriched),
-                  RawEvent.toRawEvent(raw),
-                  processor
-                ).asLeft
+                Ior.both(
+                  nel.map(Failure.EnrichmentFailure),
+                  contexts
+                )
               case None =>
-                contexts.asRight
+                Ior.right(contexts)
             }
         }
     }
 
   private def validateEnriched[F[_]: Clock: Monad](
     enriched: EnrichedEvent,
-    raw: RawEvent,
     enrichmentsContexts: List[SelfDescribingData[Json]],
     client: IgluCirceClient[F],
-    processor: Processor,
     registryLookup: RegistryLookup[F],
     acceptInvalid: Boolean,
     invalidCount: F[Unit],
-    atomicFields: AtomicFields
-  ): EitherT[F, BadRow, Unit] =
-    EitherT {
-      for {
-        atomic <- AtomicFieldsLengthValidator.validate[F](enriched, acceptInvalid, invalidCount, atomicFields).map(_.toValidatedNel)
-        contexts <- IgluUtils.validateEnrichmentsContexts[F](client, enrichmentsContexts, registryLookup)
-      } yield (atomic |+| contexts).void.leftMap { violations =>
-        buildSchemaViolationsBadRow(
-          violations,
-          EnrichedEvent.toPartiallyEnrichedEvent(enriched),
-          RawEvent.toRawEvent(raw),
-          processor
-        )
-      }.toEither
-    }
+    atomicFields: AtomicFields,
+    emitIncomplete: Boolean
+  ): IorT[F, NonEmptyList[Failure], List[SelfDescribingData[Json]]] =
+    for {
+      validContexts <- IgluUtils.validateEnrichmentsContexts[F](client, enrichmentsContexts, registryLookup)
+      _ <- AtomicFieldsLengthValidator
+             .validate[F](enriched, acceptInvalid, invalidCount, atomicFields, emitIncomplete)
+             .leftMap { v: Failure => NonEmptyList.one(v) }
+    } yield validContexts
 
   private[enrichments] case class Accumulation(
     event: EnrichedEvent,
@@ -315,27 +365,29 @@ object EnrichmentManager {
     e: EnrichedEvent,
     etlTstamp: DateTime,
     processor: Processor
-  ): F[Either[FailureDetails.SchemaViolation, Unit]] =
-    Sync[F].delay {
-      e.event_id = EE.generateEventId() // May be updated later if we have an `eid` parameter
-      e.v_collector = raw.source.name // May be updated later if we have a `cv` parameter
-      e.v_etl = ME.etlVersion(processor)
-      e.etl_tstamp = EE.toTimestamp(etlTstamp)
-      e.network_userid = raw.context.userId.map(_.toString).orNull // May be updated later by 'nuid'
-      e.user_ipaddress = ME
-        .extractIp("user_ipaddress", raw.context.ipAddress.orNull)
-        .toOption
-        .orNull // May be updated later by 'ip'
-      // May be updated later if we have a `ua` parameter
-      setUseragent(e, raw.context.useragent)
-      // Validate that the collectorTstamp exists and is Redshift-compatible
-      val collectorTstamp = setCollectorTstamp(e, raw.context.timestamp).toValidatedNel
-      // Map/validate/transform input fields to enriched event fields
-      val transformed = Transform.transform(raw, e)
+  ): IorT[F, Failure.SchemaViolation, Unit] =
+    IorT {
+      Sync[F].delay {
+        e.event_id = EE.generateEventId() // May be updated later if we have an `eid` parameter
+        e.v_collector = raw.source.name // May be updated later if we have a `cv` parameter
+        e.v_etl = ME.etlVersion(processor)
+        e.etl_tstamp = EE.toTimestamp(etlTstamp)
+        e.network_userid = raw.context.userId.map(_.toString).orNull // May be updated later by 'nuid'
+        e.user_ipaddress = ME
+          .extractIp("user_ipaddress", raw.context.ipAddress.orNull)
+          .toOption
+          .orNull // May be updated later by 'ip'
+        // May be updated later if we have a `ua` parameter
+        setUseragent(e, raw.context.useragent)
+        // Validate that the collectorTstamp exists and is Redshift-compatible
+        val collectorTstamp = setCollectorTstamp(e, raw.context.timestamp).toValidatedNel
+        // Map/validate/transform input fields to enriched event fields
+        val transformed = Transform.transform(raw, e)
 
-      (collectorTstamp |+| transformed)
-        .leftMap(AtomicFields.errorsToSchemaViolation)
-        .toEither
+        (collectorTstamp |+| transformed).void.toIor
+          .leftMap(AtomicFields.errorsToSchemaViolation)
+          .putRight(())
+      }
     }
 
   def setCollectorTstamp(event: EnrichedEvent, timestamp: Option[DateTime]): Either[AtomicError.ParseError, Unit] =
@@ -824,28 +876,17 @@ object EnrichmentManager {
         }
     }
 
-  private def buildSchemaViolationsBadRow(
-    vs: NonEmptyList[FailureDetails.SchemaViolation],
-    pee: Payload.PartiallyEnrichedEvent,
-    re: Payload.RawEvent,
-    processor: Processor
-  ): BadRow.SchemaViolations =
-    BadRow.SchemaViolations(
-      processor,
-      Failure.SchemaViolations(Instant.now(), vs),
-      Payload.EnrichmentPayload(pee, re)
-    )
+  private implicit class IorTOps[F[_], A, B](val iorT: IorT[F, A, B]) extends AnyVal {
 
-  private def buildEnrichmentFailuresBadRow(
-    fs: NonEmptyList[FailureDetails.EnrichmentFailure],
-    pee: Payload.PartiallyEnrichedEvent,
-    re: Payload.RawEvent,
-    processor: Processor
-  ) =
-    BadRow.EnrichmentFailures(
-      processor,
-      Failure.EnrichmentFailures(Instant.now(), fs),
-      Payload.EnrichmentPayload(pee, re)
-    )
-
+    /** If the incomplete events feature is disabled, then convert a Both to a Left, so we don't waste time with next steps */
+    def possiblyExitingEarly(emitIncomplete: Boolean)(implicit F: Functor[F]): IorT[F, A, B] =
+      if (emitIncomplete) iorT
+      else
+        IorT {
+          iorT.value.map {
+            case Ior.Both(bad, _) => Ior.Left(bad)
+            case other => other
+          }
+        }
+  }
 }

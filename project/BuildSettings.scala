@@ -197,7 +197,10 @@ object BuildSettings {
     // Project
     commonFs2ProjectSettings ++ buildSettings ++
     // Tests
-    scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp
+    scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp ++ Seq(
+      Test / fork := true,
+      Test / javaOptions := Seq("-Dnashorn.args=--language=es6")
+    )
   }
 
   lazy val awsUtilsBuildSettings = {

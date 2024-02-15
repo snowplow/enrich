@@ -25,7 +25,7 @@ class ExtractPageUriSpec extends Specification with DataTables {
 
   // No URI
   def e1 =
-    PageEnrichments.extractPageUri(None, None) must beRight(None)
+    PageEnrichments.extractPageUri(None, None) must beRight[Option[URI]](None)
 
   // Valid URI combinations
   val originalUri = "http://www.mysite.com/shop/session/_internal/checkout"

@@ -135,7 +135,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     "return None if unstruct_event field is empty" >> {
       IgluUtils
         .extractAndValidateUnstructEvent(new EnrichedEvent, SpecHelpers.client, SpecHelpers.registryLookup)
-        .map(_ must beValid(None))
+        .map(_ must beValid[Option[IgluUtils.SdjExtractResult]](None))
     }
 
     "return a SchemaViolation.NotJson if unstruct_event does not contain a properly formatted JSON string" >> {
@@ -282,7 +282,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     "return Nil if contexts field is empty" >> {
       IgluUtils
         .extractAndValidateInputContexts(new EnrichedEvent, SpecHelpers.client, SpecHelpers.registryLookup)
-        .map(_ must beValid(Nil))
+        .map(_ must beValid(List[IgluUtils.SdjExtractResult]()))
     }
 
     "return a SchemaViolation.NotJson if .contexts does not contain a properly formatted JSON string" >> {
@@ -442,7 +442,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
   "validateEnrichmentsContexts" should {
     "return a BadRow.EnrichmentFailures with one expected failure for one invalid context" >> {
       val contexts = List(
-        SpecHelpers.jsonStringToSDJ(invalidEmailSent).right.get
+        SpecHelpers.jsonStringToSDJ(invalidEmailSent).toOption.get
       )
 
       IgluUtils
@@ -467,8 +467,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
 
     "return a BadRow.EnrichmentFailures 2 expected failures for 2 invalid contexts" >> {
       val contexts = List(
-        SpecHelpers.jsonStringToSDJ(invalidEmailSent).right.get,
-        SpecHelpers.jsonStringToSDJ(noSchema).right.get
+        SpecHelpers.jsonStringToSDJ(invalidEmailSent).toOption.get,
+        SpecHelpers.jsonStringToSDJ(noSchema).toOption.get
       )
 
       IgluUtils
@@ -501,8 +501,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
 
     "return a BadRow.EnrichmentFailures with an expected failure for 1 valid context and one invalid" >> {
       val contexts = List(
-        SpecHelpers.jsonStringToSDJ(invalidEmailSent).right.get,
-        SpecHelpers.jsonStringToSDJ(emailSent1).right.get
+        SpecHelpers.jsonStringToSDJ(invalidEmailSent).toOption.get,
+        SpecHelpers.jsonStringToSDJ(emailSent1).toOption.get
       )
 
       IgluUtils
@@ -527,8 +527,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
 
     "not return any error for 2 valid contexts" >> {
       val contexts = List(
-        SpecHelpers.jsonStringToSDJ(emailSent1).right.get,
-        SpecHelpers.jsonStringToSDJ(emailSent2).right.get
+        SpecHelpers.jsonStringToSDJ(emailSent1).toOption.get,
+        SpecHelpers.jsonStringToSDJ(emailSent2).toOption.get
       )
 
       IgluUtils

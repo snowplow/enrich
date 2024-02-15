@@ -117,7 +117,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
               .InputData("t", "unknown".some, "no matching hit type"),
             FailureDetails.AdapterFailure.SchemaMapping(
               "unknown".some,
-              adapterWithDefaultSchemas.unstructEventData.mapValues(_.schemaKey),
+              adapterWithDefaultSchemas.unstructEventData.view.mapValues(_.schemaKey).toMap,
               "no schema associated with the provided type parameter"
             )
           )

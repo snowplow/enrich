@@ -49,7 +49,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
    {
       "email":"example@test.com",
       "timestamp":1446549615,
-      "smtp-id":"\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+      "smtp-id":"<14c5d75ce93.dfd.64b469@ismtpd-555>",
       "event":"processed",
       "category":"cat facts",
       "sg_event_id":"sZROwMGMagFgnOEmSdvhig==",
@@ -62,7 +62,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
    {
       "email":"example@test.com",
       "timestamp":1446549615,
-      "smtp-id":"\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+      "smtp-id":"<14c5d75ce93.dfd.64b469@ismtpd-555>",
       "event":"deferred",
       "category":"cat facts",
       "sg_event_id":"jWmZXTZbtHTV2-S47asrww==",
@@ -77,7 +77,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
    {
       "email":"example@test.com",
       "timestamp":1446549615,
-      "smtp-id":"\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+      "smtp-id":"<14c5d75ce93.dfd.64b469@ismtpd-555>",
       "event":"delivered",
       "category":"cat facts",
       "sg_event_id":"cikAODhD-ffTphZ7xixsRw==",
@@ -91,7 +91,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
    {
       "email":"example@test.com",
       "timestamp":1446549615,
-      "smtp-id":"\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+      "smtp-id":"<14c5d75ce93.dfd.64b469@ismtpd-555>",
       "event":"open",
       "category":"cat facts",
       "sg_event_id":"VGRrZCh-qMkOaAmuxcFujA==",
@@ -106,7 +106,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
    {
       "email":"example@test.com",
       "timestamp":1446549615,
-      "smtp-id":"\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+      "smtp-id":"<14c5d75ce93.dfd.64b469@ismtpd-555>",
       "event":"click",
       "category":"cat facts",
       "sg_event_id":"QjGWYpcksoD31aVQAONfAg==",
@@ -122,7 +122,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
    {
       "email":"example@test.com",
       "timestamp":1446549615,
-      "smtp-id":"\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+      "smtp-id":"<14c5d75ce93.dfd.64b469@ismtpd-555>",
       "event":"bounce",
       "category":"cat facts",
       "sg_event_id":"PQmsSRnaTMVde4mu4TUgTQ==",
@@ -137,7 +137,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
    {
       "email":"example@test.com",
       "timestamp":1446549615,
-      "smtp-id":"\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+      "smtp-id":"<14c5d75ce93.dfd.64b469@ismtpd-555>",
       "event":"dropped",
       "category":"cat facts",
       "sg_event_id":"BP0-vnv2BjDPzwaldo-XVg==",
@@ -152,7 +152,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
    {
       "email":"example@test.com",
       "timestamp":1446549615,
-      "smtp-id":"\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+      "smtp-id":"<14c5d75ce93.dfd.64b469@ismtpd-555>",
       "event":"spamreport",
       "category":"cat facts",
       "sg_event_id":"ApWZolLiPe04wm5jAhFifA==",
@@ -165,7 +165,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
    {
       "email":"example@test.com",
       "timestamp":1446549615,
-      "smtp-id":"\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+      "smtp-id":"<14c5d75ce93.dfd.64b469@ismtpd-555>",
       "event":"unsubscribe",
       "category":"cat facts",
       "sg_event_id":"HoBsy5C1Tcoc1dJNsy5SfA==",
@@ -178,7 +178,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
    {
       "email":"example@test.com",
       "timestamp":1446549615,
-      "smtp-id":"\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+      "smtp-id":"<14c5d75ce93.dfd.64b469@ismtpd-555>",
       "event":"group_unsubscribe",
       "category":"cat facts",
       "sg_event_id":"hew55AFBIgLbd33pcviQTQ==",
@@ -195,7 +195,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
    {
       "email":"example@test.com",
       "timestamp":1446549615,
-      "smtp-id":"\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+      "smtp-id":"<14c5d75ce93.dfd.64b469@ismtpd-555>",
       "event":"group_resubscribe",
       "category":"cat facts",
       "sg_event_id":"TDlqEy7cUfKLVMY3EAVCag==",
@@ -322,7 +322,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
                {
                  "email": "example@test.com",
                  "timestamp": 1446549615,
-                 "smtp-id": "\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+                 "smtp-id": "<14c5d75ce93.dfd.64b469@ismtpd-555>",
                  "event": "moon landing",
                  "category": "cat facts",
                  "sg_event_id": "sZROwMGMagFgnOEmSdvhig==",
@@ -386,7 +386,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
          {
            "email": "example@test.com",
            "timestamp": 1446549615,
-           "smtp-id": "\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+           "smtp-id": "<14c5d75ce93.dfd.64b469@ismtpd-555>",
            "event": "processed",
            "category": "cat facts",
            "sg_event_id": "sZROwMGMagFgnOEmSdvhig==",
@@ -395,7 +395,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
           {
            "email": "example@test.com",
            "timestamp": 1446549615,
-           "smtp-id": "\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+           "smtp-id": "<14c5d75ce93.dfd.64b469@ismtpd-555>",
            "category": "cat facts",
            "sg_event_id": "sZROwMGMagFgnOEmSdvhig==",
            "sg_message_id": "14c5d75ce93.dfd.64b469.filter0001.16648.5515E0B88.0"
@@ -434,7 +434,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
          {
            "email": "example@test.com",
            "timestamp": 1446549615,
-           "smtp-id": "\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+           "smtp-id": "<14c5d75ce93.dfd.64b469@ismtpd-555>",
            "event": "processed",
            "category": "cat facts",
            "sg_event_id": "sZROwMGMagFgnOEmSdvhig==",
@@ -457,7 +457,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
         )
 
       val expectedJson =
-        """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.sendgrid/processed/jsonschema/3-0-0","data":{"timestamp":"2015-11-03T11:20:15.000Z","email":"example@test.com","marketing_campaign_name":"campaign name","sg_event_id":"sZROwMGMagFgnOEmSdvhig==","smtp-id":"\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e","marketing_campaign_version":"B","marketing_campaign_id":12345,"marketing_campaign_split_id":13471,"category":"cat facts","sg_message_id":"14c5d75ce93.dfd.64b469.filter0001.16648.5515E0B88.0"}}}"""
+        """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.sendgrid/processed/jsonschema/3-0-0","data":{"timestamp":"2015-11-03T11:20:15.000Z","email":"example@test.com","marketing_campaign_name":"campaign name","sg_event_id":"sZROwMGMagFgnOEmSdvhig==","smtp-id":"<14c5d75ce93.dfd.64b469@ismtpd-555>","marketing_campaign_version":"B","marketing_campaign_id":12345,"marketing_campaign_split_id":13471,"category":"cat facts","sg_message_id":"14c5d75ce93.dfd.64b469.filter0001.16648.5515E0B88.0"}}}"""
 
       adapterWithDefaultSchemas
         .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
@@ -488,7 +488,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
           {
             "email":"example@test.com",
             "timestamp":1446549615,
-            "smtp-id":"\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+            "smtp-id":"<14c5d75ce93.dfd.64b469@ismtpd-555>",
             "event":"processed",
             "category":"cat facts",
             "sg_event_id":"sZROwMGMagFgnOEmSdvhig==",
@@ -501,7 +501,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
           {
             "email":"example@test.com",
             "timestamp":1446549615,
-            "smtp-id":"\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+            "smtp-id":"<14c5d75ce93.dfd.64b469@ismtpd-555>",
             "event":"processed",
             "category":"cat facts",
             "sg_event_id":"sZROwMGMagFgnOEmSdvhig==",
@@ -539,7 +539,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
         {
            "email":"example@test.com",
            "timestamp":1446549615,
-           "smtp-id":"\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+           "smtp-id":"<14c5d75ce93.dfd.64b469@ismtpd-555>",
            "event":"processed",
            "category":"cat facts",
            "sg_event_id":"sZROwMGMagFgnOEmSdvhig==",
@@ -552,7 +552,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
         {
            "email":"example@test.com",
            "timestamp":1446549615,
-           "smtp-id":"\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+           "smtp-id":"<14c5d75ce93.dfd.64b469@ismtpd-555>",
            "event":"deferred",
            "category":"cat facts",
            "sg_event_id":"jWmZXTZbtHTV2-S47asrww==",
@@ -584,7 +584,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
       )
 
       val expectedJsonProcessed =
-        """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.custom/processed/jsonschema/1-2-3","data":{"timestamp":"2015-11-03T11:20:15.000Z","email":"example@test.com","marketing_campaign_name":"campaign name","sg_event_id":"sZROwMGMagFgnOEmSdvhig==","smtp-id":"\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e","marketing_campaign_version":"B","marketing_campaign_id":12345,"marketing_campaign_split_id":13471,"category":"cat facts","sg_message_id":"14c5d75ce93.dfd.64b469.filter0001.16648.5515E0B88.0"}}}"""
+        """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.custom/processed/jsonschema/1-2-3","data":{"timestamp":"2015-11-03T11:20:15.000Z","email":"example@test.com","marketing_campaign_name":"campaign name","sg_event_id":"sZROwMGMagFgnOEmSdvhig==","smtp-id":"<14c5d75ce93.dfd.64b469@ismtpd-555>","marketing_campaign_version":"B","marketing_campaign_id":12345,"marketing_campaign_split_id":13471,"category":"cat facts","sg_message_id":"14c5d75ce93.dfd.64b469.filter0001.16648.5515E0B88.0"}}}"""
       val expectedJsonDeferred =
         """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.sendgrid/deferred/jsonschema/3-0-0","data":{"timestamp":"2015-11-03T11:20:15.000Z","email":"example@test.com","marketing_campaign_name":"campaign name","sg_event_id":"jWmZXTZbtHTV2-S47asrww==","smtp-id":"<14c5d75ce93.dfd.64b469@ismtpd-555>","marketing_campaign_version":"B","response":"400 try again later","marketing_campaign_id":12345,"marketing_campaign_split_id":13471,"category":"cat facts","attempt":"5","sg_message_id":"14c5d75ce93.dfd.64b469.filter0001.16648.5515E0B88.0"}}}"""
 

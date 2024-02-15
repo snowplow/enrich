@@ -13,6 +13,9 @@ package com.snowplowanalytics.snowplow.enrich.common.utils
 import java.net.{Inet6Address, InetAddress, URI}
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
+import java.lang.Integer
+import java.lang.{Byte => JByte}
+
 
 import cats.syntax.either._
 import cats.syntax.option._
@@ -394,11 +397,11 @@ class StringToJIntegerSpec extends Specification with DataTables {
 
   def e2 =
     "SPEC NAME" || "INPUT STR" | "EXPECTED" |
-      "Integer #1" !! "0" ! 0 |
-      "Integer #2" !! "23" ! 23 |
-      "Negative integer #1" !! "-2012103" ! -2012103 |
-      "Negative integer #2" !! "-1" ! -1 |
-      "Null" !! null ! null |> { (_, str, expected) =>
+      "Integer #1" !! "0" ! Integer.valueOf(0) |
+      "Integer #2" !! "23" ! Integer.valueOf(23) |
+      "Negative integer #1" !! "-2012103" ! Integer.valueOf(-2012103) |
+      "Negative integer #2" !! "-1" ! Integer.valueOf(-1) |
+      "Null" !! null ! null |> { (_, str: String, expected: Integer) =>
       ConversionUtils.stringToJInteger(str) must beRight(expected)
     }
 }
@@ -435,8 +438,8 @@ class StringToBooleanLikeJByteSpec extends Specification with DataTables {
 
   def e2 =
     "SPEC NAME" || "INPUT STR" | "EXPECTED" |
-      "True aka 1" !! "1" ! 1.toByte |
-      "False aka 0" !! "0" ! 0.toByte |> { (_, str, expected) =>
+      "True aka 1" !! "1" ! (1.toByte: JByte) |
+      "False aka 0" !! "0" ! (0.toByte: JByte) |> { (_, str, expected) =>
       ConversionUtils.stringToBooleanLikeJByte(FieldName, str) must beRight(expected)
     }
 }

@@ -14,8 +14,11 @@ import org.specs2.{ScalaCheck, Specification}
 import org.specs2.matcher.DataTables
 import org.scalacheck._
 import org.scalacheck.Prop.forAll
+
 import java.net.{Inet4Address, Inet6Address}
 import com.google.common.net.{InetAddresses => GuavaInetAddress}
+
+import scala.annotation.nowarn
 
 /**
  * Tests the anonymzeIp function
@@ -85,6 +88,8 @@ class AnonIpEnrichmentSpec extends Specification with DataTables with ScalaCheck
       ip <- Gen.listOfN(segNum, segmentGen)
     } yield ip.updated(segNum - 1, s":${ip(segNum - 1)}")).map(_.mkString(":"))
 
+  //"disable `a type was inferred to be `AnyVal`; this may indicate a programming error` for `countProp and validIpProp`")
+  @nowarn
   def e2 =
     forAll(ipv4Gen, octetsNumGen) {
       case (ip, octetsNum) =>
@@ -96,6 +101,8 @@ class AnonIpEnrichmentSpec extends Specification with DataTables with ScalaCheck
         countProp and validIpProp
     }
 
+  //"disable `a type was inferred to be `AnyVal`; this may indicate a programming error` for `countProp and validIpProp`")
+  @nowarn
   def e3 =
     forAll(ipv6Gen, segmentsNumGen) {
       case (ip, segemntsNum) =>
@@ -108,6 +115,8 @@ class AnonIpEnrichmentSpec extends Specification with DataTables with ScalaCheck
         countProp and validIpProp
     }
 
+  //"disable `a type was inferred to be `AnyVal`; this may indicate a programming error` for `countProp and validIpProp`")
+  @nowarn
   def e4 =
     forAll(shortenedIPv6Gen, segmentsNumGen) {
       case (ip, segemntsNum) =>

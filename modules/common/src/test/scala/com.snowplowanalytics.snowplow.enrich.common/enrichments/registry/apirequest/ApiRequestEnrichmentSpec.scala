@@ -457,7 +457,7 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
     failingLookup(ignoreOnError = false).map(_ must beInvalid)
 
   def e7 =
-    failingLookup(ignoreOnError = true).map(_ must beValid(List.empty))
+    failingLookup(ignoreOnError = true).map(_ must beValid(List.empty[SelfDescribingData[Json]]))
 
   private def failingLookup(ignoreOnError: Boolean): IO[ValidatedNel[FailureDetails.EnrichmentFailure, List[SelfDescribingData[Json]]]] = {
     val inputs = List()

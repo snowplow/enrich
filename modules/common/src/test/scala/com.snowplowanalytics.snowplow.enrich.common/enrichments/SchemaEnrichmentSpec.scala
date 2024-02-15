@@ -62,7 +62,7 @@ class SchemaEnrichmentSpec extends Specification with DataTables {
         SchemaVer.Full(1, 0, 0)
       ) |
       "unstruct event" !! unstructEvent(signupFormSubmitted) ! Some(
-        SpecHelpers.jsonStringToSDJ(signupFormSubmitted).right.get
+        SpecHelpers.jsonStringToSDJ(signupFormSubmitted).toOption.get
       ) ! SchemaKey(
         "com.snowplowanalytics.snowplow-website",
         "signup_form_submitted",

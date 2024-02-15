@@ -21,6 +21,7 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import io.circe.Json
 
 class JavascriptScriptEnrichmentSpec extends Specification {
   def is = s2"""
@@ -144,7 +145,7 @@ class JavascriptScriptEnrichmentSpec extends Specification {
         var a = 42     // no-op
       }"""
 
-    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched()) must beRight(Nil)
+    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched()) must beRight(List[SelfDescribingData[Json]]()) 
   }
 
   def e10 = {
@@ -153,7 +154,7 @@ class JavascriptScriptEnrichmentSpec extends Specification {
         return null
       }"""
 
-    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched()) must beRight(Nil)
+    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched()) must beRight(List[SelfDescribingData[Json]]())
   }
 
   def e11 = {

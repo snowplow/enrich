@@ -11,16 +11,13 @@
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery
 
 import scala.collection.immutable.IntMap
-
 import io.circe.DecodingFailure
 import io.circe.literal._
 import io.circe.parser._
-
 import org.specs2.Specification
 import org.specs2.matcher.ValidatedMatchers
-
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
-
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.Input.ExtractedValueMap
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
 class InputSpec extends Specification with ValidatedMatchers {
@@ -175,7 +172,7 @@ class InputSpec extends Specification with ValidatedMatchers {
       customContexts = List(cookieContext, overriderContext),
       unstructEvent = Some(unstructEvent)
     )
-    placeholderMap must beRight(None)
+    placeholderMap must beRight[Option[ExtractedValueMap]](None)
   }
 
   def e8 = {

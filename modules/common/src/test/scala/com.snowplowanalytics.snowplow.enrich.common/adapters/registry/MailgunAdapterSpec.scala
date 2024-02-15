@@ -138,7 +138,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     val expected = NonEmptyList.one(
       RawEvent(
         Shared.api,
-        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> parse(expectedJson).map(_.noSpaces).right.get).toOpt,
+        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> parse(expectedJson).map(_.noSpaces).toOption.get).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context
@@ -205,7 +205,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     val expected = NonEmptyList.one(
       RawEvent(
         Shared.api,
-        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> parse(expectedJson).map(_.noSpaces).right.get).toOpt,
+        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> parse(expectedJson).map(_.noSpaces).toOption.get).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context
@@ -237,7 +237,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     val expected = NonEmptyList.one(
       RawEvent(
         Shared.api,
-        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> parse(expectedJson).map(_.noSpaces).right.get).toOpt,
+        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> parse(expectedJson).map(_.noSpaces).toOption.get).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context
@@ -354,7 +354,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     val expected = NonEmptyList.one(
       RawEvent(
         Shared.api,
-        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> parse(expectedJson).map(_.noSpaces).right.get).toOpt,
+        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> parse(expectedJson).map(_.noSpaces).toOption.get).toOpt,
         Some("application/json"),
         Shared.cljSource,
         Shared.context

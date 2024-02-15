@@ -46,7 +46,6 @@ import com.snowplowanalytics.snowplow.enrich.common.loaders._
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.AcceptInvalid
 
-import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
 
 class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatchers with CatsEffect {

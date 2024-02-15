@@ -75,14 +75,14 @@ class JsonPathSpec extends Specification {
       beRight(List(Json.fromDoubleOrNull(12.99)))
 
   def e2 =
-    JsonPath.query("$.store.book[5].price", someJson) must beRight(Nil)
+    JsonPath.query("$.store.book[5].price", someJson) must beRight(List[Json]())
 
   def e3 =
-    JsonPath.query("$.store.unicorns", someJson) must beRight(Nil)
+    JsonPath.query("$.store.unicorns", someJson) must beRight(List[Json]())
 
   def e4 =
     //TODO it's not failure anymore because `.notJsonPath` is not treated as invalid jsonpath by jayway
-    JsonPath.query(".notJsonPath", someJson) must beRight(Nil)
+    JsonPath.query(".notJsonPath", someJson) must beRight(List[Json]())
 
   def e5 =
     JsonPath.query("$.store.book[a]", someJson) must beLeft.like {
@@ -90,7 +90,7 @@ class JsonPathSpec extends Specification {
     }
 
   def e6 =
-    JsonPath.query("$.store.book[2]", Json.fromString("somestring")) must beRight(List())
+    JsonPath.query("$.store.book[2]", Json.fromString("somestring")) must beRight(List[Json]())
 
   def e7 = {
     val q1 = JsonPath.query("$.empId", json"""{ "empId": 2147483649 }""") must beRight(List(Json.fromLong(2147483649L)))

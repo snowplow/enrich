@@ -28,6 +28,7 @@ object BuildSettings {
   lazy val projectSettings = Seq(
     organization := "com.snowplowanalytics",
     scalaVersion := "2.13.12",
+    scalacOptions := List("-Wconf:cat=lint:s"),
     licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html"))
   )
 

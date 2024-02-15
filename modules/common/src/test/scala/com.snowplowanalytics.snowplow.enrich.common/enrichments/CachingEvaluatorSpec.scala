@@ -70,7 +70,7 @@ class CachingEvaluatorSpec extends Specification with CatsEffect {
           v1 must beRight(json""" { "field": "value1" } """)
           v2 must beRight(json""" { "field": "value2" } """)
         }
-      }
+      }: Unit
 
       "1 call - success, 2 call - error => fallback to previous success, still TTL for errors in force " in {
         for {
@@ -85,7 +85,7 @@ class CachingEvaluatorSpec extends Specification with CatsEffect {
           v2 must beRight(json""" { "field": "value1" } """)
           v3 must beRight(json""" { "field": "value2" } """)
         }
-      }
+      }: Unit
 
       "1 call - error, 2 call - error => use new error" in {
         for {
@@ -111,7 +111,7 @@ class CachingEvaluatorSpec extends Specification with CatsEffect {
         }
       }
     }
-  }
+  }: Unit
 
   private def getValue(context: TestContext, ifEvaluated: GetResult[IO, Json]): IO[Either[Throwable, Json]] = {
     implicit val clock: TestClock = context.clock

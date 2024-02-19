@@ -35,7 +35,8 @@ class CookieExtractorEnrichmentSpec extends Specification {
   }
 
   def e3 = {
-    val cookies = List("ck1", "=cv2", "ck3=", "ck4=cv4", "ck5=\"cv5\"")
+    val cookies = List("ck1", "=cv2", "ck3=")
+    val cookies2 = List("ck4=cv4", "ck5=\"cv5\"")
     val cookieKeys = List("ck1", "", "ck3", "ck4", "ck5")
 
     val expected =
@@ -63,7 +64,7 @@ class CookieExtractorEnrichmentSpec extends Specification {
       )
 
     val actual = CookieExtractorEnrichment(cookieKeys)
-      .extract(List("Cookie: " + cookies.mkString(";")))
+      .extract(List("cookie: " + cookies.mkString(";"), "Cookie:" + cookies2.mkString(";")))
 
     actual must beLike {
       case cookies @ _ :: _ :: _ :: _ :: _ :: Nil => cookies must_== expected

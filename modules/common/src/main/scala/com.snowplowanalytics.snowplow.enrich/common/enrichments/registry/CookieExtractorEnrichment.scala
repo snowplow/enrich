@@ -55,7 +55,7 @@ final case class CookieExtractorEnrichment(cookieNames: List[String]) extends En
     // rfc6265 - sections 4.2.1 and 4.2.2
     val cookies = headers.flatMap { header =>
       header.split(":", 2) match {
-        case Array("Cookie", value) =>
+        case Array(cookieStr, value) if cookieStr.toLowerCase == "cookie" =>
           val nameValuePairs =
             BasicHeaderValueParser.parseParameters(value, BasicHeaderValueParser.INSTANCE)
 

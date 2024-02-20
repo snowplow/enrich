@@ -123,6 +123,10 @@ object EnrichmentManager {
     val iorT = for {
       _ <- IorT.fromIor[F](setupEnrichedEvent(raw, enrichedEvent, etlTstamp, processor))
       extract <- IgluUtils.extractAndValidateInputJsons(enrichedEvent, client, registryLookup)
+      _ = {
+        enrichedEvent.contexts = ME.formatContexts(extract.contexts).orNull
+        enrichedEvent.unstruct_event = ME.formatUnstructEvent(extract.unstructEvent).orNull
+      }
     } yield extract
 
     iorT.leftMap { violations =>

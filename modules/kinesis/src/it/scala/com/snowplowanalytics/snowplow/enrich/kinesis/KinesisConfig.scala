@@ -59,6 +59,9 @@ object KinesisConfig {
     Some(URI.create(getEndpoint(localstackPort)))
   )
 
+  def incompleteStreamConfig(localstackPort: Int, streamName: String) =
+    enrichedStreamConfig(localstackPort, streamName)
+
   val monitoring = Monitoring(
     None,
     MetricsReporters(None, None, false)
@@ -67,8 +70,8 @@ object KinesisConfig {
   private def getEndpoint(localstackPort: Int): String =
     s"http://$endpoint:$localstackPort"
 
-  case class Streams(raw: String, enriched: String, bad: String)
+  case class Streams(raw: String, enriched: String, bad: String, incomplete: String)
 
   def getStreams(uuid: String): Streams =
-    Streams(s"raw-$uuid", s"enriched-$uuid", s"bad-1-$uuid")
+    Streams(s"raw-$uuid", s"enriched-$uuid", s"bad-1-$uuid", s"incomplete-$uuid")
 }

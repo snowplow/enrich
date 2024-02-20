@@ -27,6 +27,13 @@
       "region": ${REGION}
       "customEndpoint": ${LOCALSTACK_ENDPOINT}
     }
+
+    "incomplete": {
+      "type": "Kinesis"
+      "streamName": ${STREAM_INCOMPLETE}
+      "region": ${REGION}
+      "customEndpoint": ${LOCALSTACK_ENDPOINT}
+    }
   }
 
   "monitoring": {

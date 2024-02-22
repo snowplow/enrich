@@ -61,12 +61,12 @@ object Metadata {
         )
     }
 
-  case class TrackingScenarioInfo(
+  case class EventSpecInfo(
     schemaVendor: String,
     schemaName: String,
     field: String
   )
-  private val trackingScenarioInfo = TrackingScenarioInfo("com.snowplowanalytics.snowplow", "tracking_scenario", "id")
+  private val eventSpecInfo = EventSpecInfo("com.snowplowanalytics.snowplow", "event_specification", "id")
 
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
     Slf4jLogger.getLogger[F]
@@ -258,8 +258,8 @@ object Metadata {
       val schemas = sdjs.map(_.schema)
 
       val scenarioId = sdjs.collectFirst {
-        case sdj if sdj.schema.vendor == trackingScenarioInfo.schemaVendor && sdj.schema.name == trackingScenarioInfo.schemaName =>
-          sdj.data.hcursor.downField(trackingScenarioInfo.field).as[String] match {
+        case sdj if sdj.schema.vendor == eventSpecInfo.schemaVendor && sdj.schema.name == eventSpecInfo.schemaName =>
+          sdj.data.hcursor.downField(eventSpecInfo.field).as[String] match {
             case Right(scenarioId) =>
               Some(scenarioId)
             case _ =>

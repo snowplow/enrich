@@ -89,13 +89,13 @@ class MetadataSpec extends Specification with CatsEffect {
       event.contexts = """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[
              {"schema":"iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-0","data":{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}},
              {"schema":"iglu:org.w3/PerformanceTiming/jsonschema/1-0-0","data":{"navigationStart":1581931694397,"unloadEventStart":1581931696046,"unloadEventEnd":1581931694764,"redirectStart":0,"redirectEnd":0,"fetchStart":1581931694397,"domainLookupStart":1581931694440,"domainLookupEnd":1581931694513,"connectStart":1581931694513,"connectEnd":1581931694665,"secureConnectionStart":1581931694572,"requestStart":1581931694665,"responseStart":1581931694750,"responseEnd":1581931694750,"domLoading":1581931694762,"domInteractive":1581931695963,"domContentLoadedEventStart":1581931696039,"domContentLoadedEventEnd":1581931696039,"domComplete":0,"loadEventStart":0,"loadEventEnd":0}},
-             {"schema": "iglu:com.snowplowanalytics.snowplow/tracking_scenario/jsonschema/1-0-0", "data": {"id": "scenario_id"}}
+             {"schema": "iglu:com.snowplowanalytics.snowplow/event_specification/jsonschema/1-0-0", "data": {"id": "scenario_id"}}
            ]}"""
       val expectedEntitites =
         Seq(
           SchemaKey("com.snowplowanalytics.snowplow", "web_page", "jsonschema", SchemaVer.Full(1, 0, 0)),
           SchemaKey("org.w3", "PerformanceTiming", "jsonschema", SchemaVer.Full(1, 0, 0)),
-          SchemaKey("com.snowplowanalytics.snowplow", "tracking_scenario", "jsonschema", SchemaVer.Full(1, 0, 0))
+          SchemaKey("com.snowplowanalytics.snowplow", "event_specification", "jsonschema", SchemaVer.Full(1, 0, 0))
         )
       val expectedScenarioId = Some("scenario_id")
 

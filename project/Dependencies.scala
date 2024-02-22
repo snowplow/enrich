@@ -85,6 +85,7 @@ object Dependencies {
     val fs2Kafka         = "3.2.0"
     val fs2BlobStorage   = "0.9.12"
     val azureIdentity    = "1.11.1"
+    val nimbusJoseJwt    = "9.37.2"
     val http4s           = "0.23.25"
     val log4cats         = "2.6.0"
     val catsRetry        = "3.1.0"
@@ -192,6 +193,7 @@ object Dependencies {
                            .exclude("software.amazon.glue", "schema-registry-serde")
     val stsSdk2          = "software.amazon.awssdk"           %  "sts"                                   % V.awsSdk2         % Runtime
     val azureIdentity    = "com.azure"                        % "azure-identity"                         % V.azureIdentity
+    val nimbusJoseJwt    = "com.nimbusds"                     % "nimbus-jose-jwt"                        % V.nimbusJoseJwt
     val jacksonDfXml     = "com.fasterxml.jackson.dataformat" % "jackson-dataformat-xml"                 % V.jackson
     val http4sClient     = "org.http4s"                       %% "http4s-ember-client"                   % V.http4s
     val http4sCirce      = "org.http4s"                       %% "http4s-circe"                          % V.http4s
@@ -297,7 +299,8 @@ object Dependencies {
     val azureUtilsDependencies = Seq(
       fs2BlobAzure,
       azureIdentity,
-      jacksonDfXml // for security vulnerabilities
+      jacksonDfXml, // for security vulnerabilities
+      nimbusJoseJwt // for security vulnerabilities
     )
 
     val pubsubDependencies = Seq(

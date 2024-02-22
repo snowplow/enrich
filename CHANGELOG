@@ -1,3 +1,17 @@
+4.1.0 (2024-02-22)
+------------------
+enrich-kafka: authenticate with Event Hubs using OAuth2 (#863)
+Add Cross Navigation Enrichment (#855)
+Allow multiple javascript enrichments (#868)
+Add the message delayed event to Mandrill adapter and update schema versions (#815)
+Stop publishing fat jars (#862)
+Allow passing an object of parameters to the JS enrichment (#871)
+Make cookie extractor enrichment case insensitive (#877)
+Add tracking scenario ID in observed_event if defined (#807)
+Rename tracking_scenario to event_specification (#879)
+Bump nimbus-jose-jwt to 9.37.2 (#880)
+Bump postgres driver to 42.7.2 (#880)
+
 4.0.1 (2024-02-09)
 ------------------
 Use default aws provider chain in S3 client (#866)

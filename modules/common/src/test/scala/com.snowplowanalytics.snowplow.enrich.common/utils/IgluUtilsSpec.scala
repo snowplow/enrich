@@ -415,8 +415,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         }
     }
 
-    // TODO: check good schema
-    "return an expected failure if one context is valid and the other invalid" >> {
+    "return an expected failure and an expected SDJ if one context is invalid and one is invalid" >> {
       val input = new EnrichedEvent
       input.setContexts(buildInputContexts(List(emailSent1, noSchema)))
 
@@ -424,8 +423,10 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .value
         .map {
-          case Ior.Both(NonEmptyList(_: FailureDetails.SchemaViolation.IgluError, Nil), List(_)) => ok
-          case other => ko(s"[$other] is not one IgluError and one valid SDJ")
+          case Ior.Both(NonEmptyList(_: FailureDetails.SchemaViolation.IgluError, Nil), List(extract))
+              if extract.sdj.schema == emailSentSchema =>
+            ok
+          case other => ko(s"[$other] is not one IgluError and one SDJ with schema $emailSentSchema")
         }
     }
 
@@ -528,8 +529,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         }
     }
 
-    // TODO: check schema in the Right
-    "return a failure and a SDJ for one valid context and one invalid" >> {
+    "return a failure and an expectected SDJ for one valid context and one invalid" >> {
       val contexts = List(
         SpecHelpers.jsonStringToSDJ(invalidEmailSent).right.get,
         SpecHelpers.jsonStringToSDJ(emailSent1).right.get
@@ -546,14 +546,13 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
                           ),
                           Nil
                         ),
-                        List(_)
-              ) =>
+                        List(sdj)
+              ) if sdj.schema == emailSentSchema =>
             ok
-          case other => ko(s"[$other] is not one error with a ValidationError and one valid SDJ")
+          case other => ko(s"[$other] is not one ValidationError and one SDJ with schema $emailSentSchema")
         }
     }
 
-    // TODO: check the schemas
     "return 2 valid contexts" >> {
       val contexts = List(
         SpecHelpers.jsonStringToSDJ(emailSent1).right.get,
@@ -564,143 +563,193 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .validateEnrichmentsContexts(SpecHelpers.client, contexts, SpecHelpers.registryLookup)
         .value
         .map {
-          case Ior.Right(List(_, _)) => ok
-          case other => ko(s"[$other] doesn't contain the 2 valid contexts")
+          case Ior.Right(List(sdj1, sdj2)) if sdj1.schema == emailSentSchema && sdj2.schema == emailSentSchema => ok
+          case other => ko(s"[$other] doesn't contain 2 valid contexts with schema $emailSentSchema")
+        }
+    }
+  }
+
+  "extractAndValidateInputJsons" should {
+    "return one SchemaViolation if the input event contains an invalid unstructured event" >> {
+      val input = new EnrichedEvent
+      input.setUnstruct_event(buildUnstruct(invalidEmailSent))
+
+      IgluUtils
+        .extractAndValidateInputJsons(
+          input,
+          SpecHelpers.client,
+          SpecHelpers.registryLookup
+        )
+        .value
+        .map {
+          case Ior.Both(
+                NonEmptyList(
+                  _: FailureDetails.SchemaViolation,
+                  Nil
+                ),
+                IgluUtils.EventExtractResult(Nil, None, Nil)
+              ) =>
+            ok
+          case other => ko(s"[$other] isn't an error with SchemaViolation")
         }
     }
 
-    "extractAndValidateInputJsons" should {
-      "return one SchemaViolation if the input event contains an invalid unstructured event" >> {
-        val input = new EnrichedEvent
-        input.setUnstruct_event(buildUnstruct(invalidEmailSent))
+    "return one SchemaViolation if the input event contains an invalid context" >> {
+      val input = new EnrichedEvent
+      input.setContexts(buildInputContexts(List(invalidEmailSent)))
 
-        IgluUtils
-          .extractAndValidateInputJsons(
-            input,
-            SpecHelpers.client,
-            SpecHelpers.registryLookup
-          )
-          .value
-          .map {
-            case Ior.Both(
-                  NonEmptyList(
-                    _: FailureDetails.SchemaViolation,
-                    Nil
-                  ),
-                  IgluUtils.EventExtractResult(Nil, None, Nil)
-                ) =>
-              ok
-            case other => ko(s"[$other] isn't an error with SchemaViolation")
-          }
-      }
+      IgluUtils
+        .extractAndValidateInputJsons(
+          input,
+          SpecHelpers.client,
+          SpecHelpers.registryLookup
+        )
+        .value
+        .map {
+          case Ior.Both(
+                NonEmptyList(
+                  _: FailureDetails.SchemaViolation,
+                  Nil
+                ),
+                IgluUtils.EventExtractResult(Nil, None, Nil)
+              ) =>
+            ok
+          case other => ko(s"[$other] isn't an error with SchemaViolation")
+        }
+    }
 
-      "return one SchemaViolation if the input event contains an invalid context" >> {
-        val input = new EnrichedEvent
-        input.setContexts(buildInputContexts(List(invalidEmailSent)))
+    "return 2 SchemaViolation if the input event contains an invalid unstructured event and 1 invalid context" >> {
+      val input = new EnrichedEvent
+      input.setUnstruct_event(invalidEmailSent)
+      input.setContexts(buildInputContexts(List(invalidEmailSent)))
 
-        IgluUtils
-          .extractAndValidateInputJsons(
-            input,
-            SpecHelpers.client,
-            SpecHelpers.registryLookup
-          )
-          .value
-          .map {
-            case Ior.Both(
-                  NonEmptyList(
-                    _: FailureDetails.SchemaViolation,
-                    Nil
-                  ),
-                  IgluUtils.EventExtractResult(Nil, None, Nil)
-                ) =>
-              ok
-            case other => ko(s"[$other] isn't an error with SchemaViolation")
-          }
-      }
+      IgluUtils
+        .extractAndValidateInputJsons(
+          input,
+          SpecHelpers.client,
+          SpecHelpers.registryLookup
+        )
+        .value
+        .map {
+          case Ior.Both(
+                NonEmptyList(
+                  _: FailureDetails.SchemaViolation,
+                  List(_: FailureDetails.SchemaViolation)
+                ),
+                IgluUtils.EventExtractResult(Nil, None, Nil)
+              ) =>
+            ok
+          case other => ko(s"[$other] isn't 2 errors with SchemaViolation")
+        }
+    }
 
-      "return 2 SchemaViolation if the input event contains an invalid unstructured event and 1 invalid context" >> {
-        val input = new EnrichedEvent
-        input.setUnstruct_event(invalidEmailSent)
-        input.setContexts(buildInputContexts(List(invalidEmailSent)))
+    "return the extracted unstructured event and the extracted input contexts if they are all valid" >> {
+      val input = new EnrichedEvent
+      input.setUnstruct_event(buildUnstruct(emailSent1))
+      input.setContexts(buildInputContexts(List(emailSent1, emailSent2)))
 
-        IgluUtils
-          .extractAndValidateInputJsons(
-            input,
-            SpecHelpers.client,
-            SpecHelpers.registryLookup
-          )
-          .value
-          .map {
-            case Ior.Both(
-                  NonEmptyList(
-                    _: FailureDetails.SchemaViolation,
-                    List(_: FailureDetails.SchemaViolation)
-                  ),
-                  IgluUtils.EventExtractResult(Nil, None, Nil)
-                ) =>
-              ok
-            case other => ko(s"[$other] isn't 2 errors with SchemaViolation")
-          }
-      }
+      IgluUtils
+        .extractAndValidateInputJsons(
+          input,
+          SpecHelpers.client,
+          SpecHelpers.registryLookup
+        )
+        .value
+        .map {
+          case Ior.Right(IgluUtils.EventExtractResult(contexts, Some(unstructEvent), validationInfos))
+              if contexts.size == 2
+                && validationInfos.isEmpty
+                && (unstructEvent :: contexts).forall(_.schema == emailSentSchema) =>
+            ok
+          case other =>
+            ko(
+              s"[$other] doesn't contain the 2 contexts and the unstructured event"
+            )
+        }
+    }
 
-      "return the extracted unstructured event and the extracted input contexts if they are all valid" >> {
-        val input = new EnrichedEvent
-        input.setUnstruct_event(buildUnstruct(emailSent1))
-        input.setContexts(buildInputContexts(List(emailSent1, emailSent2)))
+    "return the SchemaViolation of the invalid context in the Left and the extracted unstructured event in the Right" >> {
+      val input = new EnrichedEvent
+      input.setUnstruct_event(buildUnstruct(emailSent1))
+      input.setContexts(buildInputContexts(List(invalidEmailSent)))
 
-        IgluUtils
-          .extractAndValidateInputJsons(
-            input,
-            SpecHelpers.client,
-            SpecHelpers.registryLookup
-          )
-          .value
-          .map {
-            case Ior.Right(IgluUtils.EventExtractResult(contexts, Some(unstructEvent), validationInfos))
-                if contexts.size == 2
-                  && validationInfos.isEmpty
-                  && (unstructEvent :: contexts).forall(_.schema == emailSentSchema) =>
-              ok
-            case other =>
-              ko(
-                s"[$other] doesn't contain the 2 contexts and the unstructured event"
-              )
-          }
-      }
+      IgluUtils
+        .extractAndValidateInputJsons(
+          input,
+          SpecHelpers.client,
+          SpecHelpers.registryLookup
+        )
+        .value
+        .map {
+          case Ior.Both(
+                NonEmptyList(FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)), _),
+                extract
+              ) if extract.contexts.isEmpty && extract.unstructEvent.isDefined && extract.unstructEvent.get.schema == emailSentSchema =>
+            ok
+          case other =>
+            ko(
+              s"[$other] isn't one ValidationError and an unstructured event with schema $emailSentSchema"
+            )
+        }
+    }
 
-      "return the extracted unstructured event and the extracted input contexts when schema is superseded by another schema" >> {
-        val input = new EnrichedEvent
-        input.setUnstruct_event(buildUnstruct(supersedingExample1))
-        input.setContexts(buildInputContexts(List(supersedingExample1, supersedingExample2)))
+    "return the SchemaViolation of the invalid unstructured event in the Left and the valid context in the Right" >> {
+      val input = new EnrichedEvent
+      input.setUnstruct_event(buildUnstruct(invalidEmailSent))
+      input.setContexts(buildInputContexts(List(emailSent1)))
 
-        val expectedValidationInfoContext = parse(
-          """ {
+      IgluUtils
+        .extractAndValidateInputJsons(
+          input,
+          SpecHelpers.client,
+          SpecHelpers.registryLookup
+        )
+        .value
+        .map {
+          case Ior.Both(
+                NonEmptyList(FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)), _),
+                extract
+              ) if extract.contexts.size == 1 && extract.contexts.head.schema == emailSentSchema && extract.unstructEvent.isEmpty =>
+            ok
+          case other =>
+            ko(
+              s"[$other] isn't one ValidationError and one context with schema $emailSentSchema"
+            )
+        }
+    }
+
+    "return the extracted unstructured event and the extracted input contexts when schema is superseded by another schema" >> {
+      val input = new EnrichedEvent
+      input.setUnstruct_event(buildUnstruct(supersedingExample1))
+      input.setContexts(buildInputContexts(List(supersedingExample1, supersedingExample2)))
+
+      val expectedValidationInfoContext = parse(
+        """ {
           | "originalSchema" : "iglu:com.acme/superseding_example/jsonschema/1-0-0",
           | "validatedWith" : "1-0-1"
           |}""".stripMargin
-        ).toOption.get
+      ).toOption.get
 
-        IgluUtils
-          .extractAndValidateInputJsons(
-            input,
-            SpecHelpers.client,
-            SpecHelpers.registryLookup
-          )
-          .value
-          .map {
-            case Ior.Right(IgluUtils.EventExtractResult(contexts, Some(unstructEvent), List(validationInfo)))
-                if contexts.size == 2
-                  && unstructEvent.schema == supersedingExampleSchema101
-                  && contexts.count(_.schema == supersedingExampleSchema101) == 2
-                  && validationInfo.schema == IgluUtils.ValidationInfo.schemaKey
-                  && validationInfo.data == expectedValidationInfoContext =>
-              ok
-            case other =>
-              ko(
-                s"[$other] doesn't contain the 2 contexts and the unstructured event with the superseded schema"
-              )
-          }
-      }
+      IgluUtils
+        .extractAndValidateInputJsons(
+          input,
+          SpecHelpers.client,
+          SpecHelpers.registryLookup
+        )
+        .value
+        .map {
+          case Ior.Right(IgluUtils.EventExtractResult(contexts, Some(unstructEvent), List(validationInfo)))
+              if contexts.size == 2
+                && unstructEvent.schema == supersedingExampleSchema101
+                && contexts.count(_.schema == supersedingExampleSchema101) == 2
+                && validationInfo.schema == IgluUtils.ValidationInfo.schemaKey
+                && validationInfo.data == expectedValidationInfoContext =>
+            ok
+          case other =>
+            ko(
+              s"[$other] doesn't contain the 2 contexts and the unstructured event with the superseded schema"
+            )
+        }
     }
   }
 

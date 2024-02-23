@@ -137,6 +137,52 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       }
     }
 
+    "return a SchemaViolations bad row that contains both a mapping error and a ValidationError if the 2 problems are in the event" >> {
+      val parameters = Map(
+        "e" -> "ue",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "tr_tt" -> "not_number",
+        "ue_pr" ->
+          """
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data":{
+              "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+              "data": {
+                "emailAddress": "hello@world.com",
+                "emailAddress2": "foo@bar.org",
+                "unallowedAdditionalField": "foo@bar.org"
+              }
+            }
+          }"""
+      ).toOpt
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      val enriched = EnrichmentManager.enrichEvent[IO](
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent,
+        AcceptInvalid.featureFlags,
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits,
+        emitIncomplete
+      )
+      enriched.value map {
+        case Ior.Left(BadRow.SchemaViolations(_, Failure.SchemaViolations(_, messages), _)) =>
+          messages match {
+            case NonEmptyList(one, List(two)) =>
+              one.toString must contain("cannot be converted to java.math.BigDecimal")
+              two.toString must contain("unallowedAdditionalField: is not defined in the schema")
+            case _ =>
+              ko(s"[$messages] doesn't contain 2 errors but ${messages.size}")
+          }
+        case other => ko(s"[$other] is not a SchemaViolations bad row")
+      }
+    }
+
     "return an EnrichmentFailures bad row if one of the enrichment (JS enrichment here) fails" >> {
       val script =
         """
@@ -1167,6 +1213,372 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         case other => ko(s"[$other] is not an enriched event")
       }
     }
+
+    "remove the invalid unstructured event and enrich the event if emitIncomplete is set to true" >> {
+      val script =
+        s"""
+        function process(event) {
+          return [ ${emailSent} ];
+        }"""
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow",
+        "javascript_script_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val enrichmentReg = EnrichmentRegistry[IO](
+        javascriptScript = List(
+          JavascriptScriptEnrichment(schemaKey, script)
+        )
+      )
+
+      val parameters = Map(
+        "e" -> "pp",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "co" ->
+          s"""
+          {
+            "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
+            "data": [
+              $clientSession
+            ]
+          }
+        """,
+        "ue_pr" ->
+          """
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data":{
+              "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+              "data": {
+                "emailAddress": "hello@world.com",
+                "emailAddress2": "foo@bar.org",
+                "unallowedAdditionalField": "foo@bar.org"
+              }
+            }
+          }"""
+      ).toOpt
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      val enriched = EnrichmentManager.enrichEvent[IO](
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent,
+        AcceptInvalid.featureFlags,
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits,
+        emitIncomplete = true
+      )
+      enriched.value.map {
+        case Ior.Both(_: BadRow.SchemaViolations, enriched)
+            if Option(enriched.unstruct_event).isEmpty &&
+              SpecHelpers.listContextsSchemas(enriched.contexts) == List(clientSessionSchema) &&
+              SpecHelpers.listContextsSchemas(enriched.derived_contexts).contains(emailSentSchema) =>
+          ok
+        case other => ko(s"[$other] is not a SchemaViolations bad row and an enriched event without the unstructured event")
+      }
+    }
+
+    "remove the invalid context and enrich the event if emitIncomplete is set to true" >> {
+      val script =
+        s"""
+        function process(event) {
+          return [ ${emailSent} ];
+        }"""
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow",
+        "javascript_script_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val enrichmentReg = EnrichmentRegistry[IO](
+        javascriptScript = List(
+          JavascriptScriptEnrichment(schemaKey, script)
+        )
+      )
+
+      val parameters = Map(
+        "e" -> "pp",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "co" ->
+          """
+          {
+            "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
+            "data": [
+              {
+                "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+                "data": {
+                  "foo": "hello@world.com",
+                  "emailAddress2": "foo@bar.org"
+                }
+              }
+            ]
+          }
+        """,
+        "ue_pr" ->
+          s"""
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data": $clientSession
+          }"""
+      ).toOpt
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      val enriched = EnrichmentManager.enrichEvent[IO](
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent,
+        AcceptInvalid.featureFlags,
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits,
+        emitIncomplete = true
+      )
+      enriched.value.map {
+        case Ior.Both(_: BadRow.SchemaViolations, enriched)
+            if Option(enriched.contexts).isEmpty &&
+              SpecHelpers.getUnstructSchema(enriched.unstruct_event) == clientSessionSchema &&
+              SpecHelpers.listContextsSchemas(enriched.derived_contexts).contains(emailSentSchema) =>
+          ok
+        case other => ko(s"[$other] is not a SchemaViolations bad row and an enriched event with no input contexts")
+      }
+    }
+
+    "remove one invalid context (out of 2) and enrich the event if emitIncomplete is set to true" >> {
+      val script =
+        s"""
+        function process(event) {
+          return [ ${emailSent} ];
+        }"""
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow",
+        "javascript_script_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val enrichmentReg = EnrichmentRegistry[IO](
+        javascriptScript = List(
+          JavascriptScriptEnrichment(schemaKey, script)
+        )
+      )
+
+      val parameters = Map(
+        "e" -> "pp",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "co" ->
+          s"""
+          {
+            "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
+            "data": [
+              {
+                "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+                "data": {
+                  "foo": "hello@world.com",
+                  "emailAddress2": "foo@bar.org"
+                }
+              },
+              $clientSession
+            ]
+          }
+        """,
+        "ue_pr" ->
+          s"""
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data": $clientSession
+          }"""
+      ).toOpt
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      val enriched = EnrichmentManager.enrichEvent[IO](
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent,
+        AcceptInvalid.featureFlags,
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits,
+        emitIncomplete = true
+      )
+      enriched.value.map {
+        case Ior.Both(_: BadRow.SchemaViolations, enriched)
+            if SpecHelpers.getUnstructSchema(enriched.unstruct_event) == clientSessionSchema &&
+              SpecHelpers.listContextsSchemas(enriched.contexts) == List(clientSessionSchema) &&
+              SpecHelpers.listContextsSchemas(enriched.derived_contexts).contains(emailSentSchema) =>
+          ok
+        case other => ko(s"[$other] is not a SchemaViolations bad row and an enriched event with 1 input context")
+      }
+    }
+
+    "return the enriched event after an enrichment exception if emitIncomplete is set to true" >> {
+      val script =
+        s"""
+        function process(event) {
+          throw "Javascript exception";
+          return [ $emailSent ];
+        }"""
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow",
+        "javascript_script_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val enrichmentReg = EnrichmentRegistry[IO](
+        yauaa = Some(YauaaEnrichment(None)),
+        javascriptScript = List(
+          JavascriptScriptEnrichment(schemaKey, script)
+        )
+      )
+
+      val parameters = Map(
+        "e" -> "pp",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "ue_pr" ->
+          s"""
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data": $clientSession
+          }"""
+      ).toOpt
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      val enriched = EnrichmentManager.enrichEvent[IO](
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent,
+        AcceptInvalid.featureFlags,
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits,
+        emitIncomplete = true
+      )
+      enriched.value.map {
+        case Ior.Both(_: BadRow.EnrichmentFailures, enriched)
+            if SpecHelpers.getUnstructSchema(enriched.unstruct_event) == clientSessionSchema &&
+              !SpecHelpers.listContextsSchemas(enriched.derived_contexts).contains(emailSentSchema) =>
+          ok
+        case other => ko(s"[$other] is not an EnrichmentFailures bad row and an enriched event")
+      }
+    }
+
+    "return a SchemaViolations bad row in the Left in case of both a schema violation and an enrichment failure if emitIncomplete is set to true" >> {
+      val script =
+        s"""
+        function process(event) {
+          throw "Javascript exception";
+          return [ $emailSent ];
+        }"""
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow",
+        "javascript_script_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val enrichmentReg = EnrichmentRegistry[IO](
+        javascriptScript = List(
+          JavascriptScriptEnrichment(schemaKey, script)
+        )
+      )
+
+      val parameters = Map(
+        "e" -> "pp",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "tr_tt" -> "foo",
+        "ue_pr" ->
+          s"""
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data": $clientSession
+          }"""
+      ).toOpt
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      val enriched = EnrichmentManager.enrichEvent[IO](
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent,
+        AcceptInvalid.featureFlags,
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits,
+        emitIncomplete = true
+      )
+      enriched.value.map {
+        case Ior.Both(_: BadRow.SchemaViolations, _) => ok
+        case other => ko(s"[$other] doesn't have a SchemaViolations bad row in the Left")
+      }
+    }
+
+    "remove an invalid enrichment context and return the enriched event if emitIncomplete is set to true" >> {
+      val script =
+        s"""
+        function process(event) {
+          return [
+            {
+              "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+              "data": {
+                "foo": "hello@world.com",
+                "emailAddress2": "foo@bar.org"
+              }
+            }
+          ];
+        }"""
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow",
+        "javascript_script_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val enrichmentReg = EnrichmentRegistry[IO](
+        yauaa = Some(YauaaEnrichment(None)),
+        javascriptScript = List(
+          JavascriptScriptEnrichment(schemaKey, script)
+        )
+      )
+
+      val parameters = Map(
+        "e" -> "pp",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "ue_pr" ->
+          s"""
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data": $clientSession
+          }"""
+      ).toOpt
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      val enriched = EnrichmentManager.enrichEvent[IO](
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent,
+        AcceptInvalid.featureFlags,
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits,
+        emitIncomplete = true
+      )
+      enriched.value.map {
+        case Ior.Both(_: BadRow.EnrichmentFailures, enriched)
+            if SpecHelpers.getUnstructSchema(enriched.unstruct_event) == clientSessionSchema &&
+              !SpecHelpers.listContextsSchemas(enriched.derived_contexts).contains(emailSentSchema) =>
+          ok
+        case other => ko(s"[$other] is not an EnrichmentFailures bad row and an enriched event without the faulty enrichment context")
+      }
+    }
   }
 
   "getCrossDomain" should {
@@ -1748,4 +2160,37 @@ object EnrichmentManagerSpec {
     .getOrElse(throw new RuntimeException("IAB enrichment couldn't be initialised")) // to make sure it's not none
     .enrichment[IO]
 
+  val emailSentSchema =
+    SchemaKey(
+      "com.acme",
+      "email_sent",
+      "jsonschema",
+      SchemaVer.Full(1, 0, 0)
+    )
+
+  val emailSent = s"""{
+    "schema": "${emailSentSchema.toSchemaUri}",
+    "data": {
+      "emailAddress": "hello@world.com",
+      "emailAddress2": "foo@bar.org"
+    }
+  }"""
+  val clientSessionSchema =
+    SchemaKey(
+      "com.snowplowanalytics.snowplow",
+      "client_session",
+      "jsonschema",
+      SchemaVer.Full(1, 0, 1)
+    )
+  val clientSession = s"""{
+    "schema": "${clientSessionSchema.toSchemaUri}",
+    "data": {
+      "sessionIndex": 1,
+      "storageMechanism": "LOCAL_STORAGE",
+      "firstEventId": "5c33fccf-6be5-4ce6-afb1-e34026a3ca75",
+      "sessionId": "21c2a0dd-892d-42d1-b156-3a9d4e147eef",
+      "previousSessionId": null,
+      "userId": "20d631b8-7837-49df-a73e-6da73154e6fd"
+    }
+  }"""
 }

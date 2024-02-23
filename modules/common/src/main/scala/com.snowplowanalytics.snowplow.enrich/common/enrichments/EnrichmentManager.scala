@@ -82,6 +82,12 @@ object EnrichmentManager {
                        )
                          .leftMap(NonEmptyList.one)
                          .possiblyExitingEarly(emitIncomplete)
+      // Next 2 lines remove the invalid contexts and the invalid unstructured event from the event.
+      // This should be done after the bad row was created and only if emitIncomplete is enabled.
+      _ = {
+        enriched.contexts = ME.formatContexts(extractResult.contexts).orNull
+        enriched.unstruct_event = ME.formatUnstructEvent(extractResult.unstructEvent).orNull
+      }
       enrichmentsContexts <- runEnrichments(
                                registry,
                                processor,
@@ -109,10 +115,10 @@ object EnrichmentManager {
              .possiblyExitingEarly(emitIncomplete)
     } yield enriched
 
-    iorT.leftMap(_.last)
+    iorT.leftMap(_.head)
   }
 
-  def mapAndValidateInput[F[_]: Clock: Monad](
+  private def mapAndValidateInput[F[_]: Clock: Monad](
     raw: RawEvent,
     enrichedEvent: EnrichedEvent,
     etlTstamp: DateTime,
@@ -123,10 +129,6 @@ object EnrichmentManager {
     val iorT = for {
       _ <- IorT.fromIor[F](setupEnrichedEvent(raw, enrichedEvent, etlTstamp, processor))
       extract <- IgluUtils.extractAndValidateInputJsons(enrichedEvent, client, registryLookup)
-      _ = {
-        enrichedEvent.contexts = ME.formatContexts(extract.contexts).orNull
-        enrichedEvent.unstruct_event = ME.formatUnstructEvent(extract.unstructEvent).orNull
-      }
     } yield extract
 
     iorT.leftMap { violations =>

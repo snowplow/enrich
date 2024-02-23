@@ -37,7 +37,7 @@ import com.snowplowanalytics.iglu.client.{IgluCirceClient, Resolver}
 import com.snowplowanalytics.iglu.client.resolver.registries.Registry
 import com.snowplowanalytics.iglu.client.resolver.registries.JavaNetRegistryLookup
 
-import com.snowplowanalytics.iglu.core.SelfDescribingData
+import com.snowplowanalytics.iglu.core.{SchemaKey, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
 import com.snowplowanalytics.lrumap.CreateLruMap._
@@ -128,6 +128,25 @@ object SpecHelpers extends CatsEffect {
       .leftMap(err => s"Can't parse [$rawJson] as Json, error: [$err]")
       .flatMap(SelfDescribingData.parse[Json])
       .leftMap(err => s"Can't parse Json [$rawJson] as as SelfDescribingData, error: [$err]")
+
+  def listContextsSchemas(rawContexts: String): List[SchemaKey] =
+    jsonStringToSDJ(rawContexts)
+      .map(_.data.asArray.get.toList)
+      .flatMap(contexts => contexts.traverse(c => SelfDescribingData.parse[Json](c).map(_.schema))) match {
+      case Left(err) =>
+        throw new IllegalArgumentException(s"Couldn't list contexts schemas. Error: [$err]")
+      case Right(schemas) => schemas
+    }
+
+  def getUnstructSchema(rawUnstruct: String): SchemaKey =
+    jsonStringToSDJ(rawUnstruct)
+      .map(_.data)
+      .flatMap(SelfDescribingData.parse[Json])
+      .map(_.schema) match {
+      case Left(err) =>
+        throw new IllegalArgumentException(s"Couldn't get unstruct event schema. Error: [$err]")
+      case Right(schema) => schema
+    }
 
   implicit class MapOps[A, B](underlying: Map[A, B]) {
     def toOpt: Map[A, Option[B]] = underlying.map { case (a, b) => (a, Option(b)) }

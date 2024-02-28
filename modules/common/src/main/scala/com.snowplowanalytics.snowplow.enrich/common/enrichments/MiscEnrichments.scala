@@ -14,7 +14,9 @@ import cats.syntax.either._
 
 import io.circe._
 
-import com.snowplowanalytics.snowplow.badrows.{FailureDetails, Processor}
+import com.snowplowanalytics.snowplow.badrows.Processor
+
+import com.snowplowanalytics.iglu.client.validator.ValidatorReport
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
@@ -44,7 +46,7 @@ object MiscEnrichments {
    * @param platform The code for the platform generating this event.
    * @return a Scalaz ValidatedString.
    */
-  val extractPlatform: (String, String) => Either[FailureDetails.EnrichmentFailure, String] =
+  val extractPlatform: (String, String) => Either[ValidatorReport, String] =
     (field, platform) =>
       platform match {
         case "web" => "web".asRight // Web, including Mobile Web
@@ -57,17 +59,12 @@ object MiscEnrichments {
         case "srv" => "srv".asRight // Server-side App
         case "headset" => "headset".asRight // AR/VR Headset
         case _ =>
-          val msg = "not recognized as a tracking platform"
-          val f = FailureDetails.EnrichmentFailureMessage.InputData(
-            field,
-            Option(platform),
-            msg
-          )
-          FailureDetails.EnrichmentFailure(None, f).asLeft
+          val msg = "Not a valid platform"
+          ValidatorReport(msg, Some(field), Nil, Option(platform)).asLeft
       }
 
   /** Make a String TSV safe */
-  val toTsvSafe: (String, String) => Either[FailureDetails.EnrichmentFailure, String] =
+  val toTsvSafe: (String, String) => Either[ValidatorReport, String] =
     (_, value) => CU.makeTsvSafe(value).asRight
 
   /**
@@ -76,7 +73,7 @@ object MiscEnrichments {
    * Here we retrieve the first one as it is supposed to be the client one, c.f.
    * https://en.m.wikipedia.org/wiki/X-Forwarded-For#Format
    */
-  val extractIp: (String, String) => Either[FailureDetails.EnrichmentFailure, String] =
+  val extractIp: (String, String) => Either[ValidatorReport, String] =
     (_, value) => {
       val lastIp = Option(value).map(_.split("[,|, ]").head).orNull
       CU.makeTsvSafe(lastIp).asRight

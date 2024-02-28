@@ -46,7 +46,7 @@ class ParseCrossDomainSpec extends Specification with DataTables {
       FailureDetails.EnrichmentFailureMessage.InputData(
         "sp_dtm",
         "not-a-timestamp".some,
-        "not in the expected format: ms since epoch"
+        "Not in the expected format: ms since epoch"
       )
     )
     CrossNavigationEnrichment.parseCrossDomain(List(("_sp" -> Some("abc.not-a-timestamp")))).map(_.domainMap) must beLeft(expected)

@@ -16,7 +16,7 @@ import org.joda.time.DateTimeZone
 import org.specs2.Specification
 import org.specs2.matcher.DataTables
 
-import com.snowplowanalytics.snowplow.badrows._
+import com.snowplowanalytics.iglu.client.validator.ValidatorReport
 
 class ExtractEventTypeSpec extends Specification with DataTables {
   def is = s2"""
@@ -27,16 +27,8 @@ class ExtractEventTypeSpec extends Specification with DataTables {
   """
 
   val FieldName = "e"
-  def err: String => FailureDetails.EnrichmentFailure =
-    input =>
-      FailureDetails.EnrichmentFailure(
-        None,
-        FailureDetails.EnrichmentFailureMessage.InputData(
-          FieldName,
-          Option(input),
-          "not recognized as an event type"
-        )
-      )
+  def err: String => ValidatorReport =
+    input => ValidatorReport("Not a valid event type", Some(FieldName), Nil, Option(input))
 
   def e1 =
     "SPEC NAME" || "INPUT VAL" | "EXPECTED OUTPUT" |
@@ -66,9 +58,9 @@ class ExtractEventTypeSpec extends Specification with DataTables {
   def e3 =
 // format: off
     "SPEC NAME"          || "INPUT VAL"     | "EXPECTED OUTPUT" |
-    "None"               !! None            ! FailureDetails.EnrichmentFailure(None, FailureDetails.EnrichmentFailureMessage.InputData("collector_tstamp", None, "should be set")).asLeft |
-    "Negative timestamp" !! BCTstamp        ! FailureDetails.EnrichmentFailure(None, FailureDetails.EnrichmentFailureMessage.InputData("collector_tstamp", Some("-0030-01-01T00:00:00.000Z"),"formatted as -0030-01-01 00:00:00.000 is not Redshift-compatible")).asLeft |
-    ">10k timestamp"     !! FarAwayTstamp   ! FailureDetails.EnrichmentFailure(None, FailureDetails.EnrichmentFailureMessage.InputData("collector_tstamp", Some("11970-01-01T00:00:00.000Z"),"formatted as 11970-01-01 00:00:00.000 is not Redshift-compatible")).asLeft |
+    "None"               !! None            ! ValidatorReport("Field not set", Some("collector_tstamp"), Nil, None).asLeft |
+    "Negative timestamp" !! BCTstamp        ! ValidatorReport("Formatted as -0030-01-01 00:00:00.000 is not Redshift-compatible", Some("collector_tstamp"), Nil, Some("-0030-01-01T00:00:00.000Z")).asLeft |
+    ">10k timestamp"     !! FarAwayTstamp   ! ValidatorReport("Formatted as 11970-01-01 00:00:00.000 is not Redshift-compatible", Some("collector_tstamp"), Nil, Some("11970-01-01T00:00:00.000Z")).asLeft |
     "Valid timestamp"    !! SeventiesTstamp ! "1970-01-01 00:00:00.000".asRight |> {
 // format: on
       (_, input, expected) =>
@@ -77,26 +69,12 @@ class ExtractEventTypeSpec extends Specification with DataTables {
 
   def e4 =
     "SPEC NAME" || "INPUT VAL" | "EXPECTED OUTPUT" |
-      "Not long" !! (("f", "v")) ! FailureDetails
-        .EnrichmentFailure(
-          None,
-          FailureDetails.EnrichmentFailureMessage.InputData(
-            "f",
-            Some("v"),
-            "not in the expected format: ms since epoch"
-          )
-        )
-        .asLeft |
-      "Too long" !! (("f", "1111111111111111")) ! FailureDetails
-        .EnrichmentFailure(
-          None,
-          FailureDetails.EnrichmentFailureMessage.InputData(
-            "f",
-            Some("1111111111111111"),
-            "formatting as 37179-09-17 07:18:31.111 is not Redshift-compatible"
-          )
-        )
-        .asLeft |
+      "Not long" !! (("f", "v")) ! ValidatorReport("Not in the expected format: ms since epoch", Some("f"), Nil, Some("v")).asLeft |
+      "Too long" !! (("f", "1111111111111111")) ! ValidatorReport("Formatting as 37179-09-17 07:18:31.111 is not Redshift-compatible",
+                                                                  Some("f"),
+                                                                  Nil,
+                                                                  Some("1111111111111111")
+      ).asLeft |
       "Valid ts" !! (("f", "1")) ! "1970-01-01 00:00:00.001".asRight |> { (_, input, expected) =>
       EventEnrichments.extractTimestamp(input._1, input._2) must_== expected
     }

@@ -18,7 +18,9 @@ import org.specs2.mutable.{Specification => MutSpecification}
 import org.specs2.Specification
 import org.specs2.matcher.DataTables
 
-import com.snowplowanalytics.snowplow.badrows.{FailureDetails, Processor}
+import com.snowplowanalytics.snowplow.badrows.Processor
+
+import com.snowplowanalytics.iglu.client.validator.ValidatorReport
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 
@@ -35,16 +37,8 @@ class EtlVersionSpec extends MutSpecification {
 /** Tests the extractPlatform function. Uses DataTables. */
 class ExtractPlatformSpec extends Specification with DataTables {
   val FieldName = "p"
-  def err: String => FailureDetails.EnrichmentFailure =
-    input =>
-      FailureDetails.EnrichmentFailure(
-        None,
-        FailureDetails.EnrichmentFailureMessage.InputData(
-          FieldName,
-          Option(input),
-          "not recognized as a tracking platform"
-        )
-      )
+  def err: String => ValidatorReport =
+    input => ValidatorReport("Not a valid platform", Some(FieldName), Nil, Option(input))
 
   def is = s2"""
   Extracting platforms with extractPlatform should work $e1

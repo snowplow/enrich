@@ -14,14 +14,14 @@ import org.slf4j.LoggerFactory
 
 import cats.Monad
 import cats.data.Validated.{Invalid, Valid}
-import cats.data.{NonEmptyList, ValidatedNel}
+import cats.data.NonEmptyList
 
 import cats.implicits._
 
-import com.snowplowanalytics.snowplow.badrows.FailureDetails.EnrichmentFailure
-import com.snowplowanalytics.snowplow.badrows.{BadRow, FailureDetails, Processor}
+import com.snowplowanalytics.iglu.client.validator.ValidatorReport
 
-import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
+import com.snowplowanalytics.snowplow.badrows.FailureDetails
+
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields.LimitedAtomicField
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
@@ -35,66 +35,47 @@ object AtomicFieldsLengthValidator {
 
   def validate[F[_]: Monad](
     event: EnrichedEvent,
-    rawEvent: RawEvent,
-    processor: Processor,
     acceptInvalid: Boolean,
     invalidCount: F[Unit],
     atomicFields: AtomicFields
-  ): F[Either[BadRow, Unit]] =
+  ): F[Either[FailureDetails.SchemaViolation, Unit]] =
     atomicFields.value
-      .map(validateField(event))
+      .map(field => validateField(event, field).toValidatedNel)
       .combineAll match {
       case Invalid(errors) if acceptInvalid =>
-        handleAcceptableBadRow(invalidCount, event, errors) *> Monad[F].pure(Right(()))
+        handleAcceptableErrors(invalidCount, event, errors) *> Monad[F].pure(Right(()))
       case Invalid(errors) =>
-        Monad[F].pure(buildBadRow(event, rawEvent, processor, errors).asLeft)
+        Monad[F].pure(AtomicFields.errorsToSchemaViolation(errors).asLeft)
       case Valid(()) =>
         Monad[F].pure(Right(()))
     }
 
   private def validateField(
-    event: EnrichedEvent
-  )(
+    event: EnrichedEvent,
     atomicField: LimitedAtomicField
-  ): ValidatedNel[String, Unit] = {
+  ): Either[ValidatorReport, Unit] = {
     val actualValue = atomicField.value.enrichedValueExtractor(event)
     if (actualValue != null && actualValue.length > atomicField.limit)
-      s"Field ${atomicField.value.name} longer than maximum allowed size ${atomicField.limit}".invalidNel
+      ValidatorReport(
+        s"Field is longer than maximum allowed size ${atomicField.limit}",
+        Some(atomicField.value.name),
+        Nil,
+        Some(actualValue)
+      ).asLeft
     else
-      Valid(())
+      Right(())
   }
 
-  private def buildBadRow(
-    event: EnrichedEvent,
-    rawEvent: RawEvent,
-    processor: Processor,
-    errors: NonEmptyList[String]
-  ): BadRow.EnrichmentFailures =
-    EnrichmentManager.buildEnrichmentFailuresBadRow(
-      NonEmptyList(
-        asEnrichmentFailure("Enriched event does not conform to atomic schema field's length restrictions"),
-        errors.toList.map(asEnrichmentFailure)
-      ),
-      EnrichedEvent.toPartiallyEnrichedEvent(event),
-      RawEvent.toRawEvent(rawEvent),
-      processor
-    )
-
-  private def handleAcceptableBadRow[F[_]: Monad](
+  private def handleAcceptableErrors[F[_]: Monad](
     invalidCount: F[Unit],
     event: EnrichedEvent,
-    errors: NonEmptyList[String]
+    errors: NonEmptyList[ValidatorReport]
   ): F[Unit] =
     invalidCount *>
       Monad[F].pure(
         logger.debug(
-          s"Enriched event not valid against atomic schema. Event id: ${event.event_id}. Invalid fields: ${errors.toList.mkString(",")}"
+          s"Enriched event not valid against atomic schema. Event id: ${event.event_id}. Invalid fields: ${errors.map(_.path).toList.flatten.mkString(", ")}"
         )
       )
 
-  private def asEnrichmentFailure(errorMessage: String): EnrichmentFailure =
-    EnrichmentFailure(
-      enrichment = None,
-      FailureDetails.EnrichmentFailureMessage.Simple(errorMessage)
-    )
 }

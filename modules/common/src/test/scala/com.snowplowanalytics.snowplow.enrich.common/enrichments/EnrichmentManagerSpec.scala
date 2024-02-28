@@ -29,7 +29,6 @@ import io.circe.syntax._
 import org.joda.time.DateTime
 
 import com.snowplowanalytics.snowplow.badrows._
-import com.snowplowanalytics.snowplow.badrows.FailureDetails.EnrichmentFailureMessage
 
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
 
@@ -137,6 +136,62 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         })
     }
 
+    "return a SchemaViolations bad row that contains 1 ValidationError for the atomic field and 1 ValidationError for the unstruct event" >> {
+      val parameters = Map(
+        "e" -> "ue",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "tr_tt" -> "not number",
+        "ue_pr" ->
+          """
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data":{
+              "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+              "data": {
+                "emailAddress": "hello@world.com",
+                "emailAddress2": "foo@bar.org",
+                "unallowedAdditionalField": "foo@bar.org"
+              }
+            }
+          }"""
+      ).toOpt
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      EnrichmentManager
+        .enrichEvent[IO](
+          enrichmentReg,
+          client,
+          processor,
+          timestamp,
+          rawEvent,
+          AcceptInvalid.featureFlags,
+          IO.unit,
+          SpecHelpers.registryLookup,
+          atomicFieldLimits
+        )
+        .value
+        .map(_ must beLeft.like {
+          case BadRow.SchemaViolations(
+                _,
+                Failure.SchemaViolations(_,
+                                         NonEmptyList(FailureDetails.SchemaViolation.IgluError(schemaKey1, clientError1),
+                                                      List(FailureDetails.SchemaViolation.IgluError(schemaKey2, clientError2))
+                                         )
+                ),
+                _
+              ) =>
+            schemaKey1 must beEqualTo(emailSentSchema)
+            clientError1.toString must contain(
+              "unallowedAdditionalField: is not defined in the schema and the schema does not allow additional properties"
+            )
+            schemaKey2 must beEqualTo(AtomicFields.atomicSchema)
+            clientError2.toString must contain("tr_tt")
+            clientError2.toString must contain("Cannot be converted to java.math.BigDecimal")
+          case other =>
+            ko(s"[$other] is not a SchemaViolations bad row with 2 IgluError")
+        })
+    }
+
     "return an EnrichmentFailures bad row if one of the enrichment (JS enrichment here) fails" >> {
       val script =
         """
@@ -203,7 +258,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         })
     }
 
-    "return an EnrichmentFailures bad row containing one IgluError if one of the contexts added by the enrichments is invalid" >> {
+    "return a SchemaViolations bad row containing one IgluError if one of the contexts added by the enrichments is invalid" >> {
       val script =
         """
         function process(event) {
@@ -251,22 +306,19 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       )
       enriched.value
         .map(_ must beLeft.like {
-          case BadRow.EnrichmentFailures(
+          case BadRow.SchemaViolations(
                 _,
-                Failure.EnrichmentFailures(
+                Failure.SchemaViolations(
                   _,
                   NonEmptyList(
-                    FailureDetails.EnrichmentFailure(
-                      _,
-                      _: FailureDetails.EnrichmentFailureMessage.IgluError
-                    ),
+                    _: FailureDetails.SchemaViolation.IgluError,
                     Nil
                   )
                 ),
                 payload
               ) if payload.enriched.derived_contexts.isDefined =>
             ok
-          case br => ko(s"bad row [$br] is not an EnrichmentFailures containing one IgluError and with derived_contexts defined")
+          case br => ko(s"[$br] is not a SchemaViolations bad row containing one IgluError and with derived_contexts defined")
         })
     }
 
@@ -1380,7 +1432,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         FailureDetails.EnrichmentFailureMessage.InputData(
           "sp_dtm",
           "some_invalid_timestamp_value".some,
-          "not in the expected format: ms since epoch"
+          "Not in the expected format: ms since epoch"
         )
       )
       val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
@@ -1414,7 +1466,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         FailureDetails.EnrichmentFailureMessage.InputData(
           "sp_dtm",
           "some_invalid_timestamp_value".some,
-          "not in the expected format: ms since epoch"
+          "Not in the expected format: ms since epoch"
         )
       )
       val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
@@ -1577,7 +1629,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
   }
 
   "validateEnriched" should {
-    "create a bad row if a field is oversized" >> {
+    "create a SchemaViolations bad row if an atomic field is oversized" >> {
       val result = EnrichmentManager
         .enrichEvent[IO](
           enrichmentReg,
@@ -1590,23 +1642,23 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           SpecHelpers.registryLookup,
           atomicFieldLimits
         )
-        .value
 
-      result.map(_ must beLeft.like {
-        case badRow: BadRow.EnrichmentFailures =>
-          val firstError = badRow.failure.messages.head.message
-          val secondError = badRow.failure.messages.last.message
-
-          firstError must beEqualTo(
-            EnrichmentFailureMessage.Simple("Enriched event does not conform to atomic schema field's length restrictions")
-          )
-          secondError must beEqualTo(EnrichmentFailureMessage.Simple("Field v_tracker longer than maximum allowed size 100"))
-        case br =>
-          ko(s"bad row [$br] is not BadRow.EnrichmentFailures")
-      })
+      result.value
+        .map(_ must beLeft.like {
+          case BadRow.SchemaViolations(
+                _,
+                Failure.SchemaViolations(_, NonEmptyList(FailureDetails.SchemaViolation.IgluError(schemaKey, clientError), Nil)),
+                _
+              ) =>
+            schemaKey must beEqualTo(AtomicFields.atomicSchema)
+            clientError.toString must contain("v_tracker")
+            clientError.toString must contain("Field is longer than maximum allowed size")
+          case other =>
+            ko(s"[$other] is not a SchemaViolations bad row with one IgluError")
+        })
     }
 
-    "not create a bad row if a field is oversized and acceptInvalid is set to true" >> {
+    "not create a bad row if an atomic field is oversized and acceptInvalid is set to true" >> {
       val result = EnrichmentManager
         .enrichEvent[IO](
           enrichmentReg,
@@ -1622,6 +1674,69 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         .value
 
       result.map(_ must beRight[EnrichedEvent])
+    }
+
+    "return a SchemaViolations bad row containing both the atomic field length error and the invalid enrichment context error" >> {
+      val script =
+        """
+        function process(event) {
+          return [ { schema: "iglu:com.acme/email_sent/jsonschema/1-0-0",
+                     data: {
+                       emailAddress: "hello@world.com",
+                       foo: "bar"
+                     }
+                   } ];
+        }"""
+
+      val config =
+        json"""{
+        "parameters": {
+          "script": ${ConversionUtils.encodeBase64Url(script)}
+        }
+      }"""
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow",
+        "javascript_script_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val jsEnrichConf =
+        JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
+      val jsEnrich = JavascriptScriptEnrichment(jsEnrichConf.schemaKey, jsEnrichConf.rawFunction)
+      val enrichmentReg = EnrichmentRegistry[IO](javascriptScript = List(jsEnrich))
+
+      val rawEvent = RawEvent(api, fatBody, None, source, context)
+      EnrichmentManager
+        .enrichEvent[IO](
+          enrichmentReg,
+          client,
+          processor,
+          timestamp,
+          rawEvent,
+          AcceptInvalid.featureFlags,
+          IO.unit,
+          SpecHelpers.registryLookup,
+          atomicFieldLimits
+        )
+        .value
+        .map(_ must beLeft.like {
+          case BadRow.SchemaViolations(
+                _,
+                Failure.SchemaViolations(_,
+                                         NonEmptyList(FailureDetails.SchemaViolation.IgluError(schemaKey1, clientError1),
+                                                      List(FailureDetails.SchemaViolation.IgluError(schemaKey2, clientError2))
+                                         )
+                ),
+                _
+              ) =>
+            schemaKey1 must beEqualTo(AtomicFields.atomicSchema)
+            clientError1.toString must contain("v_tracker")
+            clientError1.toString must contain("Field is longer than maximum allowed size")
+            schemaKey2 must beEqualTo(emailSentSchema)
+            clientError2.toString must contain("emailAddress2: is missing but it is required")
+          case other =>
+            ko(s"[$other] is not a SchemaViolations bad row with 2 IgluError")
+        })
     }
   }
 }
@@ -1691,4 +1806,11 @@ object EnrichmentManagerSpec {
     .getOrElse(throw new RuntimeException("IAB enrichment couldn't be initialised")) // to make sure it's not none
     .enrichment[IO]
 
+  val emailSentSchema =
+    SchemaKey(
+      "com.acme",
+      "email_sent",
+      "jsonschema",
+      SchemaVer.Full(1, 0, 0)
+    )
 }

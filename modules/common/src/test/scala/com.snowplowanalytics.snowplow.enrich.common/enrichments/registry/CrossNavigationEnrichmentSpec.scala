@@ -182,7 +182,7 @@ class CrossNavigationEnrichmentSpec extends Specification with EitherMatchers {
         FailureDetails.EnrichmentFailureMessage.InputData(
           "sp_dtm",
           "not-timestamp".some,
-          "not in the expected format: ms since epoch"
+          "Not in the expected format: ms since epoch"
         )
       )
       val result = CrossDomainMap.makeCrossDomainMap(input).map(_.domainMap)
@@ -196,7 +196,7 @@ class CrossNavigationEnrichmentSpec extends Specification with EitherMatchers {
         FailureDetails.EnrichmentFailureMessage.InputData(
           "sp_dtm",
           "1111111111111111".some,
-          "formatting as 37179-09-17 07:18:31.111 is not Redshift-compatible"
+          "Formatting as 37179-09-17 07:18:31.111 is not Redshift-compatible"
         )
       )
       val result = CrossDomainMap.makeCrossDomainMap(input).map(_.domainMap)

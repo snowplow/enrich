@@ -42,6 +42,8 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquer
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.web.{PageEnrichments => WPE}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.{IgluUtils, ConversionUtils => CU}
+import _root_.com.snowplowanalytics.iglu.core.SchemaKey
+import com.snowplowanalytics.iglu.core.SchemaVer
 
 object EnrichmentManager {
 
@@ -68,8 +70,15 @@ object EnrichmentManager {
     atomicFields: AtomicFields
   ): EitherT[F, BadRow, EnrichedEvent] =
     for {
-      enriched <- EitherT.fromEither[F](setupEnrichedEvent(raw, etlTstamp, processor))
-      extractResult <- IgluUtils.extractAndValidateInputJsons(enriched, client, raw, processor, registryLookup)
+      enriched <- EitherT.rightT[F, BadRow](new EnrichedEvent)
+      extractResult <- mapAndValidateInput(
+                         raw,
+                         enriched,
+                         etlTstamp,
+                         processor,
+                         client,
+                         registryLookup
+                       )
       _ = {
         ME.formatUnstructEvent(extractResult.unstructEvent).foreach(e => enriched.unstruct_event = e)
         ME.formatContexts(extractResult.contexts).foreach(c => enriched.contexts = c)
@@ -84,18 +93,43 @@ object EnrichmentManager {
                                featureFlags.legacyEnrichmentOrder
                              )
       _ = ME.formatContexts(enrichmentsContexts ::: extractResult.validationInfoContexts).foreach(c => enriched.derived_contexts = c)
-      _ <- IgluUtils
-             .validateEnrichmentsContexts[F](client, enrichmentsContexts, raw, processor, enriched, registryLookup)
-      _ <- EitherT.rightT[F, BadRow](
-             anonIp(enriched, registry.anonIp).foreach(enriched.user_ipaddress = _)
+      _ <- validateEnriched(
+             enriched,
+             raw,
+             enrichmentsContexts,
+             client,
+             processor,
+             registryLookup,
+             featureFlags.acceptInvalid,
+             invalidCount,
+             atomicFields
            )
-      _ <- EitherT.rightT[F, BadRow] {
-             piiTransform(enriched, registry.piiPseudonymizer).foreach { pii =>
-               enriched.pii = pii.asString
-             }
-           }
-      _ <- validateEnriched(enriched, raw, processor, featureFlags.acceptInvalid, invalidCount, atomicFields)
     } yield enriched
+
+  private def mapAndValidateInput[F[_]: Clock: Monad](
+    raw: RawEvent,
+    enrichedEvent: EnrichedEvent,
+    etlTstamp: DateTime,
+    processor: Processor,
+    client: IgluCirceClient[F],
+    registryLookup: RegistryLookup[F]
+  ): EitherT[F, BadRow, IgluUtils.EventExtractResult] =
+    EitherT {
+      val setup = setupEnrichedEvent(raw, enrichedEvent, etlTstamp, processor).toValidatedNel
+      IgluUtils
+        .extractAndValidateInputJsons(enrichedEvent, client, registryLookup)
+        .map((setup, _).mapN((_, extract) => extract))
+        .map {
+          _.leftMap { violations =>
+            buildSchemaViolationsBadRow(
+              violations,
+              EnrichedEvent.toPartiallyEnrichedEvent(enrichedEvent),
+              RawEvent.toRawEvent(raw),
+              processor
+            )
+          }.toEither
+        }
+    }
 
   /**
    * Run all the enrichments and aggregate the errors if any
@@ -112,7 +146,7 @@ object EnrichmentManager {
     inputContexts: List[SelfDescribingData[Json]],
     unstructEvent: Option[SelfDescribingData[Json]],
     legacyOrder: Boolean
-  ): EitherT[F, BadRow.EnrichmentFailures, List[SelfDescribingData[Json]]] =
+  ): EitherT[F, BadRow, List[SelfDescribingData[Json]]] =
     EitherT {
       accState(registry, raw, inputContexts, unstructEvent, legacyOrder)
         .runS(Accumulation(enriched, Nil, Nil))
@@ -130,6 +164,31 @@ object EnrichmentManager {
                 contexts.asRight
             }
         }
+    }
+
+  private def validateEnriched[F[_]: Clock: Monad](
+    enriched: EnrichedEvent,
+    raw: RawEvent,
+    enrichmentsContexts: List[SelfDescribingData[Json]],
+    client: IgluCirceClient[F],
+    processor: Processor,
+    registryLookup: RegistryLookup[F],
+    acceptInvalid: Boolean,
+    invalidCount: F[Unit],
+    atomicFields: AtomicFields
+  ): EitherT[F, BadRow, Unit] =
+    EitherT {
+      for {
+        atomic <- AtomicFieldsLengthValidator.validate[F](enriched, acceptInvalid, invalidCount, atomicFields).map(_.toValidatedNel)
+        contexts <- IgluUtils.validateEnrichmentsContexts[F](client, enrichmentsContexts, registryLookup)
+      } yield (atomic |+| contexts).void.leftMap { violations =>
+        buildSchemaViolationsBadRow(
+          violations,
+          EnrichedEvent.toPartiallyEnrichedEvent(enriched),
+          RawEvent.toRawEvent(raw),
+          processor
+        )
+      }.toEither
     }
 
   private[enrichments] case class Accumulation(
@@ -217,6 +276,8 @@ object EnrichmentManager {
         _       <- geoLocation[F](registry.ipLookups)                                 // Execute IP lookup enrichment
         _       <- sqlContexts                                                        // Derive some contexts with custom SQL Query enrichment
         _       <- apiContexts                                                        // Derive some contexts with custom API Request enrichment
+        _       <- anonIp[F](registry.anonIp)                                         // Anonymize the IP
+        _       <- piiTransform[F](registry.piiPseudonymizer)                         // Run PII pseudonymization
         // format: on
       } yield ()
     else
@@ -243,18 +304,20 @@ object EnrichmentManager {
         _       <- registry.javascriptScript.traverse(getJsScript[F](_))              // Execute the JavaScript scripting enrichment
         _       <- sqlContexts                                                        // Derive some contexts with custom SQL Query enrichment
         _       <- apiContexts                                                        // Derive some contexts with custom API Request enrichment
+        _       <- anonIp[F](registry.anonIp)                                         // Anonymize the IP
+        _       <- piiTransform[F](registry.piiPseudonymizer)                         // Run PII pseudonymization
         // format: on
       } yield ()
 
   }
 
-  /** Create the mutable [[EnrichedEvent]] and initialize it. */
+  /** Initialize the mutable [[EnrichedEvent]]. */
   private def setupEnrichedEvent(
     raw: RawEvent,
+    e: EnrichedEvent,
     etlTstamp: DateTime,
     processor: Processor
-  ): Either[BadRow.EnrichmentFailures, EnrichedEvent] = {
-    val e = new EnrichedEvent()
+  ): Either[FailureDetails.SchemaViolation, Unit] = {
     e.event_id = EE.generateEventId() // May be updated later if we have an `eid` parameter
     e.v_collector = raw.source.name // May be updated later if we have a `cv` parameter
     e.v_etl = ME.etlVersion(processor)
@@ -272,19 +335,11 @@ object EnrichmentManager {
     val transformed = Transform.transform(raw, e)
 
     (collectorTstamp |+| transformed)
-      .leftMap { enrichmentFailures =>
-        EnrichmentManager.buildEnrichmentFailuresBadRow(
-          enrichmentFailures,
-          EnrichedEvent.toPartiallyEnrichedEvent(e),
-          RawEvent.toRawEvent(raw),
-          processor
-        )
-      }
-      .as(e)
+      .leftMap(AtomicFields.atomicErrorsToSchemaViolation)
       .toEither
   }
 
-  def setCollectorTstamp(event: EnrichedEvent, timestamp: Option[DateTime]): Either[FailureDetails.EnrichmentFailure, Unit] =
+  def setCollectorTstamp(event: EnrichedEvent, timestamp: Option[DateTime]): Either[AtomicError, Unit] =
     EE.formatCollectorTstamp(timestamp).map { t =>
       event.collector_tstamp = t
       ().asRight
@@ -418,12 +473,21 @@ object EnrichmentManager {
         result.sequence.bimap(NonEmptyList.one(_), _.toList)
     }
 
-  def anonIp(event: EnrichedEvent, anonIp: Option[AnonIpEnrichment]): Option[String] =
-    Option(event.user_ipaddress).map { ip =>
-      anonIp match {
-        case Some(anon) => anon.anonymizeIp(ip)
-        case None => ip
-      }
+  def anonIp[F[_]: Applicative](anonIp: Option[AnonIpEnrichment]): EStateT[F, Unit] =
+    EStateT.fromEither {
+      case (event, _) =>
+        anonIp match {
+          case Some(anon) =>
+            Option(event.user_ipaddress) match {
+              case Some(ip) =>
+                Option(anon.anonymizeIp(ip)).foreach(event.user_ipaddress = _)
+                Nil.asRight
+              case None =>
+                Nil.asRight
+            }
+          case None =>
+            Nil.asRight
+        }
     }
 
   def getUaUtils[F[_]: Applicative](userAgentUtils: Option[UserAgentUtilsEnrichment]): EStateT[F, Unit] =
@@ -481,10 +545,14 @@ object EnrichmentManager {
             event.base_currency = currency.baseCurrency.getCode
             // Note that jBigDecimalToDouble is applied to either-valid-or-null event POJO
             // properties, so we don't expect any of these four vals to be a Failure
-            val trTax = CU.jBigDecimalToDouble("tr_tx", event.tr_tax).toValidatedNel
-            val tiPrice = CU.jBigDecimalToDouble("ti_pr", event.ti_price).toValidatedNel
-            val trTotal = CU.jBigDecimalToDouble("tr_tt", event.tr_total).toValidatedNel
-            val trShipping = CU.jBigDecimalToDouble("tr_sh", event.tr_shipping).toValidatedNel
+            val enrichmentInfo = FailureDetails.EnrichmentInformation(
+              SchemaKey("com.snowplowanalytics.snowplow", "currency_conversion_config", "jsonschema", SchemaVer.Full(1, 0, 0)),
+              "currency_conversion"
+            )
+            val trTax = CU.jBigDecimalToDouble("tr_tx", event.tr_tax, enrichmentInfo).toValidatedNel
+            val tiPrice = CU.jBigDecimalToDouble("ti_pr", event.ti_price, enrichmentInfo).toValidatedNel
+            val trTotal = CU.jBigDecimalToDouble("tr_tt", event.tr_total, enrichmentInfo).toValidatedNel
+            val trShipping = CU.jBigDecimalToDouble("tr_sh", event.tr_shipping, enrichmentInfo).toValidatedNel
             EitherT(
               (trTotal, trTax, trShipping, tiPrice)
                 .mapN {
@@ -745,11 +813,31 @@ object EnrichmentManager {
         }
     }
 
-  def piiTransform(event: EnrichedEvent, piiPseudonymizer: Option[PiiPseudonymizerEnrichment]): Option[SelfDescribingData[Json]] =
-    piiPseudonymizer.flatMap(_.transformer(event))
+  def piiTransform[F[_]: Applicative](piiPseudonymizer: Option[PiiPseudonymizerEnrichment]): EStateT[F, Unit] =
+    EStateT.fromEither {
+      case (event, _) =>
+        piiPseudonymizer match {
+          case Some(pseudonymizer) =>
+            pseudonymizer.transformer(event).foreach(p => event.pii = p.asString)
+            Nil.asRight
+          case None =>
+            Nil.asRight
+        }
+    }
 
-  /** Build `BadRow.EnrichmentFailures` from a list of `FailureDetails.EnrichmentFailure`s */
-  def buildEnrichmentFailuresBadRow(
+  private def buildSchemaViolationsBadRow(
+    vs: NonEmptyList[FailureDetails.SchemaViolation],
+    pee: Payload.PartiallyEnrichedEvent,
+    re: Payload.RawEvent,
+    processor: Processor
+  ): BadRow.SchemaViolations =
+    BadRow.SchemaViolations(
+      processor,
+      Failure.SchemaViolations(Instant.now(), vs),
+      Payload.EnrichmentPayload(pee, re)
+    )
+
+  private def buildEnrichmentFailuresBadRow(
     fs: NonEmptyList[FailureDetails.EnrichmentFailure],
     pee: Payload.PartiallyEnrichedEvent,
     re: Payload.RawEvent,
@@ -761,21 +849,4 @@ object EnrichmentManager {
       Payload.EnrichmentPayload(pee, re)
     )
 
-  /**
-   * Validates enriched events against atomic schema.
-   * For now it's possible to accept enriched events that are not valid.
-   * See https://github.com/snowplow/enrich/issues/517#issuecomment-1033910690
-   */
-  private def validateEnriched[F[_]: Monad](
-    enriched: EnrichedEvent,
-    raw: RawEvent,
-    processor: Processor,
-    acceptInvalid: Boolean,
-    invalidCount: F[Unit],
-    atomicFields: AtomicFields
-  ): EitherT[F, BadRow, Unit] =
-    EitherT {
-      //We're using static field's length validation. See more in https://github.com/snowplow/enrich/issues/608
-      AtomicFieldsLengthValidator.validate[F](enriched, raw, processor, acceptInvalid, invalidCount, atomicFields)
-    }
 }

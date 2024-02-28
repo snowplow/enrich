@@ -14,31 +14,14 @@ import cats.syntax.either._
 import org.specs2.Specification
 import org.specs2.matcher.DataTables
 
-import com.snowplowanalytics.snowplow.badrows._
-
 class ExtractViewDimensionsSpec extends Specification with DataTables {
 
   val FieldName = "res"
-  def err: String => FailureDetails.EnrichmentFailure =
-    input =>
-      FailureDetails.EnrichmentFailure(
-        None,
-        FailureDetails.EnrichmentFailureMessage.InputData(
-          FieldName,
-          Option(input),
-          """does not conform to regex (\d+)x(\d+)"""
-        )
-      )
-  def err2: String => FailureDetails.EnrichmentFailure =
-    input =>
-      FailureDetails.EnrichmentFailure(
-        None,
-        FailureDetails.EnrichmentFailureMessage.InputData(
-          FieldName,
-          Option(input),
-          "could not be converted to java.lang.Integer s"
-        )
-      )
+  def err: String => AtomicError =
+    input => AtomicError(FieldName, Option(input), """Does not conform to regex (\d+)x(\d+)""")
+
+  def err2: String => AtomicError =
+    input => AtomicError(FieldName, Option(input), "Could not be converted to java.lang.Integer s")
 
   def is = s2"""
   Extracting screen dimensions (viewports, screen resolution etc) with extractViewDimensions should work $e1"""

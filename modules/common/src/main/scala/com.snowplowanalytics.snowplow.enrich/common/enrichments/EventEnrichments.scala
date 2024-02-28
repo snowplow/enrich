@@ -47,22 +47,17 @@ object EventEnrichments {
    * @param Optional collectorTstamp
    * @return Validation boxing the result of making the timestamp Redshift-compatible
    */
-  def formatCollectorTstamp(collectorTstamp: Option[DateTime]): Either[FailureDetails.EnrichmentFailure, String] =
-    (collectorTstamp match {
-      case None =>
-        FailureDetails.EnrichmentFailureMessage
-          .InputData("collector_tstamp", None, "should be set")
-          .asLeft
+  def formatCollectorTstamp(collectorTstamp: Option[DateTime]): Either[AtomicError, String] =
+    collectorTstamp match {
+      case None => AtomicError("collector_tstamp", None, "Field not set").asLeft
       case Some(t) =>
         val formattedTimestamp = toTimestamp(t)
         if (formattedTimestamp.startsWith("-") || t.getYear > 9999 || t.getYear < 0) {
-          val msg = s"formatted as $formattedTimestamp is not Redshift-compatible"
-          FailureDetails.EnrichmentFailureMessage
-            .InputData("collector_tstamp", t.toString.some, msg)
-            .asLeft
+          val msg = s"Formatted as $formattedTimestamp is not Redshift-compatible"
+          AtomicError("collector_tstamp", t.toString.some, msg).asLeft
         } else
           formattedTimestamp.asRight
-    }).leftMap(FailureDetails.EnrichmentFailure(None, _))
+    }
 
   /**
    * Calculate the derived timestamp
@@ -103,7 +98,7 @@ object EventEnrichments {
               .EnrichmentFailure(
                 None,
                 FailureDetails.EnrichmentFailureMessage.Simple(
-                  s"exception calculating derived timestamp: ${e.getMessage}"
+                  s"Exception calculating derived timestamp: ${e.getMessage}"
                 )
               )
               .asLeft
@@ -116,30 +111,26 @@ object EventEnrichments {
    * @param tstamp The timestamp as stored in the Tracker Protocol
    * @return a Tuple of two Strings (date and time), or an error message if the format was invalid
    */
-  val extractTimestamp: (String, String) => Either[FailureDetails.EnrichmentFailure, String] =
+  val extractTimestamp: (String, String) => Either[AtomicError, String] =
     (field, tstamp) =>
       try {
         val dt = new DateTime(tstamp.toLong)
         val timestampString = toTimestamp(dt)
-        if (timestampString.startsWith("-") || dt.getYear > 9999 || dt.getYear < 0) {
-          val msg = s"formatting as $timestampString is not Redshift-compatible"
-          val f = FailureDetails.EnrichmentFailureMessage.InputData(
+        if (timestampString.startsWith("-") || dt.getYear > 9999 || dt.getYear < 0)
+          AtomicError(
             field,
             Option(tstamp),
-            msg
-          )
-          FailureDetails.EnrichmentFailure(None, f).asLeft
-        } else
+            s"Formatting as $timestampString is not Redshift-compatible"
+          ).asLeft
+        else
           timestampString.asRight
       } catch {
         case _: NumberFormatException =>
-          val msg = "not in the expected format: ms since epoch"
-          val f = FailureDetails.EnrichmentFailureMessage.InputData(
+          AtomicError(
             field,
             Option(tstamp),
-            msg
-          )
-          FailureDetails.EnrichmentFailure(None, f).asLeft
+            "Not in the expected format: ms since epoch"
+          ).asLeft
       }
 
   /**
@@ -149,7 +140,7 @@ object EventEnrichments {
    * @param eventCode The event code
    * @return the event type, or an error message if not recognised, boxed in a Scalaz Validation
    */
-  val extractEventType: (String, String) => Either[FailureDetails.EnrichmentFailure, String] =
+  val extractEventType: (String, String) => Either[AtomicError, String] =
     (field, code) =>
       code match {
         case "se" => "struct".asRight
@@ -161,13 +152,8 @@ object EventEnrichments {
         case "pv" => "page_view".asRight
         case "pp" => "page_ping".asRight
         case _ =>
-          val msg = "not recognized as an event type"
-          val f = FailureDetails.EnrichmentFailureMessage.InputData(
-            field,
-            Option(code),
-            msg
-          )
-          FailureDetails.EnrichmentFailure(None, f).asLeft
+          val msg = "Not a valid event type"
+          AtomicError(field, Option(code), msg).asLeft
       }
 
   /**

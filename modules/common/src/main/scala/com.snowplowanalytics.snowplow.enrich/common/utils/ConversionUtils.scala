@@ -45,7 +45,7 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData
 import com.snowplowanalytics.snowplow.badrows.{FailureDetails, Processor}
 
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.MiscEnrichments
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.{AtomicError, MiscEnrichments}
 import com.snowplowanalytics.snowplow.enrich.common.QueryStringParameters
 
 /** General-purpose utils to help the ETL process along. */
@@ -138,7 +138,7 @@ object ConversionUtils {
         val result = new String(decodedBytes, UTF_8) // Must specify charset (EMR uses US_ASCII)
         result
       }
-      .leftMap(e => s"could not base64 decode: ${e.getMessage}")
+      .leftMap(e => s"Could not base64 decode: ${e.getMessage}")
 
   /**
    * Encodes a URL-safe Base64 string.
@@ -158,19 +158,13 @@ object ConversionUtils {
    * @param str The String hopefully containing a UUID
    * @return either the original String, or an error String
    */
-  val validateUuid: (String, String) => Either[FailureDetails.EnrichmentFailure, String] =
+  val validateUuid: (String, String) => Either[AtomicError, String] =
     (field, str) => {
       def check(s: String)(u: UUID): Boolean = u != null && s.toLowerCase == u.toString
       val uuid = Try(UUID.fromString(str)).toOption.filter(check(str))
       uuid match {
         case Some(_) => str.toLowerCase.asRight
-        case None =>
-          val f = FailureDetails.EnrichmentFailureMessage.InputData(
-            field,
-            Option(str),
-            "not a valid UUID"
-          )
-          FailureDetails.EnrichmentFailure(None, f).asLeft
+        case None => AtomicError(field, Option(str), "Not a valid UUID").asLeft
       }
     }
 
@@ -179,17 +173,12 @@ object ConversionUtils {
    * @param str The String hopefully parseable as an integer
    * @return either the original String, or an error String
    */
-  val validateInteger: (String, String) => Either[FailureDetails.EnrichmentFailure, String] =
+  val validateInteger: (String, String) => Either[AtomicError, String] =
     (field, str) => {
       Either
         .catchNonFatal { str.toInt; str }
         .leftMap { _ =>
-          val f = FailureDetails.EnrichmentFailureMessage.InputData(
-            field,
-            Option(str),
-            "not a valid integer"
-          )
-          FailureDetails.EnrichmentFailure(None, f)
+          AtomicError(field, Option(str), "Not a valid integer")
         }
     }
 
@@ -214,7 +203,7 @@ object ConversionUtils {
       val d = URLDecoder.decode(s, enc.toString)
       d.replaceAll("(\\r|\\n)", "").replaceAll("\\t", "    ").asRight
     } catch {
-      case NonFatal(e) => s"exception URL-decoding (encoding $enc): ${e.getMessage}".asLeft
+      case NonFatal(e) => s"Exception URL-decoding (encoding $enc): ${e.getMessage}".asLeft
     }
 
   /**
@@ -304,7 +293,7 @@ object ConversionUtils {
       } match {
       case util.Success(params) => params.toList.asRight
       case util.Failure(e) =>
-        val msg = s"could not parse uri, expection was thrown: [$e]."
+        val msg = s"Could not parse uri. Error: [$e]."
         val f = FailureDetails.EnrichmentFailureMessage.InputData(
           "uri",
           Option(uri).map(_.toString()),
@@ -330,19 +319,14 @@ object ConversionUtils {
           jint.asRight
         } catch {
           case _: NumberFormatException =>
-            "cannot be converted to java.lang.Integer".asLeft
+            "Cannot be converted to java.lang.Integer".asLeft
         }
     }
 
-  val stringToJInteger2: (String, String) => Either[FailureDetails.EnrichmentFailure, JInteger] =
+  val stringToJInteger2: (String, String) => Either[AtomicError, JInteger] =
     (field, str) =>
       stringToJInteger(str).leftMap { e =>
-        val f = FailureDetails.EnrichmentFailureMessage.InputData(
-          field,
-          Option(str),
-          e
-        )
-        FailureDetails.EnrichmentFailure(None, f)
+        AtomicError(field, Option(str), e)
       }
 
   val stringToJBigDecimal: String => Either[String, JBigDecimal] = str =>
@@ -361,18 +345,13 @@ object ConversionUtils {
             else
               Right(bd)
           }
-          .leftMap(e => s"cannot be converted to java.math.BigDecimal. Error : ${e.getMessage}")
+          .leftMap(e => s"Cannot be converted to java.math.BigDecimal. Error : ${e.getMessage}")
     }
 
-  val stringToJBigDecimal2: (String, String) => Either[FailureDetails.EnrichmentFailure, JBigDecimal] =
+  val stringToJBigDecimal2: (String, String) => Either[AtomicError, JBigDecimal] =
     (field, str) =>
       stringToJBigDecimal(str).leftMap { e =>
-        val f = FailureDetails.EnrichmentFailureMessage.InputData(
-          field,
-          Option(str),
-          e
-        )
-        FailureDetails.EnrichmentFailure(None, f)
+        AtomicError(field, Option(str), e)
       }
 
   /**
@@ -384,7 +363,7 @@ object ConversionUtils {
    * @param field The name of the field we are validating. To use in our error message
    * @return either a failure or a String
    */
-  val stringToDoubleLike: (String, String) => Either[FailureDetails.EnrichmentFailure, String] =
+  val stringToDoubleLike: (String, String) => Either[AtomicError, String] =
     (field, str) =>
       Either
         .catchNonFatal {
@@ -397,12 +376,8 @@ object ConversionUtils {
           }
         }
         .leftMap { _ =>
-          val msg = "cannot be converted to Double-like"
-          FailureDetails.EnrichmentFailure(
-            None,
-            FailureDetails.EnrichmentFailureMessage
-              .InputData(field, Option(str), msg)
-          )
+          val msg = "Cannot be converted to Double-like"
+          AtomicError(field, Option(str), msg)
         }
 
   /**
@@ -411,7 +386,7 @@ object ConversionUtils {
    * @param field The name of the field we are validating. To use in our error message
    * @return a Scalaz Validation, being either a Failure String or a Success Double
    */
-  def stringToMaybeDouble(field: String, str: String): Either[FailureDetails.EnrichmentFailure, Option[Double]] =
+  def stringToMaybeDouble(field: String, str: String): Either[AtomicError, Option[Double]] =
     Either
       .catchNonFatal {
         if (Option(str).isEmpty || str == "null")
@@ -422,50 +397,41 @@ object ConversionUtils {
           jbigdec.doubleValue().some
         }
       }
-      .leftMap(_ =>
-        FailureDetails.EnrichmentFailure(
-          None,
-          FailureDetails.EnrichmentFailureMessage.InputData(
-            field,
-            Option(str),
-            "cannot be converted to Double"
-          )
-        )
-      )
+      .leftMap(_ => AtomicError(field, Option(str), "Cannot be converted to Double"))
 
-  /** Convert a java BigDecimal a Double */
-  def jBigDecimalToDouble(field: String, f: JBigDecimal): Either[FailureDetails.EnrichmentFailure, Option[Double]] =
+  /** Convert a java BigDecimal to a Double */
+  def jBigDecimalToDouble(field: String, f: JBigDecimal): Either[AtomicError, Option[Double]] =
     Either
       .catchNonFatal {
         Option(f).map(_.doubleValue)
       }
-      .leftMap(_ =>
+      .leftMap(_ => AtomicError(field, Option(f).map(_.toString), "Cannot be converted to Double"))
+
+  /** Convert a java BigDecimal to a Double */
+  def jBigDecimalToDouble(
+    field: String,
+    f: JBigDecimal,
+    enrichmentInfo: FailureDetails.EnrichmentInformation
+  ): Either[FailureDetails.EnrichmentFailure, Option[Double]] =
+    jBigDecimalToDouble(field, f)
+      .leftMap { error =>
         FailureDetails.EnrichmentFailure(
-          None,
+          Some(enrichmentInfo),
           FailureDetails.EnrichmentFailureMessage.InputData(
-            field,
-            Option(f).map(_.toString),
-            "cannot be converted to Double"
+            error.field,
+            error.value,
+            error.message
           )
         )
-      )
+      }
 
   /** Convert a Double to a java BigDecimal */
-  def doubleToJBigDecimal(field: String, d: Option[Double]): Either[FailureDetails.EnrichmentFailure, Option[JBigDecimal]] =
+  def doubleToJBigDecimal(field: String, d: Option[Double]): Either[AtomicError, Option[JBigDecimal]] =
     Either
       .catchNonFatal {
         d.map(dd => new JBigDecimal(dd))
       }
-      .leftMap(_ =>
-        FailureDetails.EnrichmentFailure(
-          None,
-          FailureDetails.EnrichmentFailureMessage.InputData(
-            field,
-            d.map(_.toString),
-            "cannot be converted to java BigDecimal"
-          )
-        )
-      )
+      .leftMap(_ => AtomicError(field, d.map(_.toString), "Cannot be converted to java BigDecimal"))
 
   /**
    * Converts a String to a Double with two decimal places. Used to honor schemas with
@@ -475,7 +441,7 @@ object ConversionUtils {
   val stringToTwoDecimals: String => Either[String, Double] = str =>
     try BigDecimal(str).setScale(2, BigDecimal.RoundingMode.HALF_EVEN).toDouble.asRight
     catch {
-      case _: NumberFormatException => "cannot be converted to Double".asLeft
+      case _: NumberFormatException => "Cannot be converted to Double".asLeft
     }
 
   /**
@@ -485,7 +451,7 @@ object ConversionUtils {
   val stringToDouble: String => Either[String, Double] = str =>
     Either
       .catchNonFatal(BigDecimal(str).toDouble)
-      .leftMap(_ => s"cannot be converted to Double")
+      .leftMap(_ => s"Cannot be converted to Double")
 
   /**
    * Extract a Java Byte representing 1 or 0 only from a String, or error.
@@ -493,19 +459,14 @@ object ConversionUtils {
    * @param field The name of the field we are trying to process. To use in our error message
    * @return either a Failure String or a Success Byte
    */
-  val stringToBooleanLikeJByte: (String, String) => Either[FailureDetails.EnrichmentFailure, JByte] =
+  val stringToBooleanLikeJByte: (String, String) => Either[AtomicError, JByte] =
     (field, str) =>
       str match {
         case "1" => (1.toByte: JByte).asRight
         case "0" => (0.toByte: JByte).asRight
         case _ =>
-          val msg = "cannot be converted to Boolean-like java.lang.Byte"
-          val f = FailureDetails.EnrichmentFailureMessage.InputData(
-            field,
-            Option(str),
-            msg
-          )
-          FailureDetails.EnrichmentFailure(None, f).asLeft
+          val msg = "Cannot be converted to Boolean-like java.lang.Byte"
+          AtomicError(field, Option(str), msg).asLeft
       }
 
   /**
@@ -520,7 +481,7 @@ object ConversionUtils {
     else if (str == "0")
       false.asRight
     else
-      s"cannot be converted to boolean, only 1 or 0 are supported".asLeft
+      s"Cannot be converted to boolean, only 1 or 0 are supported".asLeft
 
   /**
    * Truncates a String - useful for making sure Strings can't overflow a database field.

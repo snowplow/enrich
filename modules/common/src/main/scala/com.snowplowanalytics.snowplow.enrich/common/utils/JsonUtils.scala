@@ -20,7 +20,7 @@ import io.circe.Json
 import org.joda.time.{DateTime, DateTimeZone}
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 
-import com.snowplowanalytics.snowplow.badrows.FailureDetails
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicError
 
 /** Contains general purpose extractors and other utilities for JSONs. Jackson-based. */
 object JsonUtils {
@@ -32,29 +32,21 @@ object JsonUtils {
     DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(DateTimeZone.UTC)
 
   /** Validates a String as correct JSON. */
-  val extractUnencJson: (String, String) => Either[FailureDetails.EnrichmentFailure, String] =
+  val extractUnencJson: (String, String) => Either[AtomicError, String] =
     (field, str) =>
       validateAndReformatJson(str)
         .leftMap { e =>
-          FailureDetails.EnrichmentFailure(
-            None,
-            FailureDetails.EnrichmentFailureMessage
-              .InputData(field, Option(str), e)
-          )
+          AtomicError(field, Option(str), e)
         }
 
   /** Decodes a Base64 (URL safe)-encoded String then validates it as correct JSON. */
-  val extractBase64EncJson: (String, String) => Either[FailureDetails.EnrichmentFailure, String] =
+  val extractBase64EncJson: (String, String) => Either[AtomicError, String] =
     (field, str) =>
       ConversionUtils
         .decodeBase64Url(str)
         .flatMap(validateAndReformatJson)
         .leftMap { e =>
-          FailureDetails.EnrichmentFailure(
-            None,
-            FailureDetails.EnrichmentFailureMessage
-              .InputData(field, Option(str), e)
-          )
+          AtomicError(field, Option(str), e)
         }
 
   /**

@@ -10,9 +10,8 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common
 
-import cats.Monad
 import cats.data.{Validated, ValidatedNel}
-import cats.effect.Clock
+import cats.effect.kernel.Sync
 import cats.implicits._
 
 import org.joda.time.DateTime
@@ -56,7 +55,7 @@ object EtlPipeline {
    * @return the ValidatedMaybeCanonicalOutput. Thanks to flatMap, will include any validation
    * errors contained within the ValidatedMaybeCanonicalInput
    */
-  def processEvents[F[_]: Clock: Monad](
+  def processEvents[F[_]: Sync](
     adapterRegistry: AdapterRegistry[F],
     enrichmentRegistry: EnrichmentRegistry[F],
     client: IgluCirceClient[F],
@@ -90,11 +89,11 @@ object EtlPipeline {
                   .toValidated
               }
             case Validated.Invalid(badRow) =>
-              Monad[F].pure(List(badRow.invalid[EnrichedEvent]))
+              Sync[F].pure(List(badRow.invalid[EnrichedEvent]))
           }
       case Validated.Invalid(badRows) =>
-        Monad[F].pure(badRows.map(_.invalid[EnrichedEvent])).map(_.toList)
+        Sync[F].pure(badRows.map(_.invalid[EnrichedEvent])).map(_.toList)
       case Validated.Valid(None) =>
-        Monad[F].pure(List.empty[Validated[BadRow, EnrichedEvent]])
+        Sync[F].pure(List.empty[Validated[BadRow, EnrichedEvent]])
     }
 }

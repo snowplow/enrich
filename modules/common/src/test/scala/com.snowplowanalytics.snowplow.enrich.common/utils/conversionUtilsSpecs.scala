@@ -26,6 +26,8 @@ import org.specs2.matcher.DataTables
 
 import com.snowplowanalytics.snowplow.badrows._
 
+import com.snowplowanalytics.iglu.client.validator.ValidatorReport
+
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
 class StringToUriSpec extends MSpecification with DataTables {
@@ -210,7 +212,7 @@ class DecodeBase64UrlSpec extends Specification with DataTables with ScalaCheck 
   """
 
   // Only way of getting a failure currently
-  def e1 = ConversionUtils.decodeBase64Url(null) must beLeft("could not base64 decode: null")
+  def e1 = ConversionUtils.decodeBase64Url(null) must beLeft("Could not base64 decode: null")
 
   // No string creates a failure
   def e2 =
@@ -263,14 +265,7 @@ class ValidateUuidSpec extends Specification with DataTables with ScalaCheck {
   def e2 =
     prop { (str: String) =>
       ConversionUtils.validateUuid(FieldName, str) must beLeft(
-        FailureDetails.EnrichmentFailure(
-          None,
-          FailureDetails.EnrichmentFailureMessage.InputData(
-            FieldName,
-            Option(str),
-            "not a valid UUID"
-          )
-        )
+        ValidatorReport("Not a valid UUID", Some(FieldName), Nil, Option(str))
       )
     }
 }
@@ -288,14 +283,7 @@ class ValidateIntegerSpec extends Specification {
   def e2 = {
     val str = "abc"
     ConversionUtils.validateInteger(FieldName, str) must beLeft(
-      FailureDetails.EnrichmentFailure(
-        None,
-        FailureDetails.EnrichmentFailureMessage.InputData(
-          FieldName,
-          Some(str),
-          "not a valid integer"
-        )
-      )
+      ValidatorReport("Not a valid integer", Some(FieldName), Nil, Some(str))
     )
   }
 }
@@ -326,16 +314,8 @@ class StringToDoubleLikeSpec extends Specification with DataTables {
   """
 
   val FieldName = "val"
-  def err: String => FailureDetails.EnrichmentFailure =
-    input =>
-      FailureDetails.EnrichmentFailure(
-        None,
-        FailureDetails.EnrichmentFailureMessage.InputData(
-          FieldName,
-          Option(input),
-          "cannot be converted to Double-like"
-        )
-      )
+  def err: String => ValidatorReport =
+    input => ValidatorReport("Cannot be converted to Double-like", Some(FieldName), Nil, Option(input))
 
   def e1 =
     "SPEC NAME" || "INPUT STR" | "EXPECTED" |
@@ -379,7 +359,7 @@ class StringToJIntegerSpec extends Specification with DataTables {
   stringToJInteger should convert valid Strings to Java Integers                     $e2
   """
 
-  val err: String = "cannot be converted to java.lang.Integer"
+  val err: String = "Cannot be converted to java.lang.Integer"
 
   def e1 =
     "SPEC NAME" || "INPUT STR" | "EXPECTED" |
@@ -410,16 +390,8 @@ class StringToBooleanLikeJByteSpec extends Specification with DataTables {
   """
 
   val FieldName = "val"
-  def err: String => FailureDetails.EnrichmentFailure =
-    input =>
-      FailureDetails.EnrichmentFailure(
-        None,
-        FailureDetails.EnrichmentFailureMessage.InputData(
-          FieldName,
-          Option(input),
-          "cannot be converted to Boolean-like java.lang.Byte"
-        )
-      )
+  def err: String => ValidatorReport =
+    input => ValidatorReport("Cannot be converted to Boolean-like java.lang.Byte", Some(FieldName), Nil, Option(input))
 
   def e1 =
     "SPEC NAME" || "INPUT STR" | "EXPECTED" |

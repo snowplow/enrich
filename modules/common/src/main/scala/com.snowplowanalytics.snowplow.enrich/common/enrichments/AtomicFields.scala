@@ -10,12 +10,23 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments
 
+import cats.data.NonEmptyList
+
+import com.snowplowanalytics.snowplow.badrows.FailureDetails
+
+import com.snowplowanalytics.iglu.client.ClientError.ValidationError
+import com.snowplowanalytics.iglu.client.validator.{ValidatorError, ValidatorReport}
+
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields.LimitedAtomicField
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
 final case class AtomicFields(value: List[LimitedAtomicField])
 
 object AtomicFields {
+
+  val atomicSchema = SchemaKey("com.snowplowanalytics.snowplow", "atomic", "jsonschema", SchemaVer.Full(1, 0, 0))
 
   final case class AtomicField(
     name: String,
@@ -120,5 +131,14 @@ object AtomicFields {
     }
 
     AtomicFields(withLimits)
+  }
+
+  def errorsToSchemaViolation(errors: NonEmptyList[ValidatorReport]): FailureDetails.SchemaViolation = {
+    val clientError = ValidationError(ValidatorError.InvalidData(errors), None)
+
+    FailureDetails.SchemaViolation.IgluError(
+      AtomicFields.atomicSchema,
+      clientError
+    )
   }
 }

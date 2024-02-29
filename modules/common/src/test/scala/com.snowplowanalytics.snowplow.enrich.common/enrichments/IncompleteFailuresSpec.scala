@@ -36,7 +36,7 @@ import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
 class IncompleteFailuresSpec extends Specification with CatsEffect {
   import IncompleteFailuresSpec._
 
-  "failure types" should {
+  "schema violation types" should {
     // mapping error
     // collector timestamp
 
@@ -64,11 +64,11 @@ class IncompleteFailuresSpec extends Specification with CatsEffect {
       }
     }
 
-    "unstruct data not SDJ" >> {
+    "criterion mismatch" >> {
       val unstruct =
         """
         {
-          "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+          "schema":"iglu:com.snowplowanalytics.snowplow/my_unstruct_event/jsonschema/1-0-0",
           "data":{
             "foo":"bar"
           }
@@ -81,7 +81,7 @@ class IncompleteFailuresSpec extends Specification with CatsEffect {
       }
     }
 
-    "unstruct not found" >> {
+    "resolution error - schema could not be found in the specified repositories, defined by ResolutionError in the Iglu Client" >> {
       val unstruct =
         """
         {
@@ -102,13 +102,30 @@ class IncompleteFailuresSpec extends Specification with CatsEffect {
       }
     }
 
-    "found but invalid" >> {
+    "validation error - Data is invalid against resolved schema" >> {
       val unstruct =
         """
         {
           "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
           "data":{
-            "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+            "foo":"bar"
+          }
+        }
+        """
+      enrich(unstruct).map {
+        case sv: BadRow.SchemaViolations =>
+          ko(sv.selfDescribingData.asJson.spaces2)
+        case other => ko(s"[$other] is not a SchemaViolations bad row")
+      }
+    }
+
+    "validation error - Schema is invalid (empty required list) and cannot be used to validate an instance" >> {
+      val unstruct =
+        """
+        {
+          "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+          "data":{
+            "schema":"iglu:com.acme/malformed_schema/jsonschema/1-0-0",
             "data": {
               "foo": "hello@world.com",
               "emailAddress2": "foo@bar.org"

@@ -11,27 +11,24 @@
 package com.snowplowanalytics.snowplow.enrich.common.enrichments
 
 import org.specs2.mutable.Specification
-
 import org.joda.time.DateTime
-
 import io.circe.syntax._
-
+import io.circe.literal._
 import cats.implicits._
 import cats.data.Ior
-
 import cats.effect.IO
 import cats.effect.testing.specs2.CatsEffect
-
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 import com.snowplowanalytics.iglu.core.circe.implicits._
-
 import com.snowplowanalytics.snowplow.badrows._
-
 import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.common.AcceptInvalid
-
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{CrossNavigationEnrichment, JavascriptScriptEnrichment}
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent.toAtomic
+import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
 
 class IncompleteFailuresSpec extends Specification with CatsEffect {
   import IncompleteFailuresSpec._
@@ -140,6 +137,227 @@ class IncompleteFailuresSpec extends Specification with CatsEffect {
       }
     }
   }
+
+  "enrichment failure types" should {
+    "case 1 - InputData - Error which was internal to the enrichment regarding its input data" >> {
+
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow.enrichments",
+        "cross_navigation_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val cne = CrossNavigationEnrichment(schemaKey)
+
+      val enrichmentReg = EnrichmentRegistry[IO](
+        crossNavigation = Option(cne)
+      )
+
+      val params = parameters ++ Map("url" -> "https://acme.com/help?_sp=abc.not-timestamp".some)
+
+      val unstruct =
+        """
+        {
+          "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+          "data":{
+            "schema":"iglu:com.snowplowanalytics.iglu/anything-a/jsonschema/1-0-0",
+            "data": {
+              "name": "bruce"
+            }
+          }
+        }
+        """
+      enrich(unstruct, enrichmentReg, params).map {
+        case sv: BadRow.EnrichmentFailures =>
+          ko(sv.selfDescribingData.asJson.spaces2)
+        case other => ko(s"[$other] is not a EnrichmentFailures bad row")
+      }
+    }
+    "case 2 - Simple - Error which was external to the enrichment" >> {
+      val script =
+        """
+        function process(event) {
+          throw "Javascript exception";
+          return [ { a: "b" } ];
+        }"""
+
+      val config =
+        json"""{
+        "parameters": {
+          "script": ${ConversionUtils.encodeBase64Url(script)}
+        }
+      }"""
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow",
+        "javascript_script_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val jsEnrichConf =
+        JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
+      val jsEnrich = JavascriptScriptEnrichment(jsEnrichConf.schemaKey, jsEnrichConf.rawFunction)
+      val enrichmentReg = EnrichmentRegistry[IO](javascriptScript = List(jsEnrich))
+
+      val unstruct =
+        """
+        {
+          "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+          "data":{
+            "schema":"iglu:com.snowplowanalytics.iglu/anything-a/jsonschema/1-0-0",
+            "data": {
+              "name": "bruce"
+            }
+          }
+        }
+        """
+      enrich(unstruct, enrichmentReg).map {
+        case sv: BadRow.EnrichmentFailures =>
+          ko(sv.selfDescribingData.asJson.spaces2)
+        case other => ko(s"[$other] is not a EnrichmentFailures bad row")
+      }
+    }
+    "case 3 - ResolutionError - schema could not be found in the specified repositories" >> {
+      val script =
+        """
+        function process(event) {
+          return [ { schema: "iglu:com.acme/nonexistent/jsonschema/1-0-0",
+                     data: {
+                       emailAddress: "hello@world.com",
+                       foo: "bar"
+                     }
+                   } ];
+        }"""
+
+      val config =
+        json"""{
+        "parameters": {
+          "script": ${ConversionUtils.encodeBase64Url(script)}
+        }
+      }"""
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow",
+        "javascript_script_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val jsEnrichConf =
+        JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
+      val jsEnrich = JavascriptScriptEnrichment(jsEnrichConf.schemaKey, jsEnrichConf.rawFunction)
+      val enrichmentReg = EnrichmentRegistry[IO](javascriptScript = List(jsEnrich))
+
+      val unstruct =
+        """
+        {
+          "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+          "data":{
+            "schema":"iglu:com.snowplowanalytics.iglu/anything-a/jsonschema/1-0-0",
+            "data": {
+              "name": "bruce"
+            }
+          }
+        }
+        """
+      enrich(unstruct, enrichmentReg).map {
+        case sv: BadRow.EnrichmentFailures =>
+          ko(sv.selfDescribingData.asJson.spaces2)
+        case other => ko(s"[$other] is not a EnrichmentFailures bad row")
+      }
+    }
+    "case 4 - IgluError - ValidationError - Data is invalid against schema" >> {
+      val script =
+        """
+        function process(event) {
+          return [ { schema: "iglu:com.acme/email_sent/jsonschema/1-0-0",
+                     data: {
+                       emailAddress: "hello@world.com",
+                       foo: "bar"
+                     }
+                   } ];
+        }"""
+
+      val config =
+        json"""{
+        "parameters": {
+          "script": ${ConversionUtils.encodeBase64Url(script)}
+        }
+      }"""
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow",
+        "javascript_script_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val jsEnrichConf =
+        JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
+      val jsEnrich = JavascriptScriptEnrichment(jsEnrichConf.schemaKey, jsEnrichConf.rawFunction)
+      val enrichmentReg = EnrichmentRegistry[IO](javascriptScript = List(jsEnrich))
+
+      val unstruct =
+        """
+        {
+          "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+          "data":{
+            "schema":"iglu:com.snowplowanalytics.iglu/anything-a/jsonschema/1-0-0",
+            "data": {
+              "name": "bruce"
+            }
+          }
+        }
+        """
+      enrich(unstruct, enrichmentReg).map {
+        case sv: BadRow.EnrichmentFailures =>
+          ko(sv.selfDescribingData.asJson.spaces2)
+        case other => ko(s"[$other] is not a EnrichmentFailures bad row")
+      }
+    }
+    "case 5 - IgluError - ValidationError - Schema is invalid (empty required list) and cannot be used to validate an instance" >> {
+      val script =
+        """
+        function process(event) {
+          return [ { schema: "iglu:com.acme/malformed_schema/jsonschema/1-0-0",
+                     data: {
+                       emailAddress: "hello@world.com",
+                       foo: "bar"
+                     }
+                   } ];
+        }"""
+
+      val config =
+        json"""{
+        "parameters": {
+          "script": ${ConversionUtils.encodeBase64Url(script)}
+        }
+      }"""
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow",
+        "javascript_script_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val jsEnrichConf =
+        JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
+      val jsEnrich = JavascriptScriptEnrichment(jsEnrichConf.schemaKey, jsEnrichConf.rawFunction)
+      val enrichmentReg = EnrichmentRegistry[IO](javascriptScript = List(jsEnrich))
+
+      val unstruct =
+        """
+        {
+          "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+          "data":{
+            "schema":"iglu:com.snowplowanalytics.iglu/anything-a/jsonschema/1-0-0",
+            "data": {
+              "name": "bruce"
+            }
+          }
+        }
+        """
+      enrich(unstruct, enrichmentReg).map {
+        case sv: BadRow.EnrichmentFailures =>
+          ko(sv.selfDescribingData.asJson.spaces2)
+        case other => ko(s"[$other] is not a EnrichmentFailures bad row")
+      }
+    }
+  }
 }
 
 object IncompleteFailuresSpec {
@@ -161,17 +379,17 @@ object IncompleteFailuresSpec {
 
   val atomicFieldLimits = AtomicFields.from(Map("v_tracker" -> 100))
 
-  val parameters = Map(
+  val parameters: Map[String, Option[String]] = Map(
     "e" -> "pp",
     "tv" -> "js-0.13.1",
     "p" -> "web"
   ).toOpt
 
-  def enrich(unstruct: String): IO[BadRow] = {
-    val allParams = parameters ++ Map("ue_pr" -> unstruct.some)
+  def enrich(unstruct: String, enrichmentRegistry: EnrichmentRegistry[IO] = enrichmentReg, params: Map[String, Option[String]] = parameters): IO[BadRow] = {
+    val allParams = params ++ Map("ue_pr" -> unstruct.some)
     val rawEvent = RawEvent(api, allParams, None, source, context)
     val enriched = EnrichmentManager.enrichEvent[IO](
-      enrichmentReg,
+      enrichmentRegistry,
       client,
       processor,
       timestamp,
@@ -184,7 +402,9 @@ object IncompleteFailuresSpec {
     )
     enriched.value.flatMap {
       case Ior.Left(br) => IO.pure(br)
-      case Ior.Right(_) => IO.raiseError(new IllegalStateException("Expected bad row but got enriched event"))
+      case Ior.Right(ee) =>
+        IO.println(toAtomic(ee)) >>
+        IO.raiseError(new IllegalStateException("Expected bad row but got enriched event"))
       case Ior.Both(_, _) => IO.raiseError(new IllegalStateException("Expected bad row but got Both"))
     }
   }

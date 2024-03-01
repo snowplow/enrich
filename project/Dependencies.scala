@@ -28,12 +28,12 @@ object Dependencies {
 
   object V {
     // Java
-    val commonsCodec     = "1.15"
+    val commonsCodec     = "1.16.0" // override transitive dependency to mitigate security vulnerabilities CVE-2021-29425
     val commonsText      = "1.10.0"
     val jodaTime         = "2.10.1"
     val useragent        = "1.21"
     val uaParser         = "1.5.4"
-    val snakeYaml        = "1.33"
+    val snakeYaml        = "2.0" // override transitive dependency to mitigate security vulnerabilities CVE-2022-1471
     val postgresDriver   = "42.7.2"
     val mysqlConnector   = "8.3.0"
     val hikariCP         = "5.0.1"
@@ -42,7 +42,7 @@ object Dependencies {
     val iabClient        = "0.2.0"
     val yauaa            = "7.11.0"
     val log4jToSlf4j     = "2.18.0"
-    val guava            = "28.1-jre"
+    val guava            = "32.1.2-jre" // override transitive dependency to mitigate security vulnerabilities CVE-2023-2976
     val slf4j            = "2.0.3"
     val log4j            = "2.20.0"
     val thrift           = "0.15.0"

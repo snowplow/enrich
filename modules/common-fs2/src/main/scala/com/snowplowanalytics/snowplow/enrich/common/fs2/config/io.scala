@@ -1,64 +1,56 @@
 /*
- * Copyright (c) 2020-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2.config
 
-import java.nio.file.{InvalidPathException, Path, Paths}
+import java.nio.file.{InvalidPathException, Path => JPath, Paths}
 import java.time.Instant
 import java.net.URI
 import java.util.UUID
 
 import cats.syntax.either._
-import cats.data.NonEmptyList
 
 import scala.concurrent.duration.{Duration, FiniteDuration}
-
-import _root_.io.circe.{Decoder, DecodingFailure, Encoder}
+import _root_.io.circe.{Decoder, DecodingFailure}
 import _root_.io.circe.generic.extras.semiauto._
 import _root_.io.circe.config.syntax._
 
 import org.http4s.{ParseFailure, Uri}
 
+import fs2.io.file.Path
+
 import com.snowplowanalytics.snowplow.enrich.common.EtlPipeline.{FeatureFlags => CommonFeatureFlags}
 import com.snowplowanalytics.snowplow.enrich.common.adapters._
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
 
 object io {
 
   val putRecordsMaxRecords = 500
 
-  import ConfigFile.finiteDurationEncoder
-
-  implicit val javaPathDecoder: Decoder[Path] =
+  implicit val jPathDecoder: Decoder[JPath] =
     Decoder[String].emap { s =>
       Either.catchOnly[InvalidPathException](Paths.get(s)).leftMap(_.getMessage)
     }
-  implicit val javaPathEncoder: Encoder[Path] =
-    Encoder[String].contramap(_.toString)
+
+  implicit val pathDecoder: Decoder[Path] =
+    Decoder[String].emap { s =>
+      Either.catchNonFatal(Path(s)).leftMap(_.getMessage)
+    }
 
   implicit val javaUriDecoder: Decoder[URI] =
     Decoder[String].emap { s =>
       Either.catchOnly[IllegalArgumentException](URI.create(s)).leftMap(err => s"error while parsing URI $s: ${err.getMessage}")
     }
 
-  implicit val javaUriEncoder: Encoder[URI] =
-    Encoder.encodeString.contramap[URI](_.toString)
-
   implicit val http4sUriDecoder: Decoder[Uri] =
     Decoder[String].emap(s => Either.catchOnly[ParseFailure](Uri.unsafeFromString(s)).leftMap(_.toString))
-
-  implicit val http4sUriEncoder: Encoder[Uri] =
-    Encoder[String].contramap(_.toString)
-
-  import ConfigFile.finiteDurationEncoder
 
   case class BackoffPolicy(
     minBackoff: FiniteDuration,
@@ -68,37 +60,10 @@ object io {
   object BackoffPolicy {
     implicit def backoffPolicyDecoder: Decoder[BackoffPolicy] =
       deriveConfiguredDecoder[BackoffPolicy]
-    implicit def backoffPolicyEncoder: Encoder[BackoffPolicy] =
-      deriveConfiguredEncoder[BackoffPolicy]
   }
 
   sealed trait RetryCheckpointing {
     val checkpointBackoff: BackoffPolicy
-  }
-
-  case class RabbitMQNode(
-    host: String,
-    port: Int
-  )
-  object RabbitMQNode {
-    implicit val rabbitMQNodeDecoder: Decoder[RabbitMQNode] = deriveConfiguredDecoder[RabbitMQNode]
-    implicit val rabbitMQNodeEncoder: Encoder[RabbitMQNode] = deriveConfiguredEncoder[RabbitMQNode]
-  }
-
-  case class RabbitMQConfig(
-    nodes: NonEmptyList[RabbitMQNode],
-    username: String,
-    password: String,
-    virtualHost: String,
-    connectionTimeout: Int,
-    ssl: Boolean,
-    internalQueueSize: Int,
-    requestedHeartbeat: Int,
-    automaticRecovery: Boolean
-  )
-  object RabbitMQConfig {
-    implicit val rabbitMQConfigDecoder: Decoder[RabbitMQConfig] = deriveConfiguredDecoder[RabbitMQConfig]
-    implicit val rabbitMQConfigEncoder: Encoder[RabbitMQConfig] = deriveConfiguredEncoder[RabbitMQConfig]
   }
 
   sealed trait Input
@@ -126,7 +91,8 @@ object io {
       parallelPullCount: Int,
       maxQueueSize: Int,
       maxRequestBytes: Int,
-      maxAckExtensionPeriod: FiniteDuration
+      maxAckExtensionPeriod: FiniteDuration,
+      gcpUserAgent: GcpUserAgent
     ) extends Input {
       val (project, name) =
         subscription.split("/").toList match {
@@ -148,12 +114,6 @@ object io {
       customEndpoint: Option[URI],
       dynamodbCustomEndpoint: Option[URI],
       cloudwatchCustomEndpoint: Option[URI]
-    ) extends Input
-        with RetryCheckpointing
-    case class RabbitMQ(
-      cluster: RabbitMQConfig,
-      queue: String,
-      checkpointBackoff: BackoffPolicy
     ) extends Input
         with RetryCheckpointing
 
@@ -186,7 +146,6 @@ object io {
                               }
             } yield initPosition
           }
-        implicit val initPositionEncoder: Encoder[InitPosition] = deriveConfiguredEncoder[InitPosition]
       }
 
       sealed trait Retrieval
@@ -214,17 +173,15 @@ object io {
                            }
             } yield retrieval
           }
-        implicit val retrievalEncoder: Encoder[Retrieval] = deriveConfiguredEncoder[Retrieval]
       }
 
       implicit val kinesisDecoder: Decoder[Kinesis] = deriveConfiguredDecoder[Kinesis]
-      implicit val kinesisEncoder: Encoder[Kinesis] = deriveConfiguredEncoder[Kinesis]
     }
 
     implicit val inputDecoder: Decoder[Input] =
       deriveConfiguredDecoder[Input]
         .emap {
-          case s @ PubSub(sub, _, _, _, _) =>
+          case s @ PubSub(sub, _, _, _, _, _) =>
             sub.split("/").toList match {
               case List("projects", _, "subscriptions", _) =>
                 s.asRight
@@ -236,19 +193,17 @@ object io {
           case other => other.asRight
         }
         .emap {
-          case PubSub(_, p, _, _, _) if p <= 0 =>
+          case PubSub(_, p, _, _, _, _) if p <= 0 =>
             "PubSub parallelPullCount must be > 0".asLeft
-          case PubSub(_, _, m, _, _) if m <= 0 =>
+          case PubSub(_, _, m, _, _, _) if m <= 0 =>
             "PubSub maxQueueSize must be > 0".asLeft
-          case PubSub(_, _, _, m, _) if m <= 0 =>
+          case PubSub(_, _, _, m, _, _) if m <= 0 =>
             "PubSub maxRequestBytes must be > 0".asLeft
-          case PubSub(_, _, _, _, m) if m < Duration.Zero =>
+          case PubSub(_, _, _, _, m, _) if m < Duration.Zero =>
             "PubSub maxAckExtensionPeriod must be >= 0".asLeft
           case other =>
             other.asRight
         }
-    implicit val inputEncoder: Encoder[Input] =
-      deriveConfiguredEncoder[Input]
   }
 
   case class Outputs(
@@ -258,7 +213,6 @@ object io {
   )
   object Outputs {
     implicit val outputsDecoder: Decoder[Outputs] = deriveConfiguredDecoder[Outputs]
-    implicit val outputsEncoder: Encoder[Outputs] = deriveConfiguredEncoder[Outputs]
   }
 
   sealed trait Output
@@ -285,7 +239,8 @@ object io {
       attributes: Option[Set[String]],
       delayThreshold: FiniteDuration,
       maxBatchSize: Long,
-      maxBatchBytes: Long
+      maxBatchBytes: Long,
+      gcpUserAgent: GcpUserAgent
     ) extends Output {
       val (project, name) =
         topic.split("/").toList match {
@@ -297,7 +252,7 @@ object io {
             throw new IllegalArgumentException(s"Topic format $topic invalid")
         }
     }
-    case class FileSystem(file: Path, maxBytes: Option[Long]) extends Output
+    case class FileSystem(file: JPath, maxBytes: Option[Long]) extends Output
     case class Kinesis(
       streamName: String,
       region: Option[String],
@@ -308,19 +263,13 @@ object io {
       byteLimit: Int,
       customEndpoint: Option[URI]
     ) extends Output
-    case class RabbitMQ(
-      cluster: RabbitMQConfig,
-      exchange: String,
-      routingKey: String,
-      backoffPolicy: BackoffPolicy
-    ) extends Output
 
     implicit val outputDecoder: Decoder[Output] =
       deriveConfiguredDecoder[Output]
         .emap {
           case Kafka(topicName, bootstrapServers, _, _, _) if topicName.isEmpty ^ bootstrapServers.isEmpty =>
             "Both topicName and bootstrapServers have to be set".asLeft
-          case s @ PubSub(top, _, _, _, _) if top.nonEmpty =>
+          case s @ PubSub(top, _, _, _, _, _) if top.nonEmpty =>
             top.split("/").toList match {
               case List("projects", _, "topics", _) =>
                 s.asRight
@@ -349,18 +298,13 @@ object io {
           case other =>
             other.asRight
         }
-
-    implicit val outputEncoder: Encoder[Output] =
-      deriveConfiguredEncoder[Output]
   }
 
-  final case class Concurrency(enrich: Long, sink: Int)
+  final case class Concurrency(enrich: Int, sink: Int)
 
   object Concurrency {
     implicit val concurrencyDecoder: Decoder[Concurrency] =
       deriveConfiguredDecoder[Concurrency]
-    implicit val concurrencyEncoder: Encoder[Concurrency] =
-      deriveConfiguredEncoder[Concurrency]
   }
 
   final case class MetricsReporters(
@@ -398,15 +342,6 @@ object io {
     implicit val metricsReportersDecoder: Decoder[MetricsReporters] =
       deriveConfiguredDecoder[MetricsReporters]
 
-    implicit val stdoutEncoder: Encoder[Stdout] =
-      deriveConfiguredEncoder[Stdout]
-
-    implicit val statsdEncoder: Encoder[StatsD] =
-      deriveConfiguredEncoder[StatsD]
-
-    implicit val metricsReportersEncoder: Encoder[MetricsReporters] =
-      deriveConfiguredEncoder[MetricsReporters]
-
     def normalizeMetric(prefix: Option[String], metric: String): String =
       s"${prefix.getOrElse(DefaultPrefix).stripSuffix(".")}.$metric".stripPrefix(".")
 
@@ -418,8 +353,6 @@ object io {
   object Monitoring {
     implicit val monitoringDecoder: Decoder[Monitoring] =
       deriveConfiguredDecoder[Monitoring]
-    implicit val monitoringEncoder: Encoder[Monitoring] =
-      deriveConfiguredEncoder[Monitoring]
   }
 
   case class RemoteAdapterConfig(
@@ -429,9 +362,6 @@ object io {
   )
 
   object RemoteAdapterConfig {
-    implicit val remoteAdapterConfigEncoder: Encoder[RemoteAdapterConfig] =
-      deriveConfiguredEncoder[RemoteAdapterConfig]
-
     implicit val remoteAdapterConfigDecoder: Decoder[RemoteAdapterConfig] =
       deriveConfiguredDecoder[RemoteAdapterConfig]
   }
@@ -444,9 +374,6 @@ object io {
   )
 
   object RemoteAdapterConfigs {
-    implicit val remoteAdapterConfigsEncoder: Encoder[RemoteAdapterConfigs] =
-      deriveConfiguredEncoder[RemoteAdapterConfigs]
-
     implicit val remoteAdapterConfigsDecoder: Decoder[RemoteAdapterConfigs] =
       deriveConfiguredDecoder[RemoteAdapterConfigs]
   }
@@ -468,8 +395,6 @@ object io {
   object Telemetry {
     implicit val telemetryDecoder: Decoder[Telemetry] =
       deriveConfiguredDecoder[Telemetry]
-    implicit val telemetryEncoder: Encoder[Telemetry] =
-      deriveConfiguredEncoder[Telemetry]
   }
 
   case class Metadata(
@@ -481,16 +406,12 @@ object io {
   object Metadata {
     implicit val metadataDecoder: Decoder[Metadata] =
       deriveConfiguredDecoder[Metadata]
-    implicit val metadataEncoder: Encoder[Metadata] =
-      deriveConfiguredEncoder[Metadata]
   }
 
   case class Experimental(metadata: Option[Metadata])
   object Experimental {
     implicit val experimentalDecoder: Decoder[Experimental] =
       deriveConfiguredDecoder[Experimental]
-    implicit val experimentalEncoder: Encoder[Experimental] =
-      deriveConfiguredEncoder[Experimental]
   }
 
   case class FeatureFlags(
@@ -502,8 +423,6 @@ object io {
   object FeatureFlags {
     implicit val featureFlagsDecoder: Decoder[FeatureFlags] =
       deriveConfiguredDecoder[FeatureFlags]
-    implicit val featureFlagsEncoder: Encoder[FeatureFlags] =
-      deriveConfiguredEncoder[FeatureFlags]
 
     // Currently the FS2 feature flags exactly match the common feature flags, but it might not always be like this.
     def toCommon(ff: FeatureFlags): CommonFeatureFlags =
@@ -513,75 +432,99 @@ object io {
       )
   }
 
-  object AdaptersSchemasEncoderDecoders {
+  case class GcpUserAgent(productName: String)
+
+  object GcpUserAgent {
+    implicit val gcpUserAgentDecoder: Decoder[GcpUserAgent] =
+      deriveConfiguredDecoder[GcpUserAgent]
+  }
+
+  case class BlobStorageClients(
+    gcs: Boolean,
+    s3: Boolean,
+    azureStorage: Option[BlobStorageClients.AzureStorage]
+  )
+  object BlobStorageClients {
+
+    case class AzureStorage(accounts: List[AzureStorage.Account])
+    object AzureStorage {
+
+      final case class Account(name: String, auth: Option[Account.Auth])
+      object Account {
+
+        sealed trait Auth
+        object Auth {
+          final case object DefaultCredentialsChain extends Auth
+          final case class SasToken(value: String) extends Auth
+        }
+      }
+    }
+
+    implicit val sasTokenDecoder: Decoder[AzureStorage.Account.Auth.SasToken] =
+      deriveConfiguredDecoder
+
+    implicit val accountAuthDecoder: Decoder[AzureStorage.Account.Auth] =
+      Decoder.instance { cursor =>
+        val typeCur = cursor.downField("type")
+        typeCur.as[String].map(_.toLowerCase) match {
+          case Right("default") =>
+            Right(AzureStorage.Account.Auth.DefaultCredentialsChain)
+          case Right("sas") =>
+            cursor.as[AzureStorage.Account.Auth.SasToken]
+          case Right(other) =>
+            Left(
+              DecodingFailure(s"Storage account authentication type '$other' is not supported yet. Supported types: 'default', 'sas'",
+                              typeCur.history
+              )
+            )
+          case Left(other) =>
+            Left(other)
+        }
+      }
+
+    implicit val storageAccountDecoder: Decoder[AzureStorage.Account] =
+      deriveConfiguredDecoder
+    implicit val azureStorageDecoder: Decoder[AzureStorage] =
+      deriveConfiguredDecoder[AzureStorage]
+    implicit val blobStorageClientDecoder: Decoder[BlobStorageClients] =
+      deriveConfiguredDecoder[BlobStorageClients]
+  }
+
+  object AdaptersSchemasDecoders {
     implicit val adaptersSchemasDecoder: Decoder[AdaptersSchemas] =
       deriveConfiguredDecoder[AdaptersSchemas]
-    implicit val adaptersSchemasEncoder: Encoder[AdaptersSchemas] =
-      deriveConfiguredEncoder[AdaptersSchemas]
     implicit val callrailSchemasDecoder: Decoder[CallrailSchemas] =
       deriveConfiguredDecoder[CallrailSchemas]
-    implicit val callrailSchemasEncoder: Encoder[CallrailSchemas] =
-      deriveConfiguredEncoder[CallrailSchemas]
     implicit val cloudfrontAccessLogSchemasDecoder: Decoder[CloudfrontAccessLogSchemas] =
       deriveConfiguredDecoder[CloudfrontAccessLogSchemas]
-    implicit val cloudfrontAccessLogSchemasEncoder: Encoder[CloudfrontAccessLogSchemas] =
-      deriveConfiguredEncoder[CloudfrontAccessLogSchemas]
     implicit val googleAnalyticsSchemasDecoder: Decoder[GoogleAnalyticsSchemas] =
       deriveConfiguredDecoder[GoogleAnalyticsSchemas]
-    implicit val googleAnalyticsSchemasEncoder: Encoder[GoogleAnalyticsSchemas] =
-      deriveConfiguredEncoder[GoogleAnalyticsSchemas]
     implicit val hubspotSchemasDecoder: Decoder[HubspotSchemas] =
       deriveConfiguredDecoder[HubspotSchemas]
-    implicit val hubspotSchemasEncoder: Encoder[HubspotSchemas] =
-      deriveConfiguredEncoder[HubspotSchemas]
     implicit val mailchimpSchemasDecoder: Decoder[MailchimpSchemas] =
       deriveConfiguredDecoder[MailchimpSchemas]
-    implicit val mailchimpSchemasEncoder: Encoder[MailchimpSchemas] =
-      deriveConfiguredEncoder[MailchimpSchemas]
     implicit val mailgunSchemasDecoder: Decoder[MailgunSchemas] =
       deriveConfiguredDecoder[MailgunSchemas]
-    implicit val mailgunSchemasEncoder: Encoder[MailgunSchemas] =
-      deriveConfiguredEncoder[MailgunSchemas]
     implicit val mandrillSchemasDecoder: Decoder[MandrillSchemas] =
       deriveConfiguredDecoder[MandrillSchemas]
-    implicit val mandrillSchemasEncoder: Encoder[MandrillSchemas] =
-      deriveConfiguredEncoder[MandrillSchemas]
     implicit val marketoSchemasDecoder: Decoder[MarketoSchemas] =
       deriveConfiguredDecoder[MarketoSchemas]
-    implicit val marketoSchemasEncoder: Encoder[MarketoSchemas] =
-      deriveConfiguredEncoder[MarketoSchemas]
     implicit val olarkSchemasDecoder: Decoder[OlarkSchemas] =
       deriveConfiguredDecoder[OlarkSchemas]
-    implicit val olarkSchemasEncoder: Encoder[OlarkSchemas] =
-      deriveConfiguredEncoder[OlarkSchemas]
     implicit val pagerdutySchemasDecoder: Decoder[PagerdutySchemas] =
       deriveConfiguredDecoder[PagerdutySchemas]
-    implicit val pagerdutySchemasEncoder: Encoder[PagerdutySchemas] =
-      deriveConfiguredEncoder[PagerdutySchemas]
     implicit val pingdomSchemasDecoder: Decoder[PingdomSchemas] =
       deriveConfiguredDecoder[PingdomSchemas]
-    implicit val pingdomSchemasEncoder: Encoder[PingdomSchemas] =
-      deriveConfiguredEncoder[PingdomSchemas]
     implicit val sendgridSchemasDecoder: Decoder[SendgridSchemas] =
       deriveConfiguredDecoder[SendgridSchemas]
-    implicit val sendgridSchemasEncoder: Encoder[SendgridSchemas] =
-      deriveConfiguredEncoder[SendgridSchemas]
     implicit val statusgatorSchemasDecoder: Decoder[StatusGatorSchemas] =
       deriveConfiguredDecoder[StatusGatorSchemas]
-    implicit val statusgatorSchemasEncoder: Encoder[StatusGatorSchemas] =
-      deriveConfiguredEncoder[StatusGatorSchemas]
     implicit val unbounceSchemasDecoder: Decoder[UnbounceSchemas] =
       deriveConfiguredDecoder[UnbounceSchemas]
-    implicit val unbounceSchemasEncoder: Encoder[UnbounceSchemas] =
-      deriveConfiguredEncoder[UnbounceSchemas]
     implicit val urbanAirshipSchemasDecoder: Decoder[UrbanAirshipSchemas] =
       deriveConfiguredDecoder[UrbanAirshipSchemas]
-    implicit val urbanAirshipSchemasEncoder: Encoder[UrbanAirshipSchemas] =
-      deriveConfiguredEncoder[UrbanAirshipSchemas]
     implicit val veroSchemasDecoder: Decoder[VeroSchemas] =
       deriveConfiguredDecoder[VeroSchemas]
-    implicit val veroSchemasEncoder: Encoder[VeroSchemas] =
-      deriveConfiguredEncoder[VeroSchemas]
   }
 
   sealed trait Cloud
@@ -590,7 +533,37 @@ object io {
     case object Aws extends Cloud
     case object Gcp extends Cloud
     case object Azure extends Cloud
-
-    implicit val encoder: Encoder[Cloud] = Encoder.encodeString.contramap[Cloud](_.toString().toUpperCase())
   }
+
+  case class License(
+    accept: Boolean
+  )
+
+  object License {
+    implicit val licenseDecoder: Decoder[License] = {
+      val truthy = Set("true", "yes", "on", "1")
+      Decoder
+        .forProduct1("accept")((s: String) => License(truthy(s.toLowerCase())))
+        .or(Decoder.forProduct1("accept")((b: Boolean) => License(b)))
+    }
+  }
+
+  case class Validation(atomicFieldsLimits: AtomicFields)
+
+  implicit val validationDecoder: Decoder[Validation] =
+    deriveConfiguredDecoder
+
+  implicit val atomicFieldsDecoder: Decoder[AtomicFields] = Decoder[Map[String, Int]].emap { fieldsLimits =>
+    val configuredFields = fieldsLimits.keys.toList
+    val supportedFields = AtomicFields.supportedFields.map(_.name)
+    val unsupportedFields = configuredFields.diff(supportedFields)
+
+    if (unsupportedFields.nonEmpty)
+      Left(s"""
+        |Configured atomic fields: ${unsupportedFields.mkString("[", ",", "]")} are not supported.
+        |Supported fields: ${supportedFields.mkString("[", ",", "]")}""".stripMargin)
+    else
+      Right(AtomicFields.from(fieldsLimits))
+  }
+
 }

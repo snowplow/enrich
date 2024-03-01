@@ -1,25 +1,31 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common
 
-import cats.Id
+import java.util.concurrent.Executors
+import java.nio.file.NoSuchFileException
+
+import scala.concurrent.ExecutionContext
+
 import cats.implicits._
 
-import com.snowplowanalytics.iglu.client.IgluCirceClient
-import com.snowplowanalytics.iglu.core.SelfDescribingData
-import com.snowplowanalytics.iglu.core.circe.implicits._
+import cats.effect.IO
+import cats.effect.kernel.Resource
+import cats.effect.unsafe.implicits.global
 
-import com.snowplowanalytics.lrumap.CreateLruMap._
+import org.http4s.ember.client.EmberClientBuilder
+
+import cats.effect.testing.specs2.CatsEffect
+
+import fs2.io.file.{Files, Path}
 
 import io.circe.Json
 import io.circe.literal._
@@ -27,10 +33,21 @@ import io.circe.literal._
 import org.apache.http.NameValuePair
 import org.apache.http.message.BasicNameValuePair
 
-import com.snowplowanalytics.snowplow.enrich.common.adapters._
-import com.snowplowanalytics.snowplow.enrich.common.utils.JsonUtils
+import com.snowplowanalytics.iglu.client.{IgluCirceClient, Resolver}
+import com.snowplowanalytics.iglu.client.resolver.registries.Registry
+import com.snowplowanalytics.iglu.client.resolver.registries.JavaNetRegistryLookup
 
-object SpecHelpers {
+import com.snowplowanalytics.iglu.core.SelfDescribingData
+import com.snowplowanalytics.iglu.core.circe.implicits._
+
+import com.snowplowanalytics.lrumap.CreateLruMap._
+
+import com.snowplowanalytics.snowplow.enrich.common.adapters._
+import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, JsonUtils}
+
+object SpecHelpers extends CatsEffect {
+
+  val StaticTime = 1599750938180L
 
   // Standard Iglu configuration
   private val igluConfig = json"""{
@@ -63,10 +80,17 @@ object SpecHelpers {
   }"""
 
   /** Builds an Iglu client from the above Iglu configuration. */
-  val client: IgluCirceClient[Id] = IgluCirceClient
-    .parseDefault[Id](igluConfig)
+  val client: IgluCirceClient[IO] = IgluCirceClient
+    .parseDefault[IO](igluConfig)
     .value
+    .unsafeRunSync()
     .getOrElse(throw new RuntimeException("invalid resolver configuration"))
+
+  val registryLookup = JavaNetRegistryLookup.ioLookupInstance[IO]
+
+  val blockingEC = ExecutionContext.fromExecutorService(Executors.newCachedThreadPool)
+
+  val httpClient = EmberClientBuilder.default[IO].build.map(HttpClient.fromHttp4sClient[IO])
 
   private type NvPair = (String, String)
 
@@ -108,6 +132,21 @@ object SpecHelpers {
   implicit class MapOps[A, B](underlying: Map[A, B]) {
     def toOpt: Map[A, Option[B]] = underlying.map { case (a, b) => (a, Option(b)) }
   }
+
+  /** Clean-up predefined list of files */
+  def filesCleanup(files: List[Path]): IO[Unit] =
+    files.traverse_ { path =>
+      Files[IO].deleteIfExists(path).recover {
+        case _: NoSuchFileException => false
+      }
+    }
+
+  /** Make sure files don't exist before and after test starts */
+  def filesResource(files: List[Path]): Resource[IO, Unit] =
+    Resource.make(filesCleanup(files))(_ => filesCleanup(files))
+
+  def createIgluClient(registries: List[Registry]): IO[IgluCirceClient[IO]] =
+    IgluCirceClient.fromResolver[IO](Resolver(registries, None), cacheSize = 0)
 
   val callrailSchemas = CallrailSchemas(
     call_complete = "iglu:com.callrail/call_complete/jsonschema/1-0-2"
@@ -205,15 +244,16 @@ object SpecHelpers {
   )
 
   val mandrillSchemas = MandrillSchemas(
-    message_bounced = "iglu:com.mandrill/message_bounced/jsonschema/1-0-1",
-    message_clicked = "iglu:com.mandrill/message_clicked/jsonschema/1-0-1",
-    message_delayed = "iglu:com.mandrill/message_delayed/jsonschema/1-0-1",
-    message_marked_as_spam = "iglu:com.mandrill/message_marked_as_spam/jsonschema/1-0-1",
-    message_opened = "iglu:com.mandrill/message_opened/jsonschema/1-0-1",
-    message_rejected = "iglu:com.mandrill/message_rejected/jsonschema/1-0-0",
-    message_sent = "iglu:com.mandrill/message_sent/jsonschema/1-0-0",
-    message_soft_bounced = "iglu:com.mandrill/message_soft_bounced/jsonschema/1-0-1",
-    recipient_unsubscribed = "iglu:com.mandrill/recipient_unsubscribed/jsonschema/1-0-1"
+    message_bounced = "iglu:com.mandrill/message_bounced/jsonschema/1-0-2",
+    message_clicked = "iglu:com.mandrill/message_clicked/jsonschema/1-0-2",
+    message_delayed = "iglu:com.mandrill/message_delayed/jsonschema/1-0-2",
+    message_delivered = "iglu:com.mandrill/message_delivered/jsonschema/1-0-0",
+    message_marked_as_spam = "iglu:com.mandrill/message_marked_as_spam/jsonschema/1-0-2",
+    message_opened = "iglu:com.mandrill/message_opened/jsonschema/1-0-2",
+    message_rejected = "iglu:com.mandrill/message_rejected/jsonschema/1-0-1",
+    message_sent = "iglu:com.mandrill/message_sent/jsonschema/1-0-1",
+    message_soft_bounced = "iglu:com.mandrill/message_soft_bounced/jsonschema/1-0-2",
+    recipient_unsubscribed = "iglu:com.mandrill/recipient_unsubscribed/jsonschema/1-0-2"
   )
 
   val marketoSchemas = MarketoSchemas(
@@ -290,5 +330,92 @@ object SpecHelpers {
     unbounce = unbounceSchemas,
     urbanAirship = urbanAirshipSchemas,
     vero = veroSchemas
+  )
+
+  val atomicFieldLimitsDefaults: Map[String, Int] = Map(
+    "app_id" -> 255,
+    "platform" -> 255,
+    "event" -> 128,
+    "event_id" -> 36,
+    "name_tracker" -> 128,
+    "v_tracker" -> 100,
+    "v_collector" -> 100,
+    "v_etl" -> 100,
+    "user_id" -> 255,
+    "user_ipaddress" -> 128,
+    "user_fingerprint" -> 128,
+    "domain_userid" -> 128,
+    "network_userid" -> 128,
+    "geo_country" -> 2,
+    "geo_region" -> 3,
+    "geo_city" -> 75,
+    "geo_zipcode" -> 15,
+    "geo_region_name" -> 100,
+    "ip_isp" -> 100,
+    "ip_organization" -> 128,
+    "ip_domain" -> 128,
+    "ip_netspeed" -> 100,
+    "page_url" -> 10000,
+    "page_title" -> 2000,
+    "page_referrer" -> 10000,
+    "page_urlscheme" -> 16,
+    "page_urlhost" -> 255,
+    "page_urlpath" -> 3000,
+    "page_urlquery" -> 6000,
+    "page_urlfragment" -> 3000,
+    "refr_urlscheme" -> 16,
+    "refr_urlhost" -> 255,
+    "refr_urlpath" -> 6000,
+    "refr_urlquery" -> 6000,
+    "refr_urlfragment" -> 3000,
+    "refr_medium" -> 25,
+    "refr_source" -> 50,
+    "refr_term" -> 255,
+    "mkt_clickid" -> 1000,
+    "mkt_network" -> 64,
+    "mkt_medium" -> 255,
+    "mkt_source" -> 255,
+    "mkt_term" -> 255,
+    "mkt_content" -> 500,
+    "mkt_campaign" -> 255,
+    "se_category" -> 1000,
+    "se_action" -> 1000,
+    "se_label" -> 4096,
+    "se_property" -> 1000,
+    "tr_orderid" -> 255,
+    "tr_affiliation" -> 255,
+    "tr_city" -> 255,
+    "tr_state" -> 255,
+    "tr_country" -> 255,
+    "ti_orderid" -> 255,
+    "ti_sku" -> 255,
+    "ti_name" -> 255,
+    "ti_category" -> 255,
+    "useragent" -> 1000,
+    "br_name" -> 50,
+    "br_family" -> 50,
+    "br_version" -> 50,
+    "br_type" -> 50,
+    "br_renderengine" -> 50,
+    "br_lang" -> 255,
+    "br_colordepth" -> 12,
+    "os_name" -> 50,
+    "os_family" -> 50,
+    "os_manufacturer" -> 50,
+    "os_timezone" -> 255,
+    "dvce_type" -> 50,
+    "doc_charset" -> 128,
+    "tr_currency" -> 3,
+    "ti_currency" -> 3,
+    "base_currency" -> 3,
+    "geo_timezone" -> 64,
+    "etl_tags" -> 500,
+    "refr_domain_userid" -> 128,
+    "domain_sessionid" -> 128,
+    "event_vendor" -> 1000,
+    "event_name" -> 1000,
+    "event_format" -> 128,
+    "event_version" -> 128,
+    "event_fingerprint" -> 128
   )
 }

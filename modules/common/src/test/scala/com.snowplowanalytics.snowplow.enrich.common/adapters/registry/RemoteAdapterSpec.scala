@@ -1,18 +1,14 @@
 /*
- * Copyright (c) 2019-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2019-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package adapters
-package registry
+package com.snowplowanalytics.snowplow.enrich.common.adapters.registry
 
 import java.io.InputStream
 import java.net.InetSocketAddress
@@ -20,9 +16,12 @@ import java.util.concurrent.TimeUnit
 
 import scala.concurrent.duration.Duration
 
+import cats.implicits._
 import cats.data.NonEmptyList
-import cats.syntax.either._
-import cats.syntax.option._
+
+import cats.effect.IO
+
+import cats.effect.testing.specs2.CatsEffect
 
 import com.snowplowanalytics.snowplow.badrows._
 
@@ -37,35 +36,35 @@ import org.joda.time.DateTime
 
 import org.specs2.Specification
 import org.specs2.matcher.ValidatedMatchers
-import org.specs2.specification.BeforeAfter
+import org.specs2.specification.{AfterAll, BeforeAll}
 
-import loaders.CollectorPayload
-import utils.Clock._
+import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
+import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
+import com.snowplowanalytics.snowplow.enrich.common.utils.HttpClient
 
-import SpecHelpers._
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
 
-class RemoteAdapterSpec extends Specification with ValidatedMatchers {
+class RemoteAdapterSpec extends Specification with ValidatedMatchers with CatsEffect with BeforeAll with AfterAll {
+
+  val mockServerPort = 8091
+  val mockServerPath = "myEnrichment"
+  val httpServer = localHttpServer(mockServerPort, mockServerPath)
+
+  def adapter(client: HttpClient[IO]) = RemoteAdapter[IO](client, s"http://localhost:$mockServerPort/$mockServerPath")
+
+  override def beforeAll = httpServer.start()
+
+  override def afterAll = httpServer.stop(0)
 
   def is =
     sequential ^ s2"""
-  RemoteAdapter must return any events parsed by this local test adapter                    ${testWrapperLocal(
-      e1
-    )}
-  This local enricher (well, any remote enricher) must treat an empty list as an error      ${testWrapperLocal(
-      e2
-    )}
-  RemoteAdapter must also return any other errors issued by this local adapter              ${testWrapperLocal(
-      e3
-    )}
-  HTTP response contains string that is not a correct JSON, should fail                     ${testWrapperLocal(
-      e4
-    )}
-  HTTP response contains well-formatted JSON but without events and error, will fail        ${testWrapperLocal(
-      e5
-    )}
-  HTTP response contains well-formatted JSON, events that contains an empty list, will fail ${testWrapperLocal(
-      e6
-    )}
+  RemoteAdapter must return any events parsed by this local test adapter                    $e1
+  This local enricher (well, any remote enricher) must treat an empty list as an error      $e2
+  RemoteAdapter must also return any other errors issued by this local adapter              $e3
+  HTTP response contains string that is not a correct JSON, should fail                     $e4
+  HTTP response contains well-formatted JSON but without events and error, will fail        $e5
+  HTTP response contains well-formatted JSON, events that contains an empty list, will fail $e6
    """
 
   val actionTimeout = Duration(5, TimeUnit.SECONDS)
@@ -85,7 +84,6 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers {
       s"/$basePath",
       new HttpHandler {
         def handle(exchange: HttpExchange): Unit = {
-
           val response = MockRemoteAdapter.handle(getBodyAsString(exchange.getRequestBody))
           if (response != "\"server error\"")
             exchange.sendResponseHeaders(200, 0)
@@ -152,28 +150,6 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers {
     )
   }
 
-  var testAdapter: RemoteAdapter = _
-
-  object testWrapperLocal extends BeforeAfter {
-    val mockServerPort = 8091
-    val mockServerPath = "myEnrichment"
-    var httpServer: HttpServer = _
-
-    def before = {
-      httpServer = localHttpServer(mockServerPort, mockServerPath)
-      httpServer.start()
-
-      testAdapter = new RemoteAdapter(
-        s"http://localhost:$mockServerPort/$mockServerPath",
-        Some(1000L),
-        Some(5000L)
-      )
-    }
-
-    def after =
-      httpServer.stop(0)
-  }
-
   def e1 = {
     val eventData = NonEmptyList.of(("anonymous", -0.3), ("subscribers", 0.6))
     val eventsAsJson = eventData.map(evt => s"""{"${evt._1}":${evt._2}}""")
@@ -198,8 +174,11 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers {
         )
       }
 
-    val they = testAdapter.toRawEvents(payload, SpecHelpers.client)
-    they must beValid(expected)
+    SpecHelpers.httpClient.use { http =>
+      adapter(http)
+        .toRawEvents(payload)
+        .map(_ must beValid(expected))
+    }
   }
 
   def e2 = {
@@ -209,10 +188,14 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers {
       FailureDetails.AdapterFailure.InputData(
         "body",
         None,
-        "empty body: not a valid remote adapter http://localhost:8091/myEnrichment payload"
+        s"empty body: not a valid remote adapter http://localhost:$mockServerPort/$mockServerPath payload"
       )
     )
-    testAdapter.toRawEvents(emptyListPayload, SpecHelpers.client) must beInvalid(expected)
+    SpecHelpers.httpClient.use { http =>
+      adapter(http)
+        .toRawEvents(emptyListPayload)
+        .map(_ must beInvalid(expected))
+    }
   }
 
   def e3 = {
@@ -222,49 +205,56 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers {
       FailureDetails.AdapterFailure.InputData(
         "body",
         None,
-        "empty body: not a valid remote adapter http://localhost:8091/myEnrichment payload"
+        s"empty body: not a valid remote adapter http://localhost:$mockServerPort/$mockServerPath payload"
       )
     )
-    testAdapter.toRawEvents(bodylessPayload, SpecHelpers.client) must beInvalid(expected)
+    SpecHelpers.httpClient.use { http =>
+      adapter(http)
+        .toRawEvents(bodylessPayload)
+        .map(_ must beInvalid(expected))
+    }
   }
 
   def e4 = {
     val bodylessPayload =
       CollectorPayload(Shared.api, Nil, None, None, Shared.cljSource, Shared.context)
     val invalidJsonResponse = Right("{invalid json")
-    val result = testAdapter.processResponse(bodylessPayload, invalidJsonResponse)
     val expected = FailureDetails.AdapterFailure.NotJson(
       "body",
       Some("{invalid json"),
       """[REMOTE_ADAPTER] invalid json: expected " got 'invali...' (line 1, column 2)"""
     )
-    result must beLeft(expected)
+    SpecHelpers.httpClient.use { http =>
+      IO.pure(adapter(http).processResponse(bodylessPayload, invalidJsonResponse) must beLeft(expected))
+    }
   }
 
   def e5 = {
     val bodylessPayload =
       CollectorPayload(Shared.api, Nil, None, None, Shared.cljSource, Shared.context)
     val unexpectedJsonResponse = Right("{\"events\":\"response\"}")
-    val result = testAdapter.processResponse(bodylessPayload, unexpectedJsonResponse)
     val expected = FailureDetails.AdapterFailure.InputData(
       "body",
       Some("""{"events":"response"}"""),
-      "[REMOTE_ADAPTER] could not be decoded as a list of json objects: C[A]: DownField(events)"
+      "[REMOTE_ADAPTER] could not be decoded as a list of json objects: Got value '\"response\"' with wrong type, expecting array: DownField(events)"
     )
-    result must beLeft(expected)
+    SpecHelpers.httpClient.use { http =>
+      IO.pure(adapter(http).processResponse(bodylessPayload, unexpectedJsonResponse) must beLeft(expected))
+    }
   }
 
   def e6 = {
     val bodylessPayload =
       CollectorPayload(Shared.api, Nil, None, None, Shared.cljSource, Shared.context)
     val emptyJsonResponse = Right("{\"error\":\"\", \"events\":[]}")
-    val result = testAdapter.processResponse(bodylessPayload, emptyJsonResponse)
     val expected = FailureDetails.AdapterFailure.InputData(
       "body",
       Some("""{"error":"", "events":[]}"""),
       "[REMOTE_ADAPTER] empty list of events"
     )
-    result must beLeft(expected)
+    SpecHelpers.httpClient.use { http =>
+      IO.pure(adapter(http).processResponse(bodylessPayload, emptyJsonResponse) must beLeft(expected))
+    }
   }
 }
 

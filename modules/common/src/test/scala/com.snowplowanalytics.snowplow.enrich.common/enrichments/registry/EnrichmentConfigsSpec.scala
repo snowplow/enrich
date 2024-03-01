@@ -1,14 +1,12 @@
 /*
- * Copyright (c) 2014-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2014-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
@@ -20,13 +18,14 @@ import io.circe.parser._
 import org.apache.commons.codec.binary.Base64
 import org.joda.money.CurrencyUnit
 
+import org.specs2.matcher.{DataTables, ValidatedMatchers}
+import org.specs2.mutable.Specification
+
 import com.snowplowanalytics.forex.model._
+
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer}
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf._
-
-import org.specs2.matcher.{DataTables, ValidatedMatchers}
-import org.specs2.mutable.Specification
 
 class EnrichmentConfigsSpec extends Specification with ValidatedMatchers with DataTables {
 
@@ -299,6 +298,39 @@ class EnrichmentConfigsSpec extends Specification with ValidatedMatchers with Da
       val result = JavascriptScriptEnrichment.parse(javascriptScriptEnrichmentJson, schemaKey)
       result must beValid // TODO: check the result's contents by evaluating some JavaScript
     }
+    "parse the additional arguments" in {
+      val params = json"""{"foo": 3, "nested": {"bar": 42}}""".asObject.get
+      val script =
+        s"""|function process(event, params) {
+            |  return [];
+            |}
+            |""".stripMargin
+      val javascriptScriptEnrichmentJson = {
+        val encoder = new Base64(true)
+        val encoded = new String(encoder.encode(script.getBytes)).trim // Newline being appended by some Base64 versions
+        parse(s"""{
+          "enabled": true,
+          "parameters": {
+            "script": "$encoded",
+            "config": {
+              "foo": 3,
+              "nested": {
+                "bar": 42
+              }
+            }
+          }
+        }""").toOption.get
+      }
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow",
+        "javascript_script_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val result = JavascriptScriptEnrichment.parse(javascriptScriptEnrichmentJson, schemaKey)
+      result must beValid
+      result.map(_.params).toOption mustEqual Some(params)
+    }
   }
 
   "Parsing a valid event_fingerprint_config enrichment JSON" should {
@@ -473,6 +505,23 @@ class EnrichmentConfigsSpec extends Specification with ValidatedMatchers with Da
       )
       val result = IabEnrichment.parse(iabJson, schemaKey, false)
       result must beInvalid
+    }
+  }
+
+  "Parsing an cross_navigation_config JSON" should {
+    "successfully construct a CrossNavigationEnrichment" in {
+      val crossNavJson = json"""{
+        "enabled": true
+      }"""
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow.enrichments",
+        "cross_navigation_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val expected = CrossNavigationConf(schemaKey)
+      val result = CrossNavigationEnrichment.parse(crossNavJson, schemaKey, false)
+      result must beValid(expected)
     }
   }
 }

@@ -1,18 +1,16 @@
 /*
- * Copyright (c) 2019-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2019-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.pubsub
 
-import cats.effect.{Blocker, Concurrent, ContextShift, Sync}
+import cats.effect.kernel.Sync
 
 import com.google.api.gax.batching.FlowControlSettings
 import com.google.api.gax.batching.FlowController.LimitExceededBehavior
@@ -26,23 +24,19 @@ import fs2.Stream
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input
 
-import cats.effect.{Blocker, ContextShift, Sync}
-
 object Source {
 
-  def init[F[_]: Concurrent: ContextShift](
-    blocker: Blocker,
+  def init[F[_]: Sync](
     input: Input
   ): Stream[F, ConsumerRecord[F, Array[Byte]]] =
     input match {
       case p: Input.PubSub =>
-        pubSub(blocker, p)
+        pubSub(p)
       case i =>
         Stream.raiseError[F](new IllegalArgumentException(s"Input $i is not PubSub"))
     }
 
-  def pubSub[F[_]: Concurrent: ContextShift](
-    blocker: Blocker,
+  def pubSub[F[_]: Sync](
     input: Input.PubSub
   ): Stream[F, ConsumerRecord[F, Array[Byte]]] = {
     val onFailedTerminate: Throwable => F[Unit] =
@@ -62,7 +56,10 @@ object Source {
         parallelPullCount = input.parallelPullCount,
         maxQueueSize = input.maxQueueSize,
         maxAckExtensionPeriod = input.maxAckExtensionPeriod,
-        customizeSubscriber = Some(builder => builder.setFlowControlSettings(flowControlSettings))
+        customizeSubscriber = Some {
+          _.setFlowControlSettings(flowControlSettings)
+            .setHeaderProvider(Utils.createPubsubUserAgentHeader(input.gcpUserAgent))
+        }
       )
 
     val projectId = Model.ProjectId(input.project)
@@ -72,6 +69,6 @@ object Source {
         Sync[F].delay(System.err.println(s"Cannot decode message ${message.getMessageId} into array of bytes. ${error.getMessage}"))
 
     PubsubGoogleConsumer
-      .subscribe[F, Array[Byte]](blocker, projectId, subscriptionId, errorHandler, pubSubConfig)
+      .subscribe[F, Array[Byte]](projectId, subscriptionId, errorHandler, pubSubConfig)
   }
 }

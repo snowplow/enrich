@@ -1,38 +1,39 @@
 /**
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.lang.{Float => JFloat}
 
-import cats.Id
+import org.joda.time.DateTime
+
+import org.specs2.Specification
+
 import cats.data.EitherT
+
+import cats.effect.IO
+
+import cats.effect.testing.specs2.CatsEffect
 
 import io.circe.generic.auto._
 import io.circe.literal._
-
-import org.joda.time.DateTime
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.WeatherConf
 
-import org.specs2.Specification
-
 object WeatherEnrichmentSpec {
   val OwmApiKey = "OWM_KEY"
 }
 
-class WeatherEnrichmentSpec extends Specification {
+class WeatherEnrichmentSpec extends Specification with CatsEffect {
   import WeatherEnrichmentSpec._
   def is =
     skipAllIf(sys.env.get(OwmApiKey).isEmpty) ^ // Actually only e4 and e6 need to be skipped
@@ -67,10 +68,10 @@ class WeatherEnrichmentSpec extends Specification {
     var time: DateTime = new DateTime("2020-04-28T12:00:00.000+00:00")
   }
 
-  def e1 = {
-    val res = for {
+  def e1 =
+    (for {
       enr <- WeatherConf(schemaKey, "history.openweathermap.org", "KEY", 10, 5200, 1)
-               .enrichment[Id]
+               .enrichment[IO]
       stamp <- EitherT(
                  enr.getWeatherContext(
                    Option(invalidEvent.lat),
@@ -78,17 +79,15 @@ class WeatherEnrichmentSpec extends Specification {
                    Option(invalidEvent.time)
                  )
                ).leftMap(_.head.toString)
-    } yield stamp
-    res.value must beLeft.like {
+    } yield stamp).value.map(_ must beLeft.like {
       case e =>
         e must contain("InputData(derived_tstamp,None,missing)")
-    }
-  }
+    })
 
-  def e2 = {
-    val res = for {
+  def e2 =
+    (for {
       enr <- WeatherConf(schemaKey, "history.openweathermap.org", validAppKey, 10, 5200, 1)
-               .enrichment[Id]
+               .enrichment[IO]
       stamp <- EitherT(
                  enr.getWeatherContext(
                    Option(validEvent.lat),
@@ -96,14 +95,12 @@ class WeatherEnrichmentSpec extends Specification {
                    Option(validEvent.time)
                  )
                ).leftMap(_.head.toString)
-    } yield stamp
-    res.value must beRight
-  }
+    } yield stamp).value.map(_ must beRight)
 
-  def e3 = {
-    val res = for {
+  def e3 =
+    (for {
       enr <- WeatherConf(schemaKey, "history.openweathermap.org", "KEY", 10, 5200, 1)
-               .enrichment[Id]
+               .enrichment[IO]
       stamp <- EitherT(
                  enr.getWeatherContext(
                    Option(validEvent.lat),
@@ -111,14 +108,12 @@ class WeatherEnrichmentSpec extends Specification {
                    Option(validEvent.time)
                  )
                ).leftMap(_.head.toString)
-    } yield stamp
-    res.value must beLeft.like { case e => e must contain("Check your API key") }
-  }
+    } yield stamp).value.map(_ must beLeft.like { case e => e must contain("Check your API key") })
 
-  def e4 = {
-    val res = for {
+  def e4 =
+    (for {
       enr <- WeatherConf(schemaKey, "history.openweathermap.org", validAppKey, 15, 5200, 1)
-               .enrichment[Id]
+               .enrichment[IO]
       stamp <- EitherT(
                  enr.getWeatherContext(
                    Option(validEvent.lat),
@@ -126,13 +121,11 @@ class WeatherEnrichmentSpec extends Specification {
                    Option(validEvent.time)
                  )
                ).leftMap(_.head.toString)
-    } yield stamp
-    res.value must beRight.like {
+    } yield stamp).value.map(_ must beRight.like {
       case weather =>
         val temp = weather.data.hcursor.downField("main").get[Double]("humidity")
         temp must beRight(69.0d)
-    }
-  }
+    })
 
   def e5 = {
     val configJson = json"""{
@@ -166,10 +159,10 @@ class WeatherEnrichmentSpec extends Specification {
     )
   }
 
-  def e6 = {
-    val res = for {
+  def e6 =
+    (for {
       enr <- WeatherConf(schemaKey, "history.openweathermap.org", validAppKey, 15, 2, 1)
-               .enrichment[Id]
+               .enrichment[IO]
       stamp <- EitherT(
                  enr.getWeatherContext(
                    Option(validEvent.lat),
@@ -177,14 +170,11 @@ class WeatherEnrichmentSpec extends Specification {
                    Option(validEvent.time)
                  )
                ).leftMap(_.head.toString)
-    } yield stamp
-    res.value must beRight.like { // successful request
+    } yield stamp).value.map(_ must beRight.like { // successful request
       case weather =>
         weather.data.hcursor.as[TransformedWeather] must beRight.like {
           case w =>
             w.dt must equalTo("2020-04-28T12:00:00.000Z")
         }
-    }
-  }
-
+    })
 }

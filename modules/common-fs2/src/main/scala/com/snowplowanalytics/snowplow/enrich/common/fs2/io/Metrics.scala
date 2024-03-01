@@ -1,27 +1,25 @@
 /*
- * Copyright (c) 2020-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2.io
 
-import cats.implicits._
-import cats.{Applicative, Monad}
-import cats.effect.concurrent.Ref
-import cats.effect.{Async, Blocker, Clock, ConcurrentEffect, ContextShift, Resource, Sync, Timer}
-
-import fs2.Stream
-
-import scala.concurrent.duration.{FiniteDuration, MILLISECONDS}
+import scala.concurrent.duration.FiniteDuration
 
 import org.typelevel.log4cats.slf4j.Slf4jLogger
+
+import cats.implicits._
+import cats.{Applicative, Monad}
+
+import cats.effect.kernel.{Async, Clock, Ref, Resource, Spawn, Sync}
+
+import fs2.Stream
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.MetricsReporters
 
@@ -85,18 +83,16 @@ object Metrics {
     def report(snapshot: MetricSnapshot): F[Unit]
   }
 
-  def build[F[_]: ContextShift: ConcurrentEffect: Timer](
-    blocker: Blocker,
+  def build[F[_]: Async](
     config: MetricsReporters,
     remoteAdaptersEnabled: Boolean
   ): F[Metrics[F]] =
     config match {
       case MetricsReporters(None, None, _) => noop[F].pure[F]
-      case MetricsReporters(statsd, stdout, _) => impl[F](blocker, statsd, stdout, remoteAdaptersEnabled)
+      case MetricsReporters(statsd, stdout, _) => impl[F](statsd, stdout, remoteAdaptersEnabled)
     }
 
-  private def impl[F[_]: ContextShift: ConcurrentEffect: Timer](
-    blocker: Blocker,
+  private def impl[F[_]: Async](
     statsd: Option[MetricsReporters.StatsD],
     stdout: Option[MetricsReporters.Stdout],
     remoteAdaptersEnabled: Boolean
@@ -109,7 +105,7 @@ object Metrics {
 
         val rep1 = statsd
           .map { config =>
-            reporterStream(StatsDReporter.make[F](blocker, config), refsStatsd, config.period, remoteAdaptersEnabled)
+            reporterStream(StatsDReporter.make[F](config), refsStatsd, config.period, remoteAdaptersEnabled)
           }
           .getOrElse(Stream.never[F])
 
@@ -126,9 +122,9 @@ object Metrics {
         collectorTstamp match {
           case Some(tstamp) =>
             for {
-              now <- Clock[F].realTime(MILLISECONDS)
-              _ <- refsStatsd.latency.set(Some(now - tstamp))
-              _ <- refsStdout.latency.set(Some(now - tstamp))
+              now <- Clock[F].realTime
+              _ <- refsStatsd.latency.set(Some(now.toMillis - tstamp))
+              _ <- refsStdout.latency.set(Some(now.toMillis - tstamp))
             } yield ()
           case None =>
             Sync[F].unit
@@ -214,7 +210,7 @@ object Metrics {
       )
   }
 
-  def reporterStream[F[_]: Sync: Timer: ContextShift](
+  def reporterStream[F[_]: Async](
     reporter: Resource[F, Reporter[F]],
     metrics: MetricRefs[F],
     period: FiniteDuration,
@@ -227,7 +223,7 @@ object Metrics {
       _ <- Stream.eval(rep.report(snapshot))
     } yield ()
 
-  def stdoutReporter[F[_]: Sync: ContextShift: Timer](
+  def stdoutReporter[F[_]: Sync](
     config: MetricsReporters.Stdout
   ): F[Reporter[F]] =
     for {
@@ -254,7 +250,7 @@ object Metrics {
         } yield ()
     }
 
-  def noop[F[_]: Async]: Metrics[F] =
+  def noop[F[_]: Spawn]: Metrics[F] =
     new Metrics[F] {
       def report: Stream[F, Unit] = Stream.never[F]
       def enrichLatency(collectorTstamp: Option[Long]): F[Unit] = Applicative[F].unit

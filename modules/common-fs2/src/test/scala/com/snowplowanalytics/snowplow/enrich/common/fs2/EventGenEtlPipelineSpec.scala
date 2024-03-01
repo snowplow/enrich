@@ -1,20 +1,19 @@
 /*
- * Copyright (c) 2012-2021 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2
 
 import cats.data.{Validated, ValidatedNel}
-import cats.effect.testing.specs2.CatsIO
-import cats.effect.{Blocker, IO}
+import cats.effect.testing.specs2.CatsEffect
+import cats.effect.IO
+import cats.effect.unsafe.implicits.global
 import cats.implicits._
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.Registry
@@ -25,8 +24,8 @@ import com.snowplowanalytics.snowplow.enrich.common.loaders._
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent.toPartiallyEnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
-import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
-import com.snowplowanalytics.snowplow.enrich.common.fs2.SpecHelpers._
+import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 import com.snowplowanalytics.snowplow.eventgen.runGen
 import com.snowplowanalytics.snowplow.eventgen.enrich.{SdkEvent => GenSdkEvent}
 import org.specs2.matcher.MustMatchers.{left => _, right => _}
@@ -38,18 +37,15 @@ import _root_.io.circe.parser.decode
 import _root_.io.circe.syntax._
 import _root_.io.circe.generic.auto._
 import _root_.io.circe.literal._
-import org.http4s.client.{Client => Http4sClient}
 import org.joda.time.DateTime
 import org.specs2.mutable.Specification
 import org.specs2.specification.core.{Fragment, Fragments}
 
 import java.time.Instant
-import scala.concurrent.ExecutionContext
 import scala.util.{Random, Try}
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
 
-import test.TestEnvironment
-
-class EventGenEtlPipelineSpec extends Specification with CatsIO {
+class EventGenEtlPipelineSpec extends Specification with CatsEffect {
 
   case class ContextMatcher(v: String)
 
@@ -82,15 +78,6 @@ class EventGenEtlPipelineSpec extends Specification with CatsIO {
     ip_organization: Option[String],
     ip_domain: Option[String],
     ip_netspeed: Option[String],
-//    page_url: Option[String],
-//    page_title: Option[String],
-//    page_referrer: Option[String],
-//    page_urlscheme: Option[String],
-//    page_urlhost: Option[String],
-//    page_urlport: Option[String],
-//    page_urlpath: Option[String],
-//    page_urlquery: Option[String],
-//    page_urlfragment: Option[String],
     refr_urlscheme: Option[String],
     refr_urlhost: Option[String],
     refr_urlport: Option[String],
@@ -121,7 +108,6 @@ class EventGenEtlPipelineSpec extends Specification with CatsIO {
     ti_category: Option[String],
     ti_price: Option[String],
     ti_quantity: Option[String],
-//    useragent: Option[String],
     br_name: Option[String],
     br_family: Option[String],
     br_version: Option[String],
@@ -175,7 +161,7 @@ class EventGenEtlPipelineSpec extends Specification with CatsIO {
 
   val rng: Random = new scala.util.Random(1L)
 
-  val adapterRegistry = new AdapterRegistry(adaptersSchemas = adaptersSchemas)
+  val adapterRegistry = new AdapterRegistry(Map.empty[(String, String), RemoteAdapter[IO]], SpecHelpers.adaptersSchemas)
   val enrichmentReg = EnrichmentRegistry[IO]()
   val igluCentral = Registry.IgluCentral
   val client = IgluCirceClient.parseDefault[IO](json"""
@@ -211,9 +197,6 @@ class EventGenEtlPipelineSpec extends Specification with CatsIO {
   val processor = Processor("sce-test-suite", "1.0.0")
   val dateTime = DateTime.now()
   val process = Processor("EventGenEtlPipelineSpec", "v1")
-  val blocker: Blocker = Blocker.liftExecutionContext(ExecutionContext.global)
-
-  implicit val httpClient: Http4sClient[IO] = TestEnvironment.http4sClient
 
   def processEvents(e: CollectorPayload): IO[List[Validated[BadRow, EnrichedEvent]]] =
     EtlPipeline.processEvents[IO](
@@ -224,7 +207,9 @@ class EventGenEtlPipelineSpec extends Specification with CatsIO {
       dateTime,
       Some(e).validNel,
       EtlPipeline.FeatureFlags(acceptInvalid = false, legacyEnrichmentOrder = false),
-      IO.unit
+      IO.unit,
+      SpecHelpers.registryLookup,
+      AtomicFields.from(Map.empty)
     )
 
   def rethrowBadRows[A]: Pipe[IO, ValidatedNel[BadRow, A], A] =

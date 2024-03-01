@@ -1,17 +1,14 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments
+package com.snowplowanalytics.snowplow.enrich.common.enrichments
 
 import cats.syntax.either._
 
@@ -22,7 +19,7 @@ import com.snowplowanalytics.snowplow.badrows.{FailureDetails, Processor}
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
-import utils.{ConversionUtils => CU}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{ConversionUtils => CU}
 
 /** Miscellaneous enrichments which don't fit into one of the other modules. */
 object MiscEnrichments {
@@ -58,6 +55,7 @@ object MiscEnrichments {
         case "cnsl" => "cnsl".asRight // Games Console
         case "tv" => "tv".asRight // Connected TV
         case "srv" => "srv".asRight // Server-side App
+        case "headset" => "headset".asRight // AR/VR Headset
         case _ =>
           val msg = "not recognized as a tracking platform"
           val f = FailureDetails.EnrichmentFailureMessage.InputData(

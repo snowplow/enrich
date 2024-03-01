@@ -1,14 +1,12 @@
 /*
- * Copyright (c) 2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2022-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2.io.experimental
 
@@ -22,8 +20,8 @@ import cats.implicits._
 import cats.Applicative
 import cats.data.NonEmptyList
 import cats.kernel.Semigroup
-import cats.effect.{Async, Clock, ConcurrentEffect, ContextShift, Resource, Sync, Timer}
-import cats.effect.concurrent.Ref
+import cats.effect.kernel.{Async, Clock, Ref, Resource, Spawn, Sync}
+import cats.effect.std.Random
 import fs2.Stream
 import io.circe.Json
 import io.circe.parser._
@@ -34,7 +32,8 @@ import org.http4s.client.Client
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 import com.snowplowanalytics.snowplow.scalatracker.{Emitter, Tracker}
-import com.snowplowanalytics.snowplow.scalatracker.emitters.http4s.Http4sEmitter
+import com.snowplowanalytics.snowplow.scalatracker.emitters.http4s.{Http4sEmitter, ceTracking}
+
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Metadata => MetadataConfig}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
@@ -62,10 +61,17 @@ object Metadata {
         )
     }
 
+  case class EventSpecInfo(
+    schemaVendor: String,
+    schemaName: String,
+    field: String
+  )
+  private val eventSpecInfo = EventSpecInfo("com.snowplowanalytics.snowplow", "event_specification", "id")
+
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
     Slf4jLogger.getLogger[F]
 
-  def build[F[_]: ContextShift: ConcurrentEffect: Timer](
+  def build[F[_]: Async](
     config: MetadataConfig,
     reporter: MetadataReporter[F]
   ): F[Metadata[F]] =
@@ -74,7 +80,7 @@ object Metadata {
         def report: Stream[F, Unit] =
           for {
             _ <- Stream.eval(Logger[F].info("Starting metadata repoter"))
-            _ <- Stream.bracket(ConcurrentEffect[F].unit)(_ => submit(reporter, observedRef))
+            _ <- Stream.bracket(Sync[F].unit)(_ => submit(reporter, observedRef))
             _ <- Stream.fixedDelay[F](config.interval)
             _ <- Stream.eval(submit(reporter, observedRef))
           } yield ()
@@ -84,13 +90,13 @@ object Metadata {
       }
     }
 
-  def noop[F[_]: Async]: Metadata[F] =
+  def noop[F[_]: Spawn]: Metadata[F] =
     new Metadata[F] {
       def report: Stream[F, Unit] = Stream.never[F]
       def observe(events: List[EnrichedEvent]): F[Unit] = Applicative[F].unit
     }
 
-  private def submit[F[_]: Sync: Clock](reporter: MetadataReporter[F], ref: MetadataEventsRef[F]): F[Unit] =
+  private def submit[F[_]: Sync](reporter: MetadataReporter[F], ref: MetadataEventsRef[F]): F[Unit] =
     for {
       snapshot <- MetadataEventsRef.snapshot(ref)
       _ <- snapshot.aggregates.toList.traverse {
@@ -108,7 +114,7 @@ object Metadata {
     ): F[Unit]
   }
 
-  case class HttpMetadataReporter[F[_]: ConcurrentEffect: Timer](
+  case class HttpMetadataReporter[F[_]: Async](
     config: MetadataConfig,
     appName: String,
     client: Client[F]
@@ -119,6 +125,7 @@ object Metadata {
       client: Client[F]
     ): Resource[F, Tracker[F]] =
       for {
+        implicit0(random: Random[F]) <- Resource.eval(Random.scalaUtilRandom[F])
         emitter <- Http4sEmitter.build(
                      Emitter.EndpointParams(
                        config.endpoint.host.map(_.toString()).getOrElse("localhost"),
@@ -171,15 +178,17 @@ object Metadata {
    * @param source - `app_id` for given event
    * @param tracker - `v_tracker` for given event
    * @param platform - The platform the app runs on for given event (`platform` field)
+   * @param scenarioId - Identifier for the tracking scenario the event is being tracked for
    */
   case class MetadataEvent(
     schema: SchemaKey,
     source: Option[String],
     tracker: Option[String],
-    platform: Option[String]
+    platform: Option[String],
+    scenarioId: Option[String]
   )
   object MetadataEvent {
-    def apply(event: EnrichedEvent): MetadataEvent =
+    def apply(event: EnrichedEvent, scenarioId: Option[String]): MetadataEvent =
       MetadataEvent(
         SchemaKey(
           Option(event.event_vendor).getOrElse("unknown-vendor"),
@@ -189,7 +198,8 @@ object Metadata {
         ),
         Option(event.app_id),
         Option(event.v_tracker),
-        Option(event.platform)
+        Option(event.platform),
+        scenarioId
       )
   }
 
@@ -217,33 +227,53 @@ object Metadata {
   )
 
   object MetadataEventsRef {
-    def init[F[_]: Sync: Clock]: F[MetadataEventsRef[F]] =
+    def init[F[_]: Sync]: F[MetadataEventsRef[F]] =
       for {
-        time <- Clock[F].instantNow
+        time <- Clock[F].realTimeInstant
         aggregates <- Ref.of[F, Aggregates](Map.empty)
         periodStart <- Ref.of[F, Instant](time)
       } yield MetadataEventsRef(aggregates, periodStart)
-    def snapshot[F[_]: Sync: Clock](ref: MetadataEventsRef[F]): F[MetadataSnapshot] =
+    def snapshot[F[_]: Sync](ref: MetadataEventsRef[F]): F[MetadataSnapshot] =
       for {
-        periodEnd <- Clock[F].instantNow
+        periodEnd <- Clock[F].realTimeInstant
         aggregates <- ref.aggregates.getAndSet(Map.empty)
         periodStart <- ref.periodStart.getAndSet(periodEnd)
       } yield MetadataSnapshot(aggregates, periodStart, periodEnd)
   }
 
-  def unwrapEntities(event: EnrichedEvent): Set[SchemaKey] = {
-    def unwrap(str: String) =
-      decode[SelfDescribingData[Json]](str)
+  def unwrapEntities(event: EnrichedEvent): (Set[SchemaKey], Option[String]) = {
+    case class Entities(schemas: Set[SchemaKey], scenarioId: Option[String])
+
+    def unwrap(str: String): Entities = {
+      val sdjs = decode[SelfDescribingData[Json]](str)
         .traverse(
           _.data
             .as[List[SelfDescribingData[Json]]]
-            .traverse(_.map(_.schema))
+            .sequence
             .flatMap(_.toList)
         )
         .flatMap(_.toList)
         .toSet
 
-    unwrap(event.contexts) ++ unwrap(event.derived_contexts)
+      val schemas = sdjs.map(_.schema)
+
+      val scenarioId = sdjs.collectFirst {
+        case sdj if sdj.schema.vendor == eventSpecInfo.schemaVendor && sdj.schema.name == eventSpecInfo.schemaName =>
+          sdj.data.hcursor.downField(eventSpecInfo.field).as[String] match {
+            case Right(scenarioId) =>
+              Some(scenarioId)
+            case _ =>
+              None
+          }
+      }.flatten
+
+      Entities(schemas, scenarioId)
+    }
+
+    val entities = unwrap(event.contexts)
+    val schemas = entities.schemas ++ unwrap(event.derived_contexts).schemas
+
+    (schemas, entities.scenarioId)
   }
 
   def schema(event: EnrichedEvent): SchemaKey =
@@ -255,7 +285,10 @@ object Metadata {
     )
 
   def recalculate(previous: Aggregates, events: List[EnrichedEvent]): Aggregates =
-    previous |+| events.map(e => Map(MetadataEvent(e) -> EntitiesAndCount(unwrapEntities(e), 1))).combineAll
+    previous |+| events.map { e =>
+      val (entities, scenarioId) = unwrapEntities(e)
+      Map(MetadataEvent(e, scenarioId) -> EntitiesAndCount(entities, 1))
+    }.combineAll
 
   def mkWebhookEvent(
     organizationId: UUID,
@@ -266,7 +299,7 @@ object Metadata {
     count: Int
   ): SelfDescribingData[Json] =
     SelfDescribingData(
-      SchemaKey("com.snowplowanalytics.console", "observed_event", "jsonschema", SchemaVer.Full(6, 0, 0)),
+      SchemaKey("com.snowplowanalytics.console", "observed_event", "jsonschema", SchemaVer.Full(6, 0, 1)),
       Json.obj(
         "organizationId" -> organizationId.asJson,
         "pipelineId" -> pipelineId.asJson,
@@ -276,6 +309,7 @@ object Metadata {
         "source" -> event.source.getOrElse("unknown-source").asJson,
         "tracker" -> event.tracker.getOrElse("unknown-tracker").asJson,
         "platform" -> event.platform.getOrElse("unknown-platform").asJson,
+        "scenario_id" -> event.scenarioId.asJson,
         "eventVolume" -> Json.fromInt(count),
         "periodStart" -> periodStart.asJson,
         "periodEnd" -> periodEnd.asJson

@@ -1,17 +1,14 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package loaders
+package com.snowplowanalytics.snowplow.enrich.common.loaders
 
 import java.net.URI
 import java.nio.charset.Charset
@@ -22,13 +19,13 @@ import cats.data.ValidatedNel
 import cats.syntax.either._
 import cats.syntax.option._
 
-import com.snowplowanalytics.snowplow.badrows.{BadRow, FailureDetails, Processor}
-
 import org.apache.http.NameValuePair
 import org.apache.http.client.utils.URLEncodedUtils
 import org.joda.time.DateTime
 
-import utils.JsonUtils
+import com.snowplowanalytics.snowplow.badrows.{BadRow, FailureDetails, Processor}
+
+import com.snowplowanalytics.snowplow.enrich.common.utils.JsonUtils
 
 /** All loaders must implement this abstract base class. */
 abstract class Loader[T] {
@@ -90,39 +87,4 @@ abstract class Loader[T] {
           msg
         )
       }
-
-  /**
-   * Checks whether a String field is a hyphen "-", which is used by CloudFront to signal a null.
-   * @param field The field to check
-   * @return True if the String was a hyphen "-"
-   */
-  private[loaders] def toOption(field: String): Option[String] =
-    Option(field) match {
-      case Some("-") => None
-      case Some("") => None
-      case s => s // Leaves any other Some(x) or None as-is
-    }
-}
-
-/** Companion object to the CollectorLoader. Contains factory methods. */
-object Loader {
-  private val TsvRegex = "^tsv/(.*)$".r
-  private val NdjsonRegex = "^ndjson/(.*)$".r
-
-  /**
-   * Factory to return a CollectorLoader based on the supplied collector identifier (e.g.
-   * "cloudfront" or "clj-tomcat").
-   * @param collectorOrProtocol Identifier for the event collector
-   * @return either a CollectorLoader object or an an error message
-   */
-  def getLoader(collectorOrProtocol: String): Either[String, Loader[_]] =
-    collectorOrProtocol match {
-      case "cloudfront" => CloudfrontLoader.asRight
-      case "clj-tomcat" => CljTomcatLoader.asRight
-      // a data protocol rather than a piece of software
-      case "thrift" => ThriftLoader.asRight
-      case TsvRegex(f) => TsvLoader(f).asRight
-      case NdjsonRegex(f) => NdjsonLoader(f).asRight
-      case c => s"[$c] is not a recognised Snowplow event collector".asLeft
-    }
 }

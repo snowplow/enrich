@@ -1,4 +1,8 @@
 {
+  "license": {
+    "accept": true
+  }
+
   "input": {
     "type": "Kafka"
     "topicName": "it-enrich-kinesis-collector-payloads"
@@ -6,6 +10,8 @@
     "consumerConf": {
       "enable.auto.commit": "false"
       "auto.offset.reset" : "earliest"
+      "security.protocol": "PLAINTEXT"
+      "sasl.mechanism": "GSSAPI"
     }
   }
 
@@ -16,12 +22,22 @@
       "bootstrapServers": "broker:29092"
       "partitionKey": "app_id"
       "headers": ["app_id"]
+      "producerConf": {
+        "acks": "all"
+        "security.protocol": "PLAINTEXT"
+        "sasl.mechanism": "GSSAPI"
+      }
     }
 
     "bad": {
       "type": "Kafka"
       "topicName": "it-enrich-kinesis-bad"
       "bootstrapServers": "broker:29092"
+      "producerConf": {
+        "acks": "all"
+        "security.protocol": "PLAINTEXT"
+        "sasl.mechanism": "GSSAPI"
+      }
     }
   }
 

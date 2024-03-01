@@ -1,23 +1,19 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package adapters
-package registry
+package com.snowplowanalytics.snowplow.enrich.common.adapters.registry
 
 import cats.data.NonEmptyList
 import cats.syntax.option._
 
-import com.snowplowanalytics.snowplow.badrows.FailureDetails
+import cats.effect.testing.specs2.CatsEffect
 
 import io.circe.literal._
 
@@ -26,15 +22,17 @@ import org.joda.time.DateTime
 import org.specs2.Specification
 import org.specs2.matcher.{DataTables, ValidatedMatchers}
 
-import loaders._
-import utils.Clock._
+import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
-import SpecHelpers._
+import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
+import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 
-class PingdomAdapterSpec extends Specification with DataTables with ValidatedMatchers {
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
+
+class PingdomAdapterSpec extends Specification with DataTables with ValidatedMatchers with CatsEffect {
 
   val adapterWithDefaultSchemas = PingdomAdapter(schemas = pingdomSchemas)
-
   def is = s2"""
   reformatParameters should return either an updated JSON without the 'action' field or the same JSON $e1
   reformatMapParams must return a Failure Nel for any Python Unicode wrapped values                   $e2
@@ -94,9 +92,13 @@ class PingdomAdapterSpec extends Specification with DataTables with ValidatedMat
       Shared.cljSource,
       Shared.context
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beValid(
-      NonEmptyList.one(expected)
-    )
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .map(
+        _ must beValid(
+          NonEmptyList.one(expected)
+        )
+      )
   }
 
   def e4 = {
@@ -107,9 +109,13 @@ class PingdomAdapterSpec extends Specification with DataTables with ValidatedMat
         None,
         "empty querystring: no events to process"
       )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(
-      NonEmptyList.one(expected)
-    )
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(expected)
+        )
+      )
   }
 
   def e5 = {
@@ -122,8 +128,12 @@ class PingdomAdapterSpec extends Specification with DataTables with ValidatedMat
         "p=apps".some,
         "no `message` parameter provided"
       )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(
-      NonEmptyList.one(expected)
-    )
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(expected)
+        )
+      )
   }
 }

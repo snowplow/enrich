@@ -1,14 +1,12 @@
 /*
- * Copyright (c) 2023 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2023-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.nsq
 package test
@@ -17,8 +15,7 @@ import scala.concurrent.duration._
 
 import cats.implicits._
 
-import cats.effect.{Blocker, ConcurrentEffect, ContextShift, Sync, Timer, Async}
-import cats.effect.concurrent.Ref
+import cats.effect.kernel.{Async, Ref, Sync}
 
 import fs2.Stream
 
@@ -50,12 +47,10 @@ object Utils {
   type AggregateGood = List[Event]
   type AggregateBad = List[BadRow]
 
-  def mkResources[F[_]: Async: ContextShift: Timer] =
+  def mkResources[F[_]: Async] =
     for {
-      blocker <- Blocker[F]
-      topology <- Containers.createContainers[F](blocker)
+      topology <- Containers.createContainers[F]
       sink <- Sink.init[F](
-        blocker,
         OutNsq(
           topology.sourceTopic,
           "127.0.0.1",
@@ -63,28 +58,25 @@ object Utils {
           backoffPolicy
         )
       )
-    } yield (blocker, topology, sink)
+    } yield (topology, sink)
 
-  def generateEvents[F[_]: Sync: ContextShift: Timer](sink: ByteSink[F], goodCount: Long, badCount: Long, topology: NetworkTopology): Stream[F, Unit] =
+  def generateEvents[F[_]: Sync](sink: ByteSink[F], goodCount: Long, badCount: Long, topology: NetworkTopology): Stream[F, Unit] =
     CollectorPayloadGen.generate[F](goodCount, badCount)
       .evalMap(events => sink(List(events)))
       .onComplete(fs2.Stream.eval(Logger[F].info(s"Random data has been generated and sent to ${topology.sourceTopic}")))
 
-  def consume[F[_]: ConcurrentEffect: ContextShift](
-    blocker: Blocker,
+  def consume[F[_]: Async](
     refGood: Ref[F, AggregateGood],
     refBad: Ref[F, AggregateBad],
     topology: NetworkTopology
   ): Stream[F, Unit] =
-    consumeGood(blocker, refGood, topology).merge(consumeBad(blocker, refBad, topology))
+    consumeGood(refGood, topology).merge(consumeBad(refBad, topology))
 
-  def consumeGood[F[_]: ConcurrentEffect: ContextShift](
-    blocker: Blocker,
+  def consumeGood[F[_]: Async](
     ref: Ref[F, AggregateGood],
     topology: NetworkTopology
   ): Stream[F, Unit] =
     Source.init[F](
-      blocker,
       InNsq(
         topology.goodDestTopic,
         "EnrichedChannel",
@@ -95,13 +87,11 @@ object Utils {
       )
     ).evalMap(aggregateGood(_, ref))
 
-  def consumeBad[F[_]: ConcurrentEffect: ContextShift](
-    blocker: Blocker,
+  def consumeBad[F[_]: Async](
     ref: Ref[F, AggregateBad],
     topology: NetworkTopology
   ): Stream[F, Unit] =
     Source.init[F](
-      blocker,
       InNsq(
         topology.badDestTopic,
         "BadRowsChannel",

@@ -1,19 +1,17 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2.test
 
-import cats.effect.{Blocker, IO, Resource}
-import cats.effect.concurrent.Ref
+import cats.effect.IO
+import cats.effect.kernel.{Ref, Resource}
 
 import io.circe.literal._
 
@@ -22,19 +20,21 @@ import fs2.io.readInputStream
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
+import com.comcast.ip4s.Port
+
 import org.http4s.HttpRoutes
 import org.http4s.Method.GET
-import org.http4s.server.blaze.BlazeServerBuilder
+import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.dsl.io._
 import org.http4s.syntax.all._
 
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 
 /**
  * Embedded HTTP Server for testing, mostly for assets refresh,
  * but can serve
  */
-object HttpServer extends CatsIO {
+object HttpServer extends CatsEffect {
 
   private val logger: Logger[IO] =
     Slf4jLogger.getLogger[IO]
@@ -52,11 +52,11 @@ object HttpServer extends CatsIO {
     HttpRoutes
       .of[IO] {
         case r @ GET -> Root / "counter" =>
-          logger.debug(r.pathInfo) *> counter.updateAndGet(_ + 1).flatMap { i =>
+          logger.debug(r.pathInfo.toString) *> counter.updateAndGet(_ + 1).flatMap { i =>
             Ok(s"counter $i")
           }
         case r @ GET -> Root / "flaky" =>
-          logger.debug(r.pathInfo) *> counter.update(_ + 1) *>
+          logger.debug(r.pathInfo.toString) *> counter.update(_ + 1) *>
             counter.get.flatMap { i =>
               val s = i.toString
               if (i == 1 || i == 2) NotFound(s)
@@ -66,7 +66,7 @@ object HttpServer extends CatsIO {
         case GET -> Root / "maxmind" / "GeoIP2-City.mmdb" =>
           counter.updateAndGet(_ + 1).flatMap { i =>
             val is = readMaxMindDb(i)
-            Ok(Blocker[IO].use(b => readInputStream[IO](is, 256, b).compile.to(Array)))
+            Ok(readInputStream[IO](is, 256).compile.to(Array))
           }
         case GET -> Root / "iab" / file =>
           counter.updateAndGet(_ + 1).flatMap { i =>
@@ -89,12 +89,12 @@ object HttpServer extends CatsIO {
   def resource: Resource[IO, Unit] =
     for {
       counter <- Resource.eval(Ref.of[IO, Int](0))
-      _ <- BlazeServerBuilder[IO](concurrent.ExecutionContext.global)
-             .bindHttp(8080)
+      port = Port.fromInt(8080).get
+      _ <- EmberServerBuilder
+             .default[IO]
+             .withPort(port)
              .withHttpApp(routes(counter).orNotFound)
-             .withoutBanner
-             .withoutSsl
-             .resource
+             .build
     } yield ()
 
   private def readMaxMindDb(req: Int) = {

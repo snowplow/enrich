@@ -1,14 +1,12 @@
 /*
- * Copyright (c) 2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2022-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 
 package com.snowplowanalytics.snowplow.enrich.kafka
@@ -17,7 +15,8 @@ import java.util.UUID
 
 import cats.Parallel
 import cats.implicits._
-import cats.effect.{Blocker, Concurrent, ConcurrentEffect, ContextShift, Resource, Timer}
+
+import cats.effect.kernel.{Async, Resource, Sync}
 
 import fs2.kafka._
 
@@ -26,21 +25,21 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Output
 
 object Sink {
 
-  def init[F[_]: ConcurrentEffect: ContextShift: Parallel: Timer](
-    blocker: Blocker,
-    output: Output
+  def init[F[_]: Async: Parallel](
+    output: Output,
+    authCallbackClass: String
   ): Resource[F, ByteSink[F]] =
     for {
-      sink <- initAttributed(blocker, output)
+      sink <- initAttributed(output, authCallbackClass)
     } yield (records: List[Array[Byte]]) => sink(records.map(AttributedData(_, UUID.randomUUID().toString, Map.empty)))
 
-  def initAttributed[F[_]: ConcurrentEffect: ContextShift: Parallel: Timer](
-    blocker: Blocker,
-    output: Output
+  def initAttributed[F[_]: Async: Parallel](
+    output: Output,
+    authCallbackClass: String
   ): Resource[F, AttributedByteSink[F]] =
     output match {
       case k: Output.Kafka =>
-        mkProducer(blocker, k).map { producer => records =>
+        mkProducer(k, authCallbackClass).map { producer => records =>
           records.parTraverse_ { record =>
             producer
               .produceOne_(toProducerRecord(k.topicName, record))
@@ -48,18 +47,19 @@ object Sink {
               .void
           }
         }
-      case o => Resource.eval(Concurrent[F].raiseError(new IllegalArgumentException(s"Output $o is not Kafka")))
+      case o => Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"Output $o is not Kafka")))
     }
 
-  private def mkProducer[F[_]: ConcurrentEffect: ContextShift](
-    blocker: Blocker,
-    output: Output.Kafka
+  private def mkProducer[F[_]: Async](
+    output: Output.Kafka,
+    authCallbackClass: String
   ): Resource[F, KafkaProducer[F, String, Array[Byte]]] = {
     val producerSettings =
       ProducerSettings[F, String, Array[Byte]]
         .withBootstrapServers(output.bootstrapServers)
+        // set before user-provided config to make it possible to override it via config
+        .withProperty("sasl.login.callback.handler.class", authCallbackClass)
         .withProperties(output.producerConf)
-        .withBlocker(blocker)
         .withProperties(
           ("key.serializer", "org.apache.kafka.common.serialization.StringSerializer"),
           ("value.serializer", "org.apache.kafka.common.serialization.ByteArraySerializer")

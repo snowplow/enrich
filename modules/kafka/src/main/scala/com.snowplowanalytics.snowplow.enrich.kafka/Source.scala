@@ -1,19 +1,17 @@
 /*
- * Copyright (c) 2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2022-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 
 package com.snowplowanalytics.snowplow.enrich.kafka
 
-import cats.effect.{ConcurrentEffect, ContextShift, Timer}
+import cats.effect.kernel.Async
 
 import fs2.kafka.{CommittableConsumerRecord, ConsumerSettings, KafkaConsumer}
 import fs2.Stream
@@ -22,20 +20,24 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input
 
 object Source {
 
-  def init[F[_]: ConcurrentEffect: ContextShift: Timer](
-    input: Input
+  def init[F[_]: Async](
+    input: Input,
+    authCallbackClass: String
   ): Stream[F, CommittableConsumerRecord[F, String, Array[Byte]]] =
     input match {
-      case k: Input.Kafka => kafka(k)
+      case k: Input.Kafka => kafka(k, authCallbackClass)
       case i => Stream.raiseError[F](new IllegalArgumentException(s"Input $i is not Kafka"))
     }
 
-  def kafka[F[_]: ConcurrentEffect: ContextShift: Timer](
-    input: Input.Kafka
+  def kafka[F[_]: Async](
+    input: Input.Kafka,
+    authCallbackClass: String
   ): Stream[F, CommittableConsumerRecord[F, String, Array[Byte]]] = {
     val consumerSettings =
       ConsumerSettings[F, String, Array[Byte]]
         .withBootstrapServers(input.bootstrapServers)
+        // set before user-provided config to make it possible to override it via config
+        .withProperty("sasl.login.callback.handler.class", authCallbackClass)
         .withProperties(input.consumerConf)
         .withEnableAutoCommit(false) // prevent enabling auto-commits by setting this after user-provided config
         .withProperties(

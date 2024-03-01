@@ -1,4 +1,9 @@
 {
+  # Full license text available in LICENSE.md
+  "license": {
+    "accept": true
+  }
+
   # Where to read collector payloads from
   "input": {
     "type": "Kinesis"
@@ -359,6 +364,18 @@
       "interval": 5 minutes
       "organizationId": "c5f3a09f-75f8-4309-bec5-fea560f78455"
       "pipelineId": "75a13583-5c99-40e3-81fc-541084dfc784"
+    }
+  }
+  
+  # Optional. Configuration section for various validation-oriented settings.
+  "validation": {
+   
+    # Optional. Configuration for custom maximum atomic fields (strings) length.
+    # Map-like structure with keys being field names and values being their max allowed length
+    "atomicFieldsLimits": {
+        "app_id": 5
+        "mkt_clickid": 100000
+        # ...and any other 'atomic' field with custom limit
     }
   }
 }

@@ -1,21 +1,27 @@
 /**
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.net.URI
 
-import cats.Id
+import org.specs2.matcher.DataTables
+import org.specs2.mutable.Specification
+
 import cats.data.EitherT
+import cats.implicits._
+
+import cats.effect.IO
+import cats.effect.unsafe.implicits.global
+
+import cats.effect.testing.specs2.CatsEffect
 
 import io.circe.literal._
 
@@ -23,10 +29,7 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.UaParserConf
 
-import org.specs2.matcher.DataTables
-import org.specs2.mutable.Specification
-
-class UaParserEnrichmentSpec extends Specification with DataTables {
+class UaParserEnrichmentSpec extends Specification with DataTables with CatsEffect {
 
   val mobileSafariUserAgent =
     "Mozilla/5.0 (iPhone; CPU iPhone OS 5_1_1 like Mac OS X) AppleWebKit/534.46 (KHTML, like Gecko) Version/5.1 Mobile/9B206 Safari/7534.48.3"
@@ -77,12 +80,14 @@ class UaParserEnrichmentSpec extends Specification with DataTables {
       "Custom Rules" | "Input UserAgent" | "Parsed UserAgent" |
         Some(badRulefile) !! mobileSafariUserAgent !! "Failed to initialize ua parser" |> { (rules, input, errorPrefix) =>
         (for {
-          c <- EitherT.rightT[Id, String](UaParserConf(schemaKey, rules))
-          e <- c.enrichment[Id]
+          c <- EitherT.rightT[IO, String](UaParserConf(schemaKey, rules))
+          e <- c.enrichment[IO]
           res = e.extractUserAgent(input)
-        } yield res).value must beLeft.like {
-          case a => a must startWith(errorPrefix)
-        }
+        } yield res).value
+          .map(_ must beLeft.like {
+            case a => a must startWith(errorPrefix)
+          })
+          .unsafeRunSync()
       }
     }
 
@@ -91,12 +96,11 @@ class UaParserEnrichmentSpec extends Specification with DataTables {
         None !! mobileSafariUserAgent !! mobileSafariJson |
         None !! safariUserAgent !! safariJson |
         Some(customRules) !! mobileSafariUserAgent !! testAgentJson |> { (rules, input, expected) =>
-        val json = for {
-          c <- EitherT.rightT[Id, String](UaParserConf(schemaKey, rules))
-          e <- c.enrichment[Id].leftMap(_.toString)
-          res <- EitherT.fromEither[Id](e.extractUserAgent(input)).leftMap(_.toString)
-        } yield res
-        json.value must beRight(expected)
+        (for {
+          c <- EitherT.rightT[IO, String](UaParserConf(schemaKey, rules))
+          e <- c.enrichment[IO]
+          res <- EitherT(e.extractUserAgent(input).map(_.leftMap(_.toString())))
+        } yield res).value.map(_ must beRight(expected)).unsafeRunSync()
       }
     }
   }

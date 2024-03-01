@@ -1,32 +1,32 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.net.InetAddress
 
-import cats.Id
-import cats.syntax.functor._
+import cats.effect.IO
+import cats.effect.unsafe.implicits.global
+
+import cats.effect.testing.specs2.CatsEffect
 
 import io.circe.literal._
-
-import org.joda.time.DateTime
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 
 import inet.ipaddr.HostName
 import org.specs2.Specification
 import org.specs2.matcher.DataTables
+import org.joda.time.DateTime
 
-class IabEnrichmentSpec extends Specification with DataTables {
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
+
+class IabEnrichmentSpec extends Specification with DataTables with CatsEffect {
 
   def is = s2"""
   performCheck should correctly perform IAB checks on valid input $e1
@@ -80,15 +80,18 @@ class IabEnrichmentSpec extends Specification with DataTables {
         expectedReason,
         expectedPrimaryImpact
       ) =>
-        validConfig.enrichment[Id].map { e =>
-          e.performCheck(userAgent, ipAddress, DateTime.now()) must beRight.like {
-            case check =>
-              check.spiderOrRobot must_== expectedSpiderOrRobot and
-                (check.category must_== expectedCategory) and
-                (check.reason must_== expectedReason) and
-                (check.primaryImpact must_== expectedPrimaryImpact)
+        validConfig
+          .enrichment[IO]
+          .map { e =>
+            e.performCheck(userAgent, ipAddress, DateTime.now()) must beRight.like {
+              case check =>
+                check.spiderOrRobot must_== expectedSpiderOrRobot and
+                  (check.category must_== expectedCategory) and
+                  (check.reason must_== expectedReason) and
+                  (check.primaryImpact must_== expectedPrimaryImpact)
+            }
           }
-        }
+          .unsafeRunSync()
     }
 
   def e2 = {
@@ -98,9 +101,10 @@ class IabEnrichmentSpec extends Specification with DataTables {
         json"""{"spiderOrRobot": false, "category": "BROWSER", "reason": "PASSED_ALL", "primaryImpact": "NONE"}"""
       )
     validConfig
-      .enrichment[Id]
-      .map(_.getIabContext("Xdroid", "192.168.0.1".ip, DateTime.now())) must
-      beRight(responseJson)
+      .enrichment[IO]
+      .map { e =>
+        e.getIabContext("Xdroid", "192.168.0.1".ip, DateTime.now()) must beRight(responseJson)
+      }
   }
 
   private implicit class IpOps(s: String) {

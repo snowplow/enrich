@@ -1,34 +1,38 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest
 
-import cats.Id
 import cats.data.ValidatedNel
 import cats.syntax.either._
+
+import cats.effect.IO
+import cats.effect.testing.specs2.CatsEffect
+
 import io.circe.Json
 import io.circe.literal._
 import io.circe.parser._
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
-import com.snowplowanalytics.snowplow.badrows.FailureDetails
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.ApiRequestConf
-import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.HttpClient
-import com.snowplowanalytics.snowplow.enrich.common.utils.Clock.idClock
+
 import org.specs2.Specification
 import org.specs2.matcher.ValidatedMatchers
 import org.specs2.mock.Mockito
 
-class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with Mockito {
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
+
+import com.snowplowanalytics.snowplow.badrows.FailureDetails
+
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.ApiRequestConf
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.utils.HttpClient
+
+class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with Mockito with CatsEffect {
   def is = s2"""
   extract correct configuration for GET request and perform the request  $e1
   skip incorrect input (none of json or pojo) in configuration           $e2
@@ -65,17 +69,15 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
         1000,
         Authentication(Some(HttpBasic(Some("xxx"), None)))
       )
-    implicit val idHttpClient: HttpClient[Id] = new HttpClient[Id] {
+    val mockHttpClient: HttpClient[IO] = new HttpClient[IO] {
       override def getResponse(
         uri: String,
         authUser: Option[String],
         authPassword: Option[String],
         body: Option[String],
-        method: String,
-        connectionTimeout: Option[Long],
-        readTimeout: Option[Long]
-      ): Id[Either[Throwable, String]] =
-        """{"record": {"name": "Fancy User", "company": "Acme"}}""".asRight
+        method: String
+      ): IO[Either[Throwable, String]] =
+        IO.pure("""{"record": {"name": "Fancy User", "company": "Acme"}}""".asRight)
     }
     val output = Output("iglu:com.acme/user/jsonschema/1-0-0", Some(JsonOutput("$.record")))
     val cache = Cache(3000, 60)
@@ -164,18 +166,18 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
         json"""{"name": "Fancy User", "company": "Acme" }"""
       )
 
-    val enrichedContextResult = config
-      .enrichment[Id]
-      .lookup(
-        event = fakeEnrichedEvent,
-        derivedContexts = List.empty,
-        customContexts = List(clientSession),
-        unstructEvent = None
-      )
-
-    val validResult = enrichedContextResult must beValid(List(user))
-
-    validConfig and validResult
+    for {
+      enrichment <- config.enrichment[IO](mockHttpClient)
+      enrichedContextResult <- enrichment.lookup(
+                                 event = fakeEnrichedEvent,
+                                 derivedContexts = List.empty,
+                                 customContexts = List(clientSession),
+                                 unstructEvent = None
+                               )
+    } yield {
+      val validResult = enrichedContextResult must beValid(List(user))
+      validConfig and validResult
+    }
   }
 
   def e2 = {
@@ -301,17 +303,15 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
       authentication = Authentication(Some(HttpBasic(Some("xxx"), None)))
     )
 
-    implicit val idHttpClient: HttpClient[Id] = new HttpClient[Id] {
+    val mockHttpClient: HttpClient[IO] = new HttpClient[IO] {
       override def getResponse(
         uri: String,
         authUser: Option[String],
         authPassword: Option[String],
         body: Option[String],
-        method: String,
-        connectionTimeout: Option[Long],
-        readTimeout: Option[Long]
-      ): Id[Either[Throwable, String]] =
-        """{"record": {"name": "Fancy User", "company": "Acme"}}""".asRight
+        method: String
+      ): IO[Either[Throwable, String]] =
+        IO.pure("""{"record": {"name": "Fancy User", "company": "Acme"}}""".asRight)
     }
     val output =
       Output(schema = "iglu:com.acme/user/jsonschema/1-0-0", json = Some(JsonOutput("$.record")))
@@ -404,18 +404,18 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
         json"""{"name": "Fancy User", "company": "Acme" }"""
       )
 
-    val enrichedContextResult = config
-      .enrichment[Id]
-      .lookup(
-        event = fakeEnrichedEvent,
-        derivedContexts = List.empty,
-        customContexts = List(clientSession),
-        unstructEvent = None
-      )
-
-    val validResult = enrichedContextResult must beValid(List(user))
-
-    validConfig and validResult
+    for {
+      enrichment <- config.enrichment[IO](mockHttpClient)
+      enrichedContextResult <- enrichment.lookup(
+                                 event = fakeEnrichedEvent,
+                                 derivedContexts = List.empty,
+                                 customContexts = List(clientSession),
+                                 unstructEvent = None
+                               )
+    } yield {
+      val validResult = enrichedContextResult must beValid(List(user))
+      validConfig and validResult
+    }
   }
 
   def e5 = {
@@ -427,17 +427,15 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
         1000,
         Authentication(None)
       )
-    implicit val idHttpClient: HttpClient[Id] = new HttpClient[Id] {
+    val mockHttpClient: HttpClient[IO] = new HttpClient[IO] {
       override def getResponse(
         uri: String,
         authUser: Option[String],
         authPassword: Option[String],
         body: Option[String],
-        method: String,
-        connectionTimeout: Option[Long],
-        readTimeout: Option[Long]
-      ): Id[Either[Throwable, String]] =
-        """{"latitude":32.234,"longitude":33.564}""".asRight
+        method: String
+      ): IO[Either[Throwable, String]] =
+        IO.pure("""{"latitude":32.234,"longitude":33.564}""".asRight)
     }
     val output = Output("iglu:com.acme/geo/jsonschema/1-0-0", Some(JsonOutput("$")))
     val cache = Cache(3000, 60)
@@ -449,36 +447,38 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
         json"""{"latitude": 32.234, "longitude": 33.564}"""
       )
 
-    val enrichedContextResult = config.enrichment[Id].lookup(new EnrichedEvent, Nil, Nil, None)
-
-    enrichedContextResult must beValid(List(expectedDerivation))
+    for {
+      enrichment <- config.enrichment[IO](mockHttpClient)
+      enrichedContextResult <- enrichment.lookup(new EnrichedEvent, Nil, Nil, None)
+    } yield enrichedContextResult must beValid(List(expectedDerivation))
   }
 
   def e6 =
-    failingLookup(ignoreOnError = false) must beInvalid
+    failingLookup(ignoreOnError = false).map(_ must beInvalid)
 
   def e7 =
-    failingLookup(ignoreOnError = true) must beValid(List.empty)
+    failingLookup(ignoreOnError = true).map(_ must beValid(List.empty))
 
-  private def failingLookup(ignoreOnError: Boolean): ValidatedNel[FailureDetails.EnrichmentFailure, List[SelfDescribingData[Json]]] = {
+  private def failingLookup(ignoreOnError: Boolean): IO[ValidatedNel[FailureDetails.EnrichmentFailure, List[SelfDescribingData[Json]]]] = {
     val inputs = List()
     val api = HttpApi("GET", "unused", 1000, Authentication(None))
-    implicit val idHttpClient: HttpClient[Id] = new HttpClient[Id] {
+    val mockHttpClient: HttpClient[IO] = new HttpClient[IO] {
       override def getResponse(
         uri: String,
         authUser: Option[String],
         authPassword: Option[String],
         body: Option[String],
-        method: String,
-        connectionTimeout: Option[Long],
-        readTimeout: Option[Long]
-      ): Id[Either[Throwable, String]] =
-        Left(new RuntimeException("API failed!!!"))
+        method: String
+      ): IO[Either[Throwable, String]] =
+        IO.pure(Left(new RuntimeException("API failed!!!")))
     }
     val output = Output("unused", None)
     val cache = Cache(3000, 60)
     val config = ApiRequestConf(SCHEMA_KEY, inputs, api, List(output), cache, ignoreOnError)
 
-    config.enrichment[Id].lookup(new EnrichedEvent, Nil, Nil, None)
+    for {
+      enrichment <- config.enrichment[IO](mockHttpClient)
+      result <- enrichment.lookup(new EnrichedEvent, Nil, Nil, None)
+    } yield result
   }
 }

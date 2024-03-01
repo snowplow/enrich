@@ -1,4 +1,9 @@
 {
+  # Full license text available in LICENSE.md
+  "license": {
+    "accept": true
+  }
+
   # Collector input
   "input": {
     "type": "Nsq"
@@ -227,6 +232,29 @@
     "tryBase64Decoding": false
   }
 
+  # Optional. Configuration for blob storage clients used to download
+  # enrichment resources
+  "blobStorage": {
+    # Optional. Whether S3 client should be enabled.
+    "s3": true
+    # Optional. Whether GCS client should be enabled.
+    "gcs": true
+    # Optional. Azure blob storage client configuration.
+    # ABS client won't be enabled if it isn't given.
+    "azureStorage": {
+      "accounts": [
+        # Example public account with no auth
+        { "name": "storageAccount1"},
+        
+        # Example private account using default auth chain -> https://learn.microsoft.com/en-us/java/api/com.azure.identity.defaultazurecredential?view=azure-java-stable
+        { "name": "storageAccount2", "auth": { "type": "default"} },
+        
+        # Example private account using SAS token auth
+        { "name": "storageAccount3",  "auth": { "type": "sas", "value": "tokenValue"}}
+      ]
+    }
+  }
+
   # Optional. Configuration for experimental/preview features
   "experimental": {
     # Whether to export metadata using a webhook URL.
@@ -238,4 +266,16 @@
       "pipelineId": "75a13583-5c99-40e3-81fc-541084dfc784"
     }
   }
+
+  # Optional. Configuration section for various validation-oriented settings.
+  "validation": {
+   
+    # Optional. Configuration for custom maximum atomic fields (strings) length.
+    # Map-like structure with keys being field names and values being their max allowed length
+    "atomicFieldsLimits": {
+        "app_id": 5
+        "mkt_clickid": 100000
+        # ...and any other 'atomic' field with custom limit
+    }
+  }  
 }

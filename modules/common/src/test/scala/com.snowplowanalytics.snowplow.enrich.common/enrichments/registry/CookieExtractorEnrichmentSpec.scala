@@ -1,22 +1,20 @@
 /**
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
  * | *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import io.circe.literal._
 
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
-
 import org.specs2.Specification
+
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 
 class CookieExtractorEnrichmentSpec extends Specification {
   def is = s2"""
@@ -37,7 +35,8 @@ class CookieExtractorEnrichmentSpec extends Specification {
   }
 
   def e3 = {
-    val cookies = List("ck1", "=cv2", "ck3=", "ck4=cv4", "ck5=\"cv5\"")
+    val cookies = List("ck1", "=cv2", "ck3=")
+    val cookies2 = List("ck4=cv4", "ck5=\"cv5\"")
     val cookieKeys = List("ck1", "", "ck3", "ck4", "ck5")
 
     val expected =
@@ -65,7 +64,7 @@ class CookieExtractorEnrichmentSpec extends Specification {
       )
 
     val actual = CookieExtractorEnrichment(cookieKeys)
-      .extract(List("Cookie: " + cookies.mkString(";")))
+      .extract(List("cookie: " + cookies.mkString(";"), "Cookie:" + cookies2.mkString(";")))
 
     actual must beLike {
       case cookies @ _ :: _ :: _ :: _ :: _ :: Nil => cookies must_== expected

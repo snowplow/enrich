@@ -1,14 +1,12 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.adapters.registry.snowplow
 
@@ -23,6 +21,7 @@ import io.circe.Json
 
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
+
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
@@ -31,8 +30,9 @@ import com.snowplowanalytics.snowplow.badrows.FailureDetails
 import com.snowplowanalytics.snowplow.enrich.common.RawEventParameters
 import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.Adapter
+import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.Adapter.Adapted
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
-import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, JsonUtils => JU}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{JsonUtils => JU}
 
 /**
  * Version 2 of the Tracker Protocol supports GET and POST. Note that with POST, data can still be
@@ -56,9 +56,11 @@ object Tp2Adapter extends Adapter {
    * @param client The Iglu client used for schema lookup and validation
    * @return a Validation boxing either a NEL of RawEvents on Success, or a NEL of Failure Strings
    */
-  def toRawEvents[F[_]: Monad: RegistryLookup: Clock: HttpClient](payload: CollectorPayload, client: IgluCirceClient[F]): F[
-    ValidatedNel[FailureDetails.AdapterFailureOrTrackerProtocolViolation, NonEmptyList[RawEvent]]
-  ] = {
+  override def toRawEvents[F[_]: Monad: Clock](
+    payload: CollectorPayload,
+    client: IgluCirceClient[F],
+    registryLookup: RegistryLookup[F]
+  ): F[Adapted] = {
     val qsParams = toMap(payload.querystring)
 
     // Verify: body + content type set; content type matches expected; body contains expected JSON Schema; body passes schema validation
@@ -105,7 +107,7 @@ object Tp2Adapter extends Adapter {
         case (None, None) => Monad[F].pure(NonEmptyList.one(qsParams).valid)
         case (Some(bdy), Some(_)) => // Build our NEL of parameters
           (for {
-            json <- extractAndValidateJson(PayloadDataSchema, bdy, client)
+            json <- extractAndValidateJson(PayloadDataSchema, bdy, client, registryLookup)
             nel <- EitherT.fromEither[F](toParametersNel(json, qsParams))
           } yield nel).toValidated
       }
@@ -207,11 +209,13 @@ object Tp2Adapter extends Adapter {
    * @return an Option-boxed Validation containing either a Nel of JsonNodes error message on
    * Failure, or a singular JsonNode on success
    */
-  private def extractAndValidateJson[F[_]: Monad: RegistryLookup: Clock](
+  private def extractAndValidateJson[F[_]: Monad: Clock](
     schemaCriterion: SchemaCriterion,
     instance: String,
-    client: IgluCirceClient[F]
-  ): EitherT[F, NonEmptyList[FailureDetails.TrackerProtocolViolation], Json] =
+    client: IgluCirceClient[F],
+    registryLookup: RegistryLookup[F]
+  ): EitherT[F, NonEmptyList[FailureDetails.TrackerProtocolViolation], Json] = {
+    implicit val rl = registryLookup
     (for {
       j <- EitherT.fromEither[F](
              JU.extractJson(instance)
@@ -253,4 +257,5 @@ object Tp2Adapter extends Adapter {
                }
              }
     } yield sd.data).leftWiden[NonEmptyList[FailureDetails.TrackerProtocolViolation]]
+  }
 }

@@ -1,48 +1,54 @@
 /*
- * Copyright (c) 2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2022-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 
 package com.snowplowanalytics.snowplow.enrich.kafka
 
-import java.util.concurrent.{Executors, TimeUnit}
-import scala.concurrent.ExecutionContext
+import scala.concurrent.duration._
+
 import cats.{Applicative, Parallel}
 import cats.implicits._
-import cats.effect.{ExitCode, IO, IOApp, Resource, SyncIO}
+
+import cats.effect.{ExitCode, IO, IOApp}
+import cats.effect.kernel.Resource
+import cats.effect.metrics.CpuStarvationWarningMetrics
+
+import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
+
 import fs2.kafka.CommittableConsumerRecord
+
+import com.snowplowanalytics.snowplow.enrich.aws.S3Client
+
+import com.snowplowanalytics.snowplow.enrich.gcp.GcsClient
+
+import com.snowplowanalytics.snowplow.enrich.azure.AzureStorageClient
+
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Run
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.BlobStorageClients
+import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients.Client
+
 import com.snowplowanalytics.snowplow.enrich.kafka.generated.BuildInfo
 
-object Main extends IOApp.WithContext {
+object Main extends IOApp {
+
+  override def runtimeConfig =
+    super.runtimeConfig.copy(cpuStarvationCheckInterval = 10.seconds)
+
+  private implicit val logger: Logger[IO] = Slf4jLogger.getLogger[IO]
+
+  override def onCpuStarvationWarn(metrics: CpuStarvationWarningMetrics): IO[Unit] =
+    Logger[IO].debug(s"Cats Effect measured responsiveness in excess of ${metrics.starvationInterval * metrics.starvationThreshold}")
 
   // Kafka records must not exceed 1MB
   private val MaxRecordSize = 1000000
-
-  /**
-   * An execution context matching the cats effect IOApp default. We create it explicitly so we can
-   * also use it for our Blaze client.
-   */
-  override protected val executionContextResource: Resource[SyncIO, ExecutionContext] = {
-    val poolSize = math.max(2, Runtime.getRuntime.availableProcessors())
-    Resource
-      .make(SyncIO(Executors.newFixedThreadPool(poolSize)))(pool =>
-        SyncIO {
-          pool.shutdown()
-          pool.awaitTermination(10, TimeUnit.SECONDS)
-          ()
-        }
-      )
-      .map(ExecutionContext.fromExecutorService)
-  }
 
   def run(args: List[String]): IO[ExitCode] =
     Run.run[IO, CommittableConsumerRecord[IO, String, Array[Byte]]](
@@ -50,14 +56,13 @@ object Main extends IOApp.WithContext {
       BuildInfo.name,
       BuildInfo.version,
       BuildInfo.description,
-      executionContext,
-      (_, cliConfig) => IO(cliConfig),
-      (_, input, _) => Source.init[IO](input),
-      (blocker, out) => Sink.initAttributed(blocker, out),
-      (blocker, out) => Sink.initAttributed(blocker, out),
-      (blocker, out) => Sink.init(blocker, out),
+      cliConfig => IO.pure(cliConfig),
+      (input, _) => Source.init[IO](input, classOf[SourceAuthHandler].getName),
+      out => Sink.initAttributed(out, classOf[GoodSinkAuthHandler].getName),
+      out => Sink.initAttributed(out, classOf[PiiSinkAuthHandler].getName),
+      out => Sink.init(out, classOf[BadSinkAuthHandler].getName),
       checkpoint,
-      List.empty,
+      createBlobStorageClient,
       _.record.value,
       MaxRecordSize,
       None,
@@ -73,4 +78,11 @@ object Main extends IOApp.WithContext {
         .values
         .toList
         .parTraverse_(_.offset.commit)
+
+  private def createBlobStorageClient(conf: BlobStorageClients): List[Resource[IO, Client[IO]]] = {
+    val gcs = if (conf.gcs) Some(Resource.eval(GcsClient.mk[IO])) else None
+    val aws = if (conf.s3) Some(S3Client.mk[IO]) else None
+    val azure = conf.azureStorage.map(s => AzureStorageClient.mk[IO](s))
+    List(gcs, aws, azure).flatten
+  }
 }

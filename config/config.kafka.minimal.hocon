@@ -1,4 +1,8 @@
 {
+  "license": {
+    "accept": true
+  }
+
   "input": {
     "topicName": "collector-payloads"
     "bootstrapServers": "localhost:9092"

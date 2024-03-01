@@ -1,26 +1,25 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.lang.{Float => JFloat}
 import java.time.{Instant, ZoneOffset, ZonedDateTime}
-import java.util.concurrent.TimeUnit
 
 import scala.concurrent.duration.FiniteDuration
 
 import cats.Monad
 import cats.data.{EitherT, NonEmptyList, ValidatedNel}
 import cats.implicits._
+
+import cats.effect.Async
 
 import org.joda.time.{DateTime, DateTimeZone}
 
@@ -67,24 +66,27 @@ object WeatherEnrichment extends ParseableEnrichment {
       }
       .toValidated
 
-  /**
-   * Creates a WeatherEnrichment from a WeatherConf
-   * @param conf Configuration for the weather enrichment
-   * @return a weather enrichment
-   */
-  def apply[F[_]: Monad: CreateOWM](conf: WeatherConf): EitherT[F, String, WeatherEnrichment[F]] =
+  def create[F[_]: Async](
+    schemaKey: SchemaKey,
+    apiHost: String,
+    apiKey: String,
+    timeout: FiniteDuration,
+    ssl: Boolean,
+    cacheSize: Int,
+    geoPrecision: Int
+  ): EitherT[F, String, WeatherEnrichment[F]] =
     EitherT(
       CreateOWM[F]
         .create(
-          conf.apiHost,
-          conf.apiKey,
-          FiniteDuration(conf.timeout.toLong, TimeUnit.SECONDS),
-          true,
-          conf.cacheSize,
-          conf.geoPrecision
+          apiHost,
+          apiKey,
+          timeout,
+          ssl,
+          cacheSize,
+          geoPrecision
         )
     ).leftMap(_.message)
-      .map(c => WeatherEnrichment(conf.schemaKey, c))
+      .map(c => WeatherEnrichment(schemaKey, c))
 }
 
 /**

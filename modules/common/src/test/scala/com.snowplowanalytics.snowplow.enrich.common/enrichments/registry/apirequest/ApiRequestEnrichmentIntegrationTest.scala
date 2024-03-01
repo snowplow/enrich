@@ -1,31 +1,32 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments.registry.apirequest
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest
 
-import cats.Id
+import cats.effect.IO
+import cats.effect.testing.specs2.CatsEffect
 
 import io.circe._
 import io.circe.literal._
 
-import com.snowplowanalytics.iglu.client.CirceValidator
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
-
 import org.specs2.Specification
 import org.specs2.matcher.Matcher
-import com.snowplowanalytics.snowplow.enrich.common.utils.Clock.idClock
+import org.specs2.matcher.ValidatedMatchers
 
-import outputs.EnrichedEvent
+import com.snowplowanalytics.iglu.client.CirceValidator
+
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
+
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 
 object ApiRequestEnrichmentIntegrationTest {
   def continuousIntegration: Boolean =
@@ -36,7 +37,7 @@ object ApiRequestEnrichmentIntegrationTest {
 }
 
 import ApiRequestEnrichmentIntegrationTest._
-class ApiRequestEnrichmentIntegrationTest extends Specification {
+class ApiRequestEnrichmentIntegrationTest extends Specification with ValidatedMatchers with CatsEffect {
   def is =
     skipAllUnless(continuousIntegration) ^
       s2"""
@@ -302,77 +303,80 @@ class ApiRequestEnrichmentIntegrationTest extends Specification {
   }
 
   def e1 = {
-    val enrichment = ApiRequestEnrichment
-      .parse(IntegrationTests.configuration, SCHEMA_KEY)
-      .map(_.enrichment[Id])
-      .toEither
-    val event = new EnrichedEvent
-    event.setApp_id("lookup-test")
-    event.setUser_id("snowplower")
-    val context = enrichment.flatMap(_.lookup(event, Nil, Nil, None).toEither)
-    context must beRight.like {
-      case context =>
-        context must contain(IntegrationTests.correctResultContext) and (context must have size 1)
+    val config = ApiRequestEnrichment.parse(IntegrationTests.configuration, SCHEMA_KEY).toOption.get
+    SpecHelpers.httpClient.use { http =>
+      for {
+        enrichment <- config.enrichment[IO](http)
+        event = {
+          val e = new EnrichedEvent
+          e.setApp_id("lookup-test")
+          e.setUser_id("snowplower")
+          e
+        }
+        context <- enrichment.lookup(event, Nil, Nil, None)
+      } yield context must beValid.like {
+        case context =>
+          context must contain(IntegrationTests.correctResultContext) and (context must have size 1)
+      }
     }
   }
 
   def e2 = {
-    val enrichment = ApiRequestEnrichment
-      .parse(IntegrationTests.configuration2, SCHEMA_KEY)
-      .map(_.enrichment[Id])
-      .toEither
-    val event = new EnrichedEvent
-    event.setApp_id("lookup test")
-    event.setUser_id("snowplower")
-
-    // Fill cache
-    enrichment.flatMap(
-      _.lookup(
-        event,
-        List(IntegrationTests.weatherContext),
-        List(IntegrationTests.customContexts),
-        Some(IntegrationTests.unstructEvent)
-      ).toEither
-    )
-    enrichment.flatMap(
-      _.lookup(
-        event,
-        List(IntegrationTests.weatherContext),
-        List(IntegrationTests.customContexts),
-        Some(IntegrationTests.unstructEvent)
-      ).toEither
-    )
-
-    val context = enrichment.flatMap(
-      _.lookup(
-        event,
-        List(IntegrationTests.weatherContext),
-        List(IntegrationTests.customContexts),
-        Some(IntegrationTests.unstructEvent)
-      ).toEither
-    )
-
-    context must beRight.like {
-      case contexts =>
-        contexts must contain(
-          beJson(IntegrationTests.correctResultContext3),
-          beJson(IntegrationTests.correctResultContext2)
-        ) and (contexts must have size 2)
+    val config = ApiRequestEnrichment.parse(IntegrationTests.configuration2, SCHEMA_KEY).toOption.get
+    SpecHelpers.httpClient.use { http =>
+      for {
+        enrichment <- config.enrichment[IO](http)
+        event = {
+          val e = new EnrichedEvent
+          e.setApp_id("lookup test")
+          e.setUser_id("snowplower")
+          e
+        }
+        // Fill cache
+        _ <- enrichment.lookup(
+               event,
+               List(IntegrationTests.weatherContext),
+               List(IntegrationTests.customContexts),
+               Some(IntegrationTests.unstructEvent)
+             )
+        _ <- enrichment.lookup(
+               event,
+               List(IntegrationTests.weatherContext),
+               List(IntegrationTests.customContexts),
+               Some(IntegrationTests.unstructEvent)
+             )
+        context <- enrichment.lookup(
+                     event,
+                     List(IntegrationTests.weatherContext),
+                     List(IntegrationTests.customContexts),
+                     Some(IntegrationTests.unstructEvent)
+                   )
+      } yield context must beValid.like {
+        case contexts =>
+          contexts must contain(
+            beJson(IntegrationTests.correctResultContext3),
+            beJson(IntegrationTests.correctResultContext2)
+          ) and (contexts must have size 2)
+      }
     }
   }
 
   def e3 = {
-    val enrichment = ApiRequestEnrichment
-      .parse(IntegrationTests.configuration3, SCHEMA_KEY)
-      .map(_.enrichment[Id])
-      .toEither
-    val event = new EnrichedEvent
-    event.setUser_ipaddress("127.0.0.1")
-    val context = enrichment.flatMap(_.lookup(event, Nil, Nil, None).toEither)
-    context must beRight.like {
-      case contexts =>
-        (contexts must have size 1) and (contexts must contain(IntegrationTests.correctResultContext4)) and
-          (CirceValidator.validate(contexts.head.data, IntegrationTests.schema) must beRight)
+    val config = ApiRequestEnrichment.parse(IntegrationTests.configuration3, SCHEMA_KEY).toOption.get
+    SpecHelpers.httpClient.use { http =>
+      for {
+        enrichment <- config.enrichment[IO](http)
+        event = {
+          val e = new EnrichedEvent
+          e.setUser_ipaddress("127.0.0.1")
+          e
+        }
+        context <- enrichment.lookup(event, Nil, Nil, None)
+      } yield context must beValid.like {
+        case contexts =>
+          (contexts must have size 1) and (contexts must contain(IntegrationTests.correctResultContext4)) and
+            (CirceValidator.validate(contexts.head.data, IntegrationTests.schema) must beRight)
+      }
     }
   }
 }

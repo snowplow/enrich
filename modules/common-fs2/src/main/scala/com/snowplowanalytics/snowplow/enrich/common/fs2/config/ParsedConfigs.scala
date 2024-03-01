@@ -1,14 +1,12 @@
 /*
- * Copyright (c) 2021-2021 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2021-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2.config
 
@@ -21,7 +19,7 @@ import _root_.io.circe.syntax._
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
-import cats.effect.{Async, Clock, ContextShift, Sync}
+import cats.effect.kernel.{Async, Sync}
 
 import cats.implicits._
 import cats.data.{EitherT, NonEmptyList}
@@ -33,6 +31,7 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
 import com.snowplowanalytics.iglu.client.{IgluCirceClient, Resolver}
+import com.snowplowanalytics.iglu.client.resolver.registries.JavaNetRegistryLookup
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
@@ -65,7 +64,7 @@ object ParsedConfigs {
   final val enrichedFieldsMap: Map[String, Field] = ConversionUtils.EnrichedFields.map(f => f.getName -> f).toMap
 
   /** Decode base64-encoded configs, passed via CLI. Read files, validate and parse */
-  def parse[F[_]: Async: Clock: ContextShift](config: CliConfig): Parsed[F, ParsedConfigs] =
+  def parse[F[_]: Async](config: CliConfig): Parsed[F, ParsedConfigs] =
     for {
       igluJson <- parseHoconToJson[F](config.resolver)
       enrichmentJsons <- config.enrichments match {
@@ -79,9 +78,6 @@ object ParsedConfigs {
                          }
       configFile <- ConfigFile.parse[F](config.config)
       configFile <- validateConfig[F](configFile)
-      _ <- EitherT.liftF(
-             Logger[F].info(s"Parsed config file: ${configFile}")
-           )
       goodPartitionKey = outputPartitionKey(configFile.output.good)
       piiPartitionKey = configFile.output.pii.map(outputPartitionKey).getOrElse { _: EnrichedEvent => "" }
       goodAttributes = outputAttributes(configFile.output.good)
@@ -93,7 +89,8 @@ object ParsedConfigs {
       _ <- EitherT.liftF(
              Logger[F].info(show"Parsed Iglu Client with following registries: ${resolver.repos.map(_.config.name).mkString(", ")}")
            )
-      configs <- EitherT(EnrichmentRegistry.parse[F](enrichmentJsons, client, false).map(_.toEither)).leftMap { x =>
+      registryLookup = JavaNetRegistryLookup.ioLookupInstance[F]
+      configs <- EitherT(EnrichmentRegistry.parse[F](enrichmentJsons, client, false, registryLookup).map(_.toEither)).leftMap { x =>
                    show"Cannot decode enrichments - ${x.mkString_(", ")}"
                  }
       _ <- EitherT.liftF(Logger[F].info(show"Parsed following enrichments: ${configs.map(_.schemaKey.name).mkString(", ")}"))
@@ -147,7 +144,7 @@ object ParsedConfigs {
 
   private[config] def outputAttributes(output: OutputConfig): EnrichedEvent => Map[String, String] =
     output match {
-      case OutputConfig.PubSub(_, Some(attributes), _, _, _) => attributesFromFields(attributes)
+      case OutputConfig.PubSub(_, Some(attributes), _, _, _, _) => attributesFromFields(attributes)
       case OutputConfig.Kafka(_, _, _, headers, _) => attributesFromFields(headers)
       case _ => _ => Map.empty
     }

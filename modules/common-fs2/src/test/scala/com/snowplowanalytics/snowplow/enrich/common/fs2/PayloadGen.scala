@@ -1,29 +1,26 @@
 /*
- * Copyright (c) 2020-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2
 
-import java.nio.file.{Path, Paths}
 import java.util.Base64
 
-import cats.effect.{Blocker, IO}
-import cats.effect.concurrent.Ref
+import cats.effect.IO
+import cats.effect.kernel.Ref
 
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 
 import _root_.io.circe.literal._
 
-import fs2.{Chunk, Stream}
-import fs2.io.file.{createDirectory, writeAll}
+import fs2.Stream
+import fs2.io.file.{Files, Path}
 
 import org.apache.http.message.BasicNameValuePair
 
@@ -33,7 +30,7 @@ import org.scalacheck.{Arbitrary, Gen}
 
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 
-object PayloadGen extends CatsIO {
+object PayloadGen extends CatsEffect {
 
   val api: CollectorPayload.Api =
     CollectorPayload.Api("com.snowplowanalytics.snowplow", "tp2")
@@ -100,16 +97,13 @@ object PayloadGen extends CatsIO {
   def write(dir: Path, cardinality: Long): IO[Unit] =
     for {
       counter <- Ref.of[IO, Int](0)
-      dir <- Blocker[IO].use(b => createDirectory[IO](b, dir))
-      filename = counter.updateAndGet(_ + 1).map(i => Paths.get(s"${dir.toAbsolutePath}/payload.$i.thrift"))
-      _ <- Blocker[IO].use { b =>
-             val result =
-               for {
-                 payload <- payloadStream.take(cardinality)
-                 fileName <- Stream.eval(filename)
-                 _ <- Stream.chunk(Chunk.bytes(payload.toRaw)).through(writeAll[IO](fileName, b))
-               } yield ()
-             result.compile.drain
-           }
+      _ <- Files[IO].createDirectories(dir)
+      filename = counter.updateAndGet(_ + 1).map(i => Path(s"$dir/payload.$i.thrift"))
+      write = for {
+                payload <- payloadStream.take(cardinality)
+                fileName <- Stream.eval(filename)
+                _ <- Stream(payload.toRaw: _*).through(Files[IO].writeAll(fileName)).as(())
+              } yield ()
+      _ <- write.compile.drain
     } yield ()
 }

@@ -1,39 +1,39 @@
 /*
- * Copyright (c) 2020-2021 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2.io
 
 import java.net.URI
-import cats.effect.{ConcurrentEffect, Resource, Timer}
+
+import scala.concurrent.duration._
+
+import org.typelevel.ci.CIString
+
+import cats.effect.kernel.{Async, Resource}
+
+import fs2.io.net.Network
 import fs2.Stream
+
 import org.http4s.{Headers, Request, Uri}
 import org.http4s.client.defaults
 import org.http4s.client.{Client => Http4sClient}
-import org.http4s.client.blaze.BlazeClientBuilder
-
-import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext
+import org.http4s.client.middleware.Retry
+import org.http4s.ember.client.EmberClientBuilder
 
 import Clients._
-import org.http4s.blaze.pipeline.Command
-import org.http4s.client.middleware.{Retry, RetryPolicy}
-import org.http4s.syntax.string._
-import org.http4s.util.CaseInsensitiveString
 
-case class Clients[F[_]: ConcurrentEffect](clients: List[Client[F]]) {
+case class Clients[F[_]: Async](clients: List[Client[F]]) {
 
   /** Download a URI as a stream of bytes, using the appropriate client */
   def download(uri: URI): Stream[F, Byte] =
-    clients.find(_.prefixes.contains(uri.getScheme())) match {
+    clients.find(_.canDownload(uri)) match {
       case Some(client) =>
         client.download(uri)
       case None =>
@@ -42,12 +42,15 @@ case class Clients[F[_]: ConcurrentEffect](clients: List[Client[F]]) {
 }
 
 object Clients {
-  def init[F[_]: ConcurrentEffect](httpClient: Http4sClient[F], others: List[Client[F]]): Clients[F] =
+  def init[F[_]: Async](httpClient: Http4sClient[F], others: List[Client[F]]): Clients[F] =
     Clients(wrapHttpClient(httpClient) :: others)
 
-  def wrapHttpClient[F[_]: ConcurrentEffect](client: Http4sClient[F]): Client[F] =
+  def wrapHttpClient[F[_]: Async](client: Http4sClient[F]): Client[F] =
     new Client[F] {
-      val prefixes = List("http", "https")
+      def canDownload(uri: URI): Boolean =
+        // Since Azure Blob Storage urls' scheme are https as well and we want to fetch them with
+        // their own client, we added second condition to not pick up those urls
+        (uri.getScheme == "http" || uri.getScheme == "https") && !uri.toString.contains("core.windows.net")
 
       def download(uri: URI): Stream[F, Byte] = {
         val request = Request[F](uri = Uri.unsafeFromString(uri.toString))
@@ -59,36 +62,23 @@ object Clients {
       }
     }
 
-  def mkHttp[F[_]: ConcurrentEffect: Timer](
+  def mkHttp[F[_]: Async](
     connectionTimeout: FiniteDuration = defaults.ConnectTimeout,
     readTimeout: FiniteDuration = defaults.RequestTimeout,
-    maxConnections: Int = 10, // http4s uses 10 by default
-    ec: ExecutionContext
-  ): Resource[F, Http4sClient[F]] =
-    BlazeClientBuilder[F](ec)
-      .withConnectTimeout(connectionTimeout)
-      .withRequestTimeout(readTimeout)
-      .withMaxTotalConnections(maxConnections)
-      .resource
-      .map(Retry[F](retryPolicy, redactHeadersWhen))
+    maxConnections: Int = 100 // default of Ember client
+  ): Resource[F, Http4sClient[F]] = {
+    implicit val n = Network.forAsync[F]
+    val builder = EmberClientBuilder
+      .default[F]
+      .withTimeout(readTimeout)
+      .withIdleConnectionTime(connectionTimeout)
+      .withMaxTotal(maxConnections)
+    val retryPolicy = builder.retryPolicy
+    builder.build.map(Retry[F](retryPolicy, redactHeadersWhen))
+  }
 
-  private def retryPolicy[F[_]] =
-    RetryPolicy[F](
-      backoff,
-      retriable = {
-        //EOF error has to be retried explicitly for blaze client, see https://github.com/snowplow/enrich/issues/692
-        case (_, Left(Command.EOF)) => true
-        case _ => false
-      }
-    )
-
-  //retry once after 100 mills
-  private def backoff(attemptNumber: Int): Option[FiniteDuration] =
-    if (attemptNumber > 1) None
-    else Some(100.millis)
-
-  private def redactHeadersWhen(header: CaseInsensitiveString) =
-    (Headers.SensitiveHeaders + "apikey".ci).contains(header)
+  private def redactHeadersWhen(header: CIString) =
+    (Headers.SensitiveHeaders + CIString("apikey")).contains(header)
 
   trait RetryableFailure extends Throwable
 
@@ -97,7 +87,7 @@ object Clients {
   }
 
   trait Client[F[_]] {
-    val prefixes: List[String]
+    def canDownload(uri: URI): Boolean
     def download(uri: URI): Stream[F, Byte]
   }
 }

@@ -1,21 +1,21 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments
+
+import scala.concurrent.ExecutionContext
 
 import cats.Monad
 import cats.data.{EitherT, NonEmptyList, ValidatedNel}
 
-import cats.effect.Clock
+import cats.effect.kernel.{Async, Clock}
 import cats.implicits._
 
 import io.circe._
@@ -27,14 +27,9 @@ import com.snowplowanalytics.iglu.core.circe.implicits._
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 
-import com.snowplowanalytics.forex.CreateForex
-import com.snowplowanalytics.maxmind.iplookups.CreateIpLookups
-import com.snowplowanalytics.refererparser.CreateParser
-import com.snowplowanalytics.weather.providers.openweather.CreateOWM
-
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf._
 
-import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, CirceUtils, ShiftExecution}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{CirceUtils, HttpClient, ShiftExecution}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry._
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest.ApiRequestEnrichment
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii.PiiPseudonymizerEnrichment
@@ -54,12 +49,14 @@ object EnrichmentRegistry {
    * @return Validation boxing an EnrichmentRegistry object containing enrichments configured from
    * node
    */
-  def parse[F[_]: Monad: RegistryLookup: Clock](
+  def parse[F[_]: Monad: Clock](
     json: Json,
     client: IgluCirceClient[F],
-    localMode: Boolean
-  ): F[ValidatedNel[String, List[EnrichmentConf]]] =
-    (for {
+    localMode: Boolean,
+    registryLookup: RegistryLookup[F]
+  ): F[ValidatedNel[String, List[EnrichmentConf]]] = {
+    implicit val rl = registryLookup
+    val either = for {
       sd <- EitherT.fromEither[F](
               SelfDescribingData.parse(json).leftMap(parseError => NonEmptyList.one(parseError.code))
             )
@@ -102,27 +99,28 @@ object EnrichmentRegistry {
                    }
                    .sequence
                    .map(_.flatten)
-    } yield configs).toValidated
+    } yield configs
+    either.toValidated
+  }
 
   // todo: ValidatedNel?
-  def build[
-    F[_]: Monad: CreateForex: CreateIabClient: CreateIpLookups: CreateOWM: CreateParser: CreateUaParserEnrichment: sqlquery.CreateSqlQueryEnrichment: apirequest.CreateApiRequestEnrichment
-  ](
+  def build[F[_]: Async](
     confs: List[EnrichmentConf],
-    blocker: BlockerF[F],
-    shifter: ShiftExecution[F]
+    shifter: ShiftExecution[F],
+    httpApiEnrichment: HttpClient[F],
+    blockingEC: ExecutionContext
   ): EitherT[F, String, EnrichmentRegistry[F]] =
     confs.foldLeft(EitherT.pure[F, String](EnrichmentRegistry[F]())) { (er, e) =>
       e match {
         case c: ApiRequestConf =>
           for {
-            enrichment <- EitherT.right(c.enrichment[F])
+            enrichment <- EitherT.right(c.enrichment[F](httpApiEnrichment))
             registry <- er
           } yield registry.copy(apiRequest = enrichment.some)
         case c: PiiPseudonymizerConf => er.map(_.copy(piiPseudonymizer = c.enrichment.some))
         case c: SqlQueryConf =>
           for {
-            enrichment <- EitherT.right(c.enrichment[F](blocker, shifter))
+            enrichment <- EitherT.right(c.enrichment[F](shifter))
             registry <- er
           } yield registry.copy(sqlQuery = enrichment.some)
         case c: AnonIpConf => er.map(_.copy(anonIp = c.enrichment.some))
@@ -142,10 +140,10 @@ object EnrichmentRegistry {
           } yield registry.copy(iab = enrichment.some)
         case c: IpLookupsConf =>
           for {
-            enrichment <- EitherT.right(c.enrichment[F](blocker))
+            enrichment <- EitherT.right(c.enrichment[F](blockingEC))
             registry <- er
           } yield registry.copy(ipLookups = enrichment.some)
-        case c: JavascriptScriptConf => er.map(_.copy(javascriptScript = c.enrichment.some))
+        case c: JavascriptScriptConf => er.map(v => v.copy(javascriptScript = v.javascriptScript :+ c.enrichment))
         case c: RefererParserConf =>
           for {
             enrichment <- c.enrichment[F]
@@ -163,6 +161,7 @@ object EnrichmentRegistry {
             registry <- er
           } yield registry.copy(weather = enrichment.some)
         case c: YauaaConf => er.map(_.copy(yauaa = c.enrichment.some))
+        case c: CrossNavigationConf => er.map(_.copy(crossNavigation = c.enrichment.some))
       }
     }
 
@@ -226,6 +225,8 @@ object EnrichmentRegistry {
             PiiPseudonymizerEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
           case "iab_spiders_and_robots_enrichment" =>
             IabEnrichment.parse(enrichmentConfig, schemaKey, localMode).map(_.some)
+          case "cross_navigation_config" =>
+            CrossNavigationEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
           case _ =>
             Option.empty[EnrichmentConf].validNel // Enrichment is not recognized
         }
@@ -245,10 +246,11 @@ final case class EnrichmentRegistry[F[_]](
   httpHeaderExtractor: Option[HttpHeaderExtractorEnrichment] = None,
   iab: Option[IabEnrichment] = None,
   ipLookups: Option[IpLookupsEnrichment[F]] = None,
-  javascriptScript: Option[JavascriptScriptEnrichment] = None,
+  javascriptScript: List[JavascriptScriptEnrichment] = Nil,
   refererParser: Option[RefererParserEnrichment] = None,
   uaParser: Option[UaParserEnrichment[F]] = None,
   userAgentUtils: Option[UserAgentUtilsEnrichment] = None,
   weather: Option[WeatherEnrichment[F]] = None,
-  yauaa: Option[YauaaEnrichment] = None
+  yauaa: Option[YauaaEnrichment] = None,
+  crossNavigation: Option[CrossNavigationEnrichment] = None
 )

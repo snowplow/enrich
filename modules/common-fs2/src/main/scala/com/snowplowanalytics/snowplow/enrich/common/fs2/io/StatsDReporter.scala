@@ -1,14 +1,12 @@
 /*
- * Copyright (c) 2021 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2021-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2.io
 
@@ -17,7 +15,7 @@ import cats.implicits._
 import java.net.{DatagramPacket, DatagramSocket, InetAddress}
 import java.nio.charset.StandardCharsets.UTF_8
 
-import cats.effect.{Blocker, ContextShift, Resource, Sync, Timer}
+import cats.effect.kernel.{Resource, Sync}
 
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
@@ -43,22 +41,20 @@ object StatsDReporter {
    * so there could be a delay in following a DNS record change.  For the Docker image we release
    * the cache time is 30 seconds.
    */
-  def make[F[_]: Sync: ContextShift: Timer](
-    blocker: Blocker,
+  def make[F[_]: Sync](
     config: MetricsReporters.StatsD
   ): Resource[F, Metrics.Reporter[F]] =
-    Resource.fromAutoCloseable(Sync[F].delay(new DatagramSocket)).map(impl[F](blocker, config, _))
+    Resource.fromAutoCloseable(Sync[F].delay(new DatagramSocket)).map(impl[F](config, _))
 
-  def impl[F[_]: Sync: ContextShift: Timer](
-    blocker: Blocker,
+  def impl[F[_]: Sync](
     config: MetricsReporters.StatsD,
     socket: DatagramSocket
   ): Metrics.Reporter[F] =
     new Metrics.Reporter[F] {
       def report(snapshot: Metrics.MetricSnapshot): F[Unit] =
         (for {
-          inetAddr <- blocker.delay(InetAddress.getByName(config.hostname))
-          _ <- serializedMetrics(snapshot, config).traverse_(sendMetric[F](blocker, socket, inetAddr, config.port))
+          inetAddr <- Sync[F].blocking(InetAddress.getByName(config.hostname))
+          _ <- serializedMetrics(snapshot, config).traverse_(sendMetric[F](socket, inetAddr, config.port))
         } yield ()).handleErrorWith { t =>
           for {
             logger <- Slf4jLogger.create[F]
@@ -83,8 +79,7 @@ object StatsDReporter {
       snapshot.remoteAdaptersFailureCount.map(cnt => Metrics.RemoteAdaptersFailureCounterName -> cnt.toString) ++
       snapshot.remoteAdaptersTimeoutCount.map(cnt => Metrics.RemoteAdaptersTimeoutCounterName -> cnt.toString)
 
-  def sendMetric[F[_]: ContextShift: Sync](
-    blocker: Blocker,
+  def sendMetric[F[_]: Sync](
     socket: DatagramSocket,
     addr: InetAddress,
     port: Int
@@ -93,7 +88,7 @@ object StatsDReporter {
   ): F[Unit] = {
     val bytes = m.getBytes(UTF_8)
     val packet = new DatagramPacket(bytes, bytes.length, addr, port)
-    blocker.delay(socket.send(packet))
+    Sync[F].blocking(socket.send(packet))
   }
 
   private def statsDFormat(config: MetricsReporters.StatsD)(metric: KeyValueMetric): String = {
@@ -101,5 +96,4 @@ object StatsDReporter {
     val metricType = if (metric._1.contains("latency")) "g" else "c"
     s"${MetricsReporters.normalizeMetric(config.prefix, metric._1)}:${metric._2}|$metricType|#$tagStr"
   }
-
 }

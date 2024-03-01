@@ -1,28 +1,28 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments.web
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.web
 
 import cats.syntax.option._
+
 import com.snowplowanalytics.snowplow.badrows._
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.CrossNavigationEnrichment
+
 import org.specs2.Specification
 import org.specs2.matcher.DataTables
 
 class ParseCrossDomainSpec extends Specification with DataTables {
   def is = s2"""
-  parseCrossDomain should return None when the querystring is empty                             $e1
-  parseCrossDomain should return None when the querystring contains no _sp parameter            $e2
-  parseCrossDomain should return None when the querystring contains _sp parameter without value $e3
+  parseCrossDomain should return empty Map when the querystring is empty                             $e1
+  parseCrossDomain should return empty Map when the querystring contains no _sp parameter            $e2
+  parseCrossDomain should return empty Map when the querystring contains _sp parameter without value $e3
   parseCrossDomain should return a failure when the _sp timestamp is unparseable                $e4
   parseCrossDomain should successfully extract the domain user ID when available                $e5
   parseCrossDomain should successfully extract the domain user ID and timestamp when available  $e6
@@ -30,13 +30,15 @@ class ParseCrossDomainSpec extends Specification with DataTables {
   """
 
   def e1 =
-    PageEnrichments.parseCrossDomain(Nil) must beRight((None, None))
+    CrossNavigationEnrichment.parseCrossDomain(Nil).map(_.domainMap) must beRight(Map.empty[String, Option[String]])
 
   def e2 =
-    PageEnrichments.parseCrossDomain(List(("foo" -> Some("bar")))) must beRight((None, None))
+    CrossNavigationEnrichment.parseCrossDomain(List(("foo" -> Some("bar")))).map(_.domainMap) must beRight(
+      Map.empty[String, Option[String]]
+    )
 
   def e3 =
-    PageEnrichments.parseCrossDomain(List(("_sp" -> None))) must beRight((None, None))
+    CrossNavigationEnrichment.parseCrossDomain(List(("_sp" -> None))).map(_.domainMap) must beRight(Map.empty[String, Option[String]])
 
   def e4 = {
     val expected = FailureDetails.EnrichmentFailure(
@@ -47,17 +49,35 @@ class ParseCrossDomainSpec extends Specification with DataTables {
         "not in the expected format: ms since epoch"
       )
     )
-    PageEnrichments.parseCrossDomain(List(("_sp" -> Some("abc.not-a-timestamp")))) must beLeft(expected)
+    CrossNavigationEnrichment.parseCrossDomain(List(("_sp" -> Some("abc.not-a-timestamp")))).map(_.domainMap) must beLeft(expected)
   }
 
   def e5 =
-    PageEnrichments.parseCrossDomain(List(("_sp" -> Some("abc")))) must beRight(("abc".some, None))
+    CrossNavigationEnrichment.parseCrossDomain(List(("_sp" -> Some("abc")))).map(_.domainMap) must beRight(
+      Map(
+        "domain_user_id" -> "abc".some,
+        "timestamp" -> None,
+        "session_id" -> None,
+        "user_id" -> None,
+        "source_id" -> None,
+        "source_platform" -> None,
+        "reason" -> None
+      )
+    )
 
   def e6 =
-    PageEnrichments.parseCrossDomain(List(("_sp" -> Some("abc.1426245561368")))) must beRight(
-      ("abc".some, "2015-03-13 11:19:21.368".some)
+    CrossNavigationEnrichment.parseCrossDomain(List(("_sp" -> Some("abc.1426245561368")))).map(_.domainMap) must beRight(
+      Map(
+        "domain_user_id" -> "abc".some,
+        "timestamp" -> "2015-03-13 11:19:21.368".some,
+        "session_id" -> None,
+        "user_id" -> None,
+        "source_id" -> None,
+        "source_platform" -> None,
+        "reason" -> None
+      )
     )
 
   def e7 =
-    PageEnrichments.parseCrossDomain(List(("_sp" -> Some("")))) must beRight(None -> None)
+    CrossNavigationEnrichment.parseCrossDomain(List(("_sp" -> Some("")))).map(_.domainMap) must beRight(Map.empty[String, Option[String]])
 }

@@ -1,14 +1,12 @@
 /*
- * Copyright (c) 2021-2021 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2021-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2
 
@@ -18,7 +16,8 @@ import org.typelevel.log4cats.slf4j.Slf4jLogger
 import cats.data.NonEmptyList
 import cats.implicits._
 
-import cats.effect.{ConcurrentEffect, Resource, Sync, Timer}
+import cats.effect.kernel.{Async, Resource, Sync}
+import cats.effect.std.Random
 
 import fs2.Stream
 
@@ -32,7 +31,7 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData
 import com.snowplowanalytics.snowplow.scalatracker.Tracker
 import com.snowplowanalytics.snowplow.scalatracker.Emitter._
 import com.snowplowanalytics.snowplow.scalatracker.Emitter.{Result => TrackerResult}
-import com.snowplowanalytics.snowplow.scalatracker.emitters.http4s.Http4sEmitter
+import com.snowplowanalytics.snowplow.scalatracker.emitters.http4s.{Http4sEmitter, ceTracking}
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Telemetry => TelemetryConfig}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Cloud
@@ -42,7 +41,7 @@ object Telemetry {
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
     Slf4jLogger.getLogger[F]
 
-  def run[F[_]: ConcurrentEffect: Timer, A](env: Environment[F, A]): Stream[F, Unit] =
+  def run[F[_]: Async, A](env: Environment[F, A]): Stream[F, Unit] =
     env.telemetryConfig.disable match {
       case true =>
         Stream.empty.covary[F]
@@ -65,12 +64,13 @@ object Telemetry {
           }
     }
 
-  private def initTracker[F[_]: ConcurrentEffect: Timer](
+  private def initTracker[F[_]: Async](
     config: TelemetryConfig,
     appName: String,
     client: HttpClient[F]
   ): Resource[F, Tracker[F]] =
     for {
+      implicit0(random: Random[F]) <- Resource.eval(Random.scalaUtilRandom[F])
       emitter <- Http4sEmitter.build(
                    EndpointParams(config.collectorUri, port = Some(config.collectorPort), https = config.secure),
                    client,
@@ -113,7 +113,7 @@ object Telemetry {
         "moduleVersion" -> teleCfg.moduleVersion.asJson,
         "instanceId" -> teleCfg.instanceId.asJson,
         "appGeneratedId" -> java.util.UUID.randomUUID.toString.asJson,
-        "cloud" -> cloud.asJson,
+        "cloud" -> cloud.toString.toUpperCase().asJson,
         "region" -> region.asJson,
         "applicationName" -> appName.asJson,
         "applicationVersion" -> appVersion.asJson

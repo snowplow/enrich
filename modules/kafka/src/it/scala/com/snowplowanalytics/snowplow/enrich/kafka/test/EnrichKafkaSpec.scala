@@ -1,33 +1,40 @@
 /*
- * Copyright (c) 2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2022-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
-package com.snowplowanalytics.snowplow.enrich.kafka
-package test
+package com.snowplowanalytics.snowplow.enrich.kafka.test
 
 import scala.concurrent.duration._
+
+import org.specs2.mutable.Specification
+
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
-import cats.effect.{Blocker, IO}
-import cats.effect.concurrent.Ref
+
+import cats.effect.IO
+import cats.effect.kernel.Ref
+import cats.effect.unsafe.implicits.global
+
+import cats.effect.testing.specs2.CatsEffect
+
 import fs2.Stream
-import org.specs2.mutable.Specification
-import cats.effect.testing.specs2.CatsIO
+
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
+
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input.{Kafka => InKafka}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Output.{Kafka => OutKafka}
+
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test.CollectorPayloadGen
 
+import com.snowplowanalytics.snowplow.enrich.kafka._
 
-class EnrichKafkaSpec extends Specification with CatsIO {
+class EnrichKafkaSpec extends Specification with CatsEffect {
 
   sequential
 
@@ -51,20 +58,20 @@ class EnrichKafkaSpec extends Specification with CatsIO {
       "group.id" -> "it-enrich",
       "auto.offset.reset" -> "earliest",
       "key.deserializer" -> "org.apache.kafka.common.serialization.StringDeserializer",
-      "value.deserializer" -> "org.apache.kafka.common.serialization.ByteArrayDeserializer"
+      "value.deserializer" -> "org.apache.kafka.common.serialization.ByteArrayDeserializer",
+      "security.protocol" -> "PLAINTEXT",
+      "sasl.mechanism" -> "GSSAPI"
   )
 
   val producerConf: Map[String, String] = Map(
-    "acks" -> "all"
+    "acks" -> "all",
+    "security.protocol" -> "PLAINTEXT",
+    "sasl.mechanism" -> "GSSAPI"
   )
 
   def run(): IO[Aggregates] = {
 
-    val resources =
-      for {
-        blocker <- Blocker[IO]
-        sink <- Sink.init[IO](blocker, OutKafka(collectorPayloadsStream, bootstrapServers, "", Set.empty, producerConf))
-      } yield sink
+    val resources = Sink.init[IO](OutKafka(collectorPayloadsStream, bootstrapServers, "", Set.empty, producerConf), classOf[SourceAuthHandler].getName)
 
     resources.use { sink =>
       val generate =
@@ -76,10 +83,10 @@ class EnrichKafkaSpec extends Specification with CatsIO {
         consumeGood(refGood).merge(consumeBad(refBad))
 
       def consumeGood(ref: Ref[IO, AggregateGood]): Stream[IO, Unit] =
-        Source.init[IO](InKafka(enrichedStream, bootstrapServers, consumerConf)).map(_.record.value).evalMap(aggregateGood(_, ref))
+        Source.init[IO](InKafka(enrichedStream, bootstrapServers, consumerConf), classOf[GoodSinkAuthHandler].getName).map(_.record.value).evalMap(aggregateGood(_, ref))
 
       def consumeBad(ref: Ref[IO, AggregateBad]): Stream[IO, Unit] =
-        Source.init[IO](InKafka(badRowsStream, bootstrapServers, consumerConf)).map(_.record.value).evalMap(aggregateBad(_, ref))
+        Source.init[IO](InKafka(badRowsStream, bootstrapServers, consumerConf), classOf[BadSinkAuthHandler].getName).map(_.record.value).evalMap(aggregateBad(_, ref))
 
       def aggregateGood(r: Array[Byte], ref: Ref[IO, AggregateGood]): IO[Unit] =
         for {

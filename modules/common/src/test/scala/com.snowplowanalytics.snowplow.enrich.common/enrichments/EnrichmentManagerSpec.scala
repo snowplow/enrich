@@ -1,29 +1,41 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
-package com.snowplowanalytics.snowplow.enrich.common
+package com.snowplowanalytics.snowplow.enrich.common.enrichments
 
-package enrichments
+import org.apache.commons.codec.digest.DigestUtils
 
-import cats.Id
+import org.specs2.mutable.Specification
+import org.specs2.matcher.EitherMatchers
+
+import cats.effect.IO
+import cats.effect.testing.specs2.CatsEffect
+
 import cats.implicits._
 import cats.data.NonEmptyList
+
+import io.circe.Json
 import io.circe.literal._
 import io.circe.parser.{parse => jparse}
+import io.circe.syntax._
+
 import org.joda.time.DateTime
+
 import com.snowplowanalytics.snowplow.badrows._
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer}
-import loaders._
-import adapters.RawEvent
+import com.snowplowanalytics.snowplow.badrows.FailureDetails.EnrichmentFailureMessage
+
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
+
+import com.snowplowanalytics.snowplow.enrich.common.QueryStringParameters
+import com.snowplowanalytics.snowplow.enrich.common.loaders._
+import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii.{
   JsonMutators,
   PiiJson,
@@ -31,16 +43,19 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii.{
   PiiStrategyPseudonymize
 }
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import utils.Clock._
-import utils.ConversionUtils
-import enrichments.registry.{HttpHeaderExtractorEnrichment, IabEnrichment, JavascriptScriptEnrichment, YauaaEnrichment}
-import org.apache.commons.codec.digest.DigestUtils
-import org.specs2.mutable.Specification
-import org.specs2.matcher.EitherMatchers
-import SpecHelpers._
-import com.snowplowanalytics.snowplow.badrows.FailureDetails.EnrichmentFailureMessage
+import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{
+  CrossNavigationEnrichment,
+  HttpHeaderExtractorEnrichment,
+  IabEnrichment,
+  JavascriptScriptEnrichment,
+  YauaaEnrichment
+}
+import com.snowplowanalytics.snowplow.enrich.common.AcceptInvalid
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
 
-class EnrichmentManagerSpec extends Specification with EitherMatchers {
+class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsEffect {
   import EnrichmentManagerSpec._
 
   "enrichEvent" should {
@@ -49,7 +64,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         "e" -> "pp",
         "tv" -> "js-0.13.1",
         "p" -> "web",
-        "co" -> """
+        "co" ->
+          """
           {
             "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
             "data": [
@@ -65,20 +81,22 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         """
       ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
-      val enriched = EnrichmentManager.enrichEvent[Id](
+      val enriched = EnrichmentManager.enrichEvent[IO](
         enrichmentReg,
         client,
         processor,
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        AcceptInvalid.countInvalid
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
-
-      enriched.value must beLeft.like {
-        case _: BadRow.SchemaViolations => ok
-        case br => ko(s"bad row [$br] is not SchemaViolations")
-      }
+      enriched.value
+        .map(_ must beLeft.like {
+          case _: BadRow.SchemaViolations => ok
+          case br => ko(s"bad row [$br] is not SchemaViolations")
+        })
     }
 
     "return a SchemaViolations bad row if the input unstructured event is invalid" >> {
@@ -86,7 +104,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         "e" -> "ue",
         "tv" -> "js-0.13.1",
         "p" -> "web",
-        "ue_pr" -> """
+        "ue_pr" ->
+          """
           {
             "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
             "data":{
@@ -100,29 +119,34 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
           }"""
       ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
-      val enriched = EnrichmentManager.enrichEvent[Id](
+      val enriched = EnrichmentManager.enrichEvent[IO](
         enrichmentReg,
         client,
         processor,
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        AcceptInvalid.countInvalid
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
-      enriched.value must beLeft.like {
-        case _: BadRow.SchemaViolations => ok
-        case br => ko(s"bad row [$br] is not SchemaViolations")
-      }
+      enriched.value
+        .map(_ must beLeft.like {
+          case _: BadRow.SchemaViolations => ok
+          case br => ko(s"bad row [$br] is not SchemaViolations")
+        })
     }
 
     "return an EnrichmentFailures bad row if one of the enrichment (JS enrichment here) fails" >> {
-      val script = """
+      val script =
+        """
         function process(event) {
           throw "Javascript exception";
           return [ { a: "b" } ];
         }"""
 
-      val config = json"""{
+      val config =
+        json"""{
         "parameters": {
           "script": ${ConversionUtils.encodeBase64Url(script)}
         }
@@ -136,7 +160,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       val jsEnrichConf =
         JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
       val jsEnrich = JavascriptScriptEnrichment(jsEnrichConf.schemaKey, jsEnrichConf.rawFunction)
-      val enrichmentReg = EnrichmentRegistry[Id](javascriptScript = Some(jsEnrich))
+      val enrichmentReg = EnrichmentRegistry[IO](javascriptScript = List(jsEnrich))
 
       val parameters = Map(
         "e" -> "pp",
@@ -144,40 +168,44 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         "p" -> "web"
       ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
-      val enriched = EnrichmentManager.enrichEvent[Id](
+      val enriched = EnrichmentManager.enrichEvent[IO](
         enrichmentReg,
         client,
         processor,
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        AcceptInvalid.countInvalid
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
-      enriched.value must beLeft.like {
-        case BadRow.EnrichmentFailures(
-              _,
-              Failure.EnrichmentFailures(
+      enriched.value
+        .map(_ must beLeft.like {
+          case BadRow.EnrichmentFailures(
                 _,
-                NonEmptyList(
-                  FailureDetails.EnrichmentFailure(
-                    _,
-                    _: FailureDetails.EnrichmentFailureMessage.Simple
-                  ),
-                  Nil
-                )
-              ),
-              _
-            ) =>
-          ok
-        case br =>
-          ko(
-            s"bad row [$br] is not an EnrichmentFailures containing one EnrichmentFailureMessage.Simple"
-          )
-      }
+                Failure.EnrichmentFailures(
+                  _,
+                  NonEmptyList(
+                    FailureDetails.EnrichmentFailure(
+                      _,
+                      _: FailureDetails.EnrichmentFailureMessage.Simple
+                    ),
+                    Nil
+                  )
+                ),
+                _
+              ) =>
+            ok
+          case br =>
+            ko(
+              s"bad row [$br] is not an EnrichmentFailures containing one EnrichmentFailureMessage.Simple"
+            )
+        })
     }
 
     "return an EnrichmentFailures bad row containing one IgluError if one of the contexts added by the enrichments is invalid" >> {
-      val script = """
+      val script =
+        """
         function process(event) {
           return [ { schema: "iglu:com.acme/email_sent/jsonschema/1-0-0",
                      data: {
@@ -187,7 +215,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
                    } ];
         }"""
 
-      val config = json"""{
+      val config =
+        json"""{
         "parameters": {
           "script": ${ConversionUtils.encodeBase64Url(script)}
         }
@@ -201,7 +230,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       val jsEnrichConf =
         JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
       val jsEnrich = JavascriptScriptEnrichment(jsEnrichConf.schemaKey, jsEnrichConf.rawFunction)
-      val enrichmentReg = EnrichmentRegistry[Id](javascriptScript = Some(jsEnrich))
+      val enrichmentReg = EnrichmentRegistry[IO](javascriptScript = List(jsEnrich))
 
       val parameters = Map(
         "e" -> "pp",
@@ -209,33 +238,36 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         "p" -> "web"
       ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
-      val enriched = EnrichmentManager.enrichEvent[Id](
+      val enriched = EnrichmentManager.enrichEvent[IO](
         enrichmentReg,
         client,
         processor,
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        AcceptInvalid.countInvalid
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
-      enriched.value must beLeft.like {
-        case BadRow.EnrichmentFailures(
-              _,
-              Failure.EnrichmentFailures(
+      enriched.value
+        .map(_ must beLeft.like {
+          case BadRow.EnrichmentFailures(
                 _,
-                NonEmptyList(
-                  FailureDetails.EnrichmentFailure(
-                    _,
-                    _: FailureDetails.EnrichmentFailureMessage.IgluError
-                  ),
-                  Nil
-                )
-              ),
-              payload
-            ) if payload.enriched.derived_contexts.isDefined =>
-          ok
-        case br => ko(s"bad row [$br] is not an EnrichmentFailures containing one IgluError and with derived_contexts defined")
-      }
+                Failure.EnrichmentFailures(
+                  _,
+                  NonEmptyList(
+                    FailureDetails.EnrichmentFailure(
+                      _,
+                      _: FailureDetails.EnrichmentFailureMessage.IgluError
+                    ),
+                    Nil
+                  )
+                ),
+                payload
+              ) if payload.enriched.derived_contexts.isDefined =>
+            ok
+          case br => ko(s"bad row [$br] is not an EnrichmentFailures containing one IgluError and with derived_contexts defined")
+        })
     }
 
     "emit an EnrichedEvent if everything goes well" >> {
@@ -243,7 +275,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         "e" -> "ue",
         "tv" -> "js-0.13.1",
         "p" -> "web",
-        "co" -> """
+        "co" ->
+          """
           {
             "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
             "data": [
@@ -257,7 +290,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
             ]
           }
         """,
-        "ue_pr" -> """
+        "ue_pr" ->
+          """
           {
             "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
             "data":{
@@ -270,16 +304,18 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
           }"""
       ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
-      val enriched = EnrichmentManager.enrichEvent[Id](
+      val enriched = EnrichmentManager.enrichEvent[IO](
         enrichmentReg,
         client,
         processor,
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        AcceptInvalid.countInvalid
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
-      enriched.value must beRight
+      enriched.value.map(_ must beRight)
     }
 
     "emit an EnrichedEvent if a PII value that needs to be hashed is an empty string" >> {
@@ -287,7 +323,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         "e" -> "ue",
         "tv" -> "js-0.13.1",
         "p" -> "web",
-        "co" -> """
+        "co" ->
+          """
           {
             "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
             "data": [
@@ -301,7 +338,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
             ]
           }
         """,
-        "ue_pr" -> """
+        "ue_pr" ->
+          """
           {
             "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
             "data":{
@@ -315,7 +353,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
           }"""
       ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
-      val enrichmentReg = EnrichmentRegistry[Id](
+      val enrichmentReg = EnrichmentRegistry[IO](
         piiPseudonymizer = PiiPseudonymizerEnrichment(
           List(
             PiiJson(
@@ -332,16 +370,18 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
           )
         ).some
       )
-      val enriched = EnrichmentManager.enrichEvent[Id](
+      val enriched = EnrichmentManager.enrichEvent[IO](
         enrichmentReg,
         client,
         processor,
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        AcceptInvalid.countInvalid
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
-      enriched.value must beRight
+      enriched.value.map(_ must beRight)
     }
 
     "emit an EnrichedEvent if a PII value that needs to be hashed is null" >> {
@@ -349,7 +389,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         "e" -> "ue",
         "tv" -> "js-0.13.1",
         "p" -> "web",
-        "co" -> """
+        "co" ->
+          """
           {
             "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
             "data": [
@@ -363,7 +404,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
             ]
           }
         """,
-        "ue_pr" -> """
+        "ue_pr" ->
+          """
           {
             "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
             "data":{
@@ -377,7 +419,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
           }"""
       ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
-      val enrichmentReg = EnrichmentRegistry[Id](
+      val enrichmentReg = EnrichmentRegistry[IO](
         piiPseudonymizer = PiiPseudonymizerEnrichment(
           List(
             PiiJson(
@@ -394,16 +436,18 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
           )
         ).some
       )
-      val enriched = EnrichmentManager.enrichEvent[Id](
+      val enriched = EnrichmentManager.enrichEvent[IO](
         enrichmentReg,
         client,
         processor,
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        AcceptInvalid.countInvalid
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
-      enriched.value must beRight
+      enriched.value.map(_ must beRight)
     }
 
     "fail to emit an EnrichedEvent if a PII value that needs to be hashed is an empty object" >> {
@@ -411,7 +455,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         "e" -> "ue",
         "tv" -> "js-0.13.1",
         "p" -> "web",
-        "co" -> """
+        "co" ->
+          """
           {
             "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
             "data": [
@@ -425,7 +470,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
             ]
           }
         """,
-        "ue_pr" -> """
+        "ue_pr" ->
+          """
           {
             "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
             "data":{
@@ -439,7 +485,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
           }"""
       ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
-      val enrichmentReg = EnrichmentRegistry[Id](
+      val enrichmentReg = EnrichmentRegistry[IO](
         piiPseudonymizer = PiiPseudonymizerEnrichment(
           List(
             PiiJson(
@@ -456,16 +502,18 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
           )
         ).some
       )
-      val enriched = EnrichmentManager.enrichEvent[Id](
+      val enriched = EnrichmentManager.enrichEvent[IO](
         enrichmentReg,
         client,
         processor,
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        AcceptInvalid.countInvalid
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
-      enriched.value must beLeft
+      enriched.value.map(_ must beLeft)
     }
 
     "fail to emit an EnrichedEvent if a context PII value that needs to be hashed is an empty object" >> {
@@ -473,7 +521,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         "e" -> "ue",
         "tv" -> "js-0.13.1",
         "p" -> "web",
-        "co" -> """
+        "co" ->
+          """
           {
             "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
             "data": [
@@ -488,7 +537,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
             ]
           }
         """,
-        "ue_pr" -> """
+        "ue_pr" ->
+          """
           {
             "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
             "data":{
@@ -501,7 +551,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
           }"""
       ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
-      val enrichmentReg = EnrichmentRegistry[Id](
+      val enrichmentReg = EnrichmentRegistry[IO](
         piiPseudonymizer = PiiPseudonymizerEnrichment(
           List(
             PiiJson(
@@ -518,16 +568,18 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
           )
         ).some
       )
-      val enriched = EnrichmentManager.enrichEvent[Id](
+      val enriched = EnrichmentManager.enrichEvent[IO](
         enrichmentReg,
         client,
         processor,
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        AcceptInvalid.countInvalid
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
-      enriched.value must beLeft
+      enriched.value.map(_ must beLeft)
     }
 
     "fail to emit an EnrichedEvent if a PII value needs to be hashed in both co and ue and is invalid in one of them" >> {
@@ -535,7 +587,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         "e" -> "ue",
         "tv" -> "js-0.13.1",
         "p" -> "web",
-        "co" -> """
+        "co" ->
+          """
           {
             "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
             "data": [
@@ -550,7 +603,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
             ]
           }
         """,
-        "ue_pr" -> """
+        "ue_pr" ->
+          """
           {
             "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
             "data":{
@@ -564,7 +618,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
           }"""
       ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
-      val enrichmentReg = EnrichmentRegistry[Id](
+      val enrichmentReg = EnrichmentRegistry[IO](
         piiPseudonymizer = PiiPseudonymizerEnrichment(
           List(
             PiiJson(
@@ -586,16 +640,18 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
           )
         ).some
       )
-      val enriched = EnrichmentManager.enrichEvent[Id](
+      val enriched = EnrichmentManager.enrichEvent[IO](
         enrichmentReg,
         client,
         processor,
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        AcceptInvalid.countInvalid
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
-      enriched.value must beLeft
+      enriched.value.map(_ must beLeft)
     }
 
     "emit an EnrichedEvent for valid integer fields" >> {
@@ -603,8 +659,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       val fields = List("tid", "vid", "ti_qu", "pp_mix", "pp_max", "pp_miy", "pp_may")
 
       integers
-        .flatMap { integer =>
-          fields.map { field =>
+        .flatTraverse { integer =>
+          fields.traverse { field =>
             val parameters = Map(
               "e" -> "ue",
               "tv" -> "js-0.13.1",
@@ -612,19 +668,20 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
               field -> integer
             ).toOpt
             val rawEvent = RawEvent(api, parameters, None, source, context)
-            val enriched = EnrichmentManager.enrichEvent[Id](
+            val enriched = EnrichmentManager.enrichEvent[IO](
               enrichmentReg,
               client,
               processor,
               timestamp,
               rawEvent,
               AcceptInvalid.featureFlags,
-              AcceptInvalid.countInvalid
+              IO.unit,
+              SpecHelpers.registryLookup,
+              atomicFieldLimits
             )
-            enriched.value must beRight
+            enriched.value.map(_ must beRight)
           }
         }
-        .reduce(_ and _)
     }
 
     "emit an EnrichedEvent for valid decimal fields" >> {
@@ -632,8 +689,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       val fields = List("ev_va", "se_va", "tr_tt", "tr_tx", "tr_sh", "ti_pr")
 
       decimals
-        .flatMap { decimal =>
-          fields.map { field =>
+        .flatTraverse { decimal =>
+          fields.traverse { field =>
             val parameters = Map(
               "e" -> "ue",
               "tv" -> "js-0.13.1",
@@ -641,19 +698,20 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
               field -> decimal
             ).toOpt
             val rawEvent = RawEvent(api, parameters, None, source, context)
-            val enriched = EnrichmentManager.enrichEvent[Id](
+            val enriched = EnrichmentManager.enrichEvent[IO](
               enrichmentReg,
               client,
               processor,
               timestamp,
               rawEvent,
               AcceptInvalid.featureFlags,
-              AcceptInvalid.countInvalid
+              IO.unit,
+              SpecHelpers.registryLookup,
+              atomicFieldLimits
             )
-            enriched.value must beRight
+            enriched.value.map(_ must beRight)
           }
         }
-        .reduce(_ and _)
     }
 
     "create an EnrichedEvent with correct BigDecimal field values" >> {
@@ -670,7 +728,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       )
 
       decimals
-        .map {
+        .traverse {
           case (input, expected) =>
             val parameters = Map(
               "e" -> "ue",
@@ -679,20 +737,21 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
               "ev_va" -> input
             ).toOpt
             val rawEvent = RawEvent(api, parameters, None, source, context)
-            val enriched = EnrichmentManager.enrichEvent[Id](
+            val enriched = EnrichmentManager.enrichEvent[IO](
               enrichmentReg,
               client,
               processor,
               timestamp,
               rawEvent,
               AcceptInvalid.featureFlags,
-              AcceptInvalid.countInvalid
+              IO.unit,
+              SpecHelpers.registryLookup,
+              atomicFieldLimits
             )
-            enriched.value must beRight { ee: EnrichedEvent =>
+            enriched.value.map(_ must beRight { ee: EnrichedEvent =>
               ee.se_value.toString must_== expected
-            }
+            })
         }
-        .reduce(_ and _)
     }
 
     "have a preference of 'ua' query string parameter over user agent of HTTP header" >> {
@@ -705,17 +764,22 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       ).toOpt
       val contextWithUa = context.copy(useragent = Some("header-useragent"))
       val rawEvent = RawEvent(api, parameters, None, source, contextWithUa)
-      val enriched = EnrichmentManager.enrichEvent[Id](
+      val enriched = EnrichmentManager.enrichEvent[IO](
         enrichmentReg,
         client,
         processor,
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        AcceptInvalid.countInvalid
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
-      enriched.value.map(_.useragent) must beRight(qs_ua)
-      enriched.value.map(_.derived_contexts) must beRight((_: String).contains("\"agentName\":\"Firefox\""))
+      enriched.value.map { e =>
+        val res1 = e.map(_.useragent) must beRight(qs_ua)
+        val res2 = e.map(_.derived_contexts) must beRight((_: String).contains("\"agentName\":\"Firefox\""))
+        res1 and res2
+      }
     }
 
     "use user agent of HTTP header if 'ua' query string parameter is not set" >> {
@@ -726,16 +790,20 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       ).toOpt
       val contextWithUa = context.copy(useragent = Some("header-useragent"))
       val rawEvent = RawEvent(api, parameters, None, source, contextWithUa)
-      val enriched = EnrichmentManager.enrichEvent[Id](
+      val enriched = EnrichmentManager.enrichEvent[IO](
         enrichmentReg,
         client,
         processor,
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        AcceptInvalid.countInvalid
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
-      enriched.value.map(_.useragent) must beRight("header-useragent")
+      enriched.value.map { e =>
+        e.map(_.useragent) must beRight("header-useragent")
+      }
     }
 
     "accept user agent of HTTP header when it is not URL decodable" >> {
@@ -747,16 +815,20 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       val ua = "Mozilla/5.0 (X11; Linux x86_64; rv:75.0) Gecko/20100101 %1$s/%2$s Firefox/75.0"
       val contextWithUa = context.copy(useragent = Some(ua))
       val rawEvent = RawEvent(api, parameters, None, source, contextWithUa)
-      val enriched = EnrichmentManager.enrichEvent[Id](
+      val enriched = EnrichmentManager.enrichEvent[IO](
         enrichmentReg,
         client,
         processor,
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        AcceptInvalid.countInvalid
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
-      enriched.value.map(_.useragent) must beRight(ua)
+      enriched.value.map { e =>
+        e.map(_.useragent) must beRight(ua)
+      }
     }
 
     "accept 'ua' in query string when it is not URL decodable" >> {
@@ -769,17 +841,22 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       ).toOpt
       val contextWithUa = context.copy(useragent = Some("header-useragent"))
       val rawEvent = RawEvent(api, parameters, None, source, contextWithUa)
-      val enriched = EnrichmentManager.enrichEvent[Id](
+      val enriched = EnrichmentManager.enrichEvent[IO](
         enrichmentReg,
         client,
         processor,
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        AcceptInvalid.countInvalid
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
-      enriched.value.map(_.useragent) must beRight(qs_ua)
-      enriched.value.map(_.derived_contexts) must beRight((_: String).contains("\"agentName\":\"%1$S\""))
+      enriched.value.map { e =>
+        val res1 = e.map(_.useragent) must beRight(qs_ua)
+        val res2 = e.map(_.derived_contexts) must beRight((_: String).contains("\"agentName\":\"%1$S\""))
+        res1 and res2
+      }
     }
 
     "pass derived contexts generated by previous enrichments to the JavaScript enrichment" >> {
@@ -798,8 +875,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
         "jsonschema",
         SchemaVer.Full(1, 0, 0)
       )
-      val enrichmentReg = EnrichmentRegistry[Id](
-        javascriptScript = Some(JavascriptScriptEnrichment(schemaKey, script)),
+      val enrichmentReg = EnrichmentRegistry[IO](
+        javascriptScript = List(JavascriptScriptEnrichment(schemaKey, script)),
         httpHeaderExtractor = Some(HttpHeaderExtractorEnrichment(".*"))
       )
 
@@ -810,16 +887,71 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       ).toOpt
       val headerContext = context.copy(headers = List("X-Tract-Me: moo"))
       val rawEvent = RawEvent(api, parameters, None, source, headerContext)
-      val enriched = EnrichmentManager.enrichEvent[Id](
+      val enriched = EnrichmentManager.enrichEvent[IO](
         enrichmentReg,
         client,
         processor,
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        AcceptInvalid.countInvalid
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
-      enriched.value.map(_.app_id) must beRight("moo")
+      enriched.value.map { e =>
+        e.map(_.app_id) must beRight("moo")
+      }
+    }
+
+    "run multiple JavaScript enrichments" >> {
+      val script1 =
+        """
+        function process(event) {
+          event.setApp_id("test_app_id");
+          return [];
+        }"""
+
+      val script2 =
+        """
+        function process(event) {
+          event.setPlatform("test_platform");
+          return [];
+        }"""
+
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow",
+        "javascript_script_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val enrichmentReg = EnrichmentRegistry[IO](
+        javascriptScript = List(
+          JavascriptScriptEnrichment(schemaKey, script1),
+          JavascriptScriptEnrichment(schemaKey, script2)
+        )
+      )
+
+      val parameters = Map(
+        "e" -> "pp",
+        "tv" -> "js-0.13.1",
+        "p" -> "web"
+      ).toOpt
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      val enriched = EnrichmentManager.enrichEvent[IO](
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent,
+        AcceptInvalid.featureFlags,
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
+      )
+      enriched.value.map { e =>
+        (e.map(_.app_id) must beRight("test_app_id")) and
+          (e.map(_.platform) must beRight("test_platform"))
+      }
     }
 
     "emit an EnrichedEvent with superseded schemas" >> {
@@ -959,17 +1091,19 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
           }"""
       ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
-      val enriched = EnrichmentManager.enrichEvent[Id](
+      val enriched = EnrichmentManager.enrichEvent[IO](
         enrichmentReg.copy(yauaa = None),
         client,
         processor,
         timestamp,
         rawEvent,
         AcceptInvalid.featureFlags,
-        AcceptInvalid.countInvalid
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits
       )
 
-      enriched.value must beRight.like {
+      enriched.value.map(_ must beRight.like {
         case e: EnrichedEvent =>
           val p = EnrichedEvent.toPartiallyEnrichedEvent(e)
           val contextsJson = jparse(p.contexts.get).toOption.get
@@ -979,7 +1113,325 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
             (derivedContextsJson must beEqualTo(expectedDerivedContexts)) and
             (ueJson must beEqualTo(expectedUnstructEvent))
         case _ => ko
-      }
+      })
+    }
+  }
+
+  "getCrossDomain" should {
+    val schemaKey = SchemaKey(
+      CrossNavigationEnrichment.supportedSchema.vendor,
+      CrossNavigationEnrichment.supportedSchema.name,
+      CrossNavigationEnrichment.supportedSchema.format,
+      SchemaVer.Full(1, 0, 0)
+    )
+
+    "do nothing if none query string parameters - crossNavigation enabled" >> {
+      val crossNavigationEnabled = Some(new CrossNavigationEnrichment(schemaKey))
+      val qsMap: Option[QueryStringParameters] = None
+      val input = new EnrichedEvent()
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager
+        .getCrossDomain[IO](
+          qsMap,
+          crossNavigationEnabled
+        )
+        .runS(inputState)
+        .map(
+          _ must beLike {
+            case acc: EnrichmentManager.Accumulation =>
+              val p = EnrichedEvent.toPartiallyEnrichedEvent(acc.event)
+              (p.refr_domain_userid must beNone) and
+                (p.refr_dvce_tstamp must beNone) and
+                (acc.errors must beEmpty) and
+                (acc.contexts must beEmpty)
+          }
+        )
+    }
+
+    "do nothing if none query string parameters - crossNavigation disabled" >> {
+      val crossNavigationDisabled = None
+      val qsMap: Option[QueryStringParameters] = None
+      val input = new EnrichedEvent()
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager
+        .getCrossDomain[IO](
+          qsMap,
+          crossNavigationDisabled
+        )
+        .runS(inputState)
+        .map(
+          _ must beLike {
+            case acc: EnrichmentManager.Accumulation =>
+              val p = EnrichedEvent.toPartiallyEnrichedEvent(acc.event)
+              (p.refr_domain_userid must beNone) and
+                (p.refr_dvce_tstamp must beNone) and
+                (acc.errors must beEmpty) and
+                (acc.contexts must beEmpty)
+          }
+        )
+    }
+
+    "do nothing if _sp is empty - crossNavigation enabled" >> {
+      val crossNavigationEnabled = Some(new CrossNavigationEnrichment(schemaKey))
+      val qsMap: Option[QueryStringParameters] = Some(List(("_sp" -> Some(""))))
+      val input = new EnrichedEvent()
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager
+        .getCrossDomain[IO](
+          qsMap,
+          crossNavigationEnabled
+        )
+        .runS(inputState)
+        .map(
+          _ must beLike {
+            case acc: EnrichmentManager.Accumulation =>
+              val p = EnrichedEvent.toPartiallyEnrichedEvent(acc.event)
+              (p.refr_domain_userid must beNone) and
+                (p.refr_dvce_tstamp must beNone) and
+                (acc.errors must beEmpty) and
+                (acc.contexts must beEmpty)
+          }
+        )
+    }
+
+    "do nothing if _sp is empty - crossNavigation disabled" >> {
+      val crossNavigationDisabled = None
+      val qsMap: Option[QueryStringParameters] = Some(List(("_sp" -> Some(""))))
+      val input = new EnrichedEvent()
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager
+        .getCrossDomain[IO](
+          qsMap,
+          crossNavigationDisabled
+        )
+        .runS(inputState)
+        .map(
+          _ must beLike {
+            case acc: EnrichmentManager.Accumulation =>
+              val p = EnrichedEvent.toPartiallyEnrichedEvent(acc.event)
+              (p.refr_domain_userid must beNone) and
+                (p.refr_dvce_tstamp must beNone) and
+                (acc.errors must beEmpty) and
+                (acc.contexts must beEmpty)
+          }
+        )
+    }
+
+    "add atomic props and ctx with original _sp format and cross navigation enabled" >> {
+      val crossNavigationEnabled = Some(new CrossNavigationEnrichment(schemaKey))
+      val qsMap: Option[QueryStringParameters] = Some(
+        List(
+          ("_sp" -> Some("abc.1697175843762"))
+        )
+      )
+      val expectedRefrDuid = Some("abc")
+      val expectedRefrTstamp = Some("2023-10-13 05:44:03.762")
+      val expectedCtx: List[SelfDescribingData[Json]] = List(
+        SelfDescribingData(
+          CrossNavigationEnrichment.outputSchema,
+          Map(
+            "domain_user_id" -> Some("abc"),
+            "timestamp" -> Some("2023-10-13T05:44:03.762Z"),
+            "session_id" -> None,
+            "user_id" -> None,
+            "source_id" -> None,
+            "source_platform" -> None,
+            "reason" -> None
+          ).asJson
+        )
+      )
+      val input = new EnrichedEvent()
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager
+        .getCrossDomain[IO](
+          qsMap,
+          crossNavigationEnabled
+        )
+        .runS(inputState)
+        .map(
+          _ must beLike {
+            case acc: EnrichmentManager.Accumulation =>
+              val p = EnrichedEvent.toPartiallyEnrichedEvent(acc.event)
+              (p.refr_domain_userid must beEqualTo(expectedRefrDuid)) and
+                (p.refr_dvce_tstamp must beEqualTo(expectedRefrTstamp)) and
+                (acc.errors must beEmpty) and
+                (acc.contexts must beEqualTo(expectedCtx))
+          }
+        )
+    }
+
+    "add atomic props but no ctx with original _sp format and cross navigation disabled" >> {
+      val crossNavigationDisabled = None
+      val qsMap: Option[QueryStringParameters] = Some(
+        List(
+          ("_sp" -> Some("abc.1697175843762"))
+        )
+      )
+      val expectedRefrDuid = Some("abc")
+      val expectedRefrTstamp = Some("2023-10-13 05:44:03.762")
+      val input = new EnrichedEvent()
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager
+        .getCrossDomain[IO](
+          qsMap,
+          crossNavigationDisabled
+        )
+        .runS(inputState)
+        .map(
+          _ must beLike {
+            case acc: EnrichmentManager.Accumulation =>
+              val p = EnrichedEvent.toPartiallyEnrichedEvent(acc.event)
+              (p.refr_domain_userid must beEqualTo(expectedRefrDuid)) and
+                (p.refr_dvce_tstamp must beEqualTo(expectedRefrTstamp)) and
+                (acc.errors must beEmpty) and
+                (acc.contexts must beEmpty)
+          }
+        )
+    }
+
+    "add atomic props and ctx with extended _sp format and cross navigation enabled" >> {
+      val crossNavigationEnabled = Some(new CrossNavigationEnrichment(schemaKey))
+      val qsMap: Option[QueryStringParameters] = Some(
+        List(
+          ("_sp" -> Some("abc.1697175843762.176ff68a-4769-4566-ad0e-3792c1c8148f.dGVzdGVy.c29tZVNvdXJjZUlk.web.dGVzdGluZ19yZWFzb24"))
+        )
+      )
+      val expectedRefrDuid = Some("abc")
+      val expectedRefrTstamp = Some("2023-10-13 05:44:03.762")
+      val expectedCtx: List[SelfDescribingData[Json]] = List(
+        SelfDescribingData(
+          CrossNavigationEnrichment.outputSchema,
+          Map(
+            "domain_user_id" -> Some("abc"),
+            "timestamp" -> Some("2023-10-13T05:44:03.762Z"),
+            "session_id" -> Some("176ff68a-4769-4566-ad0e-3792c1c8148f"),
+            "user_id" -> Some("tester"),
+            "source_id" -> Some("someSourceId"),
+            "source_platform" -> Some("web"),
+            "reason" -> Some("testing_reason")
+          ).asJson
+        )
+      )
+      val input = new EnrichedEvent()
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager
+        .getCrossDomain[IO](
+          qsMap,
+          crossNavigationEnabled
+        )
+        .runS(inputState)
+        .map(
+          _ must beLike {
+            case acc: EnrichmentManager.Accumulation =>
+              val p = EnrichedEvent.toPartiallyEnrichedEvent(acc.event)
+              (p.refr_domain_userid must beEqualTo(expectedRefrDuid)) and
+                (p.refr_dvce_tstamp must beEqualTo(expectedRefrTstamp)) and
+                (acc.errors must beEmpty) and
+                (acc.contexts must beEqualTo(expectedCtx))
+          }
+        )
+    }
+
+    "add atomic props but no ctx with extended _sp format and cross navigation disabled" >> {
+      val crossNavigationDisabled = None
+      val qsMap: Option[QueryStringParameters] = Some(
+        List(
+          ("_sp" -> Some("abc.1697175843762.176ff68a-4769-4566-ad0e-3792c1c8148f.dGVzdGVy.c29tZVNvdXJjZUlk.web.dGVzdGluZ19yZWFzb24"))
+        )
+      )
+      val expectedRefrDuid = Some("abc")
+      val expectedRefrTstamp = Some("2023-10-13 05:44:03.762")
+      val input = new EnrichedEvent()
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager
+        .getCrossDomain[IO](
+          qsMap,
+          crossNavigationDisabled
+        )
+        .runS(inputState)
+        .map(
+          _ must beLike {
+            case acc: EnrichmentManager.Accumulation =>
+              val p = EnrichedEvent.toPartiallyEnrichedEvent(acc.event)
+              (p.refr_domain_userid must beEqualTo(expectedRefrDuid)) and
+                (p.refr_dvce_tstamp must beEqualTo(expectedRefrTstamp)) and
+                (acc.errors must beEmpty) and
+                (acc.contexts must beEmpty)
+          }
+        )
+    }
+
+    "error with info if parsing failed and cross navigation is enabled" >> {
+      val crossNavigationEnabled = Some(new CrossNavigationEnrichment(schemaKey))
+      // causing a parsing failure by providing invalid tstamp
+      val qsMap: Option[QueryStringParameters] = Some(
+        List(
+          ("_sp" -> Some("abc.some_invalid_timestamp_value"))
+        )
+      )
+      val input = new EnrichedEvent()
+      val expectedFail = FailureDetails.EnrichmentFailure(
+        FailureDetails
+          .EnrichmentInformation(
+            schemaKey,
+            "cross-navigation"
+          )
+          .some,
+        FailureDetails.EnrichmentFailureMessage.InputData(
+          "sp_dtm",
+          "some_invalid_timestamp_value".some,
+          "not in the expected format: ms since epoch"
+        )
+      )
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager
+        .getCrossDomain[IO](
+          qsMap,
+          crossNavigationEnabled
+        )
+        .runS(inputState)
+        .map(
+          _ must beLike {
+            case acc: EnrichmentManager.Accumulation =>
+              (acc.errors must not beEmpty) and
+                (acc.errors must beEqualTo(List(expectedFail))) and
+                (acc.contexts must beEmpty)
+          }
+        )
+    }
+
+    "error without info if parsing failed and cross navigation is disabled" >> {
+      val crossNavigationDisabled = None
+      // causing a parsing failure by providing invalid tstamp
+      val qsMap: Option[QueryStringParameters] = Some(
+        List(
+          ("_sp" -> Some("abc.some_invalid_timestamp_value"))
+        )
+      )
+      val input = new EnrichedEvent()
+      val expectedFail = FailureDetails.EnrichmentFailure(
+        None,
+        FailureDetails.EnrichmentFailureMessage.InputData(
+          "sp_dtm",
+          "some_invalid_timestamp_value".some,
+          "not in the expected format: ms since epoch"
+        )
+      )
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager
+        .getCrossDomain[IO](
+          qsMap,
+          crossNavigationDisabled
+        )
+        .runS(inputState)
+        .map(
+          _ must beLike {
+            case acc: EnrichmentManager.Accumulation =>
+              (acc.errors must not beEmpty) and
+                (acc.errors must beEqualTo(List(expectedFail))) and
+                (acc.contexts must beEmpty)
+          }
+        )
     }
   }
 
@@ -989,7 +1441,12 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       input.setUser_ipaddress("127.0.0.1")
       input.setDerived_tstamp("2010-06-30 01:20:01.000")
       val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
-      EnrichmentManager.getIabContext[Id](iabEnrichment).runS(inputState) must beLike {
+      for {
+        iab <- iabEnrichment
+        result <- EnrichmentManager
+                    .getIabContext[IO](Some(iab))
+                    .runS(inputState)
+      } yield result must beLike {
         case acc: EnrichmentManager.Accumulation =>
           (acc.errors must beEmpty) and (acc.contexts must beEmpty)
       }
@@ -1000,7 +1457,12 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       input.setUseragent("Firefox")
       input.setDerived_tstamp("2010-06-30 01:20:01.000")
       val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
-      EnrichmentManager.getIabContext[Id](iabEnrichment).runS(inputState) must beLike {
+      for {
+        iab <- iabEnrichment
+        result <- EnrichmentManager
+                    .getIabContext[IO](Some(iab))
+                    .runS(inputState)
+      } yield result must beLike {
         case acc: EnrichmentManager.Accumulation =>
           (acc.errors must beEmpty) and (acc.contexts must beEmpty)
       }
@@ -1011,7 +1473,12 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       input.setUser_ipaddress("127.0.0.1")
       input.setUseragent("Firefox")
       val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
-      EnrichmentManager.getIabContext[Id](iabEnrichment).runS(inputState) must beLike {
+      for {
+        iab <- iabEnrichment
+        result <- EnrichmentManager
+                    .getIabContext[IO](Some(iab))
+                    .runS(inputState)
+      } yield result must beLike {
         case acc: EnrichmentManager.Accumulation =>
           (acc.errors must beEmpty) and (acc.contexts must beEmpty)
       }
@@ -1023,7 +1490,12 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       input.setUseragent("Firefox")
       input.setDerived_tstamp("2010-06-30 01:20:01.000")
       val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
-      EnrichmentManager.getIabContext[Id](iabEnrichment).runS(inputState) must beLike {
+      for {
+        iab <- iabEnrichment
+        result <- EnrichmentManager
+                    .getIabContext[IO](Some(iab))
+                    .runS(inputState)
+      } yield result must beLike {
         case acc: EnrichmentManager.Accumulation =>
           (acc.errors must beEmpty) and (acc.contexts must beEmpty)
       }
@@ -1035,7 +1507,12 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       input.setUseragent("Firefox")
       input.setDerived_tstamp("2010-06-30 01:20:01.000")
       val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
-      EnrichmentManager.getIabContext[Id](iabEnrichment).runS(inputState) must beLike {
+      for {
+        iab <- iabEnrichment
+        result <- EnrichmentManager
+                    .getIabContext[IO](Some(iab))
+                    .runS(inputState)
+      } yield result must beLike {
         case acc: EnrichmentManager.Accumulation =>
           (acc.errors must beEmpty) and (acc.contexts must beEmpty)
       }
@@ -1047,7 +1524,12 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
       input.setUseragent("Firefox")
       input.setDerived_tstamp("2010-06-30 01:20:01.000")
       val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
-      EnrichmentManager.getIabContext[Id](iabEnrichment).runS(inputState) must beLike {
+      for {
+        iab <- iabEnrichment
+        result <- EnrichmentManager
+                    .getIabContext[IO](Some(iab))
+                    .runS(inputState)
+      } yield result must beLike {
         case acc: EnrichmentManager.Accumulation =>
           (acc.errors must beEmpty) and (acc.contexts must not beEmpty)
       }
@@ -1055,46 +1537,62 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
   }
 
   "getCollectorVersionSet" should {
-    "return an enrichment failure if v_collector is null or empty" >> {
+    "return an enrichment failure if v_collector is null" >> {
       val input = new EnrichedEvent()
       val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
-      EnrichmentManager.getCollectorVersionSet[Id].runS(inputState) must beLike {
-        case acc: EnrichmentManager.Accumulation =>
-          acc.errors must not beEmpty
-      }
+      EnrichmentManager
+        .getCollectorVersionSet[IO]
+        .runS(inputState)
+        .map(_ must beLike {
+          case acc: EnrichmentManager.Accumulation =>
+            acc.errors must not beEmpty
+        })
+    }
+
+    "return an enrichment failure if v_collector is empty" >> {
+      val input = new EnrichedEvent()
       input.v_collector = ""
-      EnrichmentManager.getCollectorVersionSet[Id].runS(inputState) must beLike {
-        case acc: EnrichmentManager.Accumulation =>
-          acc.errors must not beEmpty
-      }
+      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      EnrichmentManager
+        .getCollectorVersionSet[IO]
+        .runS(inputState)
+        .map(_ must beLike {
+          case acc: EnrichmentManager.Accumulation =>
+            acc.errors must not beEmpty
+        })
     }
 
     "return Unit if v_collector is set" >> {
       val input = new EnrichedEvent()
       input.v_collector = "v42"
       val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
-      EnrichmentManager.getCollectorVersionSet[Id].runS(inputState) must beLike {
-        case acc: EnrichmentManager.Accumulation =>
-          acc.errors must beEmpty
-      }
+      EnrichmentManager
+        .getCollectorVersionSet[IO]
+        .runS(inputState)
+        .map(_ must beLike {
+          case acc: EnrichmentManager.Accumulation =>
+            acc.errors must beEmpty
+        })
     }
   }
 
   "validateEnriched" should {
     "create a bad row if a field is oversized" >> {
       val result = EnrichmentManager
-        .enrichEvent[Id](
+        .enrichEvent[IO](
           enrichmentReg,
           client,
           processor,
           timestamp,
           RawEvent(api, fatBody, None, source, context),
           featureFlags = AcceptInvalid.featureFlags.copy(acceptInvalid = false),
-          AcceptInvalid.countInvalid
+          IO.unit,
+          SpecHelpers.registryLookup,
+          atomicFieldLimits
         )
         .value
 
-      result must beLeft.like {
+      result.map(_ must beLeft.like {
         case badRow: BadRow.EnrichmentFailures =>
           val firstError = badRow.failure.messages.head.message
           val secondError = badRow.failure.messages.last.message
@@ -1105,30 +1603,32 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers {
           secondError must beEqualTo(EnrichmentFailureMessage.Simple("Field v_tracker longer than maximum allowed size 100"))
         case br =>
           ko(s"bad row [$br] is not BadRow.EnrichmentFailures")
-      }
+      })
     }
 
     "not create a bad row if a field is oversized and acceptInvalid is set to true" >> {
       val result = EnrichmentManager
-        .enrichEvent[Id](
+        .enrichEvent[IO](
           enrichmentReg,
           client,
           processor,
           timestamp,
           RawEvent(api, fatBody, None, source, context),
           featureFlags = AcceptInvalid.featureFlags.copy(acceptInvalid = true),
-          AcceptInvalid.countInvalid
+          IO.unit,
+          SpecHelpers.registryLookup,
+          atomicFieldLimits
         )
         .value
 
-      result must beRight[EnrichedEvent]
+      result.map(_ must beRight[EnrichedEvent])
     }
   }
 }
 
 object EnrichmentManagerSpec {
 
-  val enrichmentReg = EnrichmentRegistry[Id](yauaa = Some(YauaaEnrichment(None)))
+  val enrichmentReg = EnrichmentRegistry[IO](yauaa = Some(YauaaEnrichment(None)))
   val client = SpecHelpers.client
   val processor = Processor("ssc-tests", "0.0.0")
   val timestamp = DateTime.now()
@@ -1143,6 +1643,8 @@ object EnrichmentManagerSpec {
     Nil,
     None
   )
+
+  val atomicFieldLimits = AtomicFields.from(Map("v_tracker" -> 100))
 
   val leanBody = Map(
     "e" -> "pp",
@@ -1187,7 +1689,6 @@ object EnrichmentManagerSpec {
     )
     .toOption
     .getOrElse(throw new RuntimeException("IAB enrichment couldn't be initialised")) // to make sure it's not none
-    .enrichment[Id]
-    .some
+    .enrichment[IO]
 
 }

@@ -1,32 +1,31 @@
 /*
- * Copyright (c) 2015-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2015-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package adapters
-package registry
+package com.snowplowanalytics.snowplow.enrich.common.adapters.registry
 
 import cats.data.NonEmptyList
 import cats.syntax.option._
-import com.snowplowanalytics.snowplow.badrows._
+import cats.effect.testing.specs2.CatsEffect
 import org.joda.time.DateTime
 import org.specs2.matcher.ValidatedMatchers
 import org.specs2.mutable.Specification
 
-import loaders._
-import utils.Clock._
+import com.snowplowanalytics.snowplow.badrows._
 
-import SpecHelpers._
+import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
+import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 
-class SendgridAdapterSpec extends Specification with ValidatedMatchers {
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
+
+class SendgridAdapterSpec extends Specification with ValidatedMatchers with CatsEffect {
   object Shared {
     val api = CollectorPayload.Api("com.sendgrid", "v3")
     val cljSource = CollectorPayload.Source("clj-tomcat", "UTF-8", None)
@@ -224,53 +223,56 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers {
         Shared.cljSource,
         Shared.context
       )
-    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
+    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
 
     "return the correct number of events" in {
-      actual must beValid
-      val items = actual.toList.head.toList
-
-      items must have size 11
+      actual.map { output =>
+        output must beValid
+        val items = output.toList.head.toList
+        items must have size 11
+      }
     }
 
     "have the correct api endpoint for each element" in {
-      actual must beValid
-      val items = actual.toList.head.toList
-      val siz = items.count(itm => itm.api == Shared.api)
-
-      siz must beEqualTo(items.size)
+      actual.map { output =>
+        output must beValid
+        val items = output.toList.head.toList
+        val siz = items.count(itm => itm.api == Shared.api)
+        siz must beEqualTo(items.size)
+      }
     }
 
     "have the correct content type for each element" in {
-      actual must beValid
-      val items = actual.toList.head.toList
-      val siz = items.count(itm => itm.contentType.get == ContentType)
-
-      siz must beEqualTo(items.toList.size)
+      actual.map { output =>
+        output must beValid
+        val items = output.toList.head.toList
+        val siz = items.count(itm => itm.contentType.get == ContentType)
+        siz must beEqualTo(items.toList.size)
+      }
     }
 
     "have the correct source for each element" in {
-      actual must beValid
-      val items = actual.toList.head.toList
-      val siz = items.count(itm => itm.source == Shared.cljSource)
-
-      siz must beEqualTo(items.toList.size)
+      actual.map { output =>
+        output must beValid
+        val items = output.toList.head.toList
+        val siz = items.count(itm => itm.source == Shared.cljSource)
+        siz must beEqualTo(items.toList.size)
+      }
     }
 
     "have the correct context for each element" in {
-      actual must beValid
-      val items = actual.toList.head.toList
-      val siz = items.count(itm => itm.context == Shared.context)
-
-      siz must beEqualTo(items.toList.size)
+      actual.map { output =>
+        output must beValid
+        val items = output.toList.head.toList
+        val siz = items.count(itm => itm.context == Shared.context)
+        siz must beEqualTo(items.toList.size)
+      }
     }
 
     "reject empty bodies" in {
       val invalidpayload =
         CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
-      val toBeRejected = adapterWithDefaultSchemas.toRawEvents(invalidpayload, SpecHelpers.client)
-
-      toBeRejected must beInvalid
+      adapterWithDefaultSchemas.toRawEvents(invalidpayload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid)
     }
 
     "reject empty content type" in {
@@ -283,8 +285,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers {
           Shared.cljSource,
           Shared.context
         )
-      val toBeRejected = adapterWithDefaultSchemas.toRawEvents(invalidpayload, SpecHelpers.client)
-      toBeRejected must beInvalid
+      adapterWithDefaultSchemas.toRawEvents(invalidpayload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid)
     }
 
     "reject unexpected content type" in {
@@ -297,7 +298,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers {
           Shared.cljSource,
           Shared.context
         )
-      adapterWithDefaultSchemas.toRawEvents(invalidpayload, SpecHelpers.client) must beInvalid
+      adapterWithDefaultSchemas.toRawEvents(invalidpayload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid)
     }
 
     "accept content types with explicit charsets" in {
@@ -310,8 +311,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers {
           Shared.cljSource,
           Shared.context
         )
-      val res = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
-      res must beValid
+      adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beValid)
     }
 
     "reject unsupported event types" in {
@@ -340,7 +340,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers {
           Shared.context
         )
 
-      adapterWithDefaultSchemas.toRawEvents(invalidpayload, SpecHelpers.client) must beInvalid
+      adapterWithDefaultSchemas.toRawEvents(invalidpayload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid)
     }
 
     "reject invalid/unparsable json" in {
@@ -355,8 +355,10 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers {
             Shared.cljSource,
             Shared.context
           ),
-          SpecHelpers.client
-        ) must beInvalid
+          SpecHelpers.client,
+          SpecHelpers.registryLookup
+        )
+        .map(_ must beInvalid)
     }
 
     "reject valid json in incorrect format" in {
@@ -371,8 +373,10 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers {
             Shared.cljSource,
             Shared.context
           ),
-          SpecHelpers.client
-        ) must beInvalid
+          SpecHelpers.client,
+          SpecHelpers.registryLookup
+        )
+        .map(_ must beInvalid)
     }
 
     "reject a payload with a some valid, some invalid events" in {
@@ -407,16 +411,19 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers {
           Shared.cljSource,
           Shared.context
         )
-      val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
-      actual must beInvalid(
-        NonEmptyList.one(
-          FailureDetails.AdapterFailure.SchemaMapping(
-            None,
-            adapterWithDefaultSchemas.EventSchemaMap,
-            "cannot determine event type: type parameter not provided at index 1"
+      adapterWithDefaultSchemas
+        .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+        .map(
+          _ must beInvalid(
+            NonEmptyList.one(
+              FailureDetails.AdapterFailure.SchemaMapping(
+                None,
+                adapterWithDefaultSchemas.EventSchemaMap,
+                "cannot determine event type: type parameter not provided at index 1"
+              )
+            )
           )
         )
-      )
     }
 
     "return correct json for sample event, including stripping out event keypair and fixing timestamp" in {
@@ -452,23 +459,26 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers {
       val expectedJson =
         """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.sendgrid/processed/jsonschema/3-0-0","data":{"timestamp":"2015-11-03T11:20:15.000Z","email":"example@test.com","marketing_campaign_name":"campaign name","sg_event_id":"sZROwMGMagFgnOEmSdvhig==","smtp-id":"\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e","marketing_campaign_version":"B","marketing_campaign_id":12345,"marketing_campaign_split_id":13471,"category":"cat facts","sg_message_id":"14c5d75ce93.dfd.64b469.filter0001.16648.5515E0B88.0"}}}"""
 
-      val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
-      actual must beValid(
-        NonEmptyList.one(
-          RawEvent(
-            Shared.api,
-            Map(
-              "tv" -> "com.sendgrid-v3",
-              "e" -> "ue",
-              "p" -> "srv",
-              "ue_pr" -> expectedJson // NB this includes removing the "event" keypair as redundant
-            ).toOpt,
-            ContentType.some,
-            Shared.cljSource,
-            Shared.context
+      adapterWithDefaultSchemas
+        .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+        .map(
+          _ must beValid(
+            NonEmptyList.one(
+              RawEvent(
+                Shared.api,
+                Map(
+                  "tv" -> "com.sendgrid-v3",
+                  "e" -> "ue",
+                  "p" -> "srv",
+                  "ue_pr" -> expectedJson // NB this includes removing the "event" keypair as redundant
+                ).toOpt,
+                ContentType.some,
+                Shared.cljSource,
+                Shared.context
+              )
+            )
           )
         )
-      )
     }
 
     "filter events if they are exact duplicates" in {
@@ -514,11 +524,12 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers {
           Shared.context
         )
 
-      val res = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client)
-      res must beValid.like {
-        case nel: NonEmptyList[RawEvent] =>
-          nel.toList must have size 1
-      }
+      adapterWithDefaultSchemas
+        .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+        .map(_ must beValid.like {
+          case nel: NonEmptyList[RawEvent] =>
+            nel.toList must have size 1
+        })
     }
 
     "uses custom schema and tracker overrides from configuration" in {
@@ -577,35 +588,38 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers {
       val expectedJsonDeferred =
         """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.sendgrid/deferred/jsonschema/3-0-0","data":{"timestamp":"2015-11-03T11:20:15.000Z","email":"example@test.com","marketing_campaign_name":"campaign name","sg_event_id":"jWmZXTZbtHTV2-S47asrww==","smtp-id":"<14c5d75ce93.dfd.64b469@ismtpd-555>","marketing_campaign_version":"B","response":"400 try again later","marketing_campaign_id":12345,"marketing_campaign_split_id":13471,"category":"cat facts","attempt":"5","sg_message_id":"14c5d75ce93.dfd.64b469.filter0001.16648.5515E0B88.0"}}}"""
 
-      val actual = adapter.toRawEvents(payload, SpecHelpers.client)
-      actual must beValid(
-        NonEmptyList.of(
-          RawEvent(
-            Shared.api,
-            Map(
-              "tv" -> "com.sendgrid-v3",
-              "e" -> "ue",
-              "p" -> "srv",
-              "ue_pr" -> expectedJsonProcessed // NB this includes removing the "event" keypair as redundant
-            ).toOpt,
-            ContentType.some,
-            Shared.cljSource,
-            Shared.context
-          ),
-          RawEvent(
-            Shared.api,
-            Map(
-              "tv" -> "com.sendgrid-v3",
-              "e" -> "ue",
-              "p" -> "srv",
-              "ue_pr" -> expectedJsonDeferred // NB this includes removing the "event" keypair as redundant
-            ).toOpt,
-            ContentType.some,
-            Shared.cljSource,
-            Shared.context
+      adapter
+        .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+        .map(
+          _ must beValid(
+            NonEmptyList.of(
+              RawEvent(
+                Shared.api,
+                Map(
+                  "tv" -> "com.sendgrid-v3",
+                  "e" -> "ue",
+                  "p" -> "srv",
+                  "ue_pr" -> expectedJsonProcessed // NB this includes removing the "event" keypair as redundant
+                ).toOpt,
+                ContentType.some,
+                Shared.cljSource,
+                Shared.context
+              ),
+              RawEvent(
+                Shared.api,
+                Map(
+                  "tv" -> "com.sendgrid-v3",
+                  "e" -> "ue",
+                  "p" -> "srv",
+                  "ue_pr" -> expectedJsonDeferred // NB this includes removing the "event" keypair as redundant
+                ).toOpt,
+                ContentType.some,
+                Shared.cljSource,
+                Shared.context
+              )
+            )
           )
         )
-      )
     }
   }
 }

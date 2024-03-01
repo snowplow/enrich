@@ -1,30 +1,35 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
-import cats.Id
 import cats.implicits._
 
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
-import com.snowplowanalytics.maxmind.iplookups.model.IpLocation
-import com.snowplowanalytics.snowplow.enrich.common.utils.BlockerF
+import cats.effect.IO
+import cats.effect.unsafe.implicits.global
+
+import cats.effect.testing.specs2.CatsEffect
 
 import io.circe.literal._
 
 import org.specs2.Specification
 import org.specs2.matcher.DataTables
 
-class IpLookupsEnrichmentSpec extends Specification with DataTables {
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+
+import com.snowplowanalytics.maxmind.iplookups.model.IpLocation
+
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
+
+class IpLookupsEnrichmentSpec extends Specification with DataTables with CatsEffect {
+
   def is = s2"""
   extractIpInformation should correctly extract location data from IP addresses where possible $e1
   extractIpInformation should correctly extract ISP data from IP addresses where possible      $e2
@@ -98,14 +103,16 @@ class IpLookupsEnrichmentSpec extends Specification with DataTables {
           accuracyRadius = 100
         ).asRight.some |> { (_, ipAddress, expected) =>
       (for {
-        e <- config.enrichment[Id](BlockerF.noop)
-        res <- e.extractIpInformation(ipAddress)
-      } yield res.ipLocation).map(_.leftMap(_.getClass.getSimpleName)) must_== expected
+        ipLookup <- config.enrichment[IO](SpecHelpers.blockingEC)
+        result <- ipLookup.extractIpInformation(ipAddress)
+        ipLocation = result.ipLocation.map(_.leftMap(_.getClass.getSimpleName))
+      } yield ipLocation must beEqualTo(expected)).unsafeRunSync()
     }
 
   def e2 =
-    config
-      .enrichment[Id](BlockerF.noop)
-      .extractIpInformation("70.46.123.145")
-      .isp must_== "FDN Communications".asRight.some
+    for {
+      ipLookup <- config.enrichment[IO](SpecHelpers.blockingEC)
+      result <- ipLookup.extractIpInformation("70.46.123.145")
+      isp = result.isp
+    } yield isp must beEqualTo(Some(Right("FDN Communications")))
 }

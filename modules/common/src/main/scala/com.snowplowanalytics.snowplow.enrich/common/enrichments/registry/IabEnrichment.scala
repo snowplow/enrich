@@ -1,21 +1,18 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.io.File
 import java.net.{InetAddress, URI}
 
-import cats.{Id, Monad}
 import cats.data.{NonEmptyList, ValidatedNel}
 
 import cats.effect.Sync
@@ -82,16 +79,6 @@ object IabEnrichment extends ParseableEnrichment {
       (db.uri, s"./iab_${db.name}")
 
   /**
-   * Creates an IabEnrichment from a IabConf
-   * @param conf Configuration for the iab enrichment
-   * @return an iab enrichment
-   */
-  def apply[F[_]: Monad: CreateIabClient](conf: IabConf): F[IabEnrichment] =
-    CreateIabClient[F]
-      .create(conf.ipFile._2, conf.excludeUaFile._2, conf.includeUaFile._2)
-      .map(c => IabEnrichment(conf.schemaKey, c))
-
-  /**
    * Creates IabDatabase instances used in the IabEnrichment case class.
    * @param config The iab_spiders_and_robots_enrichment JSON
    * @param name of the field, e.g. "ipFile", "excluseUseragentFile", "includeUseragentFile"
@@ -108,6 +95,18 @@ object IabEnrichment extends ParseableEnrichment {
       uri <- getDatabaseUri(uriAndDb._1, uriAndDb._2).leftMap(NonEmptyList.one)
     } yield IabDatabase(name, uri, uriAndDb._2)).toValidated
   }
+
+  def create[F[_]: Sync](
+    schemaKey: SchemaKey,
+    ipFile: String,
+    excludeUaFile: String,
+    includeUaFile: String
+  ): F[IabEnrichment] =
+    Sync[F]
+      .delay {
+        new IabClient(new File(ipFile), new File(excludeUaFile), new File(includeUaFile))
+      }
+      .map(IabEnrichment(schemaKey, _))
 }
 
 /**
@@ -163,40 +162,6 @@ final case class IabEnrichment(schemaKey: SchemaKey, iabClient: IabClient) exten
   ): Either[FailureDetails.EnrichmentFailure, SelfDescribingData[Json]] =
     performCheck(userAgent, ipAddress, accurateAt).map { iab =>
       SelfDescribingData(outputSchema, iab.asJson)
-    }
-}
-
-trait CreateIabClient[F[_]] {
-  def create(
-    ipFile: String,
-    excludeUaFile: String,
-    includeUaFile: String
-  ): F[IabClient]
-}
-
-object CreateIabClient {
-  def apply[F[_]](implicit ev: CreateIabClient[F]): CreateIabClient[F] = ev
-
-  implicit def syncCreateIabClient[F[_]: Sync]: CreateIabClient[F] =
-    new CreateIabClient[F] {
-      def create(
-        ipFile: String,
-        excludeUaFile: String,
-        includeUaFile: String
-      ): F[IabClient] =
-        Sync[F].delay {
-          new IabClient(new File(ipFile), new File(excludeUaFile), new File(includeUaFile))
-        }
-    }
-
-  implicit def idCreateIabClient: CreateIabClient[Id] =
-    new CreateIabClient[Id] {
-      def create(
-        ipFile: String,
-        excludeUaFile: String,
-        includeUaFile: String
-      ): Id[IabClient] =
-        new IabClient(new File(ipFile), new File(excludeUaFile), new File(includeUaFile))
     }
 }
 

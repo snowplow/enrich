@@ -1,34 +1,33 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package adapters
-package registry
+package com.snowplowanalytics.snowplow.enrich.common.adapters.registry
 
-import cats.Id
 import cats.data.NonEmptyList
 import cats.syntax.option._
 
-import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup._
-import com.snowplowanalytics.snowplow.badrows._
+import cats.effect.testing.specs2.CatsEffect
+
 import org.joda.time.DateTime
 import org.specs2.Specification
 import org.specs2.matcher.{DataTables, ValidatedMatchers}
 
-import loaders._
-import SpecHelpers._
-import utils.Clock._
+import com.snowplowanalytics.snowplow.badrows._
 
-class CallrailAdapterSpec extends Specification with DataTables with ValidatedMatchers {
+import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
+import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
+
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
+
+class CallrailAdapterSpec extends Specification with DataTables with ValidatedMatchers with CatsEffect {
   def is = s2"""
   toRawEvents should return a NEL containing one RawEvent if the querystring is correctly populated $e1
   toRawEvents should return a Validation Failure if there are no parameters on the querystring      $e2
@@ -99,7 +98,6 @@ class CallrailAdapterSpec extends Specification with DataTables with ValidatedMa
       "nuid" -> "-"
     )
     val payload = CollectorPayload(Shared.api, params, None, None, Shared.source, Shared.context)
-    val actual = adapterWithDefaultSchemas.toRawEvents[Id](payload, SpecHelpers.client)
 
     val expectedJson =
       """|{
@@ -146,29 +144,36 @@ class CallrailAdapterSpec extends Specification with DataTables with ValidatedMa
             |}
           |}""".stripMargin.replaceAll("[\n\r]", "")
 
-    actual must beValid(
-      NonEmptyList.one(
-        RawEvent(
-          Shared.api,
-          Expected.static ++ Map("ue_pr" -> expectedJson, "nuid" -> "-").toOpt,
-          None,
-          Shared.source,
-          Shared.context
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .map(
+        _ must beValid(
+          NonEmptyList.one(
+            RawEvent(
+              Shared.api,
+              Expected.static ++ Map("ue_pr" -> expectedJson, "nuid" -> "-").toOpt,
+              None,
+              Shared.source,
+              Shared.context
+            )
+          )
         )
       )
-    )
   }
 
   def e2 = {
     val params = toNameValuePairs()
     val payload = CollectorPayload(Shared.api, params, None, None, Shared.source, Shared.context)
-    val actual = adapterWithDefaultSchemas.toRawEvents[Id](payload, SpecHelpers.client)
 
-    actual must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.AdapterFailure
-          .InputData("querystring", None, "empty querystring")
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure
+              .InputData("querystring", None, "empty querystring")
+          )
+        )
       )
-    )
   }
 }

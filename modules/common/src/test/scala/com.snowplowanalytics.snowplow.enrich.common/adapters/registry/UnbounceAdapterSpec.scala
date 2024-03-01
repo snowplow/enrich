@@ -1,32 +1,31 @@
 /*
- * Copyright (c) 2016-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2016-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package adapters
-package registry
+package com.snowplowanalytics.snowplow.enrich.common.adapters.registry
 
 import cats.data.NonEmptyList
 import cats.syntax.option._
-import com.snowplowanalytics.snowplow.badrows._
+import cats.effect.testing.specs2.CatsEffect
 import org.joda.time.DateTime
 import org.specs2.Specification
 import org.specs2.matcher.{DataTables, ValidatedMatchers}
 
-import loaders._
-import utils.Clock._
+import com.snowplowanalytics.snowplow.badrows._
 
-import SpecHelpers._
+import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
+import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 
-class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMatchers {
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
+
+class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMatchers with CatsEffect {
   def is = s2"""
   toRawEvents must return a Success Nel if the query string is valid                            $e1
   toRawEvents must return a Nel Failure if the request body is missing                          $e2
@@ -118,19 +117,23 @@ class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMa
         Shared.context
       )
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beValid(expected)
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beValid(expected))
   }
 
   def e2 = {
     val params = SpecHelpers.toNameValuePairs("schema" -> "iglu:com.unbounce/test/jsonschema/1-0-0")
     val payload =
       CollectorPayload(Shared.api, params, ContentType.some, None, Shared.cljSource, Shared.context)
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.AdapterFailure
-          .InputData("body", None, "empty body: no events to process")
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure
+              .InputData("body", None, "empty body: no events to process")
+          )
+        )
       )
-    )
   }
 
   def e3 = {
@@ -138,15 +141,19 @@ class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMa
       "page_id=f7afd389-65a3-45fa-8bad-b7a42236044c&page_name=Test-Webhook&variant=a&page_url=http%3A%2F%2Funbouncepages.com%2Ftest-webhook-1&data.json=%7B%22email%22%3A%5B%22test%40snowplowanalytics.com%22%5D%2C%22ip_address%22%3A%5B%22200.121.220.179%22%5D%2C%22time_submitted%22%3A%5B%2204%3A17%20PM%20UTC%22%5D%7D"
     val payload =
       CollectorPayload(Shared.api, Nil, None, body.some, Shared.cljSource, Shared.context)
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.AdapterFailure.InputData(
-          "contentType",
-          None,
-          "no content type: expected application/x-www-form-urlencoded"
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure.InputData(
+              "contentType",
+              None,
+              "no content type: expected application/x-www-form-urlencoded"
+            )
+          )
         )
       )
-    )
   }
 
   def e4 = {
@@ -155,15 +162,19 @@ class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMa
     val ct = "application/json"
     val payload =
       CollectorPayload(Shared.api, Nil, ct.some, body.some, Shared.cljSource, Shared.context)
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(
-      NonEmptyList.one(
-        FailureDetails.AdapterFailure.InputData(
-          "contentType",
-          "application/json".some,
-          "expected application/x-www-form-urlencoded"
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure.InputData(
+              "contentType",
+              "application/json".some,
+              "expected application/x-www-form-urlencoded"
+            )
+          )
         )
       )
-    )
   }
 
   def e5 = {
@@ -182,7 +193,7 @@ class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMa
         FailureDetails.AdapterFailure
           .InputData("body", None, "empty body: no events to process")
       )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(expected)
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid(expected))
   }
 
   def e6 = {
@@ -201,7 +212,7 @@ class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMa
       FailureDetails.AdapterFailure
         .InputData("data.json", None, "missing 'data.json' field in body")
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(expected)
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid(expected))
   }
 
   def e7 = {
@@ -220,7 +231,7 @@ class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMa
       FailureDetails.AdapterFailure
         .InputData("data.json", None, "empty 'data.json' field in body")
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(expected)
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid(expected))
   }
 
   def e8 = {
@@ -242,7 +253,7 @@ class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMa
         """invalid json: expected " got '{"emai...' (line 1, column 2)"""
       )
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(expected)
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid(expected))
   }
 
   def e9 = {
@@ -262,7 +273,7 @@ class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMa
         FailureDetails.AdapterFailure
           .InputData("page_id", None, "missing 'page_id' field in body")
       )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(expected)
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid(expected))
   }
 
   def e10 = {
@@ -281,7 +292,7 @@ class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMa
       FailureDetails.AdapterFailure
         .InputData("page_name", None, "missing 'page_name' field in body")
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(expected)
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid(expected))
   }
 
   def e11 = {
@@ -301,7 +312,7 @@ class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMa
         FailureDetails.AdapterFailure
           .InputData("variant", None, "missing 'variant' field in body")
       )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(expected)
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid(expected))
   }
 
   def e12 = {
@@ -320,6 +331,6 @@ class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMa
       FailureDetails.AdapterFailure
         .InputData("page_url", None, "missing 'page_url' field in body")
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client) must beInvalid(expected)
+    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid(expected))
   }
 }

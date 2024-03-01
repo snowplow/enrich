@@ -1,418 +1,28 @@
 /*
- * Copyright (c) 2020-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2.config
 
-import java.net.URI
-import java.util.UUID
 import java.nio.file.Paths
 
-import scala.concurrent.duration._
-
 import cats.syntax.either._
-import cats.data.NonEmptyList
 import cats.effect.IO
 
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 
 import com.typesafe.config.ConfigFactory
 
-import org.http4s.Uri
-
 import org.specs2.mutable.Specification
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.BackoffPolicy
-import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
-
-class ConfigFileSpec extends Specification with CatsIO {
+class ConfigFileSpec extends Specification with CatsEffect {
   "parse" should {
-    "parse reference example for PubSub" in {
-      val configPath = Paths.get(getClass.getResource("/config.pubsub.extended.hocon").toURI)
-      val expected = ConfigFile(
-        io.Input.PubSub("projects/test-project/subscriptions/collector-payloads-sub", 1, 3000, 50000000, 1.hour),
-        io.Outputs(
-          io.Output.PubSub("projects/test-project/topics/enriched", Some(Set("app_id")), 200.milliseconds, 1000, 8000000),
-          Some(io.Output.PubSub("projects/test-project/topics/pii", None, 200.milliseconds, 1000, 8000000)),
-          io.Output.PubSub("projects/test-project/topics/bad", None, 200.milliseconds, 1000, 8000000)
-        ),
-        io.Concurrency(256, 3),
-        Some(7.days),
-        io.RemoteAdapterConfigs(
-          10.seconds,
-          45.seconds,
-          10,
-          List(
-            io.RemoteAdapterConfig("com.example", "v1", "https://remote-adapter.com")
-          )
-        ),
-        io.Monitoring(
-          Some(Sentry(URI.create("http://sentry.acme.com"))),
-          io.MetricsReporters(
-            Some(io.MetricsReporters.StatsD("localhost", 8125, Map("app" -> "enrich"), 10.seconds, None)),
-            Some(io.MetricsReporters.Stdout(10.seconds, None)),
-            true
-          )
-        ),
-        io.Telemetry(
-          false,
-          15.minutes,
-          "POST",
-          "collector-g.snowplowanalytics.com",
-          443,
-          true,
-          Some("my_pipeline"),
-          Some("hfy67e5ydhtrd"),
-          Some("665bhft5u6udjf"),
-          Some("enrich-kinesis-ce"),
-          Some("1.0.0")
-        ),
-        io.FeatureFlags(
-          false,
-          false,
-          false
-        ),
-        Some(
-          io.Experimental(
-            Some(
-              io.Metadata(
-                Uri.uri("https://my_pipeline.my_domain.com/iglu"),
-                5.minutes,
-                UUID.fromString("c5f3a09f-75f8-4309-bec5-fea560f78455"),
-                UUID.fromString("75a13583-5c99-40e3-81fc-541084dfc784")
-              )
-            )
-          )
-        ),
-        adaptersSchemas
-      )
-      ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
-    }
-
-    "parse reference example for Kinesis" in {
-      val configPath = Paths.get(getClass.getResource("/config.kinesis.extended.hocon").toURI)
-      val expected = ConfigFile(
-        io.Input.Kinesis(
-          "snowplow-enrich-kinesis",
-          "collector-payloads",
-          Some("eu-central-1"),
-          io.Input.Kinesis.InitPosition.TrimHorizon,
-          io.Input.Kinesis.Retrieval.Polling(10000),
-          3,
-          io.BackoffPolicy(100.milli, 10.second, Some(10)),
-          None,
-          None,
-          None
-        ),
-        io.Outputs(
-          io.Output.Kinesis(
-            "enriched",
-            Some("eu-central-1"),
-            None,
-            io.BackoffPolicy(100.millis, 10.seconds, Some(10)),
-            io.BackoffPolicy(100.millis, 1.second, None),
-            500,
-            5242880,
-            None
-          ),
-          Some(
-            io.Output.Kinesis(
-              "pii",
-              Some("eu-central-1"),
-              None,
-              io.BackoffPolicy(100.millis, 10.seconds, Some(10)),
-              io.BackoffPolicy(100.millis, 1.second, None),
-              500,
-              5242880,
-              None
-            )
-          ),
-          io.Output.Kinesis(
-            "bad",
-            Some("eu-central-1"),
-            None,
-            io.BackoffPolicy(100.millis, 10.seconds, Some(10)),
-            io.BackoffPolicy(100.millis, 1.second, None),
-            500,
-            5242880,
-            None
-          )
-        ),
-        io.Concurrency(256, 1),
-        Some(7.days),
-        io.RemoteAdapterConfigs(
-          10.seconds,
-          45.seconds,
-          10,
-          List(
-            io.RemoteAdapterConfig("com.example", "v1", "https://remote-adapter.com")
-          )
-        ),
-        io.Monitoring(
-          Some(Sentry(URI.create("http://sentry.acme.com"))),
-          io.MetricsReporters(
-            Some(io.MetricsReporters.StatsD("localhost", 8125, Map("app" -> "enrich"), 10.seconds, None)),
-            Some(io.MetricsReporters.Stdout(10.seconds, None)),
-            true
-          )
-        ),
-        io.Telemetry(
-          false,
-          15.minutes,
-          "POST",
-          "collector-g.snowplowanalytics.com",
-          443,
-          true,
-          Some("my_pipeline"),
-          Some("hfy67e5ydhtrd"),
-          Some("665bhft5u6udjf"),
-          Some("enrich-kinesis-ce"),
-          Some("1.0.0")
-        ),
-        io.FeatureFlags(
-          false,
-          false,
-          false
-        ),
-        Some(
-          io.Experimental(
-            Some(
-              io.Metadata(
-                Uri.uri("https://my_pipeline.my_domain.com/iglu"),
-                5.minutes,
-                UUID.fromString("c5f3a09f-75f8-4309-bec5-fea560f78455"),
-                UUID.fromString("75a13583-5c99-40e3-81fc-541084dfc784")
-              )
-            )
-          )
-        ),
-        adaptersSchemas
-      )
-      ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
-    }
-
-    "parse reference example for RabbitMQ" in {
-      val configPath = Paths.get(getClass.getResource("/config.rabbitmq.extended.hocon").toURI)
-      val expected = ConfigFile(
-        io.Input.RabbitMQ(
-          io.RabbitMQConfig(
-            NonEmptyList.one(
-              io.RabbitMQNode("localhost", 5672)
-            ),
-            "guest",
-            "guest",
-            "/",
-            5,
-            false,
-            1000,
-            100,
-            true
-          ),
-          "raw",
-          io.BackoffPolicy(100.millis, 10.seconds, Some(10))
-        ),
-        io.Outputs(
-          io.Output.RabbitMQ(
-            io.RabbitMQConfig(
-              NonEmptyList.one(
-                io.RabbitMQNode("localhost", 5672)
-              ),
-              "guest",
-              "guest",
-              "/",
-              5,
-              false,
-              1000,
-              100,
-              true
-            ),
-            "enriched",
-            "enriched",
-            io.BackoffPolicy(100.millis, 10.seconds, Some(10))
-          ),
-          None,
-          io.Output.RabbitMQ(
-            io.RabbitMQConfig(
-              NonEmptyList.one(
-                io.RabbitMQNode("localhost", 5672)
-              ),
-              "guest",
-              "guest",
-              "/",
-              5,
-              false,
-              1000,
-              100,
-              true
-            ),
-            "bad-1",
-            "bad-1",
-            io.BackoffPolicy(100.millis, 10.seconds, Some(10))
-          )
-        ),
-        io.Concurrency(256, 3),
-        Some(7.days),
-        io.RemoteAdapterConfigs(
-          10.seconds,
-          45.seconds,
-          10,
-          List(
-            io.RemoteAdapterConfig("com.example", "v1", "https://remote-adapter.com")
-          )
-        ),
-        io.Monitoring(
-          Some(Sentry(URI.create("http://sentry.acme.com"))),
-          io.MetricsReporters(
-            Some(io.MetricsReporters.StatsD("localhost", 8125, Map("app" -> "enrich"), 10.seconds, None)),
-            Some(io.MetricsReporters.Stdout(10.seconds, None)),
-            true
-          )
-        ),
-        io.Telemetry(
-          false,
-          15.minutes,
-          "POST",
-          "collector-g.snowplowanalytics.com",
-          443,
-          true,
-          Some("my_pipeline"),
-          Some("hfy67e5ydhtrd"),
-          Some("665bhft5u6udjf"),
-          Some("enrich-rabbitmq-ce"),
-          Some("1.0.0")
-        ),
-        io.FeatureFlags(
-          false,
-          false,
-          false
-        ),
-        Some(
-          io.Experimental(
-            Some(
-              io.Metadata(
-                Uri.uri("https://my_pipeline.my_domain.com/iglu"),
-                5.minutes,
-                UUID.fromString("c5f3a09f-75f8-4309-bec5-fea560f78455"),
-                UUID.fromString("75a13583-5c99-40e3-81fc-541084dfc784")
-              )
-            )
-          )
-        ),
-        adaptersSchemas
-      )
-      ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
-    }
-
-    "parse reference example for NSQ" in {
-      val configPath = Paths.get(getClass.getResource("/config.nsq.extended.hocon").toURI)
-      val expected = ConfigFile(
-        io.Input.Nsq(
-          "collector-payloads",
-          "collector-payloads-channel",
-          "127.0.0.1",
-          4161,
-          3000,
-          BackoffPolicy(
-            minBackoff = 100.milliseconds,
-            maxBackoff = 10.seconds,
-            maxRetries = Some(10)
-          )
-        ),
-        io.Outputs(
-          io.Output.Nsq(
-            "enriched",
-            "127.0.0.1",
-            4150,
-            BackoffPolicy(
-              minBackoff = 100.milliseconds,
-              maxBackoff = 10.seconds,
-              maxRetries = Some(10)
-            )
-          ),
-          Some(
-            io.Output.Nsq(
-              "pii",
-              "127.0.0.1",
-              4150,
-              BackoffPolicy(
-                minBackoff = 100.milliseconds,
-                maxBackoff = 10.seconds,
-                maxRetries = Some(10)
-              )
-            )
-          ),
-          io.Output.Nsq(
-            "bad",
-            "127.0.0.1",
-            4150,
-            BackoffPolicy(
-              minBackoff = 100.milliseconds,
-              maxBackoff = 10.seconds,
-              maxRetries = Some(10)
-            )
-          )
-        ),
-        io.Concurrency(256, 3),
-        Some(7.days),
-        io.RemoteAdapterConfigs(
-          10.seconds,
-          45.seconds,
-          10,
-          List(
-            io.RemoteAdapterConfig("com.example", "v1", "https://remote-adapter.com")
-          )
-        ),
-        io.Monitoring(
-          Some(Sentry(URI.create("http://sentry.acme.com"))),
-          io.MetricsReporters(
-            Some(io.MetricsReporters.StatsD("localhost", 8125, Map("app" -> "enrich"), 10.seconds, None)),
-            Some(io.MetricsReporters.Stdout(10.seconds, None)),
-            true
-          )
-        ),
-        io.Telemetry(
-          false,
-          15.minutes,
-          "POST",
-          "collector-g.snowplowanalytics.com",
-          443,
-          true,
-          Some("my_pipeline"),
-          Some("hfy67e5ydhtrd"),
-          Some("665bhft5u6udjf"),
-          Some("enrich-nsq-ce"),
-          Some("1.0.0")
-        ),
-        io.FeatureFlags(
-          false,
-          false,
-          false
-        ),
-        Some(
-          io.Experimental(
-            Some(
-              io.Metadata(
-                Uri.uri("https://my_pipeline.my_domain.com/iglu"),
-                5.minutes,
-                UUID.fromString("c5f3a09f-75f8-4309-bec5-fea560f78455"),
-                UUID.fromString("75a13583-5c99-40e3-81fc-541084dfc784")
-              )
-            )
-          )
-        ),
-        adaptersSchemas
-      )
-      ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
-    }
-
     "parse valid 0 minutes as None" in {
       val input =
         """{
@@ -422,7 +32,10 @@ class ConfigFileSpec extends Specification with CatsIO {
             "parallelPullCount": 1,
             "maxQueueSize": 3000,
             "maxRequestBytes": 50000000,
-            "maxAckExtensionPeriod": 1 hour
+            "maxAckExtensionPeriod": 1 hour,
+            "gcpUserAgent": {
+              "productName": "Snowplow OSS"
+            }
           },
           "output": {
             "good": {
@@ -430,21 +43,30 @@ class ConfigFileSpec extends Specification with CatsIO {
               "topic": "projects/test-project/topics/good-topic",
               "delayThreshold": "200 milliseconds",
               "maxBatchSize": 1000,
-              "maxBatchBytes": 8000000
+              "maxBatchBytes": 8000000,
+              "gcpUserAgent": {
+                "productName": "Snowplow OSS"
+              }
             },
             "pii": {
               "type": "PubSub",
               "topic": "projects/test-project/topics/pii-topic",
               "delayThreshold": "200 milliseconds",
               "maxBatchSize": 1000,
-              "maxBatchBytes": 8000000
+              "maxBatchBytes": 8000000,
+              "gcpUserAgent": {
+                "productName": "Snowplow OSS"
+              }
             },
             "bad": {
               "type": "PubSub",
               "topic": "projects/test-project/topics/bad-topic",
               "delayThreshold": "200 milliseconds",
               "maxBatchSize": 1000,
-              "maxBatchBytes": 8000000
+              "maxBatchBytes": 8000000,
+              "gcpUserAgent": {
+                "productName": "Snowplow OSS"
+              }
             }
           },
           "concurrency": {
@@ -479,6 +101,16 @@ class ConfigFileSpec extends Specification with CatsIO {
                "organizationId": "c5f3a09f-75f8-4309-bec5-fea560f78455",
                "pipelineId": "75a13583-5c99-40e3-81fc-541084dfc784"
             }
+          },
+          "blobStorage": {
+            "gcs": true
+            "s3": true
+          },
+          "license": {
+            "accept": true
+          },
+          "validation": {
+            "atomicFieldsLimits": {}
           }
         }"""
 
@@ -542,6 +174,16 @@ class ConfigFileSpec extends Specification with CatsIO {
             "acceptInvalid": false,
             "legacyEnrichmentOrder": false,
             "tryBase64Decoding": false
+          },
+          "blobStorage": {
+            "gcs": true,
+            "s3": true
+          },
+          "license": {
+            "accept": true
+          },
+          "validation": {
+            "atomicFieldsLimits": {}
           }
         }"""
 

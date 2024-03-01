@@ -1,4 +1,8 @@
 {
+  "license": {
+    "accept": true
+  }
+
   "input": {
     "streamName": "collector-payloads"
   }

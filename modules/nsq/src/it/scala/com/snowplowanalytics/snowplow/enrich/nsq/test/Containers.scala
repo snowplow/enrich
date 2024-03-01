@@ -1,14 +1,12 @@
 /*
- * Copyright (c) 2023 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2023-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 
 package com.snowplowanalytics.snowplow.enrich.nsq.test
@@ -17,7 +15,7 @@ import org.slf4j.LoggerFactory
 
 import cats.implicits._
 
-import cats.effect.{Resource, Sync, Async, ContextShift, Blocker}
+import cats.effect.kernel.{Async, Resource, Sync}
 
 import org.http4s.client.{JavaNetClientBuilder, Client => Http4sClient}
 import org.http4s.{Request ,Method, Uri}
@@ -32,6 +30,9 @@ import com.snowplowanalytics.snowplow.enrich.nsq.generated.BuildInfo
 
 object Containers {
 
+  //TODO Tests fail with the latest 1.3.0 version!
+  private val nsqVersion = "v1.2.1"
+  
   case class NetworkInfo(
     networkAlias: String,
     broadcastAddress: String,
@@ -58,7 +59,7 @@ object Containers {
    * integration tests and NSQ messages sent to first nsqd instance will be replicated
    * to second nsqd instance with nsq_to_nsq tool.
    */
-  def createContainers[F[_]: Async: ContextShift](blocker: Blocker): Resource[F, NetworkTopology] =
+  def createContainers[F[_]: Async]: Resource[F, NetworkTopology] =
     for {
       network <- network()
       topology = NetworkTopology(
@@ -82,7 +83,7 @@ object Containers {
           topology.nsqd2,
           lookupAddress = s"${topology.lookup2.networkAlias}:${topology.lookup2.tcpPort}"
         )
-      _ <- Resource.eval(createTopics[F](blocker, topology))
+      _ <- Resource.eval(createTopics[F](topology))
       _ <- nsqToNsq(
           network,
           sourceAddress = s"${topology.nsqd1.networkAlias}:${topology.nsqd1.tcpPort}",
@@ -100,8 +101,8 @@ object Containers {
       _ <- enrich(network, topology)
     } yield topology
 
-  private def createTopics[F[_] : Async : ContextShift](blocker: Blocker, topology: NetworkTopology): F[Unit] = {
-    val client = JavaNetClientBuilder[F](blocker).create
+  private def createTopics[F[_] : Async](topology: NetworkTopology): F[Unit] = {
+    val client = JavaNetClientBuilder[F].create
     for {
       _ <- createTopic(client, topology.sourceTopic, 4151)
       _ <- createTopic(client, topology.goodDestTopic, 4151)
@@ -111,7 +112,7 @@ object Containers {
     } yield ()
   }
 
-  private def createTopic[F[_] : Async : ContextShift](client: Http4sClient[F], topic: String, port: Int): F[Unit] = {
+  private def createTopic[F[_] : Async](client: Http4sClient[F], topic: String, port: Int): F[Unit] = {
     val request = Request[F](
       method = Method.POST,
       Uri.unsafeFromString(s"http://127.0.0.1:$port/topic/create?topic=$topic")
@@ -135,7 +136,7 @@ object Containers {
     Resource.make (
       Sync[F].delay {
         val container = FixedHostPortGenericContainer(
-          imageName = "nsqio/nsq:latest",
+          imageName = s"nsqio/nsq:$nsqVersion",
           command = Seq(
             "/nsqlookupd",
             s"--broadcast-address=${networkInfo.broadcastAddress}",
@@ -163,7 +164,7 @@ object Containers {
     Resource.make(
       Sync[F].delay {
         val container = FixedHostPortGenericContainer(
-          imageName = "nsqio/nsq:latest",
+          imageName = s"nsqio/nsq:$nsqVersion",
           command = Seq(
             "/nsqd",
             s"--broadcast-address=${networkInfo.broadcastAddress}",
@@ -186,7 +187,7 @@ object Containers {
       e => Sync[F].delay(e.stop())
     )
 
-  private def nsqToNsq[F[_] : Sync](
+  private def nsqToNsq[F[_]: Sync](
     network: Network,
     sourceAddress: String,
     sourceTopic: String,
@@ -196,7 +197,7 @@ object Containers {
     Resource.make(
       Sync[F].delay {
         val container = GenericContainer(
-          dockerImage = "nsqio/nsq:latest",
+          dockerImage = s"nsqio/nsq:$nsqVersion",
           command = Seq(
             "/nsq_to_nsq",
             s"--nsqd-tcp-address=$sourceAddress",
@@ -212,7 +213,7 @@ object Containers {
       e => Sync[F].delay(e.stop())
     )
 
-  private def enrich[F[_] : Sync](
+  private def enrich[F[_]: Sync](
     network: Network,
     topology: NetworkTopology
   ): Resource[F, JGenericContainer[_]] =

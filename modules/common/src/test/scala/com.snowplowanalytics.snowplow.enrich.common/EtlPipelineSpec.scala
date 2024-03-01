@@ -1,20 +1,27 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common
 
-import cats.Id
 import cats.data.Validated
 import cats.syntax.validated._
+
+import cats.effect.IO
+import cats.effect.testing.specs2.CatsEffect
+
+import org.apache.thrift.TSerializer
+
+import org.joda.time.DateTime
+
+import org.specs2.Specification
+import org.specs2.matcher.ValidatedMatchers
 
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.Resolver
@@ -23,23 +30,17 @@ import com.snowplowanalytics.iglu.client.resolver.registries.Registry
 import com.snowplowanalytics.snowplow.badrows.Processor
 import com.snowplowanalytics.snowplow.badrows.BadRow
 
-import org.apache.thrift.TSerializer
-
 import com.snowplowanalytics.snowplow.CollectorPayload.thrift.model1.{CollectorPayload => tCollectorPayload}
 
-import org.joda.time.DateTime
-
-import org.specs2.Specification
-import org.specs2.matcher.ValidatedMatchers
-
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
-import com.snowplowanalytics.snowplow.enrich.common.loaders._
+import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.{AtomicFields, EnrichmentRegistry}
+import com.snowplowanalytics.snowplow.enrich.common.loaders.{CollectorPayload, ThriftLoader}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.Clock._
-import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
 
-class EtlPipelineSpec extends Specification with ValidatedMatchers {
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
+
+class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffect {
   def is = s2"""
   EtlPipeline should always produce either bad or good row for each event of the payload   $e1
   Processing of events with malformed query string should be supported                     $e2
@@ -47,85 +48,105 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers {
   Absence of CollectorPayload (None) should be supported                                   $e4
   """
 
-  val adapterRegistry = new AdapterRegistry(
+  val adapterRegistry = new AdapterRegistry[IO](
+    Map.empty[(String, String), RemoteAdapter[IO]],
     adaptersSchemas = adaptersSchemas
   )
-  val enrichmentReg = EnrichmentRegistry[Id]()
+  val enrichmentReg = EnrichmentRegistry[IO]()
   val igluCentral = Registry.IgluCentral
-  val client = IgluCirceClient.fromResolver[Id](Resolver(List(igluCentral), None), cacheSize = 0)
+  def igluClient = IgluCirceClient.fromResolver[IO](Resolver(List(igluCentral), None), cacheSize = 0)
   val processor = Processor("sce-test-suite", "1.0.0")
   val dateTime = DateTime.now()
 
-  def e1 = {
-    val collectorPayloadBatched = EtlPipelineSpec.buildBatchedPayload()
-    val output = EtlPipeline.processEvents[Id](
-      adapterRegistry,
-      enrichmentReg,
-      client,
-      processor,
-      dateTime,
-      Some(collectorPayloadBatched).validNel,
-      AcceptInvalid.featureFlags,
-      AcceptInvalid.countInvalid
-    )
-    output must be like {
+  def e1 =
+    for {
+      client <- igluClient
+      collectorPayloadBatched = EtlPipelineSpec.buildBatchedPayload()
+      output <- EtlPipeline
+                  .processEvents[IO](
+                    adapterRegistry,
+                    enrichmentReg,
+                    client,
+                    processor,
+                    dateTime,
+                    Some(collectorPayloadBatched).validNel,
+                    AcceptInvalid.featureFlags,
+                    IO.unit,
+                    SpecHelpers.registryLookup,
+                    AtomicFields.from(Map.empty)
+                  )
+    } yield output must be like {
       case a :: b :: c :: d :: Nil =>
         (a must beValid).and(b must beInvalid).and(c must beInvalid).and(d must beInvalid)
     }
-  }
 
-  def e2 = {
-    val thriftBytesMalformedQS = EtlPipelineSpec.buildThriftBytesMalformedQS()
-    ThriftLoader
-      .toCollectorPayload(thriftBytesMalformedQS, processor)
-      .map(_.get)
-      .map(collectorPayload =>
-        EtlPipeline.processEvents[Id](
-          adapterRegistry,
-          enrichmentReg,
-          client,
-          processor,
-          dateTime,
-          Some(collectorPayload).validNel,
-          AcceptInvalid.featureFlags,
-          AcceptInvalid.countInvalid
-        )
-      ) must beValid.like {
+  def e2 =
+    for {
+      client <- igluClient
+      thriftBytesMalformedQS = EtlPipelineSpec.buildThriftBytesMalformedQS()
+      collectorPayload = ThriftLoader
+                           .toCollectorPayload(thriftBytesMalformedQS, processor)
+                           .map(_.get)
+                           .toOption
+                           .get
+      output <- EtlPipeline
+                  .processEvents[IO](
+                    adapterRegistry,
+                    enrichmentReg,
+                    client,
+                    processor,
+                    dateTime,
+                    Some(collectorPayload).validNel,
+                    AcceptInvalid.featureFlags,
+                    IO.unit,
+                    SpecHelpers.registryLookup,
+                    AtomicFields.from(Map.empty)
+                  )
+    } yield output must beLike {
       case Validated.Valid(_: EnrichedEvent) :: Nil => ok
       case res => ko(s"[$res] doesn't contain one enriched event")
     }
-  }
 
-  def e3 = {
-    val invalidCollectorPayload = ThriftLoader.toCollectorPayload(Array(1.toByte), processor)
-    EtlPipeline.processEvents[Id](
-      adapterRegistry,
-      enrichmentReg,
-      client,
-      processor,
-      dateTime,
-      invalidCollectorPayload,
-      AcceptInvalid.featureFlags,
-      AcceptInvalid.countInvalid
-    ) must be like {
+  def e3 =
+    for {
+      client <- igluClient
+      invalidCollectorPayload = ThriftLoader.toCollectorPayload(Array(1.toByte), processor)
+      output <- EtlPipeline
+                  .processEvents[IO](
+                    adapterRegistry,
+                    enrichmentReg,
+                    client,
+                    processor,
+                    dateTime,
+                    invalidCollectorPayload,
+                    AcceptInvalid.featureFlags,
+                    IO.unit,
+                    SpecHelpers.registryLookup,
+                    AtomicFields.from(Map.empty)
+                  )
+    } yield output must be like {
       case Validated.Invalid(_: BadRow.CPFormatViolation) :: Nil => ok
       case other => ko(s"One invalid CPFormatViolation expected, got ${other}")
     }
-  }
 
-  def e4 = {
-    val collectorPayload: Option[CollectorPayload] = None
-    EtlPipeline.processEvents[Id](
-      adapterRegistry,
-      enrichmentReg,
-      client,
-      processor,
-      dateTime,
-      collectorPayload.validNel[BadRow],
-      AcceptInvalid.featureFlags,
-      AcceptInvalid.countInvalid
-    ) must beEqualTo(Nil)
-  }
+  def e4 =
+    for {
+      client <- igluClient
+      collectorPayload = None
+      output <- EtlPipeline
+                  .processEvents[IO](
+                    adapterRegistry,
+                    enrichmentReg,
+                    client,
+                    processor,
+                    dateTime,
+                    collectorPayload.validNel[BadRow],
+                    AcceptInvalid.featureFlags,
+                    IO.unit,
+                    SpecHelpers.registryLookup,
+                    AtomicFields.from(Map.empty)
+                  )
+    } yield output must beEqualTo(Nil)
 }
 
 object EtlPipelineSpec {

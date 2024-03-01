@@ -1,4 +1,8 @@
 {
+  "license": {
+    "accept": true
+  }
+
   "input": {
     "subscription": "projects/test-project/subscriptions/collector-payloads-sub"
   }

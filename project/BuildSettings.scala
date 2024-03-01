@@ -1,23 +1,17 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the
- * Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at
- * http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on
- * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied.  See the Apache License Version 2.0 for the specific
- * language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 
 import sbt._
 import sbt.Keys._
 import sbt.nio.Keys.{ReloadOnSourceChanges, onChangedBuildSource}
-import sbtassembly.AssemblyPlugin.autoImport._
 import sbtbuildinfo.BuildInfoPlugin.autoImport.{BuildInfoKey, buildInfoKeys, buildInfoPackage}
 import sbtdynver.DynVerPlugin.autoImport._
 import com.typesafe.sbt.SbtNativePackager.autoImport._
@@ -44,42 +38,28 @@ object BuildSettings {
     description := "Common functionality for enriching raw Snowplow events"
   )
 
-  lazy val streamCommonProjectSettings = projectSettings ++ Seq(
-    name := "snowplow-stream-enrich",
-    moduleName := "snowplow-stream-enrich",
-    description := "Common functionality for legacy streaming enrich applications",
-    buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
-    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.stream.generated"
-  )
-
-  lazy val streamKinesisProjectSettings = projectSettings ++ Seq(
-    name := "snowplow-stream-enrich-kinesis",
-    moduleName := "snowplow-stream-enrich-kinesis",
-    description := "Legacy streaming enrich app with Kinesis source"
-  )
-
-  lazy val streamKafkaProjectSettings = projectSettings ++ Seq(
-    name := "snowplow-stream-enrich-kafka",
-    moduleName := "snowplow-stream-enrich-kafka",
-    description := "Legacy streaming enrich app with Kafka source"
-  )
-
-  lazy val streamNsqProjectSettings = projectSettings ++ Seq(
-    name := "snowplow-stream-enrich-nsq",
-    moduleName := "snowplow-stream-enrich-nsq",
-    description := "Legacy streaming enrich app with NSQ source"
-  )
-
-  lazy val streamStdinProjectSettings = projectSettings ++ Seq(
-    name := "snowplow-stream-enrich-stdin",
-    moduleName := "snowplow-stream-enrich-stdin",
-    description := "Legacy streaming enrich app with stdin source (for testing)"
-  )
-
   lazy val commonFs2ProjectSettings = projectSettings ++ Seq(
     name := "snowplow-enrich-common-fs2",
     moduleName := "snowplow-enrich-common-fs2",
     description := "Common functionality for streaming enrich applications built on top of functional streams"
+  )
+
+  lazy val awsUtilsProjectSettings = projectSettings ++ Seq(
+    name := "snowplow-enrich-aws-utils",
+    moduleName := "snowplow-enrich-aws-utils",
+    description := "AWS specific utils"
+  )
+
+  lazy val gcpUtilsProjectSettings = projectSettings ++ Seq(
+    name := "snowplow-enrich-gcp-utils",
+    moduleName := "snowplow-enrich-gcp-utils",
+    description := "GCP specific utils"
+  )
+
+  lazy val azureUtilsProjectSettings = projectSettings ++ Seq(
+    name := "snowplow-enrich-azure-utils",
+    moduleName := "snowplow-enrich-azure-utils",
+    description := "Azure specific utils"
   )
 
   lazy val pubsubProjectSettings = projectSettings ++ Seq(
@@ -96,14 +76,6 @@ object BuildSettings {
     description := "High-performance streaming enrich app working with Kinesis, built on top of functional streams",
     buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
     buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.kinesis.generated"
-  )
-
-  lazy val rabbitmqProjectSettings = projectSettings ++ Seq(
-    name := "snowplow-enrich-rabbitmq",
-    moduleName := "snowplow-enrich-rabbitmq",
-    description := "High-performance streaming enrich app for RabbitMQ, built on top of functional streams",
-    buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
-    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.rabbitmq.generated"
   )
 
   lazy val kafkaProjectSettings = projectSettings ++ Seq(
@@ -174,32 +146,6 @@ object BuildSettings {
     )
   )
 
-  lazy val assemblySettings = Seq(
-    assembly / assemblyJarName := { s"${moduleName.value}-${version.value}.jar" },
-    assembly / assemblyMergeStrategy := {
-      case x if x.endsWith(".properties") => MergeStrategy.first
-      case x if x.endsWith("public-suffix-list.txt") => MergeStrategy.first
-      case x if x.endsWith("ProjectSettings$.class") => MergeStrategy.first
-      case x if x.endsWith("module-info.class") => MergeStrategy.first
-      case x if x.endsWith("nowarn.class") => MergeStrategy.first
-      case x if x.endsWith("nowarn$.class") => MergeStrategy.first
-      case x if x.endsWith("log4j.properties") => MergeStrategy.first
-      case x if x.endsWith(".proto") => MergeStrategy.first
-      case x if x.endsWith("reflection-config.json") => MergeStrategy.first
-      case x if x.endsWith("config.fmpp") => MergeStrategy.first
-      case x if x.contains("simulacrum") => MergeStrategy.first
-      case x if x.endsWith("git.properties") => MergeStrategy.discard
-      case x if x.endsWith(".json") => MergeStrategy.first
-      case x if x.endsWith("AUTHORS") => MergeStrategy.first
-      case x if x.endsWith(".config") => MergeStrategy.first
-      case x if x.endsWith(".types") => MergeStrategy.first
-      case x if x.contains("netty") => MergeStrategy.first
-      case x =>
-        val oldStrategy = (assembly / assemblyMergeStrategy).value
-        oldStrategy(x)
-    }
-  )
-
   lazy val dockerSettingsFocal = Seq(
     Universal / javaOptions ++= Seq("-Dnashorn.args=--language=es6")
   )
@@ -241,52 +187,10 @@ object BuildSettings {
     // Build and publish
     publishSettings ++
     // Tests
-    scoverageSettings ++ noParallelTestExecution
-  }
-
-  lazy val streamCommonBuildSettings = {
-    // Project
-    streamCommonProjectSettings ++ buildSettings ++
-    // Tests
-    scoverageSettings ++
-      Seq(coverageMinimumStmtTotal := 20) // override value from scoverageSettings
-  }
-
-  lazy val streamKinesisBuildSettings = {
-    // Project
-    streamKinesisProjectSettings ++ buildSettings ++
-    // Build and publish
-    assemblySettings ++ dockerSettingsFocal ++
-      Seq(Docker / packageName := "stream-enrich-kinesis")
-  }
-
-  lazy val streamKinesisDistrolessBuildSettings = streamKinesisBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
-
-  lazy val streamKafkaBuildSettings = {
-    // Project
-    streamKafkaProjectSettings ++ buildSettings ++
-    // Build and publish
-    assemblySettings ++ dockerSettingsFocal ++
-      Seq(Docker / packageName := "stream-enrich-kafka")
-  }
-
-  lazy val streamKafkaDistrolessBuildSettings = streamKafkaBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
-
-  lazy val streamNsqBuildSettings = {
-    // Project
-    streamNsqProjectSettings ++ buildSettings ++
-    // Build and publish
-    assemblySettings ++ dockerSettingsFocal ++
-      Seq(Docker / packageName := "stream-enrich-nsq")
-  }
-
-  lazy val streamNsqDistrolessBuildSettings = streamNsqBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
-
-  lazy val streamStdinBuildSettings = {
-    // Project
-    streamStdinProjectSettings ++ buildSettings ++
-    // Build and publish
-    assemblySettings
+    scoverageSettings ++ noParallelTestExecution ++ Seq(
+      Test / fork := true,
+      Test / javaOptions := Seq("-Dnashorn.args=--language=es6")
+    )
   }
 
   lazy val commonFs2BuildSettings = {
@@ -296,14 +200,35 @@ object BuildSettings {
     scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp
   }
 
+  lazy val awsUtilsBuildSettings = {
+    // Project
+    awsUtilsProjectSettings ++ buildSettings ++
+    // Tests
+    scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp
+  }
+
+  lazy val gcpUtilsBuildSettings = {
+    // Project
+    gcpUtilsProjectSettings ++ buildSettings ++
+    // Tests
+    scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp
+  }
+
+  lazy val azureUtilsBuildSettings = {
+    // Project
+    azureUtilsProjectSettings ++ buildSettings ++
+    // Tests
+    scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp
+  }
+
   lazy val pubsubBuildSettings = {
     // Project
     pubsubProjectSettings ++ buildSettings ++
     // Build and publish
-    assemblySettings ++ dockerSettingsFocal ++
+    dockerSettingsFocal ++
       Seq(Docker / packageName := "snowplow-enrich-pubsub") ++
     // Tests
-    scoverageSettings ++ noParallelTestExecution
+    scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp
   }
 
   lazy val pubsubDistrolessBuildSettings = pubsubBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
@@ -312,32 +237,22 @@ object BuildSettings {
     // Project
     kinesisProjectSettings ++ buildSettings ++
     // Build and publish
-    assemblySettings ++ dockerSettingsFocal ++
+    dockerSettingsFocal ++
       Seq(Docker / packageName := "snowplow-enrich-kinesis") ++
     // Tests
-    scoverageSettings ++ noParallelTestExecution ++ Seq(Test / fork := true)
+    scoverageSettings ++ noParallelTestExecution ++ Seq(Test / fork := true) ++ addExampleConfToTestCp
   }
 
   lazy val kinesisDistrolessBuildSettings = kinesisBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
-
-  lazy val rabbitmqBuildSettings = {
-    // Project
-    rabbitmqProjectSettings ++ buildSettings ++
-    // Build and publish
-    assemblySettings ++ dockerSettingsFocal ++
-      Seq(Docker / packageName := "snowplow-enrich-rabbitmq")
-  }
-
-  lazy val rabbitmqDistrolessBuildSettings = rabbitmqBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
 
   lazy val kafkaBuildSettings = {
     // Project
     kafkaProjectSettings ++ buildSettings ++
     // Build and publish
-    assemblySettings ++ dockerSettingsFocal ++
+    dockerSettingsFocal ++
       Seq(Docker / packageName := "snowplow-enrich-kafka") ++
     // Tests
-    scoverageSettings ++ noParallelTestExecution
+    scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp
   }
 
   lazy val kafkaDistrolessBuildSettings = kafkaBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
@@ -346,10 +261,10 @@ object BuildSettings {
     // Project
     nsqProjectSettings ++ buildSettings ++
       // Build and publish
-      assemblySettings ++ dockerSettingsFocal ++
+      dockerSettingsFocal ++
       Seq(Docker / packageName := "snowplow-enrich-nsq") ++
       // Tests
-      scoverageSettings ++ noParallelTestExecution
+      scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp
   }
 
   lazy val nsqDistrolessBuildSettings = nsqBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless

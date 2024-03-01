@@ -1,24 +1,23 @@
 /*
- * Copyright (c) 2023-2023 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2023-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import cats.Monad
-import cats.effect.Clock
 import cats.implicits._
-import com.snowplowanalytics.lrumap.{CreateLruMap, LruMap}
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.CachingEvaluator.{Cache, CachedItem, GetResult, Value}
 
-import java.util.concurrent.TimeUnit
+import cats.effect.kernel.Clock
+
+import com.snowplowanalytics.lrumap.{CreateLruMap, LruMap}
+
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.CachingEvaluator.{Cache, CachedItem, GetResult, Value}
 
 final class CachingEvaluator[F[_], K, V](
   cache: Cache[F, K, V],
@@ -98,7 +97,7 @@ final class CachingEvaluator[F[_], K, V](
       case _: Value.Error[V] => config.errorTtl
     }
 
-  private def getCurrentTime(implicit C: Clock[F]): F[Long] = C.realTime(TimeUnit.SECONDS)
+  private def getCurrentTime(implicit C: Clock[F], M: Monad[F]): F[Long] = C.realTime.map(_.toSeconds)
 
 }
 

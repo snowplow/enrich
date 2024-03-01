@@ -1,14 +1,12 @@
 /*
- * Copyright (c) 2020-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2.enrichments
 
@@ -19,7 +17,9 @@ import scala.concurrent.duration._
 import cats.syntax.apply._
 import cats.syntax.option._
 
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.IO
+
+import cats.effect.testing.specs2.CatsEffect
 
 import io.circe.literal._
 
@@ -36,7 +36,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.Enrichm
 import com.snowplowanalytics.snowplow.enrich.common.fs2.EnrichSpec
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test.{HttpServer, TestEnvironment}
 
-class IabEnrichmentSpec extends Specification with CatsIO {
+class IabEnrichmentSpec extends Specification with CatsEffect {
 
   sequential
 
@@ -73,7 +73,7 @@ class IabEnrichmentSpec extends Specification with CatsIO {
           useragent = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:12.0) Gecko/20100101 Firefox/12.0".some
         )
       )
-      val input = Stream(payload.toRaw) ++ Stream.sleep_(2.seconds) ++ Stream(payload.toRaw)
+      val input = Stream(payload.toRaw) ++ Stream.sleep_[IO](2.seconds) ++ Stream(payload.toRaw)
 
       val expectedOne = Contexts(
         List(

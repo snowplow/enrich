@@ -1,14 +1,12 @@
 /*
- * Copyright (c) 2020-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2.enrichments
 
@@ -18,7 +16,7 @@ import org.apache.http.message.BasicNameValuePair
 
 import cats.implicits._
 
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 
 import org.specs2.mutable.Specification
 
@@ -44,8 +42,9 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequ
 import com.snowplowanalytics.snowplow.enrich.common.fs2.enrichments.ApiRequestEnrichmentSpec.unstructEvent
 import com.snowplowanalytics.snowplow.enrich.common.fs2.EnrichSpec
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test._
+import com.snowplowanalytics.snowplow.badrows.BadRow
 
-class ApiRequestEnrichmentSpec extends Specification with CatsIO {
+class ApiRequestEnrichmentSpec extends Specification with CatsEffect {
 
   sequential
 
@@ -84,9 +83,44 @@ class ApiRequestEnrichmentSpec extends Specification with CatsIO {
       testWithHttp.use { test =>
         test.run().map {
           case (bad, pii, good) =>
-            (bad must be empty)
-            (pii must be empty)
-            (good.map(_.derived_contexts) must contain(exactly(expected)))
+            bad must beEmpty
+            pii must beEmpty
+            good.map(_.derived_contexts) must contain(exactly(expected))
+        }
+      }
+    }
+
+    "generate bad rows if API server is not available" in {
+      val nbEvents = 1000
+      val input = Stream((1 to nbEvents).toList: _*)
+        .map { i =>
+          json"""{
+            "schema": "iglu:com.acme/test/jsonschema/1-0-1",
+            "data": {"path": {"id": $i}}
+          }"""
+        }
+        .map { ue =>
+          EnrichSpec.collectorPayload.copy(
+            querystring = new BasicNameValuePair("ue_px", unstructEvent(ue)) :: EnrichSpec.collectorPayload.querystring
+          )
+        }
+        .map(_.toRaw)
+
+      val enrichment = ApiRequestConf(
+        SchemaKey("com.acme", "enrichment", "jsonschema", SchemaVer.Full(1, 0, 0)),
+        List(Input.Json("key1", "unstruct_event", SchemaCriterion("com.acme", "test", "jsonschema", 1), "$.path.id")),
+        HttpApi("GET", "http://foo.bar.unassigned/{{key1}}", 2000, Authentication(None)),
+        List(RegistryOutput("iglu:com.acme/output/jsonschema/1-0-0", Some(JsonOutput("$")))),
+        Cache(1, 1000),
+        ignoreOnError = false
+      )
+
+      TestEnvironment.make(input, List(enrichment)).use { test =>
+        test.run().map {
+          case (bad, pii, good) =>
+            good must beEmpty
+            pii must beEmpty
+            bad.collect { case ef: BadRow.EnrichmentFailures => ef } must haveSize(nbEvents)
         }
       }
     }

@@ -1,14 +1,12 @@
 /*
- * Copyright (c) 2021-2021 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2021-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.kinesis
 
@@ -17,7 +15,7 @@ import java.net.{InetAddress, URI}
 
 import cats.implicits._
 
-import cats.effect.{Blocker, ConcurrentEffect, ContextShift, Resource, Sync, Timer}
+import cats.effect.{Async, Resource, Sync}
 
 import fs2.Stream
 
@@ -44,8 +42,7 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input.Kinesis.
 
 object Source {
 
-  def init[F[_]: ConcurrentEffect: ContextShift: Timer](
-    blocker: Blocker,
+  def init[F[_]: Async](
     input: Input,
     monitoring: Monitoring
   ): Stream[F, CommittableRecord] =
@@ -53,7 +50,7 @@ object Source {
       case k: Input.Kinesis =>
         k.region.orElse(getRuntimeRegion) match {
           case Some(region) =>
-            kinesis(blocker, k, region, monitoring)
+            kinesis(k, region, monitoring)
           case None =>
             Stream.raiseError[F](new RuntimeException(s"Region not found in the config and in the runtime"))
         }
@@ -61,8 +58,7 @@ object Source {
         Stream.raiseError[F](new IllegalArgumentException(s"Input $i is not Kinesis"))
     }
 
-  def kinesis[F[_]: ConcurrentEffect: ContextShift: Sync: Timer](
-    blocker: Blocker,
+  def kinesis[F[_]: Async](
     kinesisConfig: Input.Kinesis,
     region: String,
     monitoring: Monitoring
@@ -90,7 +86,7 @@ object Source {
         dynamoClient <- mkDynamoDbClient[F](region, kinesisConfig.dynamodbCustomEndpoint)
         cloudWatchClient <- mkCloudWatchClient[F](region, kinesisConfig.cloudwatchCustomEndpoint)
         kinesis <- Resource.pure[F, Kinesis[F]](
-                     Kinesis.create(blocker, scheduler(kinesisClient, dynamoClient, cloudWatchClient, kinesisConfig, monitoring, _))
+                     Kinesis.create(scheduler(kinesisClient, dynamoClient, cloudWatchClient, kinesisConfig, monitoring, _))
                    )
       } yield (consumerSettings, kinesis)
 

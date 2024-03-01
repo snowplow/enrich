@@ -1,23 +1,23 @@
 /*
- * Copyright (c) 2022-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2022-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.kinesis
 
 import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext
 
 import cats.data.Validated
 
-import cats.effect.{Blocker, ContextShift, IO, Resource, Timer}
+import cats.effect.IO
+import cats.effect.kernel.Resource
+
+import cats.effect.testing.specs2.CatsEffect
 
 import fs2.{Pipe, Stream}
 
@@ -28,11 +28,7 @@ import com.snowplowanalytics.snowplow.badrows.BadRow
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test.Utils
 
-object utils {
-
-  private val executionContext: ExecutionContext = ExecutionContext.global
-  implicit val ioContextShift: ContextShift[IO] = IO.contextShift(executionContext)
-  implicit val ioTimer: Timer[IO] = IO.timer(executionContext)
+object utils extends CatsEffect {
 
   sealed trait OutputRow
   object OutputRow {
@@ -45,12 +41,11 @@ object utils {
     uuid: String
   ): Resource[IO, Pipe[IO, Array[Byte], OutputRow]] =
     for {
-      blocker <- Blocker[IO]
-      streams = KinesisConfig.getStreams(uuid)
-      rawSink <- Sink.init[IO](blocker, KinesisConfig.rawStreamConfig(localstackPort, streams.raw))
+      streams <- Resource.pure(KinesisConfig.getStreams(uuid))
+      rawSink <- Sink.init[IO](KinesisConfig.rawStreamConfig(localstackPort, streams.raw))
     } yield {
-      val enriched = asGood(outputStream(blocker, KinesisConfig.enrichedStreamConfig(localstackPort, streams.enriched)))
-      val bad = asBad(outputStream(blocker, KinesisConfig.badStreamConfig(localstackPort, streams.bad)))
+      val enriched = asGood(outputStream(KinesisConfig.enrichedStreamConfig(localstackPort, streams.enriched)))
+      val bad = asBad(outputStream(KinesisConfig.badStreamConfig(localstackPort, streams.bad)))
 
       collectorPayloads =>
         enriched.merge(bad)
@@ -58,9 +53,9 @@ object utils {
           .concurrently(collectorPayloads.evalMap(bytes => rawSink(List(bytes))))
     }
 
-  private def outputStream(blocker: Blocker, config: Input.Kinesis): Stream[IO, Array[Byte]] =
-    Source.init[IO](blocker, config, KinesisConfig.monitoring)
-      .map(KinesisRun.getPayload)
+  private def outputStream(config: Input.Kinesis): Stream[IO, Array[Byte]] =
+    Source.init[IO](config, KinesisConfig.monitoring)
+      .map(Main.getPayload)
 
   private def asGood(source: Stream[IO, Array[Byte]]): Stream[IO, OutputRow.Good] =
     source.map { bytes =>

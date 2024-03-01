@@ -1,39 +1,36 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.net.URI
+import java.util.concurrent.TimeUnit
 
-import cats.{Functor, Monad}
+import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.FiniteDuration
+
 import cats.data.EitherT
+
+import cats.effect.kernel.{Async, Sync}
+
+import io.circe.JsonObject
 
 import org.joda.money.CurrencyUnit
 
 import com.snowplowanalytics.iglu.core.SchemaKey
 
-import com.snowplowanalytics.forex.CreateForex
 import com.snowplowanalytics.forex.model.AccountType
-import com.snowplowanalytics.maxmind.iplookups.CreateIpLookups
-import com.snowplowanalytics.refererparser.CreateParser
-import com.snowplowanalytics.weather.providers.openweather.CreateOWM
 
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest.{
-  ApiRequestEnrichment,
-  CreateApiRequestEnrichment,
-  HttpApi
-}
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.{CreateSqlQueryEnrichment, Rdbms, SqlQueryEnrichment}
-import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, ShiftExecution}
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest.{ApiRequestEnrichment, HttpApi}
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.{Rdbms, SqlQueryEnrichment}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, ShiftExecution}
 
 sealed trait EnrichmentConf {
 
@@ -57,8 +54,16 @@ object EnrichmentConf {
     cache: apirequest.Cache,
     ignoreOnError: Boolean
   ) extends EnrichmentConf {
-    def enrichment[F[_]: CreateApiRequestEnrichment]: F[ApiRequestEnrichment[F]] =
-      ApiRequestEnrichment[F](this)
+    def enrichment[F[_]: Async](httpClient: HttpClient[F]): F[ApiRequestEnrichment[F]] =
+      ApiRequestEnrichment.create[F](
+        schemaKey,
+        inputs,
+        api,
+        outputs,
+        cache,
+        ignoreOnError,
+        httpClient
+      )
   }
 
   final case class PiiPseudonymizerConf(
@@ -80,8 +85,17 @@ object EnrichmentConf {
     cache: SqlQueryEnrichment.Cache,
     ignoreOnError: Boolean
   ) extends EnrichmentConf {
-    def enrichment[F[_]: Monad: CreateSqlQueryEnrichment](blocker: BlockerF[F], shifter: ShiftExecution[F]): F[SqlQueryEnrichment[F]] =
-      SqlQueryEnrichment[F](this, blocker, shifter)
+    def enrichment[F[_]: Async](shifter: ShiftExecution[F]): F[SqlQueryEnrichment[F]] =
+      SqlQueryEnrichment.create[F](
+        schemaKey,
+        inputs,
+        db,
+        query,
+        output,
+        cache,
+        ignoreOnError,
+        shifter
+      )
   }
 
   final case class AnonIpConf(
@@ -125,8 +139,13 @@ object EnrichmentConf {
     apiKey: String,
     baseCurrency: CurrencyUnit
   ) extends EnrichmentConf {
-    def enrichment[F[_]: Monad: CreateForex]: F[CurrencyConversionEnrichment[F]] =
-      CurrencyConversionEnrichment[F](this)
+    def enrichment[F[_]: Async]: F[CurrencyConversionEnrichment[F]] =
+      CurrencyConversionEnrichment.create[F](
+        schemaKey,
+        apiKey,
+        accountType,
+        baseCurrency
+      )
   }
 
   final case class EventFingerprintConf(
@@ -152,8 +171,8 @@ object EnrichmentConf {
     includeUaFile: (URI, String)
   ) extends EnrichmentConf {
     override val filesToCache: List[(URI, String)] = List(ipFile, excludeUaFile, includeUaFile)
-    def enrichment[F[_]: Monad: CreateIabClient]: F[IabEnrichment] =
-      IabEnrichment[F](this)
+    def enrichment[F[_]: Sync]: F[IabEnrichment] =
+      IabEnrichment.create[F](schemaKey, ipFile._2, excludeUaFile._2, includeUaFile._2)
   }
 
   final case class IpLookupsConf(
@@ -165,12 +184,22 @@ object EnrichmentConf {
   ) extends EnrichmentConf {
     override val filesToCache: List[(URI, String)] =
       List(geoFile, ispFile, domainFile, connectionTypeFile).flatten
-    def enrichment[F[_]: Functor: CreateIpLookups](blocker: BlockerF[F]): F[IpLookupsEnrichment[F]] =
-      IpLookupsEnrichment[F](this, blocker)
+    def enrichment[F[_]: Async](blockingEC: ExecutionContext): F[IpLookupsEnrichment[F]] =
+      IpLookupsEnrichment.create[F](
+        geoFile.map(_._2),
+        ispFile.map(_._2),
+        domainFile.map(_._2),
+        connectionTypeFile.map(_._2),
+        blockingEC
+      )
   }
 
-  final case class JavascriptScriptConf(schemaKey: SchemaKey, rawFunction: String) extends EnrichmentConf {
-    def enrichment: JavascriptScriptEnrichment = JavascriptScriptEnrichment(schemaKey, rawFunction)
+  final case class JavascriptScriptConf(
+    schemaKey: SchemaKey,
+    rawFunction: String,
+    params: JsonObject
+  ) extends EnrichmentConf {
+    def enrichment: JavascriptScriptEnrichment = JavascriptScriptEnrichment(schemaKey, rawFunction, params)
   }
 
   final case class RefererParserConf(
@@ -179,14 +208,17 @@ object EnrichmentConf {
     internalDomains: List[String]
   ) extends EnrichmentConf {
     override val filesToCache: List[(URI, String)] = List(refererDatabase)
-    def enrichment[F[_]: Monad: CreateParser]: EitherT[F, String, RefererParserEnrichment] =
-      RefererParserEnrichment[F](this)
+    def enrichment[F[_]: Sync]: EitherT[F, String, RefererParserEnrichment] =
+      RefererParserEnrichment.create[F](refererDatabase._2, internalDomains)
   }
 
   final case class UaParserConf(schemaKey: SchemaKey, uaDatabase: Option[(URI, String)]) extends EnrichmentConf {
     override val filesToCache: List[(URI, String)] = List(uaDatabase).flatten
-    def enrichment[F[_]: Monad: CreateUaParserEnrichment]: EitherT[F, String, UaParserEnrichment[F]] =
-      UaParserEnrichment[F](this)
+    def enrichment[F[_]: Async]: EitherT[F, String, UaParserEnrichment[F]] =
+      UaParserEnrichment.create[F](
+        schemaKey,
+        uaDatabase.map(_._2)
+      )
   }
 
   final case class UserAgentUtilsConf(schemaKey: SchemaKey) extends EnrichmentConf {
@@ -201,8 +233,16 @@ object EnrichmentConf {
     cacheSize: Int,
     geoPrecision: Int
   ) extends EnrichmentConf {
-    def enrichment[F[_]: Monad: CreateOWM]: EitherT[F, String, WeatherEnrichment[F]] =
-      WeatherEnrichment[F](this)
+    def enrichment[F[_]: Async]: EitherT[F, String, WeatherEnrichment[F]] =
+      WeatherEnrichment.create[F](
+        schemaKey,
+        apiHost,
+        apiKey,
+        FiniteDuration(timeout.toLong, TimeUnit.SECONDS),
+        ssl = true,
+        cacheSize,
+        geoPrecision
+      )
   }
 
   final case class YauaaConf(
@@ -210,5 +250,9 @@ object EnrichmentConf {
     cacheSize: Option[Int]
   ) extends EnrichmentConf {
     def enrichment: YauaaEnrichment = YauaaEnrichment(cacheSize)
+  }
+
+  final case class CrossNavigationConf(schemaKey: SchemaKey) extends EnrichmentConf {
+    def enrichment: CrossNavigationEnrichment = CrossNavigationEnrichment(schemaKey)
   }
 }

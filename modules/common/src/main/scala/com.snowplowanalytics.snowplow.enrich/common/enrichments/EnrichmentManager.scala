@@ -1,17 +1,14 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments
+package com.snowplowanalytics.snowplow.enrich.common.enrichments
 
 import java.nio.charset.Charset
 import java.net.URI
@@ -34,16 +31,17 @@ import com.snowplowanalytics.iglu.core.circe.implicits._
 import com.snowplowanalytics.snowplow.badrows._
 import com.snowplowanalytics.snowplow.badrows.{FailureDetails, Payload, Processor}
 
-import adapters.RawEvent
-import enrichments.{EventEnrichments => EE}
-import enrichments.{MiscEnrichments => ME}
-import enrichments.registry._
-import enrichments.registry.apirequest.ApiRequestEnrichment
-import enrichments.registry.pii.PiiPseudonymizerEnrichment
-import enrichments.registry.sqlquery.SqlQueryEnrichment
-import enrichments.web.{PageEnrichments => WPE}
-import outputs.EnrichedEvent
-import utils.{IgluUtils, ConversionUtils => CU}
+import com.snowplowanalytics.snowplow.enrich.common.{EtlPipeline, QueryStringParameters, RawEventParameters}
+import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.{EventEnrichments => EE}
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.{MiscEnrichments => ME}
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{CrossNavigationEnrichment => CNE, _}
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest.ApiRequestEnrichment
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii.PiiPseudonymizerEnrichment
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.SqlQueryEnrichment
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.web.{PageEnrichments => WPE}
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.utils.{IgluUtils, ConversionUtils => CU}
 
 object EnrichmentManager {
 
@@ -58,18 +56,20 @@ object EnrichmentManager {
    * @param invalidCount Function to increment the count of invalid events
    * @return Enriched event or bad row if a problem occured
    */
-  def enrichEvent[F[_]: Monad: RegistryLookup: Clock](
+  def enrichEvent[F[_]: Monad: Clock](
     registry: EnrichmentRegistry[F],
     client: IgluCirceClient[F],
     processor: Processor,
     etlTstamp: DateTime,
     raw: RawEvent,
     featureFlags: EtlPipeline.FeatureFlags,
-    invalidCount: F[Unit]
+    invalidCount: F[Unit],
+    registryLookup: RegistryLookup[F],
+    atomicFields: AtomicFields
   ): EitherT[F, BadRow, EnrichedEvent] =
     for {
       enriched <- EitherT.fromEither[F](setupEnrichedEvent(raw, etlTstamp, processor))
-      extractResult <- IgluUtils.extractAndValidateInputJsons(enriched, client, raw, processor)
+      extractResult <- IgluUtils.extractAndValidateInputJsons(enriched, client, raw, processor, registryLookup)
       _ = {
         ME.formatUnstructEvent(extractResult.unstructEvent).foreach(e => enriched.unstruct_event = e)
         ME.formatContexts(extractResult.contexts).foreach(c => enriched.contexts = c)
@@ -85,7 +85,7 @@ object EnrichmentManager {
                              )
       _ = ME.formatContexts(enrichmentsContexts ::: extractResult.validationInfoContexts).foreach(c => enriched.derived_contexts = c)
       _ <- IgluUtils
-             .validateEnrichmentsContexts[F](client, enrichmentsContexts, raw, processor, enriched)
+             .validateEnrichmentsContexts[F](client, enrichmentsContexts, raw, processor, enriched, registryLookup)
       _ <- EitherT.rightT[F, BadRow](
              anonIp(enriched, registry.anonIp).foreach(enriched.user_ipaddress = _)
            )
@@ -94,7 +94,7 @@ object EnrichmentManager {
                enriched.pii = pii.asString
              }
            }
-      _ <- validateEnriched(enriched, raw, processor, featureFlags.acceptInvalid, invalidCount)
+      _ <- validateEnriched(enriched, raw, processor, featureFlags.acceptInvalid, invalidCount, atomicFields)
     } yield enriched
 
   /**
@@ -205,13 +205,13 @@ object EnrichmentManager {
         _       <- getRefererUri[F](registry.refererParser)                           // Potentially set the referrer details and URL components
         qsMap   <- extractQueryString[F](pageUri, raw.source.encoding)                // Parse the page URI's querystring
         _       <- setCampaign[F](qsMap, registry.campaignAttribution)                // Marketing attribution
-        _       <- getCrossDomain[F](qsMap)                                           // Cross-domain tracking
+        _       <- getCrossDomain[F](qsMap, registry.crossNavigation)                 // Cross-domain tracking
         _       <- setEventFingerprint[F](raw.parameters, registry.eventFingerprint)  // This enrichment cannot fail
         _       <- getCookieContexts                                                  // Execute cookie extractor enrichment
         _       <- getHttpHeaderContexts                                              // Execute header extractor enrichment
         _       <- getYauaaContext[F](registry.yauaa, raw.context.headers)            // Runs YAUAA enrichment (gets info thanks to user agent)
         _       <- extractSchemaFields[F](unstructEvent)                              // Extract the event vendor/name/format/version
-        _       <- getJsScript[F](registry.javascriptScript)                          // Execute the JavaScript scripting enrichment
+        _       <- registry.javascriptScript.traverse(getJsScript[F](_))              // Execute the JavaScript scripting enrichment
         _       <- getCurrency[F](raw.context.timestamp, registry.currencyConversion) // Finalize the currency conversion
         _       <- getWeatherContext[F](registry.weather)                             // Fetch weather context
         _       <- geoLocation[F](registry.ipLookups)                                 // Execute IP lookup enrichment
@@ -232,7 +232,7 @@ object EnrichmentManager {
         _       <- getRefererUri[F](registry.refererParser)                           // Potentially set the referrer details and URL components
         qsMap   <- extractQueryString[F](pageUri, raw.source.encoding)                // Parse the page URI's querystring
         _       <- setCampaign[F](qsMap, registry.campaignAttribution)                // Marketing attribution
-        _       <- getCrossDomain[F](qsMap)                                           // Cross-domain tracking
+        _       <- getCrossDomain[F](qsMap, registry.crossNavigation)                 // Cross-domain tracking
         _       <- setEventFingerprint[F](raw.parameters, registry.eventFingerprint)  // This enrichment cannot fail
         _       <- getCookieContexts                                                  // Execute cookie extractor enrichment
         _       <- getHttpHeaderContexts                                              // Execute header extractor enrichment
@@ -240,7 +240,7 @@ object EnrichmentManager {
         _       <- getYauaaContext[F](registry.yauaa, raw.context.headers)            // Runs YAUAA enrichment (gets info thanks to user agent)
         _       <- extractSchemaFields[F](unstructEvent)                              // Extract the event vendor/name/format/version
         _       <- geoLocation[F](registry.ipLookups)                                 // Execute IP lookup enrichment
-        _       <- getJsScript[F](registry.javascriptScript)                          // Execute the JavaScript scripting enrichment
+        _       <- registry.javascriptScript.traverse(getJsScript[F](_))              // Execute the JavaScript scripting enrichment
         _       <- sqlContexts                                                        // Derive some contexts with custom SQL Query enrichment
         _       <- apiContexts                                                        // Derive some contexts with custom API Request enrichment
         // format: on
@@ -607,18 +607,30 @@ object EnrichmentManager {
     }
 
   def getCrossDomain[F[_]: Applicative](
-    pageQsMap: Option[QueryStringParameters]
+    pageQsMap: Option[QueryStringParameters],
+    crossNavEnrichment: Option[CNE]
   ): EStateT[F, Unit] =
     EStateT.fromEither {
       case (event, _) =>
         pageQsMap match {
           case Some(qsMap) =>
-            val crossDomainParseResult = WPE.parseCrossDomain(qsMap)
-            for ((maybeRefrDomainUserid, maybeRefrDvceTstamp) <- crossDomainParseResult.toOption) {
-              maybeRefrDomainUserid.foreach(event.refr_domain_userid = _)
-              maybeRefrDvceTstamp.foreach(event.refr_dvce_tstamp = _)
-            }
-            crossDomainParseResult.bimap(NonEmptyList.one(_), _ => Nil)
+            CNE
+              .parseCrossDomain(qsMap)
+              .bimap(
+                err =>
+                  crossNavEnrichment match {
+                    case Some(cn) => NonEmptyList.one(cn.addEnrichmentInfo(err))
+                    case None => NonEmptyList.one(err)
+                  },
+                crossNavMap => {
+                  crossNavMap.duid.foreach(event.refr_domain_userid = _)
+                  crossNavMap.tstamp.foreach(event.refr_dvce_tstamp = _)
+                  crossNavEnrichment match {
+                    case Some(_) => crossNavMap.getCrossNavigationContext
+                    case None => Nil
+                  }
+                }
+              )
           case None => Nil.asRight
         }
     }
@@ -659,16 +671,12 @@ object EnrichmentManager {
 
   // Execute the JavaScript scripting enrichment
   def getJsScript[F[_]: Applicative](
-    javascriptScript: Option[JavascriptScriptEnrichment]
+    javascriptScript: JavascriptScriptEnrichment
   ): EStateT[F, Unit] =
     EStateT.fromEither {
       case (event, derivedContexts) =>
-        javascriptScript match {
-          case Some(jse) =>
-            ME.formatContexts(derivedContexts).foreach(c => event.derived_contexts = c)
-            jse.process(event).leftMap(NonEmptyList.one)
-          case None => Nil.asRight
-        }
+        ME.formatContexts(derivedContexts).foreach(c => event.derived_contexts = c)
+        javascriptScript.process(event).leftMap(NonEmptyList.one)
     }
 
   def headerContexts[F[_]: Applicative, A](
@@ -758,16 +766,16 @@ object EnrichmentManager {
    * For now it's possible to accept enriched events that are not valid.
    * See https://github.com/snowplow/enrich/issues/517#issuecomment-1033910690
    */
-  private def validateEnriched[F[_]: Clock: Monad: RegistryLookup](
+  private def validateEnriched[F[_]: Monad](
     enriched: EnrichedEvent,
     raw: RawEvent,
     processor: Processor,
     acceptInvalid: Boolean,
-    invalidCount: F[Unit]
+    invalidCount: F[Unit],
+    atomicFields: AtomicFields
   ): EitherT[F, BadRow, Unit] =
     EitherT {
-
       //We're using static field's length validation. See more in https://github.com/snowplow/enrich/issues/608
-      AtomicFieldsLengthValidator.validate[F](enriched, raw, processor, acceptInvalid, invalidCount)
+      AtomicFieldsLengthValidator.validate[F](enriched, raw, processor, acceptInvalid, invalidCount, atomicFields)
     }
 }

@@ -1,22 +1,23 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.net.URI
 
-import cats.Functor
+import scala.concurrent.ExecutionContext
+
 import cats.data.{NonEmptyList, ValidatedNel}
 import cats.implicits._
+
+import cats.effect.kernel.Async
 
 import io.circe._
 
@@ -28,7 +29,7 @@ import com.snowplowanalytics.maxmind.iplookups._
 import com.snowplowanalytics.maxmind.iplookups.model._
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.IpLookupsConf
-import com.snowplowanalytics.snowplow.enrich.common.utils.{BlockerF, CirceUtils}
+import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
 
 /** Companion object. Lets us create an IpLookupsEnrichment instance from a Json. */
 object IpLookupsEnrichment extends ParseableEnrichment {
@@ -94,31 +95,26 @@ object IpLookupsEnrichment extends ParseableEnrichment {
       } yield IpLookupsDatabase(name, uri, uriAndDb._2)).toValidated.some
     } else None
 
-  /**
-   * Creates a IpLookupsEnrichment from a IpLookupsConf
-   * @param conf Configuration for the ip lookups enrichment
-   * @return an ip lookups enrichment
-   */
-  def apply[F[_]: Functor: CreateIpLookups](conf: IpLookupsConf, blocker: BlockerF[F]): F[IpLookupsEnrichment[F]] =
+  def create[F[_]: Async](
+    geoFilePath: Option[String],
+    ispFilePath: Option[String],
+    domainFilePath: Option[String],
+    connectionFilePath: Option[String],
+    blockingEC: ExecutionContext
+  ): F[IpLookupsEnrichment[F]] =
     CreateIpLookups[F]
       .createFromFilenames(
-        conf.geoFile.map(_._2),
-        conf.ispFile.map(_._2),
-        conf.domainFile.map(_._2),
-        conf.connectionTypeFile.map(_._2),
+        geoFilePath,
+        ispFilePath,
+        domainFilePath,
+        connectionFilePath,
         memCache = true,
         lruCacheSize = 20000
       )
-      .map(i => IpLookupsEnrichment(i, blocker))
-
+      .map(i => IpLookupsEnrichment(i, blockingEC))
 }
 
-/**
- * Contains enrichments based on IP address.
- * @param ipLookups IP lookups client
- * @param blocker Runs db lookups on a separate thread pool
- */
-final case class IpLookupsEnrichment[F[_]](ipLookups: IpLookups[F], blocker: BlockerF[F]) extends Enrichment {
+final case class IpLookupsEnrichment[F[_]: Async](ipLookups: IpLookups[F], blockingEC: ExecutionContext) extends Enrichment {
 
   /**
    * Extract the geo-location using the client IP address.
@@ -126,9 +122,10 @@ final case class IpLookupsEnrichment[F[_]](ipLookups: IpLookups[F], blocker: Blo
    * @return an IpLookupResult
    */
   def extractIpInformation(ip: String): F[IpLookupResult] =
-    blocker.blockOn {
-      ipLookups.performLookups(Either.catchNonFatal(new HostName(ip).toAddress).fold(_ => ip, addr => addr.toString))
-    }
+    Async[F].evalOn(
+      ipLookups.performLookups(Either.catchNonFatal(new HostName(ip).toAddress).fold(_ => ip, addr => addr.toString)),
+      blockingEC
+    )
 }
 
 private[enrichments] final case class IpLookupsDatabase(

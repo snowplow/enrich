@@ -1,14 +1,12 @@
 /*
- * Copyright (c) 2020-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2.config
 
@@ -16,11 +14,12 @@ import scala.concurrent.duration.FiniteDuration
 
 import cats.implicits._
 import cats.data.EitherT
-import cats.effect.Sync
 
-import _root_.io.circe.{Decoder, Encoder}
+import cats.effect.kernel.Sync
+
+import _root_.io.circe.Decoder
 import _root_.io.circe.config.syntax._
-import _root_.io.circe.generic.extras.semiauto.{deriveConfiguredDecoder, deriveConfiguredEncoder}
+import _root_.io.circe.generic.extras.semiauto.deriveConfiguredDecoder
 
 import com.typesafe.config.{ConfigFactory, Config => TSConfig}
 
@@ -49,33 +48,32 @@ final case class ConfigFile(
   telemetry: Telemetry,
   featureFlags: FeatureFlags,
   experimental: Option[Experimental],
-  adaptersSchemas: AdaptersSchemas
+  adaptersSchemas: AdaptersSchemas,
+  blobStorage: BlobStorageClients,
+  license: License,
+  validation: Validation
 )
 
 object ConfigFile {
-  import AdaptersSchemasEncoderDecoders._
-
-  // Missing in circe-config
-  implicit val finiteDurationEncoder: Encoder[FiniteDuration] =
-    implicitly[Encoder[String]].contramap(_.toString)
+  import AdaptersSchemasDecoders._
 
   implicit val configFileDecoder: Decoder[ConfigFile] =
     deriveConfiguredDecoder[ConfigFile].emap {
-      case ConfigFile(_, _, _, Some(aup), _, _, _, _, _, _) if aup._1 <= 0L =>
+      case ConfigFile(_, _, _, Some(aup), _, _, _, _, _, _, _, _, _) if aup._1 <= 0L =>
         "assetsUpdatePeriod in config file cannot be less than 0".asLeft // TODO: use newtype
       // Remove pii output if streamName and region empty
-      case c @ ConfigFile(_, Outputs(good, Some(output: Output.Kinesis), bad), _, _, _, _, _, _, _, _) if output.streamName.isEmpty =>
+      case c @ ConfigFile(_, Outputs(good, Some(output: Output.Kinesis), bad), _, _, _, _, _, _, _, _, _, _, _)
+          if output.streamName.isEmpty =>
         c.copy(output = Outputs(good, None, bad)).asRight
       // Remove pii output if topic empty
-      case c @ ConfigFile(_, Outputs(good, Some(Output.PubSub(t, _, _, _, _)), bad), _, _, _, _, _, _, _, _) if t.isEmpty =>
+      case c @ ConfigFile(_, Outputs(good, Some(Output.PubSub(t, _, _, _, _, _)), bad), _, _, _, _, _, _, _, _, _, _, _) if t.isEmpty =>
         c.copy(output = Outputs(good, None, bad)).asRight
       // Remove pii output if topic empty
-      case c @ ConfigFile(_, Outputs(good, Some(Output.Kafka(topicName, _, _, _, _)), bad), _, _, _, _, _, _, _, _) if topicName.isEmpty =>
+      case c @ ConfigFile(_, Outputs(good, Some(Output.Kafka(topicName, _, _, _, _)), bad), _, _, _, _, _, _, _, _, _, _, _)
+          if topicName.isEmpty =>
         c.copy(output = Outputs(good, None, bad)).asRight
       case other => other.asRight
     }
-  implicit val configFileEncoder: Encoder[ConfigFile] =
-    deriveConfiguredEncoder[ConfigFile]
 
   /* Defines where to look for default values if they are not in the provided file
    *

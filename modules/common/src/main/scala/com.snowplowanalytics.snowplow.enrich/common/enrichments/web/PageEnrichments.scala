@@ -1,26 +1,22 @@
 /*
- * Copyright (c) 2012-2022 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
-package com.snowplowanalytics.snowplow.enrich.common
-package enrichments
-package web
+package com.snowplowanalytics.snowplow.enrich.common.enrichments.web
 
 import java.net.URI
 
 import cats.syntax.either._
-import cats.syntax.option._
+
 import com.snowplowanalytics.snowplow.badrows._
 
-import utils.{ConversionUtils => CU}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{ConversionUtils => CU}
 
 /** Holds enrichments related to the web page URL, and the document object contained in the page. */
 object PageEnrichments {
@@ -45,26 +41,4 @@ object PageEnrichments {
         FailureDetails.EnrichmentFailureMessage.Simple(f)
       )
     )
-
-  /**
-   * Extract the referrer domain user ID and timestamp from the "_sp={{DUID}}.{{TSTAMP}}"
-   * portion of the querystring
-   * @param qsMap The querystring parameters
-   * @return Validation boxing a pair of optional strings corresponding to the two fields
-   */
-  def parseCrossDomain(qsMap: QueryStringParameters): Either[FailureDetails.EnrichmentFailure, (Option[String], Option[String])] =
-    qsMap.toMap
-      .map { case (k, v) => (k, v.getOrElse("")) }
-      .get("_sp") match {
-      case Some("") => (None, None).asRight
-      case Some(sp) =>
-        val crossDomainElements = sp.split("\\.")
-        val duid = CU.makeTsvSafe(crossDomainElements(0)).some
-        val tstamp = crossDomainElements.lift(1) match {
-          case Some(spDtm) => EventEnrichments.extractTimestamp("sp_dtm", spDtm).map(_.some)
-          case None => None.asRight
-        }
-        tstamp.map(duid -> _)
-      case None => (None -> None).asRight
-    }
 }

@@ -1,14 +1,12 @@
 /*
- * Copyright (c) 2020-2021 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2020-present Snowplow Analytics Ltd.
+ * All rights reserved.
  *
- * This program is licensed to you under the Apache License Version 2.0,
- * and you may not use this file except in compliance with the Apache License Version 2.0.
- * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the Apache License Version 2.0 is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
+ * located at https://docs.snowplow.io/limited-use-license-1.0
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2.config
 
@@ -18,7 +16,7 @@ import scala.concurrent.duration._
 
 import cats.effect.IO
 
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 
 import org.http4s.Uri
 
@@ -26,10 +24,12 @@ import org.specs2.mutable.Specification
 
 import com.typesafe.config.ConfigFactory
 
+import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io._
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.adaptersSchemas
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
 
-class ParsedConfigsSpec extends Specification with CatsIO {
+class ParsedConfigsSpec extends Specification with CatsEffect {
   "validateConfig" should {
     "return accumulated invalid attributes in config file" in {
 
@@ -37,13 +37,41 @@ class ParsedConfigsSpec extends Specification with CatsIO {
       val invalidAttr2 = "invalidAttr2"
 
       val configFile = ConfigFile(
-        io.Input.PubSub("projects/test-project/subscriptions/inputSub", 1, 3000, 50000000, 1.hour),
+        io.Input.PubSub(
+          "projects/test-project/subscriptions/inputSub",
+          1,
+          3000,
+          50000000,
+          1.hour,
+          io.GcpUserAgent("Snowplow OSS")
+        ),
         io.Outputs(
-          io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id", invalidAttr1)), 200.milliseconds, 1000, 10000000),
-          Some(
-            io.Output.PubSub("projects/test-project/topics/pii-topic", Some(Set("app_id", invalidAttr2)), 200.milliseconds, 1000, 10000000)
+          io.Output.PubSub(
+            "projects/test-project/topics/good-topic",
+            Some(Set("app_id", invalidAttr1)),
+            200.milliseconds,
+            1000,
+            10000000,
+            io.GcpUserAgent("Snowplow OSS")
           ),
-          io.Output.PubSub("projects/test-project/topics/bad-topic", None, 200.milliseconds, 1000, 10000000)
+          Some(
+            io.Output.PubSub(
+              "projects/test-project/topics/pii-topic",
+              Some(Set("app_id", invalidAttr2)),
+              200.milliseconds,
+              1000,
+              10000000,
+              io.GcpUserAgent("Snowplow OSS")
+            )
+          ),
+          io.Output.PubSub(
+            "projects/test-project/topics/bad-topic",
+            None,
+            200.milliseconds,
+            1000,
+            10000000,
+            io.GcpUserAgent("Snowplow OSS")
+          )
         ),
         io.Concurrency(10000, 64),
         Some(7.days),
@@ -83,7 +111,7 @@ class ParsedConfigsSpec extends Specification with CatsIO {
           io.Experimental(
             Some(
               io.Metadata(
-                Uri.uri("https://collector-g.snowplowanalytics.com"),
+                Uri.unsafeFromString("https://collector-g.snowplowanalytics.com"),
                 5.minutes,
                 UUID.fromString("c5f3a09f-75f8-4309-bec5-fea560f78455"),
                 UUID.fromString("75a13583-5c99-40e3-81fc-541084dfc784")
@@ -91,7 +119,10 @@ class ParsedConfigsSpec extends Specification with CatsIO {
             )
           )
         ),
-        adaptersSchemas
+        adaptersSchemas,
+        BlobStorageClients(gcs = false, s3 = true, azureStorage = None),
+        License(accept = true),
+        Validation(AtomicFields.from(valueLimits = Map.empty))
       )
 
       ParsedConfigs.validateConfig[IO](configFile).value.map(result => result must beLeft)
@@ -100,7 +131,14 @@ class ParsedConfigsSpec extends Specification with CatsIO {
 
   "outputAttributes" should {
     "fetch attribute values" in {
-      val output = io.Output.PubSub("projects/test-project/topics/good-topic", Some(Set("app_id")), 200.milliseconds, 1000, 10000000)
+      val output = io.Output.PubSub(
+        "projects/test-project/topics/good-topic",
+        Some(Set("app_id")),
+        200.milliseconds,
+        1000,
+        10000000,
+        io.GcpUserAgent("Snowplow OSS")
+      )
       val ee = new EnrichedEvent()
       ee.app_id = "test_app"
 

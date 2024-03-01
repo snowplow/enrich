@@ -34,6 +34,7 @@ object Dependencies {
     val useragent        = "1.21"
     val uaParser         = "1.5.4"
     val snakeYaml        = "2.0" // override transitive dependency to mitigate security vulnerabilities CVE-2022-1471
+    val postgresDriver   = "42.7.2"
     val mysqlConnector   = "8.3.0"
     val hikariCP         = "5.0.1"
     val jaywayJsonpath   = "2.7.0"

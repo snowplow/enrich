@@ -196,8 +196,8 @@ object CrossNavigationEnrichment extends ParseableEnrichment {
           EE.extractTimestamp("sp_dtm", s)
             .leftMap { error =>
               val f = FailureDetails.EnrichmentFailureMessage.InputData(
-                error.field,
-                error.value,
+                error.path.getOrElse(""),
+                error.keyword,
                 error.message
               )
               FailureDetails.EnrichmentFailure(None, f)

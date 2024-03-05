@@ -26,8 +26,9 @@ import org.specs2.matcher.DataTables
 
 import com.snowplowanalytics.snowplow.badrows._
 
+import com.snowplowanalytics.iglu.client.validator.ValidatorReport
+
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicError
 
 class StringToUriSpec extends MSpecification with DataTables {
 
@@ -264,7 +265,7 @@ class ValidateUuidSpec extends Specification with DataTables with ScalaCheck {
   def e2 =
     prop { (str: String) =>
       ConversionUtils.validateUuid(FieldName, str) must beLeft(
-        AtomicError(FieldName, Option(str), "Not a valid UUID")
+        ValidatorReport("Not a valid UUID", Some(FieldName), Nil, Option(str))
       )
     }
 }
@@ -282,7 +283,7 @@ class ValidateIntegerSpec extends Specification {
   def e2 = {
     val str = "abc"
     ConversionUtils.validateInteger(FieldName, str) must beLeft(
-      AtomicError(FieldName, Some(str), "Not a valid integer")
+      ValidatorReport("Not a valid integer", Some(FieldName), Nil, Some(str))
     )
   }
 }
@@ -313,8 +314,8 @@ class StringToDoubleLikeSpec extends Specification with DataTables {
   """
 
   val FieldName = "val"
-  def err: String => AtomicError =
-    input => AtomicError(FieldName, Option(input), "Cannot be converted to Double-like")
+  def err: String => ValidatorReport =
+    input => ValidatorReport("Cannot be converted to Double-like", Some(FieldName), Nil, Option(input))
 
   def e1 =
     "SPEC NAME" || "INPUT STR" | "EXPECTED" |
@@ -389,8 +390,8 @@ class StringToBooleanLikeJByteSpec extends Specification with DataTables {
   """
 
   val FieldName = "val"
-  def err: String => AtomicError =
-    input => AtomicError(FieldName, Option(input), "Cannot be converted to Boolean-like java.lang.Byte")
+  def err: String => ValidatorReport =
+    input => ValidatorReport("Cannot be converted to Boolean-like java.lang.Byte", Some(FieldName), Nil, Option(input))
 
   def e1 =
     "SPEC NAME" || "INPUT STR" | "EXPECTED" |

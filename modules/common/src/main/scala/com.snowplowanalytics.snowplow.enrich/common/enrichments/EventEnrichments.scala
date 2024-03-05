@@ -19,6 +19,8 @@ import cats.syntax.option._
 import org.joda.time.{DateTime, DateTimeZone, Period}
 import org.joda.time.format.DateTimeFormat
 
+import com.snowplowanalytics.iglu.client.validator.ValidatorReport
+
 import com.snowplowanalytics.snowplow.badrows._
 
 /** Holds the enrichments related to events. */
@@ -47,14 +49,14 @@ object EventEnrichments {
    * @param Optional collectorTstamp
    * @return Validation boxing the result of making the timestamp Redshift-compatible
    */
-  def formatCollectorTstamp(collectorTstamp: Option[DateTime]): Either[AtomicError, String] =
+  def formatCollectorTstamp(collectorTstamp: Option[DateTime]): Either[ValidatorReport, String] =
     collectorTstamp match {
-      case None => AtomicError("collector_tstamp", None, "Field not set").asLeft
+      case None => ValidatorReport("Field not set", Some("collector_tstamp"), Nil, None).asLeft
       case Some(t) =>
         val formattedTimestamp = toTimestamp(t)
         if (formattedTimestamp.startsWith("-") || t.getYear > 9999 || t.getYear < 0) {
           val msg = s"Formatted as $formattedTimestamp is not Redshift-compatible"
-          AtomicError("collector_tstamp", t.toString.some, msg).asLeft
+          ValidatorReport(msg, Some("collector_tstamp"), Nil, Some(t.toString)).asLeft
         } else
           formattedTimestamp.asRight
     }
@@ -111,25 +113,27 @@ object EventEnrichments {
    * @param tstamp The timestamp as stored in the Tracker Protocol
    * @return a Tuple of two Strings (date and time), or an error message if the format was invalid
    */
-  val extractTimestamp: (String, String) => Either[AtomicError, String] =
+  val extractTimestamp: (String, String) => Either[ValidatorReport, String] =
     (field, tstamp) =>
       try {
         val dt = new DateTime(tstamp.toLong)
         val timestampString = toTimestamp(dt)
         if (timestampString.startsWith("-") || dt.getYear > 9999 || dt.getYear < 0)
-          AtomicError(
-            field,
-            Option(tstamp),
-            s"Formatting as $timestampString is not Redshift-compatible"
+          ValidatorReport(
+            s"Formatting as $timestampString is not Redshift-compatible",
+            Some(field),
+            Nil,
+            Option(tstamp)
           ).asLeft
         else
           timestampString.asRight
       } catch {
         case _: NumberFormatException =>
-          AtomicError(
-            field,
-            Option(tstamp),
-            "Not in the expected format: ms since epoch"
+          ValidatorReport(
+            "Not in the expected format: ms since epoch",
+            Some(field),
+            Nil,
+            Option(tstamp)
           ).asLeft
       }
 
@@ -140,7 +144,7 @@ object EventEnrichments {
    * @param eventCode The event code
    * @return the event type, or an error message if not recognised, boxed in a Scalaz Validation
    */
-  val extractEventType: (String, String) => Either[AtomicError, String] =
+  val extractEventType: (String, String) => Either[ValidatorReport, String] =
     (field, code) =>
       code match {
         case "se" => "struct".asRight
@@ -153,7 +157,7 @@ object EventEnrichments {
         case "pp" => "page_ping".asRight
         case _ =>
           val msg = "Not a valid event type"
-          AtomicError(field, Option(code), msg).asLeft
+          ValidatorReport(msg, Some(field), Nil, Option(code)).asLeft
       }
 
   /**

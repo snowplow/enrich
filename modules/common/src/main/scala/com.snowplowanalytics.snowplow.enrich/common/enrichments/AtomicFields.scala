@@ -133,12 +133,8 @@ object AtomicFields {
     AtomicFields(withLimits)
   }
 
-  def atomicErrorsToSchemaViolation(errors: NonEmptyList[AtomicError]): FailureDetails.SchemaViolation = {
-    val messages = errors.map { error =>
-      ValidatorReport(error.message, Some(error.field), Nil, error.value)
-    }
-    val validatorError = ValidatorError.InvalidData(messages)
-    val clientError = ValidationError(validatorError, None)
+  def atomicErrorsToSchemaViolation(errors: NonEmptyList[ValidatorReport]): FailureDetails.SchemaViolation = {
+    val clientError = ValidationError(ValidatorError.InvalidData(errors), None)
 
     FailureDetails.SchemaViolation.IgluError(
       AtomicFields.atomicSchema,
@@ -146,9 +142,3 @@ object AtomicFields {
     )
   }
 }
-
-case class AtomicError(
-  field: String,
-  value: Option[String],
-  message: String
-)

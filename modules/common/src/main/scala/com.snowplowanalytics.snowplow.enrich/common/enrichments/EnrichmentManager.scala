@@ -24,6 +24,7 @@ import com.snowplowanalytics.refererparser._
 
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
+import com.snowplowanalytics.iglu.client.validator.ValidatorReport
 
 import com.snowplowanalytics.iglu.core.SelfDescribingData
 import com.snowplowanalytics.iglu.core.circe.implicits._
@@ -115,20 +116,20 @@ object EnrichmentManager {
     registryLookup: RegistryLookup[F]
   ): EitherT[F, BadRow, IgluUtils.EventExtractResult] =
     EitherT {
-      val setup = setupEnrichedEvent(raw, enrichedEvent, etlTstamp, processor).toValidatedNel
-      IgluUtils
-        .extractAndValidateInputJsons(enrichedEvent, client, registryLookup)
-        .map((setup, _).mapN((_, extract) => extract))
-        .map {
-          _.leftMap { violations =>
-            buildSchemaViolationsBadRow(
-              violations,
-              EnrichedEvent.toPartiallyEnrichedEvent(enrichedEvent),
-              RawEvent.toRawEvent(raw),
-              processor
-            )
-          }.toEither
+      for {
+        setup <- setupEnrichedEvent[F](raw, enrichedEvent, etlTstamp, processor).map(_.toValidatedNel)
+        iglu <- IgluUtils.extractAndValidateInputJsons(enrichedEvent, client, registryLookup)
+      } yield (setup, iglu)
+        .mapN((_, extract) => extract)
+        .leftMap { violations =>
+          buildSchemaViolationsBadRow(
+            violations,
+            EnrichedEvent.toPartiallyEnrichedEvent(enrichedEvent),
+            RawEvent.toRawEvent(raw),
+            processor
+          )
         }
+        .toEither
     }
 
   /**
@@ -312,34 +313,35 @@ object EnrichmentManager {
   }
 
   /** Initialize the mutable [[EnrichedEvent]]. */
-  private def setupEnrichedEvent(
+  private def setupEnrichedEvent[F[_]: Monad](
     raw: RawEvent,
     e: EnrichedEvent,
     etlTstamp: DateTime,
     processor: Processor
-  ): Either[FailureDetails.SchemaViolation, Unit] = {
-    e.event_id = EE.generateEventId() // May be updated later if we have an `eid` parameter
-    e.v_collector = raw.source.name // May be updated later if we have a `cv` parameter
-    e.v_etl = ME.etlVersion(processor)
-    e.etl_tstamp = EE.toTimestamp(etlTstamp)
-    e.network_userid = raw.context.userId.map(_.toString).orNull // May be updated later by 'nuid'
-    e.user_ipaddress = ME
-      .extractIp("user_ipaddress", raw.context.ipAddress.orNull)
-      .toOption
-      .orNull // May be updated later by 'ip'
-    // May be updated later if we have a `ua` parameter
-    setUseragent(e, raw.context.useragent)
-    // Validate that the collectorTstamp exists and is Redshift-compatible
-    val collectorTstamp = setCollectorTstamp(e, raw.context.timestamp).toValidatedNel
-    // Map/validate/transform input fields to enriched event fields
-    val transformed = Transform.transform(raw, e)
+  ): F[Either[FailureDetails.SchemaViolation, Unit]] =
+    Monad[F].pure {
+      e.event_id = EE.generateEventId() // May be updated later if we have an `eid` parameter
+      e.v_collector = raw.source.name // May be updated later if we have a `cv` parameter
+      e.v_etl = ME.etlVersion(processor)
+      e.etl_tstamp = EE.toTimestamp(etlTstamp)
+      e.network_userid = raw.context.userId.map(_.toString).orNull // May be updated later by 'nuid'
+      e.user_ipaddress = ME
+        .extractIp("user_ipaddress", raw.context.ipAddress.orNull)
+        .toOption
+        .orNull // May be updated later by 'ip'
+      // May be updated later if we have a `ua` parameter
+      setUseragent(e, raw.context.useragent)
+      // Validate that the collectorTstamp exists and is Redshift-compatible
+      val collectorTstamp = setCollectorTstamp(e, raw.context.timestamp).toValidatedNel
+      // Map/validate/transform input fields to enriched event fields
+      val transformed = Transform.transform(raw, e)
 
-    (collectorTstamp |+| transformed)
-      .leftMap(AtomicFields.atomicErrorsToSchemaViolation)
-      .toEither
-  }
+      (collectorTstamp |+| transformed)
+        .leftMap(AtomicFields.atomicErrorsToSchemaViolation)
+        .toEither
+    }
 
-  def setCollectorTstamp(event: EnrichedEvent, timestamp: Option[DateTime]): Either[AtomicError, Unit] =
+  def setCollectorTstamp(event: EnrichedEvent, timestamp: Option[DateTime]): Either[ValidatorReport, Unit] =
     EE.formatCollectorTstamp(timestamp).map { t =>
       event.collector_tstamp = t
       ().asRight

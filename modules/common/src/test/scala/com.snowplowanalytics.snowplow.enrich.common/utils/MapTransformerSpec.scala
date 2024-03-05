@@ -18,7 +18,9 @@ import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.specs2.matcher.ValidatedMatchers
 import org.specs2.mutable.Specification
 
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.{AtomicError, ClientEnrichments, MiscEnrichments}
+import com.snowplowanalytics.iglu.client.validator.ValidatorReport
+
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.{ClientEnrichments, MiscEnrichments}
 import com.snowplowanalytics.snowplow.enrich.common.utils.MapTransformer._
 
 // Test Bean
@@ -50,7 +52,7 @@ final class TargetBean {
 
 class MapTransformerSpec extends Specification with ValidatedMatchers {
 
-  val identity: (String, String) => Either[AtomicError, String] =
+  val identity: (String, String) => Either[ValidatorReport, String] =
     (_, value) => value.asRight
 
   val sourceMap = Map(

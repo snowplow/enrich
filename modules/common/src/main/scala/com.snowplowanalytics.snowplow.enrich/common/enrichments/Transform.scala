@@ -13,6 +13,8 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments
 import cats.implicits._
 import cats.data.ValidatedNel
 
+import com.snowplowanalytics.iglu.client.validator.ValidatorReport
+
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.{EventEnrichments => EE}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.{MiscEnrichments => ME}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.{ClientEnrichments => CE}
@@ -29,7 +31,7 @@ object Transform {
    * to "user_ipaddress" in the enriched event
    * @param enriched /!\ MUTABLE enriched event, mutated IN-PLACE /!\
    */
-  private[enrichments] def transform(raw: RawEvent, enriched: EnrichedEvent): ValidatedNel[AtomicError, Unit] = {
+  private[enrichments] def transform(raw: RawEvent, enriched: EnrichedEvent): ValidatedNel[ValidatorReport, Unit] = {
     val sourceMap: SourceMap = raw.parameters.collect { case (k, Some(v)) => (k, v) }
     val firstPassTransform = enriched.transform(sourceMap, firstPassTransformMap)
     val secondPassTransform = enriched.transform(sourceMap, secondPassTransformMap)

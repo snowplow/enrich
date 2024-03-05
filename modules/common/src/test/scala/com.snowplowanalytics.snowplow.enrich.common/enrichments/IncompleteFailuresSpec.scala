@@ -37,7 +37,7 @@ class IncompleteFailuresSpec extends Specification with CatsEffect {
     // mapping error
     // collector timestamp
 
-    "unstruct bad JSON" >> {
+    "case 1 - NotJson" >> {
       val unstruct =
         """
         {{
@@ -49,7 +49,7 @@ class IncompleteFailuresSpec extends Specification with CatsEffect {
       }
     }
 
-    "unstruct not SDJ" >> {
+    "case 2 - NotIglu" >> {
       val unstruct =
         """
         {"foo": "bar"}
@@ -61,7 +61,7 @@ class IncompleteFailuresSpec extends Specification with CatsEffect {
       }
     }
 
-    "criterion mismatch" >> {
+    "case 3 - CriterionMismatch" >> {
       val unstruct =
         """
         {
@@ -78,7 +78,7 @@ class IncompleteFailuresSpec extends Specification with CatsEffect {
       }
     }
 
-    "resolution error - schema could not be found in the specified repositories, defined by ResolutionError in the Iglu Client" >> {
+    "case 4 - IgluError - resolution error - schema could not be found in the specified repositories, defined by ResolutionError in the Iglu Client" >> {
       val unstruct =
         """
         {
@@ -99,7 +99,7 @@ class IncompleteFailuresSpec extends Specification with CatsEffect {
       }
     }
 
-    "validation error - Data is invalid against resolved schema" >> {
+    "case 5 - ValidationError/InvalidData - Data is invalid against resolved schema" >> {
       val unstruct =
         """
         {
@@ -116,7 +116,7 @@ class IncompleteFailuresSpec extends Specification with CatsEffect {
       }
     }
 
-    "validation error - Schema is invalid (empty required list) and cannot be used to validate an instance" >> {
+    "case 6 - ValidationError/InvalidSchema  - Schema is invalid (empty required list) and cannot be used to validate an instance" >> {
       val unstruct =
         """
         {

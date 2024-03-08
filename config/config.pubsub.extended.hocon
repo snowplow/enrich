@@ -114,6 +114,31 @@
       # Note the PubSub maximum is 10MB
       "maxBatchBytes": 8000000
     }
+
+    # Optional. Incomplete events output.
+    # If set, an incomplete enriched event holding the errors in derived_context will get emitted on top of a bad row
+    "incomplete": {
+      "type": "PubSub"
+
+      # Name of the PubSub topic that will receive the incomplete events
+      "topic": "projects/test-project/topics/incomplete"
+
+      # Optional. Delay threshold to use for batching.
+      # After this amount of time has elapsed,
+      # before maxBatchSize and maxBatchBytes have been reached,
+      # messages from the buffer will be sent.
+      "delayThreshold": 200 milliseconds
+
+      # Optional. Maximum number of messages sent within a batch.
+      # When the buffer reaches this number of messages they are sent.
+      # PubSub maximum : 1000
+      "maxBatchSize": 1000
+
+      # Optional. Maximum number of bytes sent within a batch.
+      # When the buffer reaches this size messages are sent.
+      # Note the PubSub maximum is 10MB
+      "maxBatchBytes": 8000000
+    }
   }
 
   # Optional. Concurrency of the app

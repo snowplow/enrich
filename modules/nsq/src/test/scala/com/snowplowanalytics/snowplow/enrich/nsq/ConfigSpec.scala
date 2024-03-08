@@ -81,6 +81,18 @@ class ConfigSpec extends Specification with CatsEffect {
               maxBackoff = 10.seconds,
               maxRetries = Some(10)
             )
+          ),
+          Some(
+            io.Output.Nsq(
+              "incomplete",
+              "127.0.0.1",
+              4150,
+              BackoffPolicy(
+                minBackoff = 100.milliseconds,
+                maxBackoff = 10.seconds,
+                maxRetries = Some(10)
+              )
+            )
           )
         ),
         io.Concurrency(256, 3),
@@ -187,7 +199,8 @@ class ConfigSpec extends Specification with CatsEffect {
               maxBackoff = 10.seconds,
               maxRetries = Some(10)
             )
-          )
+          ),
+          None
         ),
         io.Concurrency(256, 3),
         None,

@@ -78,6 +78,7 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.io.experimental.Metadata
  * @param sinkGood            function that sinks enriched event
  * @param sinkPii             function that sinks pii event
  * @param sinkBad             function that sinks an event that failed validation or enrichment
+ * @param sinkIncomplete      function that sinks incomplete events
  * @param checkpoint          function that checkpoints input stream records
  * @param getPayload          function that extracts the collector payload bytes from a record
  * @param sentry              optional sentry client
@@ -111,6 +112,7 @@ final case class Environment[F[_], A](
   sinkGood: AttributedByteSink[F],
   sinkPii: Option[AttributedByteSink[F]],
   sinkBad: ByteSink[F],
+  sinkIncomplete: Option[AttributedByteSink[F]],
   checkpoint: List[A] => F[Unit],
   getPayload: A => Array[Byte],
   sentry: Option[SentryClient],
@@ -187,6 +189,7 @@ object Environment {
     sinkGood: Resource[F, AttributedByteSink[F]],
     sinkPii: Option[Resource[F, AttributedByteSink[F]]],
     sinkBad: Resource[F, ByteSink[F]],
+    sinkIncomplete: Option[Resource[F, AttributedByteSink[F]]],
     clients: Resource[F, List[Client[F]]],
     checkpoint: List[A] => F[Unit],
     getPayload: A => Array[Byte],
@@ -204,6 +207,7 @@ object Environment {
       good <- sinkGood
       bad <- sinkBad
       pii <- sinkPii.sequence
+      incomplete <- sinkIncomplete.sequence
       http4s <- Clients.mkHttp()
       clts <- clients.map(Clients.init(http4s, _))
       igluClient <- IgluCirceClient.parseDefault[F](parsedConfigs.igluJson).resource
@@ -231,6 +235,7 @@ object Environment {
       good,
       pii,
       bad,
+      incomplete,
       checkpoint,
       getPayload,
       sentry,

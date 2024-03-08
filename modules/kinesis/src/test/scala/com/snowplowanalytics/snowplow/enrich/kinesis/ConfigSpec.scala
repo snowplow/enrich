@@ -79,6 +79,18 @@ class ConfigSpec extends Specification with CatsEffect {
             500,
             5242880,
             None
+          ),
+          Some(
+            io.Output.Kinesis(
+              "incomplete",
+              Some("eu-central-1"),
+              None,
+              io.BackoffPolicy(100.millis, 10.seconds, Some(10)),
+              io.BackoffPolicy(100.millis, 1.second, None),
+              500,
+              5242880,
+              None
+            )
           )
         ),
         io.Concurrency(256, 1),
@@ -173,7 +185,8 @@ class ConfigSpec extends Specification with CatsEffect {
             500,
             5242880,
             None
-          )
+          ),
+          None
         ),
         io.Concurrency(256, 1),
         None,

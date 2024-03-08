@@ -59,6 +59,7 @@ object Main extends IOApp {
       out => Sink.initAttributed(out),
       out => Sink.initAttributed(out),
       out => Sink.init(out),
+      out => Sink.initAttributed(out),
       checkpoint[IO],
       _ => List(S3Client.mk[IO]),
       getPayload,

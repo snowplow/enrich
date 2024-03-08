@@ -34,6 +34,7 @@ object utils extends CatsEffect {
   object OutputRow {
     final case class Good(event: Event) extends OutputRow
     final case class Bad(badRow: BadRow) extends OutputRow
+    final case class Incomplete(incomplete: Event) extends OutputRow
   }
 
   def mkEnrichPipe(
@@ -46,9 +47,12 @@ object utils extends CatsEffect {
     } yield {
       val enriched = asGood(outputStream(KinesisConfig.enrichedStreamConfig(localstackPort, streams.enriched)))
       val bad = asBad(outputStream(KinesisConfig.badStreamConfig(localstackPort, streams.bad)))
+      val incomplete = asIncomplete(outputStream(KinesisConfig.incompleteStreamConfig(localstackPort, streams.incomplete)))
 
       collectorPayloads =>
-        enriched.merge(bad)
+        enriched
+          .merge(bad)
+          .merge(incomplete)
           .interruptAfter(3.minutes)
           .concurrently(collectorPayloads.evalMap(bytes => rawSink(List(bytes))))
     }
@@ -81,13 +85,26 @@ object utils extends CatsEffect {
       }
     }
 
-  def parseOutput(output: List[OutputRow], testName: String): (List[Event], List[BadRow]) = {
+  private def asIncomplete(source: Stream[IO, Array[Byte]]): Stream[IO, OutputRow.Incomplete] =
+    source.map { bytes =>
+      OutputRow.Incomplete {
+        val s = new String(bytes)
+        Event.parse(s) match {
+          case Validated.Valid(e) => e
+          case Validated.Invalid(e) =>
+            throw new RuntimeException(s"Can't parse incomplete event [$s]. Error: $e")
+        }
+      }
+    }
+
+  def parseOutput(output: List[OutputRow], testName: String): (List[Event], List[BadRow], List[Event]) = {
     val good = output.collect { case OutputRow.Good(e) => e}
     println(s"[$testName] Bad rows:")
     val bad = output.collect { case OutputRow.Bad(b) =>
       println(s"[$testName] ${b.compact}")
       b
     }
-    (good, bad)
+    val incomplete = output.collect { case OutputRow.Incomplete(i) => i}
+    (good, bad, incomplete)
   }
 }

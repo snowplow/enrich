@@ -94,7 +94,7 @@
       # Otherwise, the partition key will be a random UUID.
       # "partitionKey": "user_id"
 
-      # Optional. Policy to retry if writing to kinesis fails with unexepected errors
+      # Optional. Policy to retry if writing to kinesis fails with unexpected errors
       "backoffPolicy": {
         "minBackoff": 100 milliseconds
         "maxBackoff": 10 seconds
@@ -144,7 +144,7 @@
       # Otherwise, the partition key will be a random UUID.
       # "partitionKey": "user_id"
 
-      # Optional. Policy to retry if writing to kinesis fails with unexepcted errors
+      # Optional. Policy to retry if writing to kinesis fails with unexpected errors
       "backoffPolicy": {
         "minBackoff": 100 milliseconds
         "maxBackoff": 10 seconds
@@ -186,7 +186,50 @@
       # https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/regions/providers/DefaultAwsRegionProviderChain.html
       "region": "eu-central-1"
 
-      # Optional. Policy to retry if writing to kinesis fails with unexepcted errors
+      # Optional. Policy to retry if writing to kinesis fails with unexpected errors
+      "backoffPolicy": {
+        "minBackoff": 100 milliseconds
+        "maxBackoff": 10 seconds
+        "maxRetries": 10
+      }
+
+      # Optional. Policy to retry if writing to kinesis exceeds the provisioned throughput.
+      "throttledBackoffPolicy": {
+        "minBackoff": 100 milliseconds
+        "maxBackoff": 1 second
+      }
+
+      # Optional. Limits the number of events in a single PutRecords request.
+      # Several requests are made in parallel
+      # Maximum allowed: 500
+      "recordLimit": 500
+
+      # Optional. Limits the number of bytes in a single PutRecords request,
+      # including records and partition keys.
+      # Several requests are made in parallel
+      # Maximum allowed: 5 MB
+      "byteLimit": 5242880
+
+      # Optional. Use a custom Kinesis endpoint.
+      # Can be used for instance to work locally with localstack
+      # "customEndpoint": "https://localhost:4566"
+    }
+
+    # Optional. Incomplete events output.
+    # If set, an incomplete enriched event holding the errors in derived_context will get emitted on top of a bad row
+    "incomplete": {
+      "type": "Kinesis"
+
+      # Name of the Kinesis stream to write to
+      "streamName": "incomplete"
+
+      # Optional. Region where the Kinesis stream is located
+      # This field is optional if it can be resolved with AWS region provider chain.
+      # It checks places like env variables, system properties, AWS profile file.
+      # https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/regions/providers/DefaultAwsRegionProviderChain.html
+      "region": "eu-central-1"
+
+      # Optional. Policy to retry if writing to kinesis fails with unexpected errors
       "backoffPolicy": {
         "minBackoff": 100 milliseconds
         "maxBackoff": 10 seconds

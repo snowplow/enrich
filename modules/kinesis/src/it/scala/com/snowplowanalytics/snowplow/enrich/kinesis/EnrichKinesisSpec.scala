@@ -42,7 +42,7 @@ class EnrichKinesisSpec extends Specification with AfterAll with CatsEffect {
       }
     }
 
-    "emit the correct number of enriched events and bad rows" in {
+    "emit the correct number of enriched events, bad rows and incomplete events" in {
       import utils._
 
       val testName = "count"
@@ -66,10 +66,11 @@ class EnrichKinesisSpec extends Specification with AfterAll with CatsEffect {
       resources.use { enrich =>
         for {
           output <- enrich(input).compile.toList
-          (good, bad) = parseOutput(output, testName)
+          (good, bad, incomplete) = parseOutput(output, testName)
         } yield {
           good.size.toLong must beEqualTo(nbGood)
           bad.size.toLong must beEqualTo(nbBad)
+          incomplete.size.toLong must beEqualTo(nbBad)
         }
       }
     }
@@ -108,13 +109,14 @@ class EnrichKinesisSpec extends Specification with AfterAll with CatsEffect {
       resources.use { enrich =>
         for {
           output <- enrich(input).compile.toList
-          (good, bad) = parseOutput(output, testName)
+          (good, bad, incomplete) = parseOutput(output, testName)
         } yield {
           good.size.toLong must beEqualTo(nbGood)
           good.map { enriched =>
             enriched.derived_contexts.data.map(_.schema) must containTheSameElementsAs(enrichmentsContexts)
           }
           bad.size.toLong must beEqualTo(0l)
+          incomplete.size.toLong must beEqualTo(0l)
         }
       }
     }

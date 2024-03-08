@@ -10,7 +10,7 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2
 
-import cats.data.{Validated, ValidatedNel}
+import cats.data.{Ior, ValidatedNel}
 import cats.effect.testing.specs2.CatsEffect
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
@@ -43,10 +43,12 @@ import org.specs2.specification.core.{Fragment, Fragments}
 
 import java.time.Instant
 import scala.util.{Random, Try}
+
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
 
-class EventGenEtlPipelineSpec extends Specification with CatsEffect {
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 
+class EventGenEtlPipelineSpec extends Specification with CatsEffect {
   case class ContextMatcher(v: String)
 
   implicit val cmDecoder: Decoder[ContextMatcher] = Decoder.decodeString.emapTry { str =>
@@ -198,7 +200,7 @@ class EventGenEtlPipelineSpec extends Specification with CatsEffect {
   val dateTime = DateTime.now()
   val process = Processor("EventGenEtlPipelineSpec", "v1")
 
-  def processEvents(e: CollectorPayload): IO[List[Validated[BadRow, EnrichedEvent]]] =
+  def processEvents(e: CollectorPayload): IO[List[Ior[BadRow, EnrichedEvent]]] =
     EtlPipeline.processEvents[IO](
       adapterRegistry,
       enrichmentReg,
@@ -209,7 +211,8 @@ class EventGenEtlPipelineSpec extends Specification with CatsEffect {
       EtlPipeline.FeatureFlags(acceptInvalid = false, legacyEnrichmentOrder = false),
       IO.unit,
       SpecHelpers.registryLookup,
-      AtomicFields.from(Map.empty)
+      AtomicFields.from(Map.empty),
+      SpecHelpers.emitIncomplete
     )
 
   def rethrowBadRows[A]: Pipe[IO, ValidatedNel[BadRow, A], A] =
@@ -223,8 +226,8 @@ class EventGenEtlPipelineSpec extends Specification with CatsEffect {
         ).toEither
       ).rethrow[IO, A]
 
-  def rethrowBadRow[A]: Pipe[IO, Validated[BadRow, A], A] =
-    (in: Stream[IO, Validated[BadRow, A]]) =>
+  def rethrowBadRow[A]: Pipe[IO, Ior[BadRow, A], A] =
+    (in: Stream[IO, Ior[BadRow, A]]) =>
       in
         .map(_.leftMap(br => new Exception(br.compact)).toEither)
         .rethrow[IO, A]

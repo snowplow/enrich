@@ -58,6 +58,7 @@ object Main extends IOApp {
       out => Sink.initAttributed(out),
       out => Sink.initAttributed(out),
       out => Sink.init(out),
+      out => Sink.initAttributed(out),
       checkpoint,
       createBlobStorageClient,
       _.data,

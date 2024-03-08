@@ -59,20 +59,23 @@ object ConfigFile {
 
   implicit val configFileDecoder: Decoder[ConfigFile] =
     deriveConfiguredDecoder[ConfigFile].emap {
-      case ConfigFile(_, _, _, Some(aup), _, _, _, _, _, _, _, _, _) if aup._1 <= 0L =>
+      case c: ConfigFile if c.assetsUpdatePeriod.exists(_.length <= 0L) =>
         "assetsUpdatePeriod in config file cannot be less than 0".asLeft // TODO: use newtype
-      // Remove pii output if streamName and region empty
-      case c @ ConfigFile(_, Outputs(good, Some(output: Output.Kinesis), bad), _, _, _, _, _, _, _, _, _, _, _)
-          if output.streamName.isEmpty =>
-        c.copy(output = Outputs(good, None, bad)).asRight
-      // Remove pii output if topic empty
-      case c @ ConfigFile(_, Outputs(good, Some(Output.PubSub(t, _, _, _, _, _)), bad), _, _, _, _, _, _, _, _, _, _, _) if t.isEmpty =>
-        c.copy(output = Outputs(good, None, bad)).asRight
-      // Remove pii output if topic empty
-      case c @ ConfigFile(_, Outputs(good, Some(Output.Kafka(topicName, _, _, _, _)), bad), _, _, _, _, _, _, _, _, _, _, _)
-          if topicName.isEmpty =>
-        c.copy(output = Outputs(good, None, bad)).asRight
-      case other => other.asRight
+      case c: ConfigFile =>
+        val Outputs(good, pii, bad, incomplete) = c.output
+        val piiCleaned = pii match {
+          case Some(ki: Output.Kinesis) if ki.streamName.isEmpty => None
+          case Some(p: Output.PubSub) if p.topic.isEmpty => None
+          case Some(ka: Output.Kafka) if ka.topicName.isEmpty => None
+          case _ => pii
+        }
+        val incompleteCleaned = incomplete match {
+          case Some(ki: Output.Kinesis) if ki.streamName.isEmpty => None
+          case Some(p: Output.PubSub) if p.topic.isEmpty => None
+          case Some(ka: Output.Kafka) if ka.topicName.isEmpty => None
+          case _ => incomplete
+        }
+        c.copy(output = Outputs(good, piiCleaned, bad, incompleteCleaned)).asRight
     }
 
   /* Defines where to look for default values if they are not in the provided file

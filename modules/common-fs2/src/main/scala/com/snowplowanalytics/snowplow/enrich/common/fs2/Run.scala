@@ -57,6 +57,7 @@ object Run {
     mkSinkGood: Output => Resource[F, AttributedByteSink[F]],
     mkSinkPii: Output => Resource[F, AttributedByteSink[F]],
     mkSinkBad: Output => Resource[F, ByteSink[F]],
+    mkSinkIncomplete: Output => Resource[F, AttributedByteSink[F]],
     checkpoint: List[A] => F[Unit],
     mkClients: BlobStorageClients => List[Resource[F, Client[F]]],
     getPayload: A => Array[Byte],
@@ -89,6 +90,7 @@ object Run {
                               case _ =>
                                 mkSinkBad(file.output.bad)
                             }
+                  sinkIncomplete = file.output.incomplete.map(out => initAttributedSink(out, mkSinkIncomplete))
                   clients = mkClients(file.blobStorage).sequence
                   exit <- file.input match {
                             case p: Input.FileSystem =>
@@ -100,6 +102,7 @@ object Run {
                                   sinkGood,
                                   sinkPii,
                                   sinkBad,
+                                  sinkIncomplete,
                                   clients,
                                   _ => Sync[F].unit,
                                   identity,
@@ -130,6 +133,7 @@ object Run {
                                   sinkGood,
                                   sinkPii,
                                   sinkBad,
+                                  sinkIncomplete,
                                   clients,
                                   checkpointing,
                                   getPayload,

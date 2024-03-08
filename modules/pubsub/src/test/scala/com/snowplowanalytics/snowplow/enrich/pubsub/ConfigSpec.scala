@@ -69,6 +69,16 @@ class ConfigSpec extends Specification with CatsEffect {
             1000,
             8000000,
             io.GcpUserAgent("Snowplow OSS")
+          ),
+          Some(
+            io.Output.PubSub(
+              "projects/test-project/topics/incomplete",
+              None,
+              200.milliseconds,
+              1000,
+              8000000,
+              io.GcpUserAgent("Snowplow OSS")
+            )
           )
         ),
         io.Concurrency(256, 3),
@@ -155,7 +165,8 @@ class ConfigSpec extends Specification with CatsEffect {
             1000,
             8000000,
             io.GcpUserAgent("Snowplow OSS")
-          )
+          ),
+          None
         ),
         io.Concurrency(256, 3),
         None,

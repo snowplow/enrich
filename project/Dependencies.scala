@@ -252,7 +252,8 @@ object Dependencies {
       specs2Mock,
       specs2CE,
       circeLiteral % Test,
-      parserCombinators
+      parserCombinators,
+      kinesisSdk % Test
     )
 
     val commonFs2Dependencies = Seq(

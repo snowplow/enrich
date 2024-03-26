@@ -133,12 +133,17 @@ object AtomicFields {
     AtomicFields(withLimits)
   }
 
-  def errorsToSchemaViolation(errors: NonEmptyList[ValidatorReport]): FailureDetails.SchemaViolation = {
+  def errorsToSchemaViolation(errors: NonEmptyList[ValidatorReport]): FailureEntity.SchemaViolationWithExtraContext = {
     val clientError = ValidationError(ValidatorError.InvalidData(errors), None)
 
-    FailureDetails.SchemaViolation.IgluError(
-      AtomicFields.atomicSchema,
-      clientError
+    FailureEntity.SchemaViolationWithExtraContext(
+      schemaViolation = FailureDetails.SchemaViolation.IgluError(
+        AtomicFields.atomicSchema,
+        clientError
+      ),
+      // Source atomic field and actual value of the field should be already on the ValidatorReport list
+      source = "atomic_field",
+      data = None
     )
   }
 }

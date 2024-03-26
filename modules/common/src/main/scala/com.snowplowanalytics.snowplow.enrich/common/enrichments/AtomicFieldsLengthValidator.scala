@@ -19,8 +19,6 @@ import cats.implicits._
 
 import com.snowplowanalytics.iglu.client.validator.ValidatorReport
 
-import com.snowplowanalytics.snowplow.badrows.FailureDetails
-
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields.LimitedAtomicField
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
@@ -37,7 +35,7 @@ object AtomicFieldsLengthValidator {
     acceptInvalid: Boolean,
     invalidCount: F[Unit],
     atomicFields: AtomicFields
-  ): IorT[F, FailureDetails.SchemaViolation, Unit] =
+  ): IorT[F, Failure.SchemaViolation, Unit] =
     IorT {
       atomicFields.value
         .map(validateField(event, _).toValidatedNel)

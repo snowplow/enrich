@@ -25,6 +25,8 @@ import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.Failure
+
 import com.snowplowanalytics.snowplow.badrows._
 
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
@@ -51,7 +53,7 @@ object IgluUtils {
     enriched: EnrichedEvent,
     client: IgluCirceClient[F],
     registryLookup: RegistryLookup[F]
-  ): IorT[F, NonEmptyList[FailureDetails.SchemaViolation], EventExtractResult] =
+  ): IorT[F, NonEmptyList[Failure.SchemaViolation], EventExtractResult] =
     for {
       contexts <- extractAndValidateInputContexts(enriched, client, registryLookup)
       unstruct <- extractAndValidateUnstructEvent(enriched, client, registryLookup)
@@ -77,9 +79,9 @@ object IgluUtils {
     enriched: EnrichedEvent,
     client: IgluCirceClient[F],
     registryLookup: RegistryLookup[F],
-    field: String = "ue_properties",
+    field: String = "unstruct",
     criterion: SchemaCriterion = SchemaCriterion("com.snowplowanalytics.snowplow", "unstruct_event", "jsonschema", 1, 0)
-  ): IorT[F, NonEmptyList[FailureDetails.SchemaViolation], Option[SdjExtractResult]] =
+  ): IorT[F, NonEmptyList[Failure.SchemaViolation], Option[SdjExtractResult]] =
     Option(enriched.unstruct_event) match {
       case Some(rawUnstructEvent) =>
         val iorT = for {
@@ -88,11 +90,11 @@ object IgluUtils {
                         .leftMap(NonEmptyList.one)
                         .toIor
           // Parse Json unstructured event as SelfDescribingData[Json]
-          unstructSDJ <- parseAndValidateSDJ(unstruct, client, registryLookup)
+          unstructSDJ <- parseAndValidateSDJ(unstruct, client, registryLookup, field)
         } yield unstructSDJ.some
         iorT.recoverWith { case errors => IorT.fromIor[F](Ior.Both(errors, None)) }
       case None =>
-        IorT.rightT[F, NonEmptyList[FailureDetails.SchemaViolation]](none[SdjExtractResult])
+        IorT.rightT[F, NonEmptyList[Failure.SchemaViolation]](none[SdjExtractResult])
     }
 
   /**
@@ -110,7 +112,7 @@ object IgluUtils {
     registryLookup: RegistryLookup[F],
     field: String = "contexts",
     criterion: SchemaCriterion = SchemaCriterion("com.snowplowanalytics.snowplow", "contexts", "jsonschema", 1, 0)
-  ): IorT[F, NonEmptyList[FailureDetails.SchemaViolation], List[SdjExtractResult]] =
+  ): IorT[F, NonEmptyList[Failure.SchemaViolation], List[SdjExtractResult]] =
     Option(enriched.contexts) match {
       case Some(rawContexts) =>
         val iorT = for {
@@ -122,7 +124,7 @@ object IgluUtils {
           // Parse and validate each SDJ and merge the errors
           contextsSdj <- contexts
                            .traverse(
-                             parseAndValidateSDJ(_, client, registryLookup)
+                             parseAndValidateSDJ(_, client, registryLookup, field)
                                .map(sdj => List(sdj))
                                .recoverWith { case errors => IorT.fromIor[F](Ior.Both(errors, Nil)) }
                            )
@@ -130,7 +132,7 @@ object IgluUtils {
         } yield contextsSdj
         iorT.recoverWith { case errors => IorT.fromIor[F](Ior.Both(errors, Nil)) }
       case None =>
-        IorT.rightT[F, NonEmptyList[FailureDetails.SchemaViolation]](Nil)
+        IorT.rightT[F, NonEmptyList[Failure.SchemaViolation]](Nil)
     }
 
   /**
@@ -146,13 +148,16 @@ object IgluUtils {
     client: IgluCirceClient[F],
     sdjs: List[SelfDescribingData[Json]],
     registryLookup: RegistryLookup[F]
-  ): IorT[F, NonEmptyList[FailureDetails.SchemaViolation], List[SelfDescribingData[Json]]] =
+  ): IorT[F, NonEmptyList[Failure.SchemaViolation], List[SelfDescribingData[Json]]] =
     checkList(client, sdjs, registryLookup)
       .leftMap(
         _.map {
-          case (schemaKey, clientError) =>
-            val f: FailureDetails.SchemaViolation = FailureDetails.SchemaViolation.IgluError(schemaKey, clientError)
-            f
+          case (sdj, clientError) =>
+            Failure.SchemaViolation(
+              schemaViolation = FailureDetails.SchemaViolation.IgluError(sdj.schema, clientError),
+              source = "derived_contexts",
+              data = sdj.asJson
+            )
         }
       )
 
@@ -163,34 +168,54 @@ object IgluUtils {
     expectedCriterion: SchemaCriterion,
     client: IgluCirceClient[F],
     registryLookup: RegistryLookup[F]
-  ): EitherT[F, FailureDetails.SchemaViolation, Json] =
+  ): EitherT[F, Failure.SchemaViolation, Json] =
     for {
       // Parse Json string with the SDJ
       json <- JsonUtils
                 .extractJson(rawJson)
-                .leftMap(e => FailureDetails.SchemaViolation.NotJson(field, rawJson.some, e))
+                .leftMap(e =>
+                  Failure.SchemaViolation(
+                    schemaViolation = FailureDetails.SchemaViolation.NotJson(field, rawJson.some, e),
+                    source = field,
+                    data = rawJson.asJson
+                  )
+                )
                 .toEitherT[F]
       // Parse Json as SelfDescribingData[Json] (which contains the .data that we want)
       sdj <- SelfDescribingData
                .parse(json)
-               .leftMap(FailureDetails.SchemaViolation.NotIglu(json, _))
+               .leftMap(e =>
+                 Failure.SchemaViolation(
+                   schemaViolation = FailureDetails.SchemaViolation.NotIglu(json, e),
+                   source = field,
+                   data = json
+                 )
+               )
                .toEitherT[F]
       // Check that the schema of SelfDescribingData[Json] is the expected one
       _ <- if (validateCriterion(sdj, expectedCriterion))
-             EitherT.rightT[F, FailureDetails.SchemaViolation](sdj)
+             EitherT.rightT[F, Failure.SchemaViolation](sdj)
            else
              EitherT
                .leftT[F, SelfDescribingData[Json]](
-                 FailureDetails.SchemaViolation.CriterionMismatch(sdj.schema, expectedCriterion)
+                 Failure.SchemaViolation(
+                   schemaViolation = FailureDetails.SchemaViolation.CriterionMismatch(sdj.schema, expectedCriterion),
+                   source = field,
+                   data = sdj.asJson
+                 )
                )
       // Check that the SDJ holding the .data is valid
       _ <- check(client, sdj, registryLookup)
              .leftMap {
                case (schemaKey, clientError) =>
-                 FailureDetails.SchemaViolation.IgluError(schemaKey, clientError)
+                 Failure.SchemaViolation(
+                   schemaViolation = FailureDetails.SchemaViolation.IgluError(schemaKey, clientError),
+                   source = field,
+                   data = sdj.asJson
+                 )
              }
       // Extract .data of SelfDescribingData[Json]
-      data <- EitherT.rightT[F, FailureDetails.SchemaViolation](sdj.data)
+      data <- EitherT.rightT[F, Failure.SchemaViolation](sdj.data)
     } yield data
 
   /** Check that the schema of a SDJ matches the expected one */
@@ -217,11 +242,11 @@ object IgluUtils {
     client: IgluCirceClient[F],
     sdjs: List[SelfDescribingData[Json]],
     registryLookup: RegistryLookup[F]
-  ): IorT[F, NonEmptyList[(SchemaKey, ClientError)], List[SelfDescribingData[Json]]] =
+  ): IorT[F, NonEmptyList[(SelfDescribingData[Json], ClientError)], List[SelfDescribingData[Json]]] =
     sdjs.map { sdj =>
       check(client, sdj, registryLookup)
         .map(_ => List(sdj))
-        .leftMap(NonEmptyList.one)
+        .leftMap(e => NonEmptyList.one((sdj, e._2)))
         .toIor
         .recoverWith { case errors => IorT.fromIor[F](Ior.Both(errors, Nil)) }
     }.foldA
@@ -230,19 +255,29 @@ object IgluUtils {
   private def parseAndValidateSDJ[F[_]: Monad: Clock](
     json: Json,
     client: IgluCirceClient[F],
-    registryLookup: RegistryLookup[F]
-  ): IorT[F, NonEmptyList[FailureDetails.SchemaViolation], SdjExtractResult] =
+    registryLookup: RegistryLookup[F],
+    field: String
+  ): IorT[F, NonEmptyList[Failure.SchemaViolation], SdjExtractResult] =
     for {
       sdj <- IorT
                .fromEither[F](SelfDescribingData.parse(json))
-               .leftMap[FailureDetails.SchemaViolation](FailureDetails.SchemaViolation.NotIglu(json, _))
+               .leftMap[Failure.SchemaViolation](e =>
+                 Failure.SchemaViolation(
+                   schemaViolation = FailureDetails.SchemaViolation.NotIglu(json, e),
+                   source = field,
+                   data = json.asJson
+                 )
+               )
                .leftMap(NonEmptyList.one)
       supersedingSchema <- check(client, sdj, registryLookup)
                              .leftMap {
                                case (schemaKey, clientError) =>
-                                 FailureDetails.SchemaViolation
-                                   .IgluError(schemaKey, clientError): FailureDetails.SchemaViolation
-
+                                 Failure.SchemaViolation(
+                                   schemaViolation = FailureDetails.SchemaViolation
+                                     .IgluError(schemaKey, clientError): FailureDetails.SchemaViolation,
+                                   source = field,
+                                   data = json.asJson
+                                 )
                              }
                              .leftMap(NonEmptyList.one)
                              .toIor

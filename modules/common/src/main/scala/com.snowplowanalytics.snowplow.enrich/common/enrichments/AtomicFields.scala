@@ -12,6 +12,8 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments
 
 import cats.data.NonEmptyList
 
+import io.circe.syntax._
+
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
 import com.snowplowanalytics.iglu.client.ClientError.ValidationError
@@ -133,12 +135,19 @@ object AtomicFields {
     AtomicFields(withLimits)
   }
 
-  def errorsToSchemaViolation(errors: NonEmptyList[ValidatorReport]): FailureDetails.SchemaViolation = {
+  def errorsToSchemaViolation(errors: NonEmptyList[ValidatorReport]): Failure.SchemaViolation = {
     val clientError = ValidationError(ValidatorError.InvalidData(errors), None)
 
-    FailureDetails.SchemaViolation.IgluError(
-      AtomicFields.atomicSchema,
-      clientError
+    val failureData = errors.toList.flatMap(e => e.path.map(p => p := e.keyword)).toMap.asJson
+
+    Failure.SchemaViolation(
+      schemaViolation = FailureDetails.SchemaViolation.IgluError(
+        AtomicFields.atomicSchema,
+        clientError
+      ),
+      // Source atomic field and actual value of the field should be already on the ValidatorReport list
+      source = "atomic_field",
+      data = failureData
     )
   }
 }

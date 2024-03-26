@@ -139,14 +139,16 @@ object SpecHelpers extends CatsEffect {
       .flatMap(SelfDescribingData.parse[Json])
       .leftMap(err => s"Can't parse Json [$rawJson] as as SelfDescribingData, error: [$err]")
 
-  def listContextsSchemas(rawContexts: String): List[SchemaKey] =
+  def listContexts(rawContexts: String): List[SelfDescribingData[Json]] =
     jsonStringToSDJ(rawContexts)
       .map(_.data.asArray.get.toList)
-      .flatMap(contexts => contexts.traverse(c => SelfDescribingData.parse[Json](c).map(_.schema))) match {
+      .flatMap(contexts => contexts.traverse(c => SelfDescribingData.parse[Json](c))) match {
       case Left(err) =>
         throw new IllegalArgumentException(s"Couldn't list contexts schemas. Error: [$err]")
-      case Right(schemas) => schemas
+      case Right(sdjs) => sdjs
     }
+
+  def listContextsSchemas(rawContexts: String): List[SchemaKey] = listContexts(rawContexts).map(_.schema)
 
   def getUnstructSchema(rawUnstruct: String): SchemaKey =
     jsonStringToSDJ(rawUnstruct)

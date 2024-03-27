@@ -24,7 +24,9 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 import com.snowplowanalytics.iglu.client.ClientError.{ResolutionError, ValidationError}
 
 import com.snowplowanalytics.snowplow.badrows._
+import com.snowplowanalytics.snowplow.badrows.FailureDetails.SchemaViolation
 
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.FailureEntity.SchemaViolationWithExtraContext
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
@@ -150,7 +152,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .extractAndValidateUnstructEvent(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .value
         .map {
-          case Ior.Both(NonEmptyList(_: FailureDetails.SchemaViolation.NotJson, _), None) => ok
+          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(_: SchemaViolation.NotJson, _, _), _), None) => ok
           case other => ko(s"[$other] is not an error with NotJson")
         }
     }
@@ -163,7 +165,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .extractAndValidateUnstructEvent(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .value
         .map {
-          case Ior.Both(NonEmptyList(_: FailureDetails.SchemaViolation.NotIglu, _), None) => ok
+          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(_: SchemaViolation.NotIglu, _, _), _), None) => ok
           case other => ko(s"[$other] is not an error with NotIglu")
         }
     }
@@ -176,7 +178,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .extractAndValidateUnstructEvent(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .value
         .map {
-          case Ior.Both(NonEmptyList(_: FailureDetails.SchemaViolation.CriterionMismatch, _), None) => ok
+          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(_: SchemaViolation.CriterionMismatch, _, _), _), None) => ok
           case other => ko(s"[$other] is not an error with CriterionMismatch")
         }
     }
@@ -189,7 +191,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .extractAndValidateUnstructEvent(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .value
         .map {
-          case Ior.Both(NonEmptyList(_: FailureDetails.SchemaViolation.NotJson, _), None) => ok
+          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(_: SchemaViolation.NotJson, _, _), _), None) => ok
           case other => ko(s"[$other] is not an error with NotJson")
         }
     }
@@ -202,8 +204,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .extractAndValidateUnstructEvent(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .value
         .map {
-          case Ior.Both(NonEmptyList(FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)), _), None) => ok
-          case Ior.Both(NonEmptyList(ie: FailureDetails.SchemaViolation.IgluError, _), None) =>
+          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(SchemaViolation.IgluError(_, _: ValidationError), _, _), _), None) => ok
+          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(ie: SchemaViolation.IgluError, _, _), _), None) =>
             ko(s"IgluError [$ie] is not ValidationError")
           case other => ko(s"[$other] is not an error with IgluError")
         }
@@ -217,8 +219,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .extractAndValidateUnstructEvent(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .value
         .map {
-          case Ior.Both(NonEmptyList(FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)), _), None) => ok
-          case Ior.Both(NonEmptyList(ie: FailureDetails.SchemaViolation.IgluError, _), None) =>
+          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(SchemaViolation.IgluError(_, _: ValidationError), _, _), _), None) => ok
+          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(ie: SchemaViolation.IgluError, _, _), _), None) =>
             ko(s"IgluError [$ie] is not ValidationError")
           case other => ko(s"[$other] is not an error with IgluError")
         }
@@ -232,8 +234,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .extractAndValidateUnstructEvent(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .value
         .map {
-          case Ior.Both(NonEmptyList(FailureDetails.SchemaViolation.IgluError(_, ResolutionError(_)), _), None) => ok
-          case Ior.Both(NonEmptyList(ie: FailureDetails.SchemaViolation.IgluError, _), None) =>
+          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(SchemaViolation.IgluError(_, _: ResolutionError), _, _), _), None) => ok
+          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(ie: SchemaViolation.IgluError, _, _), _), None) =>
             ko(s"IgluError [$ie] is not a ResolutionError")
           case other => ko(s"[$other] is not an error with IgluError")
         }
@@ -315,7 +317,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .value
         .map {
-          case Ior.Both(NonEmptyList(_: FailureDetails.SchemaViolation.NotJson, Nil), Nil) => ok
+          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(_: SchemaViolation.NotJson, _, _), Nil), Nil) => ok
           case other => ko(s"[$other] is not an error with NotJson")
         }
     }
@@ -328,7 +330,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .value
         .map {
-          case Ior.Both(NonEmptyList(_: FailureDetails.SchemaViolation.NotIglu, Nil), Nil) => ok
+          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(_: SchemaViolation.NotIglu, _, _), Nil), Nil) => ok
           case other => ko(s"[$other] is not an error with NotIglu")
         }
     }
@@ -341,7 +343,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .value
         .map {
-          case Ior.Both(NonEmptyList(_: FailureDetails.SchemaViolation.CriterionMismatch, Nil), Nil) => ok
+          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(_: SchemaViolation.CriterionMismatch, _, _), Nil), Nil) => ok
           case other => ko(s"[$other] is not an error with CriterionMismatch")
         }
     }
@@ -356,9 +358,9 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .value
         .map {
-          case Ior.Both(NonEmptyList(FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)), Nil), Nil) =>
+          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(SchemaViolation.IgluError(_, _: ValidationError), _, _), Nil), Nil) =>
             ok
-          case Ior.Both(NonEmptyList(ie: FailureDetails.SchemaViolation.IgluError, Nil), Nil) =>
+          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(ie: SchemaViolation.IgluError, _, _), Nil), Nil) =>
             ko(s"IgluError [$ie] is not ValidationError")
           case other => ko(s"[$other] is not an error with IgluError")
         }
@@ -372,9 +374,9 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .value
         .map {
-          case Ior.Both(NonEmptyList(FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)), Nil), Nil) =>
+          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(SchemaViolation.IgluError(_, _: ValidationError), _, _), Nil), Nil) =>
             ok
-          case Ior.Both(NonEmptyList(ie: FailureDetails.SchemaViolation.IgluError, Nil), Nil) =>
+          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(ie: SchemaViolation.IgluError, _, _), Nil), Nil) =>
             ko(s"IgluError [$ie] is not ValidationError")
           case other => ko(s"[$other] is not an error with IgluError")
         }
@@ -388,9 +390,9 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .value
         .map {
-          case Ior.Both(NonEmptyList(FailureDetails.SchemaViolation.IgluError(_, ResolutionError(_)), Nil), Nil) =>
+          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(SchemaViolation.IgluError(_, _: ResolutionError), _, _), Nil), Nil) =>
             ok
-          case Ior.Both(NonEmptyList(ie: FailureDetails.SchemaViolation.IgluError, Nil), Nil) =>
+          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(ie: SchemaViolation.IgluError, _, _), Nil), Nil) =>
             ko(s"IgluError [$ie] is not ResolutionError")
           case other => ko(s"[$other] is not an error with IgluError")
         }
@@ -405,8 +407,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .value
         .map {
           case Ior.Both(NonEmptyList(
-                          FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)),
-                          List(FailureDetails.SchemaViolation.IgluError(_, ResolutionError(_)))
+                          SchemaViolationWithExtraContext(SchemaViolation.IgluError(_, _: ValidationError), _, _),
+                          List(SchemaViolationWithExtraContext(SchemaViolation.IgluError(_, _: ResolutionError), _, _))
                         ),
                         Nil
               ) =>
@@ -423,7 +425,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .value
         .map {
-          case Ior.Both(NonEmptyList(_: FailureDetails.SchemaViolation.IgluError, Nil), List(extract))
+          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(_: SchemaViolation.IgluError, _, _), Nil), List(extract))
               if extract.sdj.schema == emailSentSchema =>
             ok
           case other => ko(s"[$other] is not one IgluError and one SDJ with schema $emailSentSchema")
@@ -486,7 +488,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .validateEnrichmentsContexts(SpecHelpers.client, contexts, SpecHelpers.registryLookup)
         .value
         .map {
-          case Ior.Both(NonEmptyList(FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)), Nil), Nil) => ok
+          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(SchemaViolation.IgluError(_, _: ValidationError), _, _), Nil), Nil) => ok
           case other => ko(s"[$other] is not one ValidationError")
         }
     }
@@ -501,8 +503,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .validateEnrichmentsContexts(SpecHelpers.client, contexts, SpecHelpers.registryLookup)
         .value
         .map {
-          case Ior.Both(NonEmptyList(FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)),
-                                     List(FailureDetails.SchemaViolation.IgluError(_, ResolutionError(_)))
+          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(SchemaViolation.IgluError(_, _: ValidationError), _, _),
+                                     List(SchemaViolationWithExtraContext(SchemaViolation.IgluError(_, _: ResolutionError), _, _))
                         ),
                         Nil
               ) =>
@@ -522,7 +524,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .value
         .map {
           case Ior.Both(NonEmptyList(
-                          FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)),
+                          SchemaViolationWithExtraContext(SchemaViolation.IgluError(_, _: ValidationError), _, _),
                           Nil
                         ),
                         List(sdj)
@@ -563,7 +565,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .map {
           case Ior.Both(
                 NonEmptyList(
-                  _: FailureDetails.SchemaViolation,
+                  _: SchemaViolationWithExtraContext,
                   Nil
                 ),
                 IgluUtils.EventExtractResult(Nil, None, Nil)
@@ -587,7 +589,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .map {
           case Ior.Both(
                 NonEmptyList(
-                  _: FailureDetails.SchemaViolation,
+                  _: SchemaViolationWithExtraContext,
                   Nil
                 ),
                 IgluUtils.EventExtractResult(Nil, None, Nil)
@@ -612,8 +614,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .map {
           case Ior.Both(
                 NonEmptyList(
-                  _: FailureDetails.SchemaViolation,
-                  List(_: FailureDetails.SchemaViolation)
+                  _: SchemaViolationWithExtraContext,
+                  List(_: SchemaViolationWithExtraContext)
                 ),
                 IgluUtils.EventExtractResult(Nil, None, Nil)
               ) =>
@@ -661,7 +663,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .value
         .map {
           case Ior.Both(
-                NonEmptyList(FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)), _),
+                NonEmptyList(SchemaViolationWithExtraContext(SchemaViolation.IgluError(_, _: ValidationError), _, _), _),
                 extract
               ) if extract.contexts.isEmpty && extract.unstructEvent.isDefined && extract.unstructEvent.get.schema == emailSentSchema =>
             ok
@@ -686,7 +688,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .value
         .map {
           case Ior.Both(
-                NonEmptyList(FailureDetails.SchemaViolation.IgluError(_, ValidationError(_, _)), _),
+                NonEmptyList(SchemaViolationWithExtraContext(SchemaViolation.IgluError(_, _: ValidationError), _, _), _),
                 extract
               ) if extract.contexts.size == 1 && extract.contexts.head.schema == emailSentSchema && extract.unstructEvent.isEmpty =>
             ok

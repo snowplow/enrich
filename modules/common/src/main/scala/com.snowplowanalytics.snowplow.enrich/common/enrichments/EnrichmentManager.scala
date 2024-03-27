@@ -875,14 +875,14 @@ object EnrichmentManager {
     processor: Processor
   ): FailureEntity.BadRowWithFailureEntities = {
     val now = Instant.now()
-    val failureEntities = vs.map(v => FailureEntity.fromSchemaViolation(v, now, processor))
+    val failureEntities = vs.toList.map(v => FailureEntity.fromSchemaViolation(v, now, processor))
     FailureEntity.BadRowWithFailureEntities(
       badRow = BadRow.SchemaViolations(
         processor,
         Failure.SchemaViolations(now, vs.map(_.schemaViolation)),
         Payload.EnrichmentPayload(pee, re)
       ),
-      failureEntities = failureEntities.toList
+      failureEntities = failureEntities
     )
   }
 
@@ -893,8 +893,7 @@ object EnrichmentManager {
     processor: Processor
   ): FailureEntity.BadRowWithFailureEntities = {
     val now = Instant.now()
-    // TODO: Fill it correctly
-    val failureEntities = Nil
+    val failureEntities = fs.toList.flatMap(v => FailureEntity.fromEnrichmentFailure(v, now, processor))
     FailureEntity.BadRowWithFailureEntities(
       badRow = BadRow.EnrichmentFailures(
         processor,

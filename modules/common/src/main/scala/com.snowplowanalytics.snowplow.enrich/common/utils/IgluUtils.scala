@@ -177,7 +177,7 @@ object IgluUtils {
                   SchemaViolationWithExtraContext(
                     schemaViolation = FailureDetails.SchemaViolation.NotJson(field, rawJson.some, e),
                     source = field,
-                    data = s"{$field : $rawJson".some
+                    data = s"""{"$field" : "$rawJson"}""".some
                   )
                 )
                 .toEitherT[F]

@@ -158,8 +158,9 @@ object FailureEntity {
       case FailureDetails.SchemaViolation.IgluError(schemaKey, ClientError.ResolutionError(lh)) =>
         val message = s"Resolution error: schema ${schemaKey.toSchemaUri} not found"
         val lookupHistory = lh.toList
-          .map { case (repo, lookups) =>
-            lookups.asJson.deepMerge(Json.obj("repository" := repo.asJson))
+          .map {
+            case (repo, lookups) =>
+              lookups.asJson.deepMerge(Json.obj("repository" := repo.asJson))
           }
         FailureEntity(
           failureType = "ResolutionError",
@@ -176,9 +177,7 @@ object FailureEntity {
           componentName = processor.artifact,
           componentVersion = processor.version
         )
-      case FailureDetails.SchemaViolation.IgluError(
-          schemaKey,
-          ClientError.ValidationError(ValidatorError.InvalidData(e), _)) =>
+      case FailureDetails.SchemaViolation.IgluError(schemaKey, ClientError.ValidationError(ValidatorError.InvalidData(e), _)) =>
         val errors = e.toList.map { r =>
           Json.obj(
             "message" := r.message,
@@ -197,9 +196,7 @@ object FailureEntity {
           componentName = processor.artifact,
           componentVersion = processor.version
         )
-      case FailureDetails.SchemaViolation.IgluError(
-          schemaKey,
-          ClientError.ValidationError(ValidatorError.InvalidSchema(e), _)) =>
+      case FailureDetails.SchemaViolation.IgluError(schemaKey, ClientError.ValidationError(ValidatorError.InvalidSchema(e), _)) =>
         val errors = e.toList.map { r =>
           Json.obj(
             "message" := s"Invalid schema: $schemaKey - ${r.message}",

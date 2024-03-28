@@ -204,7 +204,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .extractAndValidateUnstructEvent(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .value
         .map {
-          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(SchemaViolation.IgluError(_, _: ValidationError), _, _), _), None) => ok
+          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(SchemaViolation.IgluError(_, _: ValidationError), _, _), _), None) =>
+            ok
           case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(ie: SchemaViolation.IgluError, _, _), _), None) =>
             ko(s"IgluError [$ie] is not ValidationError")
           case other => ko(s"[$other] is not an error with IgluError")
@@ -219,7 +220,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .extractAndValidateUnstructEvent(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .value
         .map {
-          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(SchemaViolation.IgluError(_, _: ValidationError), _, _), _), None) => ok
+          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(SchemaViolation.IgluError(_, _: ValidationError), _, _), _), None) =>
+            ok
           case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(ie: SchemaViolation.IgluError, _, _), _), None) =>
             ko(s"IgluError [$ie] is not ValidationError")
           case other => ko(s"[$other] is not an error with IgluError")
@@ -234,7 +236,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .extractAndValidateUnstructEvent(input, SpecHelpers.client, SpecHelpers.registryLookup)
         .value
         .map {
-          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(SchemaViolation.IgluError(_, _: ResolutionError), _, _), _), None) => ok
+          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(SchemaViolation.IgluError(_, _: ResolutionError), _, _), _), None) =>
+            ok
           case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(ie: SchemaViolation.IgluError, _, _), _), None) =>
             ko(s"IgluError [$ie] is not a ResolutionError")
           case other => ko(s"[$other] is not an error with IgluError")
@@ -488,7 +491,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .validateEnrichmentsContexts(SpecHelpers.client, contexts, SpecHelpers.registryLookup)
         .value
         .map {
-          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(SchemaViolation.IgluError(_, _: ValidationError), _, _), Nil), Nil) => ok
+          case Ior.Both(NonEmptyList(SchemaViolationWithExtraContext(SchemaViolation.IgluError(_, _: ValidationError), _, _), Nil), Nil) =>
+            ok
           case other => ko(s"[$other] is not one ValidationError")
         }
     }

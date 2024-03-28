@@ -46,7 +46,8 @@ import com.snowplowanalytics.snowplow.enrich.common.utils.{IgluUtils, Conversion
 
 object EnrichmentManager {
 
-  private type EnrichmentResult[F[_]] = IorT[F, NonEmptyList[FailureEntity.BadRowWithFailureEntities], (EnrichedEvent, List[SelfDescribingData[Json]])]
+  private type EnrichmentResult[F[_]] =
+    IorT[F, NonEmptyList[FailureEntity.BadRowWithFailureEntities], (EnrichedEvent, List[SelfDescribingData[Json]])]
 
   /**
    * Run the enrichment workflow
@@ -103,18 +104,18 @@ object EnrichmentManager {
                                .leftMap(NonEmptyList.one)
                                .possiblyExitingEarly(emitIncomplete)
       validContexts <- validateEnriched(
-             enriched,
-             raw,
-             enrichmentsContexts,
-             client,
-             processor,
-             registryLookup,
-             featureFlags.acceptInvalid,
-             invalidCount,
-             atomicFields
-           )
-             .leftMap(NonEmptyList.one)
-             .possiblyExitingEarly(emitIncomplete)
+                         enriched,
+                         raw,
+                         enrichmentsContexts,
+                         client,
+                         processor,
+                         registryLookup,
+                         featureFlags.acceptInvalid,
+                         invalidCount,
+                         atomicFields
+                       )
+                         .leftMap(NonEmptyList.one)
+                         .possiblyExitingEarly(emitIncomplete)
     } yield (enriched, validContexts ::: extractResult.validationInfoContexts)
 
     // derived contexts are set lastly because we want to include failure entities
@@ -125,18 +126,20 @@ object EnrichmentManager {
 
   private def setDerivedContexts[F[_]: Sync](enriched: EnrichmentResult[F]): EnrichmentResult[F] =
     IorT(
-      enriched.value.flatTap(v => Sync[F].delay {
-        val (derivedContexts, enriched) = v match {
-          case Ior.Right((e, l)) => (l, e.some)
-          case Ior.Left(l) => (extractFailureEntities(l), None)
-          case Ior.Both(b, (e, l)) => (l ::: extractFailureEntities(b), e.some)
+      enriched.value.flatTap(v =>
+        Sync[F].delay {
+          val (derivedContexts, enriched) = v match {
+            case Ior.Right((e, l)) => (l, e.some)
+            case Ior.Left(l) => (extractFailureEntities(l), None)
+            case Ior.Both(b, (e, l)) => (l ::: extractFailureEntities(b), e.some)
+          }
+          for {
+            c <- ME.formatContexts(derivedContexts)
+            e <- enriched
+            _ = e.derived_contexts = c
+          } yield ()
         }
-        for {
-          c <- ME.formatContexts(derivedContexts)
-          e <- enriched
-          _ = e.derived_contexts = c
-        } yield ()
-      })
+      )
     )
 
   private def extractFailureEntities(l: NonEmptyList[FailureEntity.BadRowWithFailureEntities]): List[SelfDescribingData[Json]] =
@@ -157,12 +160,12 @@ object EnrichmentManager {
     } yield extract
 
     iorT.leftMap { violations =>
-        buildSchemaViolationsBadRow(
-          violations,
-          EnrichedEvent.toPartiallyEnrichedEvent(enrichedEvent),
-          RawEvent.toRawEvent(raw),
-          processor
-        )
+      buildSchemaViolationsBadRow(
+        violations,
+        EnrichedEvent.toPartiallyEnrichedEvent(enrichedEvent),
+        RawEvent.toRawEvent(raw),
+        processor
+      )
     }
   }
 

@@ -46,6 +46,9 @@ import com.snowplowanalytics.snowplow.enrich.common.utils.{IgluUtils, Conversion
 
 object EnrichmentManager {
 
+  private type EnrichmentResult[F[_]] =
+    IorT[F, NonEmptyList[FailureEntity.BadRowWithFailureEntities], (EnrichedEvent, List[SelfDescribingData[Json]])]
+
   /**
    * Run the enrichment workflow
    * @param registry Contain configuration for all enrichments to apply
@@ -71,8 +74,8 @@ object EnrichmentManager {
     atomicFields: AtomicFields,
     emitIncomplete: Boolean
   ): IorT[F, BadRow, EnrichedEvent] = {
-    val iorT: IorT[F, NonEmptyList[BadRow], EnrichedEvent] = for {
-      enriched <- IorT.pure[F, NonEmptyList[BadRow]](new EnrichedEvent)
+    val iorT: EnrichmentResult[F] = for {
+      enriched <- IorT.pure[F, NonEmptyList[FailureEntity.BadRowWithFailureEntities]](new EnrichedEvent)
       extractResult <- mapAndValidateInput(
                          raw,
                          enriched,
@@ -100,24 +103,47 @@ object EnrichmentManager {
                              )
                                .leftMap(NonEmptyList.one)
                                .possiblyExitingEarly(emitIncomplete)
-      _ <- validateEnriched(
-             enriched,
-             raw,
-             enrichmentsContexts,
-             extractResult.validationInfoContexts,
-             client,
-             processor,
-             registryLookup,
-             featureFlags.acceptInvalid,
-             invalidCount,
-             atomicFields
-           )
-             .leftMap(NonEmptyList.one)
-             .possiblyExitingEarly(emitIncomplete)
-    } yield enriched
+      validContexts <- validateEnriched(
+                         enriched,
+                         raw,
+                         enrichmentsContexts,
+                         client,
+                         processor,
+                         registryLookup,
+                         featureFlags.acceptInvalid,
+                         invalidCount,
+                         atomicFields
+                       )
+                         .leftMap(NonEmptyList.one)
+                         .possiblyExitingEarly(emitIncomplete)
+    } yield (enriched, validContexts ::: extractResult.validationInfoContexts)
 
-    iorT.leftMap(_.head)
+    // derived contexts are set lastly because we want to include failure entities
+    // to derived contexts as well and we can get failure entities only in the end
+    // of the enrichment process
+    setDerivedContexts(iorT).leftMap(_.head.badRow).map(_._1)
   }
+
+  private def setDerivedContexts[F[_]: Sync](enriched: EnrichmentResult[F]): EnrichmentResult[F] =
+    IorT(
+      enriched.value.flatTap(v =>
+        Sync[F].delay {
+          val (derivedContexts, enriched) = v match {
+            case Ior.Right((e, l)) => (l, e.some)
+            case Ior.Left(l) => (extractFailureEntities(l), None)
+            case Ior.Both(b, (e, l)) => (l ::: extractFailureEntities(b), e.some)
+          }
+          for {
+            c <- ME.formatContexts(derivedContexts)
+            e <- enriched
+            _ = e.derived_contexts = c
+          } yield ()
+        }
+      )
+    )
+
+  private def extractFailureEntities(l: NonEmptyList[FailureEntity.BadRowWithFailureEntities]): List[SelfDescribingData[Json]] =
+    l.toList.flatMap(_.failureEntities).map(FailureEntity.toSDJ)
 
   private def mapAndValidateInput[F[_]: Sync](
     raw: RawEvent,
@@ -126,7 +152,7 @@ object EnrichmentManager {
     processor: Processor,
     client: IgluCirceClient[F],
     registryLookup: RegistryLookup[F]
-  ): IorT[F, BadRow, IgluUtils.EventExtractResult] = {
+  ): IorT[F, FailureEntity.BadRowWithFailureEntities, IgluUtils.EventExtractResult] = {
     val iorT = for {
       _ <- setupEnrichedEvent[F](raw, enrichedEvent, etlTstamp, processor)
              .leftMap(NonEmptyList.one)
@@ -157,7 +183,7 @@ object EnrichmentManager {
     inputContexts: List[SelfDescribingData[Json]],
     unstructEvent: Option[SelfDescribingData[Json]],
     legacyOrder: Boolean
-  ): IorT[F, BadRow, List[SelfDescribingData[Json]]] =
+  ): IorT[F, FailureEntity.BadRowWithFailureEntities, List[SelfDescribingData[Json]]] =
     IorT {
       accState(registry, raw, inputContexts, unstructEvent, legacyOrder)
         .runS(Accumulation(enriched, Nil, Nil))
@@ -184,21 +210,19 @@ object EnrichmentManager {
     enriched: EnrichedEvent,
     raw: RawEvent,
     enrichmentsContexts: List[SelfDescribingData[Json]],
-    validationInfoContexts: List[SelfDescribingData[Json]],
     client: IgluCirceClient[F],
     processor: Processor,
     registryLookup: RegistryLookup[F],
     acceptInvalid: Boolean,
     invalidCount: F[Unit],
     atomicFields: AtomicFields
-  ): IorT[F, BadRow, Unit] = {
+  ): IorT[F, FailureEntity.BadRowWithFailureEntities, List[SelfDescribingData[Json]]] = {
     val iorT = for {
       validContexts <- IgluUtils.validateEnrichmentsContexts[F](client, enrichmentsContexts, registryLookup)
-      _ = ME.formatContexts(validContexts ::: validationInfoContexts).foreach(enriched.derived_contexts = _)
       _ <- AtomicFieldsLengthValidator
              .validate[F](enriched, acceptInvalid, invalidCount, atomicFields)
              .leftMap(NonEmptyList.one)
-    } yield ()
+    } yield validContexts
 
     iorT.leftMap { violations =>
       buildSchemaViolationsBadRow(
@@ -336,7 +360,7 @@ object EnrichmentManager {
     e: EnrichedEvent,
     etlTstamp: DateTime,
     processor: Processor
-  ): IorT[F, FailureDetails.SchemaViolation, Unit] =
+  ): IorT[F, FailureEntity.SchemaViolationWithExtraContext, Unit] =
     IorT {
       Sync[F].delay {
         e.event_id = EE.generateEventId() // May be updated later if we have an `eid` parameter
@@ -848,28 +872,40 @@ object EnrichmentManager {
     }
 
   private def buildSchemaViolationsBadRow(
-    vs: NonEmptyList[FailureDetails.SchemaViolation],
+    vs: NonEmptyList[FailureEntity.SchemaViolationWithExtraContext],
     pee: Payload.PartiallyEnrichedEvent,
     re: Payload.RawEvent,
     processor: Processor
-  ): BadRow.SchemaViolations =
-    BadRow.SchemaViolations(
-      processor,
-      Failure.SchemaViolations(Instant.now(), vs),
-      Payload.EnrichmentPayload(pee, re)
+  ): FailureEntity.BadRowWithFailureEntities = {
+    val now = Instant.now()
+    val failureEntities = vs.toList.map(v => FailureEntity.fromSchemaViolation(v, now, processor))
+    FailureEntity.BadRowWithFailureEntities(
+      badRow = BadRow.SchemaViolations(
+        processor,
+        Failure.SchemaViolations(now, vs.map(_.schemaViolation)),
+        Payload.EnrichmentPayload(pee, re)
+      ),
+      failureEntities = failureEntities
     )
+  }
 
   private def buildEnrichmentFailuresBadRow(
     fs: NonEmptyList[FailureDetails.EnrichmentFailure],
     pee: Payload.PartiallyEnrichedEvent,
     re: Payload.RawEvent,
     processor: Processor
-  ) =
-    BadRow.EnrichmentFailures(
-      processor,
-      Failure.EnrichmentFailures(Instant.now(), fs),
-      Payload.EnrichmentPayload(pee, re)
+  ): FailureEntity.BadRowWithFailureEntities = {
+    val now = Instant.now()
+    val failureEntities = fs.toList.flatMap(v => FailureEntity.fromEnrichmentFailure(v, now, processor))
+    FailureEntity.BadRowWithFailureEntities(
+      badRow = BadRow.EnrichmentFailures(
+        processor,
+        Failure.EnrichmentFailures(now, fs),
+        Payload.EnrichmentPayload(pee, re)
+      ),
+      failureEntities = failureEntities
     )
+  }
 
   private implicit class IorTOps[F[_], A, B](val iorT: IorT[F, A, B]) extends AnyVal {
 

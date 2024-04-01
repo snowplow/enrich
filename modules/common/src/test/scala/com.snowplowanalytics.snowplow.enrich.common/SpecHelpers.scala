@@ -66,6 +66,16 @@ object SpecHelpers extends CatsEffect {
           }
         },
         {
+          "name": "Temp Iglu Central",
+          "priority": 0,
+          "vendorPrefixes": [],
+          "connection": {
+            "http": {
+              "uri": "https://raw.githubusercontent.com/snowplow/iglu-central/incomplete-events-schema/"
+            }
+          }
+        },
+        {
           "name": "Embedded src/test/resources",
           "priority": 100,
           "vendorPrefixes": [ "com.snowplowanalytics" ],

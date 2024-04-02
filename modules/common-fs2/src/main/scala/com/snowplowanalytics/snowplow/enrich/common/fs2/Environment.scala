@@ -212,7 +212,7 @@ object Environment {
       clts <- clients.map(Clients.init(http4s, _))
       igluClient <- IgluCirceClient.parseDefault[F](parsedConfigs.igluJson).resource
       remoteAdaptersEnabled = file.remoteAdapters.configs.nonEmpty
-      metrics <- Resource.eval(Metrics.build[F](file.monitoring.metrics, remoteAdaptersEnabled))
+      metrics <- Resource.eval(Metrics.build[F](file.monitoring.metrics, remoteAdaptersEnabled, incomplete.isDefined))
       metadata <- Resource.eval(metadataReporter[F](file, processor.artifact, http4s))
       assets = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
       remoteAdapters <- prepareRemoteAdapters[F](file.remoteAdapters, metrics)

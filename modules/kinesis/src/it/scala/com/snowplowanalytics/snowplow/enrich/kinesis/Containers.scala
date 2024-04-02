@@ -174,6 +174,16 @@ object Containers extends CatsEffect {
     c => IO(c.stop())
   }
 
+  def statsdServer: Resource[IO, JGenericContainer[_]] = Resource.make {
+    val container = GenericContainer("dblworks/statsd:v0.10.2") // the official statsd/statsd size is monstrous
+    container.underlyingUnsafeContainer.withNetwork(network)
+    container.underlyingUnsafeContainer.withNetworkAliases("statsd")
+    container.underlyingUnsafeContainer.addExposedPort(8126)
+    IO(container.start()) >> IO.pure(container.container)
+  } {
+    c => IO(c.stop())
+  }
+
   private def startContainerWithLogs(
     container: JGenericContainer[_],
     loggerName: String

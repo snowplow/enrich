@@ -53,7 +53,7 @@ class EnrichKinesisSpec extends Specification with AfterAll with CatsEffect {
       val resources = for {
         _ <- Containers.enrich(
           configPath = "modules/kinesis/src/it/resources/enrich/enrich-localstack.hocon",
-          testName = "count",
+          testName = testName,
           needsLocalstack = true,
           enrichments = Nil,
           uuid = uuid
@@ -71,6 +71,51 @@ class EnrichKinesisSpec extends Specification with AfterAll with CatsEffect {
           good.size.toLong must beEqualTo(nbGood)
           bad.size.toLong must beEqualTo(nbBad)
           incomplete.size.toLong must beEqualTo(nbBad)
+        }
+      }
+    }
+
+    "send the metrics to StatsD" in {
+      import utils._
+
+      val testName = "statsd"
+      val nbGood = 100l
+      val nbBad = 10l
+      val uuid = UUID.randomUUID().toString
+
+      val resources = for {
+        statsd <- Containers.statsdServer
+        statsdHost = statsd.getHost()
+        statsdAdminPort = statsd.getMappedPort(8126)
+        statsdAdmin <- mkStatsdAdmin(statsdHost, statsdAdminPort)
+        _ <- Containers.enrich(
+          configPath = "modules/kinesis/src/it/resources/enrich/enrich-localstack-statsd.hocon",
+          testName = testName,
+          needsLocalstack = true,
+          enrichments = Nil,
+          uuid = uuid
+        )
+        enrichPipe <- mkEnrichPipe(Containers.localstackMappedPort, uuid)
+      } yield (enrichPipe, statsdAdmin)
+
+      val input = CollectorPayloadGen.generate[IO](nbGood, nbBad)
+
+      resources.use { case (enrich, statsdAdmin) =>
+        for {
+          output <- enrich(input).compile.toList
+          (good, bad, incomplete) = parseOutput(output, testName)
+          counters <- statsdAdmin.getCounters
+          gauges <- statsdAdmin.getGauges
+        } yield {
+          good.size.toLong must beEqualTo(nbGood)
+          bad.size.toLong must beEqualTo(nbBad)
+          incomplete.size.toLong must beEqualTo(nbBad)
+          counters must contain(s"'snowplow.enrich.raw;env=test': ${nbGood + nbBad}")
+          counters must contain(s"'snowplow.enrich.good;env=test': $nbGood")
+          counters must contain(s"'snowplow.enrich.bad;env=test': $nbBad")
+          counters must contain(s"'snowplow.enrich.invalid_enriched;env=test': 0")
+          counters must contain(s"'snowplow.enrich.incomplete;env=test': $nbBad")
+          gauges must contain(s"'snowplow.enrich.latency;env=test': ")
         }
       }
     }
@@ -96,7 +141,7 @@ class EnrichKinesisSpec extends Specification with AfterAll with CatsEffect {
         _ <- Containers.httpServer
         _ <- Containers.enrich(
           configPath = "modules/kinesis/src/it/resources/enrich/enrich-localstack.hocon",
-          testName = "enrichments",
+          testName = testName,
           needsLocalstack = true,
           enrichments = enrichments,
           uuid = uuid

@@ -59,9 +59,10 @@ class IabEnrichmentSpec extends Specification with CatsEffect {
       val testWithHttp = HttpServer.resource *> TestEnvironment.make(input, List(IabEnrichmentSpec.enrichmentConf))
       testWithHttp.use { test =>
         test.run().map {
-          case (bad, pii, good) =>
+          case (bad, pii, good, incomplete) =>
             (bad must be empty)
             (pii must be empty)
+            (incomplete must be empty)
             good.map(_.derived_contexts) must contain(exactly(expected))
         }
       }
@@ -95,9 +96,10 @@ class IabEnrichmentSpec extends Specification with CatsEffect {
       val testWithHttp = HttpServer.resource *> TestEnvironment.make(input, List(IabEnrichmentSpec.enrichmentConf))
       testWithHttp.use { test =>
         test.run(_.copy(assetsUpdatePeriod = Some(1800.millis))).map {
-          case (bad, pii, good) =>
+          case (bad, pii, good, incomplete) =>
             (bad must be empty)
             (pii must be empty)
+            (incomplete must be empty)
             good.map(_.derived_contexts) must contain(exactly(expectedOne, expectedTwo))
         }
       }

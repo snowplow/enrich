@@ -100,7 +100,8 @@ lazy val kinesisDistroless = project
   .settings(libraryDependencies ++= kinesisDependencies ++ Seq(
     // integration tests dependencies
     specs2CEIt,
-    testContainersIt
+    testContainersIt,
+    dockerJavaIt
   ))
   .settings(excludeDependencies ++= exclusions)
   .settings(addCompilerPlugin(betterMonadicFor))

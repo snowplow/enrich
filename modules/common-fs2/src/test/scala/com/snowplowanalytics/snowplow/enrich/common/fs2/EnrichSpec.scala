@@ -38,7 +38,7 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 import com.snowplowanalytics.snowplow.badrows.{BadRow, Failure, FailureDetails, Processor, Payload => BadRowPayload}
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.IpLookupsEnrichment
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{IpLookupsEnrichment, JavascriptScriptEnrichment}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.{AtomicFields, MiscEnrichments}
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
@@ -187,21 +187,55 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
   }
 
   "enrich" should {
-    "update metrics with raw, good and bad counters" in {
-      val input = Stream.emits(List(Array.empty[Byte], EnrichSpec.payload))
-      TestEnvironment.make(input).use { test =>
+    "update metrics with raw, good, bad and incomplete counters" in {
+      val script = """
+        function process(event, params) {
+          if(event.getUser_ipaddress() == "foo") {
+            throw "BOOM";
+          }
+          return [ ];
+        }"""
+      val config = json"""{
+        "parameters": {
+          "script": ${ConversionUtils.encodeBase64Url(script)}
+        }
+      }"""
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow",
+        "javascript_script_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val jsEnrichConf =
+        JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
+
+      val context = EnrichSpec.context.copy(ipAddress = Some("foo"))
+      val payload = EnrichSpec.collectorPayload.copy(context = context)
+
+      val input = Stream.emits(
+        List(
+          Array.empty[Byte],
+          EnrichSpec.payload,
+          payload.toRaw
+        )
+      )
+
+      TestEnvironment.make(input, List(jsEnrichConf)).use { test =>
         val enrichStream = Enrich.run[IO, Array[Byte]](test.env)
         for {
           _ <- enrichStream.compile.drain
           bad <- test.bad
           good <- test.good
+          incomplete <- test.incomplete
           counter <- test.counter.get
         } yield {
-          (counter.raw must_== 2L)
+          (counter.raw must_== 3L)
           (counter.good must_== 1L)
-          (counter.bad must_== 1L)
-          (bad.size must_== 1)
+          (counter.bad must_== 2L)
+          (counter.incomplete must_== 1L)
+          (bad.size must_== 2)
           (good.size must_== 1)
+          (incomplete.size must_== 1)
         }
       }
     }
@@ -249,9 +283,10 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
         test
           .run(_.copy(assetsUpdatePeriod = Some(1800.millis)))
           .map {
-            case (bad, pii, good) =>
+            case (bad, pii, good, incomplete) =>
               (bad must be empty)
               (pii must be empty)
+              (incomplete must be empty)
               (good must contain(exactly(one, two)))
           }
       }

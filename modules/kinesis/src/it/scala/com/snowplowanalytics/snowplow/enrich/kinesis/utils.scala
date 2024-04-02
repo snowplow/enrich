@@ -10,7 +10,11 @@
  */
 package com.snowplowanalytics.snowplow.enrich.kinesis
 
+import java.io._
+import java.net._
+
 import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
 
 import cats.data.Validated
 
@@ -106,5 +110,25 @@ object utils extends CatsEffect {
     }
     val incomplete = output.collect { case OutputRow.Incomplete(i) => i}
     (good, bad, incomplete)
+  }
+
+  trait StatsdAdmin {
+    def get(metricType: String): IO[String]
+    def getCounters = get("counters")
+    def getGauges = get("gauges")
+  }
+
+  def mkStatsdAdmin(host: String, port: Int): Resource[IO, StatsdAdmin] = {
+    for {
+      socket <- Resource.make(IO.blocking(new Socket(host, port)))(s => IO(s.close()))
+      toStatsd <- Resource.make(IO(new PrintWriter(socket.getOutputStream(), true)))(pw => IO(pw.close()))
+      fromStatsd <- Resource.make(IO(new BufferedReader(new InputStreamReader(socket.getInputStream()))))(br => IO(br.close()))
+    } yield new StatsdAdmin {
+      def get(metricType: String): IO[String] =
+        for {
+            _ <- IO.blocking(toStatsd.println(metricType))
+          stats <- IO.blocking(fromStatsd.lines().iterator().asScala.takeWhile(!_.toLowerCase().contains("end")).mkString("\n"))
+        } yield stats
+    }
   }
 }

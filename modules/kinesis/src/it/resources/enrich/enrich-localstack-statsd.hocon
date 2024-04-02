@@ -1,0 +1,60 @@
+{
+  "license": {
+    "accept": true
+  }
+
+  "input": {
+    "type": "Kinesis"
+    "appName": ${APP_NAME}
+    "streamName": ${STREAM_RAW}
+    "region": ${REGION}
+    "customEndpoint": ${LOCALSTACK_ENDPOINT}
+    "dynamodbCustomEndpoint": ${LOCALSTACK_ENDPOINT}
+    "cloudwatchCustomEndpoint": ${LOCALSTACK_ENDPOINT}
+  }
+
+  "output": {
+    "good": {
+      "type": "Kinesis"
+      "streamName": ${STREAM_ENRICHED}
+      "region": ${REGION}
+      "customEndpoint": ${LOCALSTACK_ENDPOINT}
+    }
+
+    "bad": {
+      "type": "Kinesis"
+      "streamName": ${STREAM_BAD}
+      "region": ${REGION}
+      "customEndpoint": ${LOCALSTACK_ENDPOINT}
+    }
+
+    "incomplete": {
+      "type": "Kinesis"
+      "streamName": ${STREAM_INCOMPLETE}
+      "region": ${REGION}
+      "customEndpoint": ${LOCALSTACK_ENDPOINT}
+    }
+  }
+
+  "monitoring": {
+    "metrics": {
+      "stdout": {
+        "period": "10 seconds"
+      }
+      "statsd": {
+        "hostname": statsd
+        "port": 8125
+        "period": "10 seconds"
+        "tags": {
+          "env": test
+        }
+        "prefix": "snowplow.enrich."
+      }
+      "cloudwatch": true
+    }
+  }
+
+  "telemetry": {
+    "disable": true
+  }
+}

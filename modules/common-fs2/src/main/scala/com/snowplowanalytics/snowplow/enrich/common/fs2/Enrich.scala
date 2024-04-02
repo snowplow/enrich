@@ -232,7 +232,7 @@ object Enrich {
       sinkBad(allBad, env.sinkBad, env.metrics.badCount),
       if (incompleteTooBig.nonEmpty) Logger[F].warn(s"${incompleteTooBig.size} incomplete events discarded because they are too big")
       else Sync[F].unit,
-      sinkIncomplete(incompleteBytes, env.sinkIncomplete)
+      sinkIncomplete(incompleteBytes, env.sinkIncomplete, env.metrics.incompleteCount)
     ).parSequence_
   }
 
@@ -292,10 +292,11 @@ object Enrich {
 
   def sinkIncomplete[F[_]: Sync](
     incomplete: List[AttributedData[Array[Byte]]],
-    maybeSink: Option[AttributedByteSink[F]]
+    maybeSink: Option[AttributedByteSink[F]],
+    incMetrics: Int => F[Unit]
   ): F[Unit] =
     maybeSink match {
-      case Some(sink) => sink(incomplete)
+      case Some(sink) => sink(incomplete) *> incMetrics(incomplete.size)
       case None => Sync[F].unit
     }
 

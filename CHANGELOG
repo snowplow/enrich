@@ -1,3 +1,8 @@
+4.2.0 (2024-04-08)
+------------------
+Switch bad row type from EnrichmentFailures to SchemaViolations for some errors (#883)
+Bump libs (#888)
+
 4.1.0 (2024-02-22)
 ------------------
 enrich-kafka: authenticate with Event Hubs using OAuth2 (#863)

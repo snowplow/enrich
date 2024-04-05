@@ -28,12 +28,12 @@ object Dependencies {
 
   object V {
     // Java
-    val commonsCodec     = "1.15"
+    val commonsCodec     = "1.16.0"
     val commonsText      = "1.10.0"
     val jodaTime         = "2.10.1"
     val useragent        = "1.21"
     val uaParser         = "1.5.4"
-    val snakeYaml        = "1.33"
+    val snakeYaml        = "2.2"
     val postgresDriver   = "42.7.2"
     val mysqlConnector   = "8.3.0"
     val hikariCP         = "5.0.1"
@@ -42,12 +42,12 @@ object Dependencies {
     val iabClient        = "0.2.0"
     val yauaa            = "7.11.0"
     val log4jToSlf4j     = "2.18.0"
-    val guava            = "28.1-jre"
+    val guava            = "33.1.0-jre"
     val slf4j            = "2.0.3"
     val log4j            = "2.20.0"
     val thrift           = "0.15.0"
     val sprayJson        = "1.3.6"
-    val netty            = "4.1.100.Final"
+    val netty            = "4.1.108.Final"
     val protobuf         = "3.21.9"
 
     val refererParser    = "2.0.0"
@@ -67,9 +67,9 @@ object Dependencies {
     val collectorPayload = "0.0.0"
     val schemaSniffer    = "0.0.0"
 
-    val awsSdk           = "1.12.643"
-    val gcpSdk           = "2.14.0"
-    val awsSdk2          = "2.23.9"
+    val awsSdk           = "1.12.694"
+    val gcpSdk           = "2.36.1"
+    val awsSdk2          = "2.25.24"
     val kinesisClient2   = "2.4.3"
     val kafka            = "2.8.2"
     val mskAuth          = "2.0.3"

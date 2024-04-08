@@ -2417,6 +2417,27 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
             ko(s"[$other] is not a SchemaViolations bad row with 2 IgluError")
         }
     }
+
+    "remove an oversized atomic field if emitIncomplete is set to true" >> {
+      val enriched = EnrichmentManager
+        .enrichEvent[IO](
+          enrichmentReg,
+          client,
+          processor,
+          timestamp,
+          RawEvent(api, fatBody, None, source, context),
+          featureFlags = AcceptInvalid.featureFlags.copy(acceptInvalid = false),
+          IO.unit,
+          SpecHelpers.registryLookup,
+          atomicFieldLimits,
+          emitIncomplete = true
+        )
+
+      enriched.value.map {
+        case Ior.Both(_: BadRow.SchemaViolations, enriched) if Option(enriched.v_tracker).isEmpty => ok
+        case other => ko(s"[$other] is not a SchemaViolations bad row and an enriched event without tracker version")
+      }
+    }
   }
 
   "setDerivedContexts" should {

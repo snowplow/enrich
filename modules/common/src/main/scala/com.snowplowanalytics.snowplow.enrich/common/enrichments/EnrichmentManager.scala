@@ -106,7 +106,8 @@ object EnrichmentManager {
                            registryLookup,
                            featureFlags.acceptInvalid,
                            invalidCount,
-                           atomicFields
+                           atomicFields,
+                           emitIncomplete
                          )
                            .leftMap(NonEmptyList.one)
                            .possiblyExitingEarly(emitIncomplete)
@@ -230,12 +231,13 @@ object EnrichmentManager {
     registryLookup: RegistryLookup[F],
     acceptInvalid: Boolean,
     invalidCount: F[Unit],
-    atomicFields: AtomicFields
+    atomicFields: AtomicFields,
+    emitIncomplete: Boolean
   ): IorT[F, NonEmptyList[Failure], List[SelfDescribingData[Json]]] =
     for {
       validContexts <- IgluUtils.validateEnrichmentsContexts[F](client, enrichmentsContexts, registryLookup)
       _ <- AtomicFieldsLengthValidator
-             .validate[F](enriched, acceptInvalid, invalidCount, atomicFields)
+             .validate[F](enriched, acceptInvalid, invalidCount, atomicFields, emitIncomplete)
              .leftMap { v: Failure => NonEmptyList.one(v) }
     } yield validContexts
 

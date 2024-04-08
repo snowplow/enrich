@@ -34,11 +34,12 @@ object AtomicFieldsLengthValidator {
     event: EnrichedEvent,
     acceptInvalid: Boolean,
     invalidCount: F[Unit],
-    atomicFields: AtomicFields
+    atomicFields: AtomicFields,
+    emitIncomplete: Boolean
   ): IorT[F, Failure.SchemaViolation, Unit] =
     IorT {
       atomicFields.value
-        .map(validateField(event, _).toValidatedNel)
+        .map(validateField(event, _, emitIncomplete).toValidatedNel)
         .combineAll match {
         case Invalid(errors) if acceptInvalid =>
           handleAcceptableErrors(invalidCount, event, errors) *> Monad[F].pure(Ior.Right(()))
@@ -51,17 +52,19 @@ object AtomicFieldsLengthValidator {
 
   private def validateField(
     event: EnrichedEvent,
-    atomicField: LimitedAtomicField
+    atomicField: LimitedAtomicField,
+    emitIncomplete: Boolean
   ): Either[ValidatorReport, Unit] = {
     val actualValue = atomicField.value.enrichedValueExtractor(event)
-    if (actualValue != null && actualValue.length > atomicField.limit)
+    if (actualValue != null && actualValue.length > atomicField.limit) {
+      if (emitIncomplete) atomicField.value.nullify(event)
       ValidatorReport(
         s"Field is longer than maximum allowed size ${atomicField.limit}",
         Some(atomicField.value.name),
         Nil,
         Some(actualValue)
       ).asLeft
-    else
+    } else
       Right(())
   }
 

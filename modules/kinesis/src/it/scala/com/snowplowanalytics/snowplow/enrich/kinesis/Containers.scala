@@ -19,11 +19,13 @@ import org.slf4j.LoggerFactory
 import retry.syntax.all._
 import retry.RetryPolicies
 
+import cats.implicits._
+
 import cats.effect.{IO, Resource}
 
 import cats.effect.testing.specs2.CatsEffect
 
-import org.testcontainers.containers.{BindMode, GenericContainer => JGenericContainer, Network}
+import org.testcontainers.containers.{BindMode, Network}
 import org.testcontainers.containers.wait.strategy.Wait
 import org.testcontainers.containers.output.Slf4jLogConsumer
 
@@ -34,47 +36,66 @@ import com.snowplowanalytics.snowplow.enrich.kinesis.generated.BuildInfo
 
 object Containers extends CatsEffect {
 
+  object Images {
+    case class DockerImage(image: String, tag: String) {
+      def toStr = s"$image:$tag"
+    }
+    val Localstack = DockerImage("localstack/localstack-light", "1.2.0")
+    val Enrich = DockerImage("snowplow/snowplow-enrich-kinesis", s"${BuildInfo.version}-distroless")
+    val MySQL = DockerImage("mysql", "8.0.31")
+    val HTTP = DockerImage("nginx", "1.23.2")
+    val Statsd = DockerImage("dblworks/statsd", "v0.10.2") // the official statsd/statsd size is monstrous
+  }
+
+  case class Localstack(
+    container: GenericContainer,
+    alias: String,
+    internalPort: Int,
+    mappedPort: Int
+  )
+
   private val network = Network.newNetwork()
 
-  private val localstackPort = 4566
-  private val localstackAlias = "localstack"
-
-  val localstack = {
+  def localstack: Resource[IO, Localstack] = Resource.make {
+    val port = 4566
     val container = GenericContainer(
-      dockerImage = "localstack/localstack-light:1.2.0",
-      fileSystemBind = Seq(
-        GenericContainer.FileSystemBind(
-          "modules/kinesis/src/it/resources/localstack",
-          "/docker-entrypoint-initaws.d",
-          BindMode.READ_ONLY
-        )
-      ),
+      dockerImage = Images.Localstack.toStr,
       env = Map(
         "AWS_ACCESS_KEY_ID" -> "foo",
         "AWS_SECRET_ACCESS_KEY" -> "bar"
       ),
       waitStrategy = Wait.forLogMessage(".*Ready.*", 1),
-      exposedPorts = Seq(localstackPort)
+      exposedPorts = Seq(port)
     )
     container.underlyingUnsafeContainer.withNetwork(network)
-    container.underlyingUnsafeContainer.withNetworkAliases(localstackAlias)
-    container.container
+    val alias = "localstack"
+    container.underlyingUnsafeContainer.withNetworkAliases(alias)
+
+    IO.blocking(container.start()) *>
+      IO(
+        Localstack(
+          container,
+          alias,
+          port,
+          container.container.getMappedPort(port)
+        )
+      )
+  } {
+    l => IO.blocking(l.container.stop())
   }
 
-  def localstackMappedPort = localstack.getMappedPort(localstackPort)
-
   def enrich(
+    localstack: Localstack,
     configPath: String,
     testName: String,
-    needsLocalstack: Boolean,
     enrichments: List[Enrichment],
     uuid: String = UUID.randomUUID().toString,
     waitLogMessage: String = "Running Enrich"
-  ): Resource[IO, JGenericContainer[_]] = {
+  ): Resource[IO, GenericContainer] = {
     val streams = KinesisConfig.getStreams(uuid)
 
     val container = GenericContainer(
-      dockerImage = s"snowplow/snowplow-enrich-kinesis:${BuildInfo.version}-distroless",
+      dockerImage = Images.Enrich.toStr,
       env = Map(
         "AWS_REGION" -> KinesisConfig.region,
         "AWS_ACCESS_KEY_ID" -> "foo",
@@ -87,7 +108,7 @@ object Containers extends CatsEffect {
         "STREAM_ENRICHED" -> streams.enriched,
         "STREAM_BAD" -> streams.bad,
         "STREAM_INCOMPLETE" -> streams.incomplete,
-        "LOCALSTACK_ENDPOINT" -> s"http://$localstackAlias:$localstackPort"
+        "LOCALSTACK_ENDPOINT" -> s"http://${localstack.alias}:${localstack.internalPort}"
       ),
       fileSystemBind = Seq(
         GenericContainer.FileSystemBind(
@@ -113,16 +134,16 @@ object Containers extends CatsEffect {
     )
     container.container.withNetwork(network)
     Resource.make (
-      IO(startLocalstack(needsLocalstack, KinesisConfig.region, streams)) >>
-        IO(startContainerWithLogs(container.container, testName))
+      createStreams(localstack, KinesisConfig.region, streams) *>
+        startContainerWithLogs(container, testName)
     )(
-      e => IO(e.stop())
+      e => IO.blocking(e.stop())
     )
   }
 
-  def mysqlServer: Resource[IO, JGenericContainer[_]] = Resource.make {
+  def mysqlServer: Resource[IO, GenericContainer] = Resource.make {
     val container = GenericContainer(
-      dockerImage = "mysql:8.0.31",
+      dockerImage = Images.MySQL.toStr,
       fileSystemBind = Seq(
         GenericContainer.FileSystemBind(
           "modules/kinesis/src/it/resources/mysql",
@@ -140,14 +161,14 @@ object Containers extends CatsEffect {
     )
     container.underlyingUnsafeContainer.withNetwork(network)
     container.underlyingUnsafeContainer.withNetworkAliases("mysql")
-    IO(container.start()) >> IO.pure(container.container)
+    IO(container.start()) *> IO.pure(container)
   } {
     c => IO(c.stop())
   }
 
-  def httpServer: Resource[IO, JGenericContainer[_]] = Resource.make {
+  def httpServer: Resource[IO, GenericContainer] = Resource.make {
     val container = GenericContainer(
-      dockerImage = "nginx:1.23.2",
+      dockerImage = Images.HTTP.toStr,
       fileSystemBind = Seq(
         GenericContainer.FileSystemBind(
           "modules/kinesis/src/it/resources/nginx/default.conf",
@@ -169,33 +190,32 @@ object Containers extends CatsEffect {
     )
     container.underlyingUnsafeContainer.withNetwork(network)
     container.underlyingUnsafeContainer.withNetworkAliases("api")
-    IO(container.start()) >> IO.pure(container.container)
+    IO.blocking(container.start()) *> IO.pure(container)
   } {
-    c => IO(c.stop())
+    c => IO.blocking(c.stop())
   }
 
-  def statsdServer: Resource[IO, JGenericContainer[_]] = Resource.make {
-    val container = GenericContainer("dblworks/statsd:v0.10.2") // the official statsd/statsd size is monstrous
+  def statsdServer: Resource[IO, GenericContainer] = Resource.make {
+    val container = GenericContainer(Images.Statsd.toStr)
     container.underlyingUnsafeContainer.withNetwork(network)
     container.underlyingUnsafeContainer.withNetworkAliases("statsd")
     container.underlyingUnsafeContainer.addExposedPort(8126)
-    IO(container.start()) >> IO.pure(container.container)
+    IO.blocking(container.start()) *> IO.pure(container)
   } {
-    c => IO(c.stop())
+    c => IO.blocking(c.stop())
   }
 
   private def startContainerWithLogs(
-    container: JGenericContainer[_],
+    container: GenericContainer,
     loggerName: String
-  ): JGenericContainer[_] = {
+  ): IO[GenericContainer] = {
     val logger = LoggerFactory.getLogger(loggerName)
     val logs = new Slf4jLogConsumer(logger)
-    container.start()
-    container.followOutput(logs)
-    container
+    IO.blocking(container.start()) *>
+      IO(container.container.followOutput(logs)).as(container)
   }
 
-  def waitUntilStopped(container: JGenericContainer[_]): IO[Boolean] = {
+  def waitUntilStopped(container: GenericContainer): IO[Boolean] = {
     val retryPolicy = RetryPolicies.limitRetriesByCumulativeDelay(
       5.minutes,
       RetryPolicies.capDelay[IO](
@@ -204,50 +224,32 @@ object Containers extends CatsEffect {
       )
     )
 
-    IO(container.isRunning()).retryingOnFailures(
+    IO(container.container.isRunning()).retryingOnFailures(
       _ => IO.pure(false),
       retryPolicy,
       (_, _) => IO.unit
     )
   }
 
-  // synchronized so that start() isn't called by several threads at the same time.
-  // start() is blocking.
-  // Calling start() on an already started container has no effect.
-  private def startLocalstack(
-    needsLocalstack: Boolean,
-    region: String,
-    streams: KinesisConfig.Streams
-  ): Unit = synchronized {
-    if(needsLocalstack) {
-      localstack.start()
-      createStreams(
-        localstack,
-        localstackPort,
-        region,
-        streams
-      )
-    } else ()
-  }
-
   private def createStreams(
-    localstack: JGenericContainer[_],
-    port: Int,
+    localstack: Localstack,
     region: String,
     streams: KinesisConfig.Streams
-  ): Unit =
-    List(streams.raw, streams.enriched, streams.bad, streams.incomplete).foreach { stream =>
-      localstack.execInContainer(
-        "aws",
-        s"--endpoint-url=http://127.0.0.1:$port",
-        "kinesis",
-        "create-stream",
-        "--stream-name",
-        stream,
-        "--shard-count",
-        "1",
-        "--region",
-        region
+  ): IO[Unit] =
+    List(streams.raw, streams.enriched, streams.bad, streams.incomplete).traverse_ { stream =>
+      IO.blocking(
+        localstack.container.execInContainer(
+          "aws",
+          s"--endpoint-url=http://127.0.0.1:${localstack.internalPort}",
+          "kinesis",
+          "create-stream",
+          "--stream-name",
+          stream,
+          "--shard-count",
+          "1",
+          "--region",
+          region
+        )
       )
     }
 }

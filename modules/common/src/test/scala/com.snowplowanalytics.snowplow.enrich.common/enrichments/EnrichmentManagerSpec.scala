@@ -1241,14 +1241,16 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           JavascriptScriptEnrichment(schemaKey, script)
         )
       )
-      val invalidUe =
+      val invalidUeData =
         """{
+             "emailAddress": "hello@world.com",
+             "emailAddress2": "foo@bar.org",
+             "unallowedAdditionalField": "foo@bar.org"
+           }"""
+      val invalidUe =
+        s"""{
              "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
-             "data": {
-               "emailAddress": "hello@world.com",
-               "emailAddress2": "foo@bar.org",
-               "unallowedAdditionalField": "foo@bar.org"
-             }
+             "data": $invalidUeData
            }"""
 
       val parameters = Map(
@@ -1287,7 +1289,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
                   )
                 ) &&
                 feJson.field("schema") == emailSentSchema.asJson &&
-                feJson.field("data") == jparse(invalidUe).toOption.get =>
+                feJson.field("data") == jparse(invalidUeData).toOption.get =>
             true
           case _ => false
         }
@@ -1333,13 +1335,15 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           JavascriptScriptEnrichment(schemaKey, script)
         )
       )
-      val invalidContext =
+      val invalidContextData =
         """{
+            "foo": "hello@world.com",
+            "emailAddress2": "foo@bar.org"
+          }"""
+      val invalidContext =
+        s"""{
             "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
-            "data": {
-              "foo": "hello@world.com",
-              "emailAddress2": "foo@bar.org"
-            }
+            "data": $invalidContextData
           }"""
 
       val parameters = Map(
@@ -1383,7 +1387,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
                   )
                 ) &&
                 feJson.field("schema") == emailSentSchema.asJson &&
-                feJson.field("data") == jparse(invalidContext).toOption.get =>
+                feJson.field("data") == jparse(invalidContextData).toOption.get =>
             true
           case _ => false
         }
@@ -1428,14 +1432,17 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           JavascriptScriptEnrichment(schemaKey, script)
         )
       )
-      val invalidContext =
+      val invalidContextData =
         """
           {
+            "foo": "hello@world.com",
+            "emailAddress2": "foo@bar.org"
+          }"""
+      val invalidContext =
+        s"""
+          {
             "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
-            "data": {
-              "foo": "hello@world.com",
-              "emailAddress2": "foo@bar.org"
-            }
+            "data": $invalidContextData
           }"""
 
       val parameters = Map(
@@ -1482,7 +1489,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
                   )
                 ) &&
                 feJson.field("schema") == emailSentSchema.asJson &&
-                feJson.field("data") == jparse(invalidContext).toOption.get =>
+                feJson.field("data") == jparse(invalidContextData).toOption.get =>
             true
           case _ => false
         }
@@ -1662,14 +1669,17 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
     }
 
     "remove an invalid enrichment context and return the enriched event if emitIncomplete is set to true" >> {
-      val invalidContext =
+      val invalidContextData =
         """
           {
+            "foo": "hello@world.com",
+            "emailAddress2": "foo@bar.org"
+          }"""
+      val invalidContext =
+        s"""
+          {
             "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
-            "data": {
-              "foo": "hello@world.com",
-              "emailAddress2": "foo@bar.org"
-            }
+            "data": $invalidContextData
           }"""
       val script =
         s"""
@@ -1727,7 +1737,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
                   )
                 ) &&
                 feJson.field("schema") == emailSentSchema.asJson &&
-                feJson.field("data") == jparse(invalidContext).toOption.get =>
+                feJson.field("data") == jparse(invalidContextData).toOption.get =>
             true
           case _ => false
         }

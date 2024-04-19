@@ -103,11 +103,12 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       "emailAddress2": "foo2@bar.org"
     }
   }"""
+  val invalidEmailSentData = s"""{
+      "emailAddress": "hello@world.com"
+  }"""
   val invalidEmailSent = s"""{
     "schema": "${emailSentSchema.toSchemaUri}",
-    "data": {
-      "emailAddress": "hello@world.com"
-    }
+    "data": $invalidEmailSentData
   }"""
   val supersedingExample1 =
     s"""{
@@ -137,8 +138,9 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       "userId": "20d631b8-7837-49df-a73e-6da73154e6fd"
     }
   }"""
+  val noSchemaData = "{}"
   val noSchema =
-    """{"schema":"iglu:com.snowplowanalytics.snowplow/foo/jsonschema/1-0-0", "data": {}}"""
+    s"""{"schema":"iglu:com.snowplowanalytics.snowplow/foo/jsonschema/1-0-0", "data": $noSchemaData}"""
 
   "extractAndValidateUnstructEvent" should {
     "return None if unstruct_event field is empty" >> {
@@ -190,7 +192,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return a FailureDetails.SchemaViolation.CriterionMismatch if unstruct_event contains a self-describing JSON but not with the expected schema for unstructured events" >> {
-      val json = noSchema.toJson
+      val json = noSchemaData.toJson
       val input = new EnrichedEvent
       input.setUnstruct_event(noSchema)
 
@@ -234,7 +236,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     "return a FailureDetails.SchemaViolation.IgluError containing a ValidationError if the JSON in .data is not self-describing" >> {
       val input = new EnrichedEvent
       val ue = buildUnstruct(notIglu)
-      val ueJson = ue.toJson
+      val ueJson = notIglu.toJson
       input.setUnstruct_event(ue)
 
       IgluUtils
@@ -256,7 +258,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
 
     "return a FailureDetails.SchemaViolation.IgluError containing a ValidationError if the JSON in .data is not a valid SDJ" >> {
       val input = new EnrichedEvent
-      val json = invalidEmailSent.toJson
+      val json = invalidEmailSentData.toJson
       input.setUnstruct_event(buildUnstruct(invalidEmailSent))
 
       IgluUtils
@@ -278,7 +280,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
 
     "return a FailureDetails.SchemaViolation.IgluError containing a ResolutionError if the schema of the SDJ in .data can't be resolved" >> {
       val input = new EnrichedEvent
-      val json = noSchema.toJson
+      val json = noSchemaData.toJson
       input.setUnstruct_event(buildUnstruct(noSchema))
 
       IgluUtils
@@ -402,7 +404,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
 
     "return a FailureDetails.SchemaViolation.CriterionMismatch if .contexts contains a self-describing JSON but not with the right schema" >> {
       val input = new EnrichedEvent
-      val json = noSchema.toJson
+      val json = noSchemaData.toJson
       input.setContexts(noSchema)
 
       IgluUtils
@@ -424,7 +426,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       val input = new EnrichedEvent
       val notArrayContexts =
         s"""{"schema": "${inputContextsSchema.toSchemaUri}", "data": ${emailSent1}}"""
-      val json = notArrayContexts.toJson
+      val json = emailSent1.toJson
       input.setContexts(notArrayContexts)
 
       IgluUtils
@@ -445,7 +447,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
 
     "return a FailureDetails.SchemaViolation.IgluError containing a ValidationError if .data contains one invalid context" >> {
       val input = new EnrichedEvent
-      val json = invalidEmailSent.toJson
+      val json = invalidEmailSentData.toJson
       input.setContexts(buildInputContexts(List(invalidEmailSent)))
 
       IgluUtils
@@ -466,7 +468,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
 
     "return a FailureDetails.SchemaViolation.IgluError containing a ResolutionError if .data contains one context whose schema can't be resolved" >> {
       val input = new EnrichedEvent
-      val json = noSchema.toJson
+      val json = noSchemaData.toJson
       input.setContexts(buildInputContexts(List(noSchema)))
 
       IgluUtils
@@ -487,8 +489,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
 
     "return 2 expected failures for 2 invalid contexts" >> {
       val input = new EnrichedEvent
-      val invalidEmailSentJson = invalidEmailSent.toJson
-      val noSchemaJson = noSchema.toJson
+      val invalidEmailSentJson = invalidEmailSentData.toJson
+      val noSchemaJson = noSchemaData.toJson
       input.setContexts(buildInputContexts(List(invalidEmailSent, noSchema)))
 
       IgluUtils
@@ -516,7 +518,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
 
     "return an expected failure and an expected SDJ if one context is invalid and one is valid" >> {
       val input = new EnrichedEvent
-      val noSchemaJson = noSchema.toJson
+      val noSchemaJson = noSchemaData.toJson
       input.setContexts(buildInputContexts(List(emailSent1, noSchema)))
 
       IgluUtils
@@ -582,7 +584,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
 
   "validateEnrichmentsContexts" should {
     "return one expected SchemaViolation for one invalid context" >> {
-      val json = invalidEmailSent.toJson
+      val json = invalidEmailSentData.toJson
       val contexts = List(
         SpecHelpers.jsonStringToSDJ(invalidEmailSent).right.get
       )
@@ -606,8 +608,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return two expected SchemaViolation for two invalid contexts" >> {
-      val invalidEmailSentJson = invalidEmailSent.toJson
-      val noSchemaJson = noSchema.toJson
+      val invalidEmailSentJson = invalidEmailSentData.toJson
+      val noSchemaJson = noSchemaData.toJson
       val contexts = List(
         SpecHelpers.jsonStringToSDJ(invalidEmailSent).right.get,
         SpecHelpers.jsonStringToSDJ(noSchema).right.get
@@ -637,7 +639,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return one expected SchemaViolation for one invalid context and one valid" >> {
-      val invalidEmailSentJson = invalidEmailSent.toJson
+      val invalidEmailSentJson = invalidEmailSentData.toJson
       val contexts = List(
         SpecHelpers.jsonStringToSDJ(invalidEmailSent).right.get,
         SpecHelpers.jsonStringToSDJ(emailSent1).right.get
@@ -778,7 +780,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
 
     "return the SchemaViolation of the invalid context in the Left and the extracted unstructured event in the Right" >> {
       val input = new EnrichedEvent
-      val invalidEmailSentJson = invalidEmailSent.toJson
+      val invalidEmailSentJson = invalidEmailSentData.toJson
       input.setUnstruct_event(buildUnstruct(emailSent1))
       input.setContexts(buildInputContexts(List(invalidEmailSent)))
 
@@ -809,7 +811,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
 
     "return the SchemaViolation of the invalid unstructured event in the Left and the valid context in the Right" >> {
       val input = new EnrichedEvent
-      val invalidEmailSentJson = invalidEmailSent.toJson
+      val invalidEmailSentJson = invalidEmailSentData.toJson
       input.setUnstruct_event(buildUnstruct(invalidEmailSent))
       input.setContexts(buildInputContexts(List(emailSent1)))
 

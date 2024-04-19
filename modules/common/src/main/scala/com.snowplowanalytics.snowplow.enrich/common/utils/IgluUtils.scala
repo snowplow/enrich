@@ -156,7 +156,7 @@ object IgluUtils {
             Failure.SchemaViolation(
               schemaViolation = FailureDetails.SchemaViolation.IgluError(sdj.schema, clientError),
               source = "derived_contexts",
-              data = sdj.asJson
+              data = sdj.data
             )
         }
       )
@@ -201,7 +201,7 @@ object IgluUtils {
                  Failure.SchemaViolation(
                    schemaViolation = FailureDetails.SchemaViolation.CriterionMismatch(sdj.schema, expectedCriterion),
                    source = field,
-                   data = sdj.asJson
+                   data = sdj.data
                  )
                )
       // Check that the SDJ holding the .data is valid
@@ -211,7 +211,7 @@ object IgluUtils {
                  Failure.SchemaViolation(
                    schemaViolation = FailureDetails.SchemaViolation.IgluError(schemaKey, clientError),
                    source = field,
-                   data = sdj.asJson
+                   data = sdj.data
                  )
              }
       // Extract .data of SelfDescribingData[Json]
@@ -276,7 +276,7 @@ object IgluUtils {
                                    schemaViolation = FailureDetails.SchemaViolation
                                      .IgluError(schemaKey, clientError): FailureDetails.SchemaViolation,
                                    source = field,
-                                   data = json.asJson
+                                   data = sdj.data
                                  )
                              }
                              .leftMap(NonEmptyList.one)

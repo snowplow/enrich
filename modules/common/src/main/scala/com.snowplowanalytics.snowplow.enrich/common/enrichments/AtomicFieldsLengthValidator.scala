@@ -18,12 +18,11 @@ import cats.data.NonEmptyList
 
 import cats.implicits._
 
-import com.snowplowanalytics.iglu.client.validator.ValidatorReport
-
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields.LimitedAtomicField
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.utils.AtomicError
 
 /**
  * Atomic fields length validation inspired by
@@ -53,15 +52,15 @@ object AtomicFieldsLengthValidator {
   private def validateField(
     event: EnrichedEvent,
     atomicField: LimitedAtomicField
-  ): Either[ValidatorReport, Unit] = {
+  ): Either[AtomicError.FieldLengthError, Unit] = {
     val actualValue = atomicField.value.enrichedValueExtractor(event)
     if (actualValue != null && actualValue.length > atomicField.limit)
-      ValidatorReport(
-        s"Field is longer than maximum allowed size ${atomicField.limit}",
-        Some(atomicField.value.name),
-        Nil,
-        Some(actualValue)
-      ).asLeft
+      AtomicError
+        .FieldLengthError(
+          s"Field is longer than maximum allowed size ${atomicField.limit}",
+          atomicField.value.name
+        )
+        .asLeft
     else
       Right(())
   }
@@ -69,12 +68,12 @@ object AtomicFieldsLengthValidator {
   private def handleAcceptableErrors[F[_]: Monad](
     invalidCount: F[Unit],
     event: EnrichedEvent,
-    errors: NonEmptyList[ValidatorReport]
+    errors: NonEmptyList[AtomicError.FieldLengthError]
   ): F[Unit] =
     invalidCount *>
       Monad[F].pure(
         logger.debug(
-          s"Enriched event not valid against atomic schema. Event id: ${event.event_id}. Invalid fields: ${errors.map(_.path).toList.flatten.mkString(", ")}"
+          s"Enriched event not valid against atomic schema. Event id: ${event.event_id}. Invalid fields: ${errors.map(_.field).toList.flatten.mkString(", ")}"
         )
       )
 

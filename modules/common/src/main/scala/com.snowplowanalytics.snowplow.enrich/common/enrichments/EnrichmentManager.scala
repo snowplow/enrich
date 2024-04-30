@@ -24,7 +24,7 @@ import com.snowplowanalytics.refererparser._
 
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-import com.snowplowanalytics.iglu.client.validator.ValidatorReport
+import com.snowplowanalytics.snowplow.enrich.common.utils.AtomicError
 
 import com.snowplowanalytics.iglu.core.SelfDescribingData
 import com.snowplowanalytics.iglu.core.circe.implicits._
@@ -338,7 +338,7 @@ object EnrichmentManager {
         .toEither
     }
 
-  def setCollectorTstamp(event: EnrichedEvent, timestamp: Option[DateTime]): Either[ValidatorReport, Unit] =
+  def setCollectorTstamp(event: EnrichedEvent, timestamp: Option[DateTime]): Either[AtomicError.ParseError, Unit] =
     EE.formatCollectorTstamp(timestamp).map { t =>
       event.collector_tstamp = t
       ().asRight

@@ -26,8 +26,6 @@ import org.specs2.matcher.DataTables
 
 import com.snowplowanalytics.snowplow.badrows._
 
-import com.snowplowanalytics.iglu.client.validator.ValidatorReport
-
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
 class StringToUriSpec extends MSpecification with DataTables {
@@ -265,7 +263,7 @@ class ValidateUuidSpec extends Specification with DataTables with ScalaCheck {
   def e2 =
     prop { (str: String) =>
       ConversionUtils.validateUuid(FieldName, str) must beLeft(
-        ValidatorReport("Not a valid UUID", Some(FieldName), Nil, Option(str))
+        AtomicFieldValidationError("Not a valid UUID", FieldName, AtomicFieldValidationError.ParseError)
       )
     }
 }
@@ -283,7 +281,7 @@ class ValidateIntegerSpec extends Specification {
   def e2 = {
     val str = "abc"
     ConversionUtils.validateInteger(FieldName, str) must beLeft(
-      ValidatorReport("Not a valid integer", Some(FieldName), Nil, Some(str))
+      AtomicFieldValidationError("Not a valid integer", FieldName, AtomicFieldValidationError.ParseError)
     )
   }
 }
@@ -314,19 +312,19 @@ class StringToDoubleLikeSpec extends Specification with DataTables {
   """
 
   val FieldName = "val"
-  def err: String => ValidatorReport =
-    input => ValidatorReport("Cannot be converted to Double-like", Some(FieldName), Nil, Option(input))
+  def err: AtomicFieldValidationError =
+    AtomicFieldValidationError("Cannot be converted to Double-like", FieldName, AtomicFieldValidationError.ParseError)
 
   def e1 =
     "SPEC NAME" || "INPUT STR" | "EXPECTED" |
-      "Empty string" !! "" ! err("") |
-      "Number with commas" !! "19,999.99" ! err("19,999.99") |
-      "Hexadecimal number" !! "0x54" ! err("0x54") |
-      "Bad sci. notation" !! "-7.51E^9" ! err("-7.51E^9") |
-      "German number" !! "1.000,3932" ! err("1.000,3932") |
-      "NaN" !! "NaN" ! err("NaN") |
-      "English string" !! "hi & bye" ! err("hi & bye") |
-      "Vietnamese name" !! "Trịnh Công Sơn" ! err("Trịnh Công Sơn") |> { (_, str, expected) =>
+      "Empty string" !! "" ! err |
+      "Number with commas" !! "19,999.99" ! err |
+      "Hexadecimal number" !! "0x54" ! err |
+      "Bad sci. notation" !! "-7.51E^9" ! err |
+      "German number" !! "1.000,3932" ! err |
+      "NaN" !! "NaN" ! err |
+      "English string" !! "hi & bye" ! err |
+      "Vietnamese name" !! "Trịnh Công Sơn" ! err |> { (_, str, expected) =>
       ConversionUtils.stringToDoubleLike(FieldName, str) must beLeft(expected)
     }
 
@@ -390,18 +388,18 @@ class StringToBooleanLikeJByteSpec extends Specification with DataTables {
   """
 
   val FieldName = "val"
-  def err: String => ValidatorReport =
-    input => ValidatorReport("Cannot be converted to Boolean-like java.lang.Byte", Some(FieldName), Nil, Option(input))
+  def err: AtomicFieldValidationError =
+    AtomicFieldValidationError("Cannot be converted to Boolean-like java.lang.Byte", FieldName, AtomicFieldValidationError.ParseError)
 
   def e1 =
     "SPEC NAME" || "INPUT STR" | "EXPECTED" |
-      "Empty string" !! "" ! err("") |
-      "Small number" !! "2" ! err("2") |
-      "Negative number" !! "-1" ! err("-1") |
-      "Floating point number" !! "0.0" ! err("0.0") |
-      "Large number" !! "19,999.99" ! err("19,999.99") |
-      "Text #1" !! "a" ! err("a") |
-      "Text #2" !! "0x54" ! err("0x54") |> { (_, str, expected) =>
+      "Empty string" !! "" ! err |
+      "Small number" !! "2" ! err |
+      "Negative number" !! "-1" ! err |
+      "Floating point number" !! "0.0" ! err |
+      "Large number" !! "19,999.99" ! err |
+      "Text #1" !! "a" ! err |
+      "Text #2" !! "0x54" ! err |> { (_, str, expected) =>
       ConversionUtils.stringToBooleanLikeJByte(FieldName, str) must beLeft(expected)
     }
 

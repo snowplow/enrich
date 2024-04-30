@@ -16,7 +16,7 @@ import org.joda.time.DateTimeZone
 import org.specs2.Specification
 import org.specs2.matcher.DataTables
 
-import com.snowplowanalytics.iglu.client.validator.ValidatorReport
+import com.snowplowanalytics.snowplow.enrich.common.utils.AtomicFieldValidationError
 
 class ExtractEventTypeSpec extends Specification with DataTables {
   def is = s2"""
@@ -27,8 +27,8 @@ class ExtractEventTypeSpec extends Specification with DataTables {
   """
 
   val FieldName = "e"
-  def err: String => ValidatorReport =
-    input => ValidatorReport("Not a valid event type", Some(FieldName), Nil, Option(input))
+  def err: AtomicFieldValidationError =
+    AtomicFieldValidationError("Not a valid event type", FieldName, AtomicFieldValidationError.ParseError)
 
   def e1 =
     "SPEC NAME" || "INPUT VAL" | "EXPECTED OUTPUT" |
@@ -45,10 +45,10 @@ class ExtractEventTypeSpec extends Specification with DataTables {
 
   def e2 =
     "SPEC NAME" || "INPUT VAL" | "EXPECTED OUTPUT" |
-      "null" !! null ! err(null) |
-      "empty string" !! "" ! err("") |
-      "unrecognized #1" !! "e" ! err("e") |
-      "unrecognized #2" !! "evnt" ! err("evnt") |> { (_, input, expected) =>
+      "null" !! null ! err |
+      "empty string" !! "" ! err |
+      "unrecognized #1" !! "e" ! err |
+      "unrecognized #2" !! "evnt" ! err |> { (_, input, expected) =>
       EventEnrichments.extractEventType(FieldName, input) must beLeft(expected)
     }
 
@@ -58,9 +58,9 @@ class ExtractEventTypeSpec extends Specification with DataTables {
   def e3 =
 // format: off
     "SPEC NAME"          || "INPUT VAL"     | "EXPECTED OUTPUT" |
-    "None"               !! None            ! ValidatorReport("Field not set", Some("collector_tstamp"), Nil, None).asLeft |
-    "Negative timestamp" !! BCTstamp        ! ValidatorReport("Formatted as -0030-01-01 00:00:00.000 is not Redshift-compatible", Some("collector_tstamp"), Nil, Some("-0030-01-01T00:00:00.000Z")).asLeft |
-    ">10k timestamp"     !! FarAwayTstamp   ! ValidatorReport("Formatted as 11970-01-01 00:00:00.000 is not Redshift-compatible", Some("collector_tstamp"), Nil, Some("11970-01-01T00:00:00.000Z")).asLeft |
+    "None"               !! None            ! AtomicFieldValidationError("Field not set", "collector_tstamp", AtomicFieldValidationError.ParseError).asLeft |
+    "Negative timestamp" !! BCTstamp        ! AtomicFieldValidationError("Formatted as -0030-01-01 00:00:00.000 is not Redshift-compatible", "collector_tstamp", AtomicFieldValidationError.ParseError).asLeft |
+    ">10k timestamp"     !! FarAwayTstamp   ! AtomicFieldValidationError("Formatted as 11970-01-01 00:00:00.000 is not Redshift-compatible", "collector_tstamp", AtomicFieldValidationError.ParseError).asLeft |
     "Valid timestamp"    !! SeventiesTstamp ! "1970-01-01 00:00:00.000".asRight |> {
 // format: on
       (_, input, expected) =>
@@ -69,11 +69,14 @@ class ExtractEventTypeSpec extends Specification with DataTables {
 
   def e4 =
     "SPEC NAME" || "INPUT VAL" | "EXPECTED OUTPUT" |
-      "Not long" !! (("f", "v")) ! ValidatorReport("Not in the expected format: ms since epoch", Some("f"), Nil, Some("v")).asLeft |
-      "Too long" !! (("f", "1111111111111111")) ! ValidatorReport("Formatting as 37179-09-17 07:18:31.111 is not Redshift-compatible",
-                                                                  Some("f"),
-                                                                  Nil,
-                                                                  Some("1111111111111111")
+      "Not long" !! (("f", "v")) ! AtomicFieldValidationError("Not in the expected format: ms since epoch",
+                                                              "f",
+                                                              AtomicFieldValidationError.ParseError
+      ).asLeft |
+      "Too long" !! (("f", "1111111111111111")) ! AtomicFieldValidationError(
+        "Formatting as 37179-09-17 07:18:31.111 is not Redshift-compatible",
+        "f",
+        AtomicFieldValidationError.ParseError
       ).asLeft |
       "Valid ts" !! (("f", "1")) ! "1970-01-01 00:00:00.001".asRight |> { (_, input, expected) =>
       EventEnrichments.extractTimestamp(input._1, input._2) must_== expected

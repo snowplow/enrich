@@ -20,7 +20,7 @@ import org.specs2.matcher.DataTables
 
 import com.snowplowanalytics.snowplow.badrows.Processor
 
-import com.snowplowanalytics.iglu.client.validator.ValidatorReport
+import com.snowplowanalytics.snowplow.enrich.common.utils.AtomicFieldValidationError
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 
@@ -37,8 +37,8 @@ class EtlVersionSpec extends MutSpecification {
 /** Tests the extractPlatform function. Uses DataTables. */
 class ExtractPlatformSpec extends Specification with DataTables {
   val FieldName = "p"
-  def err: String => ValidatorReport =
-    input => ValidatorReport("Not a valid platform", Some(FieldName), Nil, Option(input))
+  def err: AtomicFieldValidationError =
+    AtomicFieldValidationError("Not a valid platform", FieldName, AtomicFieldValidationError.ParseError)
 
   def is = s2"""
   Extracting platforms with extractPlatform should work $e1
@@ -55,9 +55,9 @@ class ExtractPlatformSpec extends Specification with DataTables {
       "valid games console" !! "cnsl" ! "cnsl".asRight |
       "valid iot (internet of things)" !! "iot" ! "iot".asRight |
       "valid headset" !! "headset" ! "headset".asRight |
-      "invalid empty" !! "" ! err("").asLeft |
-      "invalid null" !! null ! err(null).asLeft |
-      "invalid platform" !! "ma" ! err("ma").asLeft |> { (_, input, expected) =>
+      "invalid empty" !! "" ! err.asLeft |
+      "invalid null" !! null ! err.asLeft |
+      "invalid platform" !! "ma" ! err.asLeft |> { (_, input, expected) =>
       MiscEnrichments.extractPlatform(FieldName, input) must_== expected
     }
 }

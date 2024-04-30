@@ -42,8 +42,6 @@ import org.joda.time.format.DateTimeFormat
 import com.snowplowanalytics.iglu.core.circe.implicits._
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 
-import com.snowplowanalytics.iglu.client.validator.ValidatorReport
-
 import com.snowplowanalytics.snowplow.badrows.{FailureDetails, Processor}
 
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
@@ -160,13 +158,13 @@ object ConversionUtils {
    * @param str The String hopefully containing a UUID
    * @return either the original String, or an error String
    */
-  val validateUuid: (String, String) => Either[ValidatorReport, String] =
+  val validateUuid: (String, String) => Either[AtomicFieldValidationError, String] =
     (field, str) => {
       def check(s: String)(u: UUID): Boolean = u != null && s.toLowerCase == u.toString
       val uuid = Try(UUID.fromString(str)).toOption.filter(check(str))
       uuid match {
         case Some(_) => str.toLowerCase.asRight
-        case None => ValidatorReport("Not a valid UUID", Some(field), Nil, Option(str)).asLeft
+        case None => AtomicFieldValidationError("Not a valid UUID", field, AtomicFieldValidationError.ParseError).asLeft
       }
     }
 
@@ -175,12 +173,12 @@ object ConversionUtils {
    * @param str The String hopefully parseable as an integer
    * @return either the original String, or an error String
    */
-  val validateInteger: (String, String) => Either[ValidatorReport, String] =
+  val validateInteger: (String, String) => Either[AtomicFieldValidationError, String] =
     (field, str) => {
       Either
         .catchNonFatal { str.toInt; str }
         .leftMap { _ =>
-          ValidatorReport("Not a valid integer", Some(field), Nil, Option(str))
+          AtomicFieldValidationError("Not a valid integer", field, AtomicFieldValidationError.ParseError)
         }
     }
 
@@ -325,10 +323,10 @@ object ConversionUtils {
         }
     }
 
-  val stringToJInteger2: (String, String) => Either[ValidatorReport, JInteger] =
+  val stringToJInteger2: (String, String) => Either[AtomicFieldValidationError, JInteger] =
     (field, str) =>
       stringToJInteger(str).leftMap { e =>
-        ValidatorReport(e, Some(field), Nil, Option(str))
+        AtomicFieldValidationError(e, field, AtomicFieldValidationError.ParseError)
       }
 
   val stringToJBigDecimal: String => Either[String, JBigDecimal] = str =>
@@ -350,10 +348,10 @@ object ConversionUtils {
           .leftMap(e => s"Cannot be converted to java.math.BigDecimal. Error : ${e.getMessage}")
     }
 
-  val stringToJBigDecimal2: (String, String) => Either[ValidatorReport, JBigDecimal] =
+  val stringToJBigDecimal2: (String, String) => Either[AtomicFieldValidationError, JBigDecimal] =
     (field, str) =>
       stringToJBigDecimal(str).leftMap { e =>
-        ValidatorReport(e, Some(field), Nil, Option(str))
+        AtomicFieldValidationError(e, field, AtomicFieldValidationError.ParseError)
       }
 
   /**
@@ -365,7 +363,7 @@ object ConversionUtils {
    * @param field The name of the field we are validating. To use in our error message
    * @return either a failure or a String
    */
-  val stringToDoubleLike: (String, String) => Either[ValidatorReport, String] =
+  val stringToDoubleLike: (String, String) => Either[AtomicFieldValidationError, String] =
     (field, str) =>
       Either
         .catchNonFatal {
@@ -379,7 +377,7 @@ object ConversionUtils {
         }
         .leftMap { _ =>
           val msg = "Cannot be converted to Double-like"
-          ValidatorReport(msg, Some(field), Nil, Option(str))
+          AtomicFieldValidationError(msg, field, AtomicFieldValidationError.ParseError)
         }
 
   /**
@@ -388,7 +386,7 @@ object ConversionUtils {
    * @param field The name of the field we are validating. To use in our error message
    * @return a Scalaz Validation, being either a Failure String or a Success Double
    */
-  def stringToMaybeDouble(field: String, str: String): Either[ValidatorReport, Option[Double]] =
+  def stringToMaybeDouble(field: String, str: String): Either[AtomicFieldValidationError, Option[Double]] =
     Either
       .catchNonFatal {
         if (Option(str).isEmpty || str == "null")
@@ -399,15 +397,15 @@ object ConversionUtils {
           jbigdec.doubleValue().some
         }
       }
-      .leftMap(_ => ValidatorReport("Cannot be converted to Double", Some(field), Nil, Option(str)))
+      .leftMap(_ => AtomicFieldValidationError("Cannot be converted to Double", field, AtomicFieldValidationError.ParseError))
 
   /** Convert a java BigDecimal to a Double */
-  def jBigDecimalToDouble(field: String, f: JBigDecimal): Either[ValidatorReport, Option[Double]] =
+  def jBigDecimalToDouble(field: String, f: JBigDecimal): Either[AtomicFieldValidationError, Option[Double]] =
     Either
       .catchNonFatal {
         Option(f).map(_.doubleValue)
       }
-      .leftMap(_ => ValidatorReport("Cannot be converted to Double", Some(field), Nil, Option(f).map(_.toString)))
+      .leftMap(_ => AtomicFieldValidationError("Cannot be converted to Double", field, AtomicFieldValidationError.ParseError))
 
   /** Convert a java BigDecimal to a Double */
   def jBigDecimalToDouble(
@@ -420,20 +418,20 @@ object ConversionUtils {
         FailureDetails.EnrichmentFailure(
           Some(enrichmentInfo),
           FailureDetails.EnrichmentFailureMessage.InputData(
-            error.path.getOrElse(""),
-            error.keyword,
+            error.field,
+            Option(f).map(_.toString),
             error.message
           )
         )
       }
 
   /** Convert a Double to a java BigDecimal */
-  def doubleToJBigDecimal(field: String, d: Option[Double]): Either[ValidatorReport, Option[JBigDecimal]] =
+  def doubleToJBigDecimal(field: String, d: Option[Double]): Either[AtomicFieldValidationError, Option[JBigDecimal]] =
     Either
       .catchNonFatal {
         d.map(dd => new JBigDecimal(dd))
       }
-      .leftMap(_ => ValidatorReport("Cannot be converted to java BigDecimal", Some(field), Nil, d.map(_.toString)))
+      .leftMap(_ => AtomicFieldValidationError("Cannot be converted to java BigDecimal", field, AtomicFieldValidationError.ParseError))
 
   /**
    * Converts a String to a Double with two decimal places. Used to honor schemas with
@@ -461,14 +459,14 @@ object ConversionUtils {
    * @param field The name of the field we are trying to process. To use in our error message
    * @return either a Failure String or a Success Byte
    */
-  val stringToBooleanLikeJByte: (String, String) => Either[ValidatorReport, JByte] =
+  val stringToBooleanLikeJByte: (String, String) => Either[AtomicFieldValidationError, JByte] =
     (field, str) =>
       str match {
         case "1" => (1.toByte: JByte).asRight
         case "0" => (0.toByte: JByte).asRight
         case _ =>
           val msg = "Cannot be converted to Boolean-like java.lang.Byte"
-          ValidatorReport(msg, Some(field), Nil, Option(str)).asLeft
+          AtomicFieldValidationError(msg, field, AtomicFieldValidationError.ParseError).asLeft
       }
 
   /**

@@ -19,7 +19,7 @@ import com.snowplowanalytics.snowplow.badrows.Processor
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
-import com.snowplowanalytics.snowplow.enrich.common.utils.{ConversionUtils => CU, AtomicFieldValidationError}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{ConversionUtils => CU, AtomicError}
 
 /** Miscellaneous enrichments which don't fit into one of the other modules. */
 object MiscEnrichments {
@@ -44,7 +44,7 @@ object MiscEnrichments {
    * @param platform The code for the platform generating this event.
    * @return a Scalaz ValidatedString.
    */
-  val extractPlatform: (String, String) => Either[AtomicFieldValidationError, String] =
+  val extractPlatform: (String, String) => Either[AtomicError.ParseError, String] =
     (field, platform) =>
       platform match {
         case "web" => "web".asRight // Web, including Mobile Web
@@ -58,11 +58,11 @@ object MiscEnrichments {
         case "headset" => "headset".asRight // AR/VR Headset
         case _ =>
           val msg = "Not a valid platform"
-          AtomicFieldValidationError(msg, field, AtomicFieldValidationError.ParseError).asLeft
+          AtomicError.ParseError(msg, field).asLeft
       }
 
   /** Make a String TSV safe */
-  val toTsvSafe: (String, String) => Either[AtomicFieldValidationError, String] =
+  val toTsvSafe: (String, String) => Either[AtomicError.ParseError, String] =
     (_, value) => CU.makeTsvSafe(value).asRight
 
   /**
@@ -71,7 +71,7 @@ object MiscEnrichments {
    * Here we retrieve the first one as it is supposed to be the client one, c.f.
    * https://en.m.wikipedia.org/wiki/X-Forwarded-For#Format
    */
-  val extractIp: (String, String) => Either[AtomicFieldValidationError, String] =
+  val extractIp: (String, String) => Either[AtomicError.ParseError, String] =
     (_, value) => {
       val lastIp = Option(value).map(_.split("[,|, ]").head).orNull
       CU.makeTsvSafe(lastIp).asRight

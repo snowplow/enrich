@@ -14,7 +14,7 @@ import java.lang.{Integer => JInteger}
 
 import cats.syntax.either._
 
-import com.snowplowanalytics.snowplow.enrich.common.utils.AtomicFieldValidationError
+import com.snowplowanalytics.snowplow.enrich.common.utils.AtomicError
 
 /**
  * Contains enrichments related to the client - where the client is the software which is using the
@@ -36,7 +36,7 @@ object ClientEnrichments {
    * @param res The packed string holding the screen dimensions
    * @return the ResolutionTuple or an error message, boxed in a Scalaz Validation
    */
-  val extractViewDimensions: (String, String) => Either[AtomicFieldValidationError, (JInteger, JInteger)] =
+  val extractViewDimensions: (String, String) => Either[AtomicError.ParseError, (JInteger, JInteger)] =
     (field, res) =>
       (res match {
         case ResRegex(width, height) =>
@@ -45,7 +45,7 @@ object ClientEnrichments {
             .leftMap(_ => "Could not be converted to java.lang.Integer s")
         case _ => s"Does not conform to regex ${ResRegex.toString}".asLeft
       }).leftMap { msg =>
-        AtomicFieldValidationError(msg, field, AtomicFieldValidationError.ParseError)
+        AtomicError.ParseError(msg, field)
       }
 
 }

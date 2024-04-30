@@ -30,21 +30,21 @@ object JsonUtils {
     DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(DateTimeZone.UTC)
 
   /** Validates a String as correct JSON. */
-  val extractUnencJson: (String, String) => Either[AtomicFieldValidationError, String] =
+  val extractUnencJson: (String, String) => Either[AtomicError.ParseError, String] =
     (field, str) =>
       validateAndReformatJson(str)
         .leftMap { e =>
-          AtomicFieldValidationError(e, field, AtomicFieldValidationError.ParseError)
+          AtomicError.ParseError(e, field)
         }
 
   /** Decodes a Base64 (URL safe)-encoded String then validates it as correct JSON. */
-  val extractBase64EncJson: (String, String) => Either[AtomicFieldValidationError, String] =
+  val extractBase64EncJson: (String, String) => Either[AtomicError.ParseError, String] =
     (field, str) =>
       ConversionUtils
         .decodeBase64Url(str)
         .flatMap(validateAndReformatJson)
         .leftMap { e =>
-          AtomicFieldValidationError(e, field, AtomicFieldValidationError.ParseError)
+          AtomicError.ParseError(e, field)
         }
 
   /**

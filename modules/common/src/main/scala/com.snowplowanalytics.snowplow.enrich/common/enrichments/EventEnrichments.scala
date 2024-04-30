@@ -19,7 +19,7 @@ import cats.syntax.option._
 import org.joda.time.{DateTime, DateTimeZone, Period}
 import org.joda.time.format.DateTimeFormat
 
-import com.snowplowanalytics.snowplow.enrich.common.utils.AtomicFieldValidationError
+import com.snowplowanalytics.snowplow.enrich.common.utils.AtomicError
 
 import com.snowplowanalytics.snowplow.badrows._
 
@@ -49,14 +49,14 @@ object EventEnrichments {
    * @param Optional collectorTstamp
    * @return Validation boxing the result of making the timestamp Redshift-compatible
    */
-  def formatCollectorTstamp(collectorTstamp: Option[DateTime]): Either[AtomicFieldValidationError, String] =
+  def formatCollectorTstamp(collectorTstamp: Option[DateTime]): Either[AtomicError.ParseError, String] =
     collectorTstamp match {
-      case None => AtomicFieldValidationError("Field not set", "collector_tstamp", AtomicFieldValidationError.ParseError).asLeft
+      case None => AtomicError.ParseError("Field not set", "collector_tstamp").asLeft
       case Some(t) =>
         val formattedTimestamp = toTimestamp(t)
         if (formattedTimestamp.startsWith("-") || t.getYear > 9999 || t.getYear < 0) {
           val msg = s"Formatted as $formattedTimestamp is not Redshift-compatible"
-          AtomicFieldValidationError(msg, "collector_tstamp", AtomicFieldValidationError.ParseError).asLeft
+          AtomicError.ParseError(msg, "collector_tstamp").asLeft
         } else
           formattedTimestamp.asRight
     }
@@ -113,26 +113,28 @@ object EventEnrichments {
    * @param tstamp The timestamp as stored in the Tracker Protocol
    * @return a Tuple of two Strings (date and time), or an error message if the format was invalid
    */
-  val extractTimestamp: (String, String) => Either[AtomicFieldValidationError, String] =
+  val extractTimestamp: (String, String) => Either[AtomicError.ParseError, String] =
     (field, tstamp) =>
       try {
         val dt = new DateTime(tstamp.toLong)
         val timestampString = toTimestamp(dt)
         if (timestampString.startsWith("-") || dt.getYear > 9999 || dt.getYear < 0)
-          AtomicFieldValidationError(
-            s"Formatting as $timestampString is not Redshift-compatible",
-            field,
-            AtomicFieldValidationError.ParseError
-          ).asLeft
+          AtomicError
+            .ParseError(
+              s"Formatting as $timestampString is not Redshift-compatible",
+              field
+            )
+            .asLeft
         else
           timestampString.asRight
       } catch {
         case _: NumberFormatException =>
-          AtomicFieldValidationError(
-            "Not in the expected format: ms since epoch",
-            field,
-            AtomicFieldValidationError.ParseError
-          ).asLeft
+          AtomicError
+            .ParseError(
+              "Not in the expected format: ms since epoch",
+              field
+            )
+            .asLeft
       }
 
   /**
@@ -142,7 +144,7 @@ object EventEnrichments {
    * @param eventCode The event code
    * @return the event type, or an error message if not recognised, boxed in a Scalaz Validation
    */
-  val extractEventType: (String, String) => Either[AtomicFieldValidationError, String] =
+  val extractEventType: (String, String) => Either[AtomicError.ParseError, String] =
     (field, code) =>
       code match {
         case "se" => "struct".asRight
@@ -155,7 +157,7 @@ object EventEnrichments {
         case "pp" => "page_ping".asRight
         case _ =>
           val msg = "Not a valid event type"
-          AtomicFieldValidationError(msg, field, AtomicFieldValidationError.ParseError).asLeft
+          AtomicError.ParseError(msg, field).asLeft
       }
 
   /**

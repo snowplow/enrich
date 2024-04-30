@@ -263,7 +263,7 @@ class ValidateUuidSpec extends Specification with DataTables with ScalaCheck {
   def e2 =
     prop { (str: String) =>
       ConversionUtils.validateUuid(FieldName, str) must beLeft(
-        AtomicFieldValidationError("Not a valid UUID", FieldName, AtomicFieldValidationError.ParseError)
+        AtomicError.ParseError("Not a valid UUID", FieldName)
       )
     }
 }
@@ -281,7 +281,7 @@ class ValidateIntegerSpec extends Specification {
   def e2 = {
     val str = "abc"
     ConversionUtils.validateInteger(FieldName, str) must beLeft(
-      AtomicFieldValidationError("Not a valid integer", FieldName, AtomicFieldValidationError.ParseError)
+      AtomicError.ParseError("Not a valid integer", FieldName)
     )
   }
 }
@@ -312,8 +312,8 @@ class StringToDoubleLikeSpec extends Specification with DataTables {
   """
 
   val FieldName = "val"
-  def err: AtomicFieldValidationError =
-    AtomicFieldValidationError("Cannot be converted to Double-like", FieldName, AtomicFieldValidationError.ParseError)
+  def err: AtomicError =
+    AtomicError.ParseError("Cannot be converted to Double-like", FieldName)
 
   def e1 =
     "SPEC NAME" || "INPUT STR" | "EXPECTED" |
@@ -388,8 +388,8 @@ class StringToBooleanLikeJByteSpec extends Specification with DataTables {
   """
 
   val FieldName = "val"
-  def err: AtomicFieldValidationError =
-    AtomicFieldValidationError("Cannot be converted to Boolean-like java.lang.Byte", FieldName, AtomicFieldValidationError.ParseError)
+  def err: AtomicError =
+    AtomicError.ParseError("Cannot be converted to Boolean-like java.lang.Byte", FieldName)
 
   def e1 =
     "SPEC NAME" || "INPUT STR" | "EXPECTED" |

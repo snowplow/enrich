@@ -12,23 +12,27 @@ package com.snowplowanalytics.snowplow.enrich.common.utils
 
 import com.snowplowanalytics.iglu.client.validator.ValidatorReport
 
-case class AtomicFieldValidationError(
-  message: String,
-  field: String,
-  errorType: AtomicFieldValidationError.ErrorType
-) {
+sealed trait AtomicError {
+  def message: String
+  def field: String
+  def repr: String
   def toValidatorReport: ValidatorReport =
-    ValidatorReport(message, Some(field), Nil, Some(errorType.repr))
+    ValidatorReport(message, Some(field), Nil, Some(repr))
 }
 
-object AtomicFieldValidationError {
-  sealed trait ErrorType {
-    def repr: String
+object AtomicError {
+
+  case class ParseError(
+    message: String,
+    field: String
+  ) extends AtomicError {
+    override def repr: String = "atomic_field_parse_error"
   }
-  case object ParseError extends ErrorType {
-    override def repr: String = "ParseError"
-  }
-  case object AtomicFieldLengthExceeded extends ErrorType {
-    override def repr: String = "AtomicFieldLengthExceeded"
+
+  case class FieldLengthError(
+    message: String,
+    field: String
+  ) extends AtomicError {
+    override def repr: String = "atomic_field_length_exceeded"
   }
 }

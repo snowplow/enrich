@@ -22,7 +22,7 @@ import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields.LimitedAtomicField
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.AtomicFieldValidationError
+import com.snowplowanalytics.snowplow.enrich.common.utils.AtomicError
 
 /**
  * Atomic fields length validation inspired by
@@ -52,14 +52,15 @@ object AtomicFieldsLengthValidator {
   private def validateField(
     event: EnrichedEvent,
     atomicField: LimitedAtomicField
-  ): Either[AtomicFieldValidationError, Unit] = {
+  ): Either[AtomicError.FieldLengthError, Unit] = {
     val actualValue = atomicField.value.enrichedValueExtractor(event)
     if (actualValue != null && actualValue.length > atomicField.limit)
-      AtomicFieldValidationError(
-        s"Field is longer than maximum allowed size ${atomicField.limit}",
-        atomicField.value.name,
-        AtomicFieldValidationError.AtomicFieldLengthExceeded
-      ).asLeft
+      AtomicError
+        .FieldLengthError(
+          s"Field is longer than maximum allowed size ${atomicField.limit}",
+          atomicField.value.name
+        )
+        .asLeft
     else
       Right(())
   }
@@ -67,7 +68,7 @@ object AtomicFieldsLengthValidator {
   private def handleAcceptableErrors[F[_]: Monad](
     invalidCount: F[Unit],
     event: EnrichedEvent,
-    errors: NonEmptyList[AtomicFieldValidationError]
+    errors: NonEmptyList[AtomicError.FieldLengthError]
   ): F[Unit] =
     invalidCount *>
       Monad[F].pure(

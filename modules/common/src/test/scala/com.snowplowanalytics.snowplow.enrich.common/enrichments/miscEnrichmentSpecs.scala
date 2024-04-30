@@ -20,7 +20,7 @@ import org.specs2.matcher.DataTables
 
 import com.snowplowanalytics.snowplow.badrows.Processor
 
-import com.snowplowanalytics.snowplow.enrich.common.utils.AtomicFieldValidationError
+import com.snowplowanalytics.snowplow.enrich.common.utils.AtomicError
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 
@@ -37,8 +37,8 @@ class EtlVersionSpec extends MutSpecification {
 /** Tests the extractPlatform function. Uses DataTables. */
 class ExtractPlatformSpec extends Specification with DataTables {
   val FieldName = "p"
-  def err: AtomicFieldValidationError =
-    AtomicFieldValidationError("Not a valid platform", FieldName, AtomicFieldValidationError.ParseError)
+  def err: AtomicError =
+    AtomicError.ParseError("Not a valid platform", FieldName)
 
   def is = s2"""
   Extracting platforms with extractPlatform should work $e1

@@ -16,7 +16,7 @@ import org.joda.time.DateTimeZone
 import org.specs2.Specification
 import org.specs2.matcher.DataTables
 
-import com.snowplowanalytics.snowplow.enrich.common.utils.AtomicFieldValidationError
+import com.snowplowanalytics.snowplow.enrich.common.utils.AtomicError
 
 class ExtractEventTypeSpec extends Specification with DataTables {
   def is = s2"""
@@ -27,8 +27,8 @@ class ExtractEventTypeSpec extends Specification with DataTables {
   """
 
   val FieldName = "e"
-  def err: AtomicFieldValidationError =
-    AtomicFieldValidationError("Not a valid event type", FieldName, AtomicFieldValidationError.ParseError)
+  def err: AtomicError =
+    AtomicError.ParseError("Not a valid event type", FieldName)
 
   def e1 =
     "SPEC NAME" || "INPUT VAL" | "EXPECTED OUTPUT" |
@@ -58,9 +58,9 @@ class ExtractEventTypeSpec extends Specification with DataTables {
   def e3 =
 // format: off
     "SPEC NAME"          || "INPUT VAL"     | "EXPECTED OUTPUT" |
-    "None"               !! None            ! AtomicFieldValidationError("Field not set", "collector_tstamp", AtomicFieldValidationError.ParseError).asLeft |
-    "Negative timestamp" !! BCTstamp        ! AtomicFieldValidationError("Formatted as -0030-01-01 00:00:00.000 is not Redshift-compatible", "collector_tstamp", AtomicFieldValidationError.ParseError).asLeft |
-    ">10k timestamp"     !! FarAwayTstamp   ! AtomicFieldValidationError("Formatted as 11970-01-01 00:00:00.000 is not Redshift-compatible", "collector_tstamp", AtomicFieldValidationError.ParseError).asLeft |
+    "None"               !! None            ! AtomicError.ParseError("Field not set", "collector_tstamp").asLeft |
+    "Negative timestamp" !! BCTstamp        ! AtomicError.ParseError("Formatted as -0030-01-01 00:00:00.000 is not Redshift-compatible", "collector_tstamp").asLeft |
+    ">10k timestamp"     !! FarAwayTstamp   ! AtomicError.ParseError("Formatted as 11970-01-01 00:00:00.000 is not Redshift-compatible", "collector_tstamp").asLeft |
     "Valid timestamp"    !! SeventiesTstamp ! "1970-01-01 00:00:00.000".asRight |> {
 // format: on
       (_, input, expected) =>
@@ -69,15 +69,13 @@ class ExtractEventTypeSpec extends Specification with DataTables {
 
   def e4 =
     "SPEC NAME" || "INPUT VAL" | "EXPECTED OUTPUT" |
-      "Not long" !! (("f", "v")) ! AtomicFieldValidationError("Not in the expected format: ms since epoch",
-                                                              "f",
-                                                              AtomicFieldValidationError.ParseError
-      ).asLeft |
-      "Too long" !! (("f", "1111111111111111")) ! AtomicFieldValidationError(
-        "Formatting as 37179-09-17 07:18:31.111 is not Redshift-compatible",
-        "f",
-        AtomicFieldValidationError.ParseError
-      ).asLeft |
+      "Not long" !! (("f", "v")) ! AtomicError.ParseError("Not in the expected format: ms since epoch", "f").asLeft |
+      "Too long" !! (("f", "1111111111111111")) ! AtomicError
+        .ParseError(
+          "Formatting as 37179-09-17 07:18:31.111 is not Redshift-compatible",
+          "f"
+        )
+        .asLeft |
       "Valid ts" !! (("f", "1")) ! "1970-01-01 00:00:00.001".asRight |> { (_, input, expected) =>
       EventEnrichments.extractTimestamp(input._1, input._2) must_== expected
     }

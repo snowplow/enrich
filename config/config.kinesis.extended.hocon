@@ -221,8 +221,7 @@
     # Number of events that can get enriched at the same time within a chunk
     "enrich": 256
     # Number of chunks that can get sunk at the same time
-    # WARNING: if greater than 1, records can get checkpointed before they are sunk
-    "sink": 1
+    "sink": 8
   }
 
   # Optional, period after which enrich assets should be checked for updates

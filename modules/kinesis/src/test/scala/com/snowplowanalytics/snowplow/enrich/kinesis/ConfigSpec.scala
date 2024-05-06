@@ -81,7 +81,7 @@ class ConfigSpec extends Specification with CatsEffect {
             None
           )
         ),
-        io.Concurrency(256, 1),
+        io.Concurrency(256, 8),
         Some(7.days),
         io.RemoteAdapterConfigs(
           10.seconds,
@@ -175,7 +175,7 @@ class ConfigSpec extends Specification with CatsEffect {
             None
           )
         ),
-        io.Concurrency(256, 1),
+        io.Concurrency(256, 8),
         None,
         io.RemoteAdapterConfigs(
           10.seconds,

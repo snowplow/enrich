@@ -43,7 +43,7 @@ Licensed under the [Snowplow Limited Use License Agreement][license]. _(If you a
 [coveralls]: https://coveralls.io/github/snowplow/enrich?branch=master
 [coveralls-image]: https://coveralls.io/repos/github/snowplow/enrich/badge.svg?branch=master
 
-[release-image]: https://img.shields.io/badge/release-4.2.0-blue.svg?style=flat
+[release-image]: https://img.shields.io/badge/release-4.2.1-blue.svg?style=flat
 [releases]: https://github.com/snowplow/enrich/releases
 
 [license]: https://docs.snowplow.io/limited-use-license-1.0

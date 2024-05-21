@@ -1,3 +1,11 @@
+4.2.1 (2024-06-04)
+------------------
+Replace mysql-connector with mariadb-client
+Upgrade fs2-kafka to 3.5.1
+Update schema for com.mandrill/message_opened/jsonschema/1-0-3 (#893)
+Bump sbt-snowplow-release to 0.3.2 (#892)
+Don't pass field value to ValidatorReport if validation fails (#892)
+
 4.2.0 (2024-04-08)
 ------------------
 Switch bad row type from EnrichmentFailures to SchemaViolations for some errors (#883)

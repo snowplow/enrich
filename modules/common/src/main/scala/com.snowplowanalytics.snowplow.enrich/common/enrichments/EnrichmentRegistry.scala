@@ -224,7 +224,8 @@ object EnrichmentRegistry {
             PiiPseudonymizerEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
           case "iab_spiders_and_robots_enrichment" =>
             IabEnrichment.parse(enrichmentConfig, schemaKey, localMode).map(_.some)
-          case _ =>
+          case err =>
+            println(s"HOLA>>> Enrichment is not recognized $err")
             Option.empty[EnrichmentConf].validNel // Enrichment is not recognized
         }
     }

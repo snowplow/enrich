@@ -48,7 +48,7 @@ object CollectorPayloadGen {
       version <- Gen.const("tp2")
       api = CollectorPayload.Api(vendor, version)
 
-      queryString = Nil
+      queryString = List(new org.apache.http.message.BasicNameValuePair("url", "http://example.com?_sp=6de9024e-17b9-4026-bd4d-efec50ae84cb.1680681134458"))
 
       contentType = Some("application/json")
 

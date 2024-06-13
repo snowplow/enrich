@@ -44,8 +44,8 @@ class EnrichKafkaSpec extends Specification with CatsEffect {
   val enrichedStream = "it-enrich-kinesis-enriched"
   val badRowsStream = "it-enrich-kinesis-bad"
 
-  val nbGood = 100l
-  val nbBad = 10l
+  val nbGood = 100L
+  val nbBad = 10L
 
   type AggregateGood = List[Event]
   type AggregateBad = List[String]
@@ -55,12 +55,12 @@ class EnrichKafkaSpec extends Specification with CatsEffect {
   val bootstrapServers = s"localhost:$kafkaPort"
 
   val consumerConf: Map[String, String] = Map(
-      "group.id" -> "it-enrich",
-      "auto.offset.reset" -> "earliest",
-      "key.deserializer" -> "org.apache.kafka.common.serialization.StringDeserializer",
-      "value.deserializer" -> "org.apache.kafka.common.serialization.ByteArrayDeserializer",
-      "security.protocol" -> "PLAINTEXT",
-      "sasl.mechanism" -> "GSSAPI"
+    "group.id" -> "it-enrich",
+    "auto.offset.reset" -> "earliest",
+    "key.deserializer" -> "org.apache.kafka.common.serialization.StringDeserializer",
+    "value.deserializer" -> "org.apache.kafka.common.serialization.ByteArrayDeserializer",
+    "security.protocol" -> "PLAINTEXT",
+    "sasl.mechanism" -> "GSSAPI"
   )
 
   val producerConf: Map[String, String] = Map(
@@ -71,11 +71,13 @@ class EnrichKafkaSpec extends Specification with CatsEffect {
 
   def run(): IO[Aggregates] = {
 
-    val resources = Sink.init[IO](OutKafka(collectorPayloadsStream, bootstrapServers, "", Set.empty, producerConf), classOf[SourceAuthHandler].getName)
+    val resources =
+      Sink.init[IO](OutKafka(collectorPayloadsStream, bootstrapServers, "", Set.empty, producerConf), classOf[SourceAuthHandler].getName)
 
     resources.use { sink =>
       val generate =
-        CollectorPayloadGen.generate[IO](nbGood, nbBad)
+        CollectorPayloadGen
+          .generate[IO](nbGood, nbBad)
           .evalMap(events => sink(List(events)))
           .onComplete(fs2.Stream.eval(Logger[IO].info(s"Random data has been generated and sent to $collectorPayloadsStream")))
 
@@ -83,10 +85,16 @@ class EnrichKafkaSpec extends Specification with CatsEffect {
         consumeGood(refGood).merge(consumeBad(refBad))
 
       def consumeGood(ref: Ref[IO, AggregateGood]): Stream[IO, Unit] =
-        Source.init[IO](InKafka(enrichedStream, bootstrapServers, consumerConf), classOf[GoodSinkAuthHandler].getName).map(_.record.value).evalMap(aggregateGood(_, ref))
+        Source
+          .init[IO](InKafka(enrichedStream, bootstrapServers, consumerConf), classOf[GoodSinkAuthHandler].getName)
+          .map(_.record.value)
+          .evalMap(aggregateGood(_, ref))
 
       def consumeBad(ref: Ref[IO, AggregateBad]): Stream[IO, Unit] =
-        Source.init[IO](InKafka(badRowsStream, bootstrapServers, consumerConf), classOf[BadSinkAuthHandler].getName).map(_.record.value).evalMap(aggregateBad(_, ref))
+        Source
+          .init[IO](InKafka(badRowsStream, bootstrapServers, consumerConf), classOf[BadSinkAuthHandler].getName)
+          .map(_.record.value)
+          .evalMap(aggregateBad(_, ref))
 
       def aggregateGood(r: Array[Byte], ref: Ref[IO, AggregateGood]): IO[Unit] =
         for {
@@ -94,12 +102,11 @@ class EnrichKafkaSpec extends Specification with CatsEffect {
           _ <- ref.update(updateAggregateGood(_, e))
         } yield ()
 
-      def aggregateBad(r: Array[Byte], ref: Ref[IO, AggregateBad]): IO[Unit] = {
+      def aggregateBad(r: Array[Byte], ref: Ref[IO, AggregateBad]): IO[Unit] =
         for {
           br <- IO(new String(r))
           _ <- ref.update(updateAggregateBad(_, br))
         } yield ()
-      }
 
       def updateAggregateGood(aggregate: AggregateGood, e: Event): AggregateGood =
         e :: aggregate
@@ -110,13 +117,12 @@ class EnrichKafkaSpec extends Specification with CatsEffect {
       for {
         refGood <- Ref.of[IO, AggregateGood](Nil)
         refBad <- Ref.of[IO, AggregateBad](Nil)
-        _ <-
-          generate
-            .merge(consume(refGood, refBad))
-            .interruptAfter(30.seconds)
-            .attempt
-            .compile
-            .drain
+        _ <- generate
+               .merge(consume(refGood, refBad))
+               .interruptAfter(30.seconds)
+               .attempt
+               .compile
+               .drain
         aggregateGood <- refGood.get
         aggregateBad <- refBad.get
       } yield Aggregates(aggregateGood, aggregateBad)
@@ -128,6 +134,12 @@ class EnrichKafkaSpec extends Specification with CatsEffect {
   "enrich-kinesis" should {
     "emit the expected enriched events" in {
       aggregates.good.size must beEqualTo(nbGood)
+    }
+
+    "contain cross platform context" in {
+      val crossNavigationExpected =
+        aggregates.good.map(_.derived_contexts.data.flatMap(_.data.findAllByKey("domain_user_id").flatMap(_.asString.toList)))
+      crossNavigationExpected must contain(contain(be_===("6de9024e-17b9-4026-bd4d-efec50ae84cb"))).foreach
     }
 
     "emit the expected bad rows events" in {

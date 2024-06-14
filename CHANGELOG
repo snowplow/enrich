@@ -1,3 +1,7 @@
+5.0.0 (2024-06-14)
+------------------
+Add possibilty to emit failed events in TSV format into a third stream (#872)
+
 4.2.1 (2024-06-04)
 ------------------
 Replace mysql-connector with mariadb-client

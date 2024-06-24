@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -166,7 +166,8 @@ class EventGenEtlPipelineSpec extends Specification with CatsEffect {
   val adapterRegistry = new AdapterRegistry(Map.empty[(String, String), RemoteAdapter[IO]], SpecHelpers.adaptersSchemas)
   val enrichmentReg = EnrichmentRegistry[IO]()
   val igluCentral = Registry.IgluCentral
-  val client = IgluCirceClient.parseDefault[IO](json"""
+  val client = IgluCirceClient.parseDefault[IO](
+    json"""
       {
         "schema": "iglu:com.snowplowanalytics.iglu/resolver-config/jsonschema/1-0-1",
         "data": {
@@ -195,7 +196,9 @@ class EventGenEtlPipelineSpec extends Specification with CatsEffect {
           ]
         }
       }
-      """)
+      """,
+    maxJsonDepth = 40
+  )
   val processor = Processor("sce-test-suite", "1.0.0")
   val dateTime = DateTime.now()
   val process = Processor("EventGenEtlPipelineSpec", "v1")
@@ -212,7 +215,8 @@ class EventGenEtlPipelineSpec extends Specification with CatsEffect {
       IO.unit,
       SpecHelpers.registryLookup,
       AtomicFields.from(Map.empty),
-      SpecHelpers.emitIncomplete
+      SpecHelpers.emitIncomplete,
+      SpecHelpers.DefaultMaxJsonDepth
     )
 
   def rethrowBadRows[A]: Pipe[IO, ValidatedNel[BadRow, A], A] =

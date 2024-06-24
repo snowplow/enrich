@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -85,7 +85,7 @@ object ParsedConfigs {
       resolverConfig <-
         EitherT.fromEither[F](Resolver.parseConfig(igluJson)).leftMap(x => show"Cannot decode Iglu resolver from provided json. $x")
       resolver <- Resolver.fromConfig[F](resolverConfig).leftMap(x => show"Cannot create Iglu resolver from provided json. $x")
-      client <- EitherT.liftF(IgluCirceClient.fromResolver[F](resolver, resolverConfig.cacheSize))
+      client <- EitherT.liftF(IgluCirceClient.fromResolver[F](resolver, resolverConfig.cacheSize, configFile.maxJsonDepth))
       _ <- EitherT.liftF(
              Logger[F].info(show"Parsed Iglu Client with following registries: ${resolver.repos.map(_.config.name).mkString(", ")}")
            )

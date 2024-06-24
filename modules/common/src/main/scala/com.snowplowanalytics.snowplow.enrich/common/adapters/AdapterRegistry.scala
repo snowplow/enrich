@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -92,15 +92,16 @@ class AdapterRegistry[F[_]: Clock: Monad](
     payload: CollectorPayload,
     client: IgluCirceClient[F],
     processor: Processor,
-    registryLookup: RegistryLookup[F]
+    registryLookup: RegistryLookup[F],
+    maxJsonDepth: Int
   ): F[Validated[BadRow, NonEmptyList[RawEvent]]] =
     (adapters.get((payload.api.vendor, payload.api.version)) match {
       case Some(adapter) =>
-        adapter.toRawEvents(payload, client, registryLookup)
+        adapter.toRawEvents(payload, client, registryLookup, maxJsonDepth)
       case None =>
         remoteAdapters.get((payload.api.vendor, payload.api.version)) match {
           case Some(adapter) =>
-            adapter.toRawEvents(payload)
+            adapter.toRawEvents(payload, maxJsonDepth)
           case None =>
             val f = FailureDetails.AdapterFailure.InputData(
               "vendor/version",

@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -96,7 +96,7 @@ object BlackBoxTesting extends Specification with CatsEffect {
         getEnrichmentRegistry(enrichmentConfig, igluClient).use { registry =>
           Enrich
             .enrichWith(
-              IO.pure(registry),
+              registry,
               TestEnvironment.adapterRegistry,
               igluClient,
               None,
@@ -105,12 +105,14 @@ object BlackBoxTesting extends Specification with CatsEffect {
               IO.unit,
               SpecHelpers.registryLookup,
               AtomicFields.from(valueLimits = Map.empty),
-              SpecHelpers.emitIncomplete
-            )(
+              SpecHelpers.emitIncomplete,
+              SpecHelpers.DefaultMaxJsonDepth,
+              identity[Array[Byte]],
               input
             )
+            .map(_.enriched)
             .map {
-              case (List(Ior.Right(enriched)), _) => checkEnriched(enriched, expected)
+              case List(Ior.Right(enriched)) => checkEnriched(enriched, expected)
               case other => ko(s"there should be one enriched event but got $other")
             }
         }

@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -90,7 +90,7 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
         }
       }
     }""")
-    adapterWithDefaultSchemas.payloadBodyToEvents(bodyStr) must beRight(expected)
+    adapterWithDefaultSchemas.payloadBodyToEvents(bodyStr, DefaultMaxJsonDepth) must beRight(expected)
   }
 
   def e5 =
@@ -107,7 +107,7 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
           """{"somekey":"key"}""".some,
           "field `messages` is not an array"
         ) |> { (_, input, expected) =>
-      adapterWithDefaultSchemas.payloadBodyToEvents(input) must beLeft(expected)
+      adapterWithDefaultSchemas.payloadBodyToEvents(input, DefaultMaxJsonDepth) must beLeft(expected)
     }
 
   def e6 = {
@@ -135,7 +135,9 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
         Shared.context
       )
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beValid(expected))
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+      .map(_ must beValid(expected))
   }
 
   def e7 = {
@@ -155,7 +157,7 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
       "no schema associated with the provided type parameter at index 0"
     )
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beInvalid(
           NonEmptyList.one(expected)
@@ -167,7 +169,7 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
     val payload =
       CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beInvalid(
           NonEmptyList.one(
@@ -182,7 +184,7 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
     val payload =
       CollectorPayload(Shared.api, Nil, None, "stub".some, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beInvalid(
           NonEmptyList.one(
@@ -207,7 +209,7 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
       Shared.context
     )
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beInvalid(
           NonEmptyList.one(

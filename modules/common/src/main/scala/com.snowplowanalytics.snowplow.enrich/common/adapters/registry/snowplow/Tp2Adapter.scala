@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -59,7 +59,8 @@ object Tp2Adapter extends Adapter {
   override def toRawEvents[F[_]: Monad: Clock](
     payload: CollectorPayload,
     client: IgluCirceClient[F],
-    registryLookup: RegistryLookup[F]
+    registryLookup: RegistryLookup[F],
+    maxJsonDepth: Int
   ): F[Adapted] = {
     val qsParams = toMap(payload.querystring)
 
@@ -107,7 +108,7 @@ object Tp2Adapter extends Adapter {
         case (None, None) => Monad[F].pure(NonEmptyList.one(qsParams).valid)
         case (Some(bdy), Some(_)) => // Build our NEL of parameters
           (for {
-            json <- extractAndValidateJson(PayloadDataSchema, bdy, client, registryLookup)
+            json <- extractAndValidateJson(PayloadDataSchema, bdy, client, registryLookup, maxJsonDepth)
             nel <- EitherT.fromEither[F](toParametersNel(json, qsParams))
           } yield nel).toValidated
       }
@@ -213,12 +214,13 @@ object Tp2Adapter extends Adapter {
     schemaCriterion: SchemaCriterion,
     instance: String,
     client: IgluCirceClient[F],
-    registryLookup: RegistryLookup[F]
+    registryLookup: RegistryLookup[F],
+    maxJsonDepth: Int
   ): EitherT[F, NonEmptyList[FailureDetails.TrackerProtocolViolation], Json] = {
     implicit val rl = registryLookup
     (for {
       j <- EitherT.fromEither[F](
-             JU.extractJson(instance)
+             JU.extractJson(instance, maxJsonDepth)
                .leftMap(e =>
                  NonEmptyList.one(
                    FailureDetails.TrackerProtocolViolation

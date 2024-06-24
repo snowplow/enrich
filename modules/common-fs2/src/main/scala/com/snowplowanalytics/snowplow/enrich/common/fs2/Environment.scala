@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -129,7 +129,8 @@ final case class Environment[F[_], A](
   region: Option[String],
   cloud: Option[Cloud],
   featureFlags: FeatureFlags,
-  atomicFields: AtomicFields
+  atomicFields: AtomicFields,
+  maxJsonDepth: Int
 )
 
 object Environment {
@@ -210,10 +211,10 @@ object Environment {
       incomplete <- sinkIncomplete.sequence
       http4s <- Clients.mkHttp()
       clts <- clients.map(Clients.init(http4s, _))
-      igluClient <- IgluCirceClient.parseDefault[F](parsedConfigs.igluJson).resource
+      igluClient <- IgluCirceClient.parseDefault[F](parsedConfigs.igluJson, parsedConfigs.configFile.maxJsonDepth).resource
       remoteAdaptersEnabled = file.remoteAdapters.configs.nonEmpty
       metrics <- Resource.eval(Metrics.build[F](file.monitoring.metrics, remoteAdaptersEnabled, incomplete.isDefined))
-      metadata <- Resource.eval(metadataReporter[F](file, processor.artifact, http4s))
+      metadata <- metadataReporter[F](file, processor.artifact, http4s)
       assets = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
       remoteAdapters <- prepareRemoteAdapters[F](file.remoteAdapters, metrics)
       adapterRegistry = new AdapterRegistry(remoteAdapters, file.adaptersSchemas)
@@ -252,7 +253,8 @@ object Environment {
       getRegionFromConfig(file).orElse(getRegion),
       cloud,
       featureFlags,
-      atomicFields
+      atomicFields,
+      parsedConfigs.configFile.maxJsonDepth
     )
   }
 
@@ -275,11 +277,16 @@ object Environment {
     config: ConfigFile,
     appName: String,
     httpClient: Http4sClient[F]
-  ): F[Metadata[F]] =
-    config.experimental
-      .flatMap(_.metadata)
-      .map(metadataConfig => Metadata.build[F](metadataConfig, Metadata.HttpMetadataReporter[F](metadataConfig, appName, httpClient)))
-      .getOrElse(Metadata.noop[F].pure[F])
+  ): Resource[F, Metadata[F]] =
+    config.experimental.flatMap(_.metadata) match {
+      case Some(metadataConfig) =>
+        for {
+          reporter <- Metadata.HttpMetadataReporter.resource(metadataConfig, appName, httpClient)
+          metadata <- Resource.eval(Metadata.build(metadataConfig, reporter))
+        } yield metadata
+      case None =>
+        Resource.pure(Metadata.noop[F])
+    }
 
   private implicit class EitherTOps[F[_], E: Show, A](eitherT: EitherT[F, E, A]) {
     def resource(implicit F: Sync[F]): Resource[F, A] = {

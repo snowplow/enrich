@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -52,11 +52,12 @@ object IgluUtils {
   def extractAndValidateInputJsons[F[_]: Monad: Clock](
     enriched: EnrichedEvent,
     client: IgluCirceClient[F],
-    registryLookup: RegistryLookup[F]
+    registryLookup: RegistryLookup[F],
+    maxJsonDepth: Int
   ): IorT[F, NonEmptyList[Failure.SchemaViolation], EventExtractResult] =
     for {
-      contexts <- extractAndValidateInputContexts(enriched, client, registryLookup)
-      unstruct <- extractAndValidateUnstructEvent(enriched, client, registryLookup)
+      contexts <- extractAndValidateInputContexts(enriched, client, registryLookup, maxJsonDepth)
+      unstruct <- extractAndValidateUnstructEvent(enriched, client, registryLookup, maxJsonDepth)
     } yield {
       val validationInfoContexts = (contexts.flatMap(_.validationInfo) ::: unstruct.flatMap(_.validationInfo).toList).distinct
         .map(_.toSdj)
@@ -79,6 +80,7 @@ object IgluUtils {
     enriched: EnrichedEvent,
     client: IgluCirceClient[F],
     registryLookup: RegistryLookup[F],
+    maxJsonDepth: Int,
     field: String = "unstruct",
     criterion: SchemaCriterion = SchemaCriterion("com.snowplowanalytics.snowplow", "unstruct_event", "jsonschema", 1, 0)
   ): IorT[F, NonEmptyList[Failure.SchemaViolation], Option[SdjExtractResult]] =
@@ -86,7 +88,7 @@ object IgluUtils {
       case Some(rawUnstructEvent) =>
         val iorT = for {
           // Validate input Json string and extract unstructured event
-          unstruct <- extractInputData(rawUnstructEvent, field, criterion, client, registryLookup)
+          unstruct <- extractInputData(rawUnstructEvent, field, criterion, client, registryLookup, maxJsonDepth)
                         .leftMap(NonEmptyList.one)
                         .toIor
           // Parse Json unstructured event as SelfDescribingData[Json]
@@ -110,6 +112,7 @@ object IgluUtils {
     enriched: EnrichedEvent,
     client: IgluCirceClient[F],
     registryLookup: RegistryLookup[F],
+    maxJsonDepth: Int,
     field: String = "contexts",
     criterion: SchemaCriterion = SchemaCriterion("com.snowplowanalytics.snowplow", "contexts", "jsonschema", 1, 0)
   ): IorT[F, NonEmptyList[Failure.SchemaViolation], List[SdjExtractResult]] =
@@ -117,7 +120,7 @@ object IgluUtils {
       case Some(rawContexts) =>
         val iorT = for {
           // Validate input Json string and extract contexts
-          contexts <- extractInputData(rawContexts, field, criterion, client, registryLookup)
+          contexts <- extractInputData(rawContexts, field, criterion, client, registryLookup, maxJsonDepth)
                         .map(_.asArray.get.toList) // .get OK because SDJ wrapping the contexts valid
                         .leftMap(NonEmptyList.one)
                         .toIor
@@ -167,12 +170,13 @@ object IgluUtils {
     field: String, // to put in the bad row
     expectedCriterion: SchemaCriterion,
     client: IgluCirceClient[F],
-    registryLookup: RegistryLookup[F]
+    registryLookup: RegistryLookup[F],
+    maxJsonDepth: Int
   ): EitherT[F, Failure.SchemaViolation, Json] =
     for {
       // Parse Json string with the SDJ
       json <- JsonUtils
-                .extractJson(rawJson)
+                .extractJson(rawJson, maxJsonDepth)
                 .leftMap(e =>
                   Failure.SchemaViolation(
                     schemaViolation = FailureDetails.SchemaViolation.NotJson(field, rawJson.some, e),

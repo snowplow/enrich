@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -19,12 +19,17 @@ import io.circe.Json
 import cats.data.NonEmptyList
 
 class JsonUtilsSpec extends Specification {
+  import JsonUtilsSpec._
+
   def is = s2"""
   toJson can deal with non-null String    $e1
   toJson can deal with null String        $e2
   toJson can deal with booleans           $e3
   toJson can deal with integers           $e4
   toJson can deal with dates              $e5
+  extractJson can parse JSON that doesn't exceed max depth $e6
+  extractJson should return Left when given JSON exceeds max depth $e7
+  extractJson should return Left when given string is not json $e8
   """
 
   def e1 = {
@@ -87,5 +92,60 @@ class JsonUtilsSpec extends Specification {
       beEqualTo(key -> Json.fromString(correctDate))
 
     exp1 and exp2
+  }
+
+  def e6 = {
+    val jsonStr = """
+      {
+        "f1": "v",
+        "f2": 2,
+        "f3": true,
+        "f4": {
+          "f41": {
+            "f411": [1, 2, 3],
+            "f412": "v",
+            "f413": [
+              {"f4131": "v"},
+              {"f4132": {"f41321": "v"}}
+            ]
+          }
+        },
+        "f5": [1, 2, 3],
+        "f6": [
+          {"f61": "v"},
+          {"f62": {"f621": {"f6211": "v"}}}
+        ]
+      }"""
+    JsonUtils.extractJson(jsonStr, 10) must beRight
+  }
+
+  def e7 = {
+    val deepJsonObject = createDeepJsonObject(1000000)
+    val deepJsonArray = createDeepJsonArray(1000000)
+
+    val expectedErrorMessage = "invalid json: maximum allowed JSON depth exceeded"
+    JsonUtils.extractJson(deepJsonObject, 40) must beLeft(expectedErrorMessage)
+    JsonUtils.extractJson(deepJsonArray, 40) must beLeft(expectedErrorMessage)
+  }
+
+  def e8 =
+    JsonUtils.extractJson("{test:", 40) must beLeft("invalid json: expected \" got 'test:' (line 1, column 2)")
+}
+
+object JsonUtilsSpec {
+  def createDeepJsonObject(depth: Int): String =
+    createDeepJson(depth, """{"1":""", "}")
+
+  def createDeepJsonArray(depth: Int): String =
+    createDeepJson(depth, "[", "]")
+
+  def createDeepJson(
+    depth: Int,
+    p: String,
+    s: String
+  ): String = {
+    val prefix = (1 to depth).map(_ => p).mkString
+    val suffix = (1 to depth).map(_ => s).mkString
+    s"""$prefix"depth-$depth"$suffix"""
   }
 }

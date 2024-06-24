@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -82,7 +82,8 @@ case class CloudfrontAccessLogAdapter(schemas: CloudfrontAccessLogSchemas) exten
   override def toRawEvents[F[_]: Monad: Clock](
     payload: CollectorPayload,
     client: IgluCirceClient[F],
-    registryLookup: RegistryLookup[F]
+    registryLookup: RegistryLookup[F],
+    maxJsonDepth: Int
   ): F[Adapted] =
     payload.body match {
       case Some(p) =>

@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -35,7 +35,7 @@ class Tp2AdapterSpec extends Specification with CatsEffect {
       SpecHelpers.createIgluClient(List(TestEnvironment.embeddedRegistry)).flatMap { igluClient =>
         Enrich
           .enrichWith(
-            TestEnvironment.enrichmentReg.pure[IO],
+            TestEnvironment.enrichmentReg,
             TestEnvironment.adapterRegistry,
             igluClient,
             None,
@@ -44,12 +44,14 @@ class Tp2AdapterSpec extends Specification with CatsEffect {
             IO.unit,
             SpecHelpers.registryLookup,
             AtomicFields.from(valueLimits = Map.empty),
-            SpecHelpers.emitIncomplete
-          )(
+            SpecHelpers.emitIncomplete,
+            SpecHelpers.DefaultMaxJsonDepth,
+            identity[Array[Byte]],
             input
           )
+          .map(_.enriched)
           .map {
-            case (l, _) if l.forall(_.isRight) => l must haveSize(10)
+            case l if l.forall(_.isRight) => l must haveSize(10)
             case other => ko(s"there should be 10 enriched events, got $other")
           }
       }

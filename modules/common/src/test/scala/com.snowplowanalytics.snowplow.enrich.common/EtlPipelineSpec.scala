@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -53,7 +53,7 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
   )
   val enrichmentReg = EnrichmentRegistry[IO]()
   val igluCentral = Registry.IgluCentral
-  def igluClient = IgluCirceClient.fromResolver[IO](Resolver(List(igluCentral), None), cacheSize = 0)
+  def igluClient = IgluCirceClient.fromResolver[IO](Resolver[IO](List(igluCentral), None), cacheSize = 0, maxJsonDepth = 40)
   val processor = Processor("sce-test-suite", "1.0.0")
   val dateTime = DateTime.now()
 
@@ -73,7 +73,8 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
                     IO.unit,
                     SpecHelpers.registryLookup,
                     AtomicFields.from(Map.empty),
-                    emitIncomplete
+                    emitIncomplete,
+                    SpecHelpers.DefaultMaxJsonDepth
                   )
     } yield output must be like {
       case Ior.Right(_) :: Ior.Left(_) :: Ior.Left(_) :: Ior.Left(_) :: Nil => ok
@@ -101,7 +102,8 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
                     IO.unit,
                     SpecHelpers.registryLookup,
                     AtomicFields.from(Map.empty),
-                    emitIncomplete
+                    emitIncomplete,
+                    SpecHelpers.DefaultMaxJsonDepth
                   )
     } yield output must be like {
       case Ior.Right(_) :: Nil => ok
@@ -124,7 +126,8 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
                     IO.unit,
                     SpecHelpers.registryLookup,
                     AtomicFields.from(Map.empty),
-                    emitIncomplete
+                    emitIncomplete,
+                    SpecHelpers.DefaultMaxJsonDepth
                   )
     } yield output must be like {
       case Ior.Left(_: BadRow.CPFormatViolation) :: Nil => ok
@@ -147,7 +150,8 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
                     IO.unit,
                     SpecHelpers.registryLookup,
                     AtomicFields.from(Map.empty),
-                    emitIncomplete
+                    emitIncomplete,
+                    SpecHelpers.DefaultMaxJsonDepth
                   )
     } yield output must beEqualTo(Nil)
 }

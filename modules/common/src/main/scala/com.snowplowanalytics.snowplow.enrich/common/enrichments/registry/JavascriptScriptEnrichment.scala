@@ -3,18 +3,19 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
+import scala.collection.JavaConverters._
+
 import cats.data.{NonEmptyList, ValidatedNel}
 import cats.implicits._
 
 import io.circe._
-import io.circe.parser._
 import io.circe.syntax._
 
 import javax.script._
@@ -26,7 +27,7 @@ import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.JavascriptScriptConf
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.{CirceUtils, ConversionUtils}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{CirceUtils, ConversionUtils, JsonUtils}
 
 object JavascriptScriptEnrichment extends ParseableEnrichment {
   override val supportedSchema =
@@ -73,8 +74,8 @@ final case class JavascriptScriptEnrichment(
   private val stringified = rawFunction + s"""
     var getJavascriptContexts = function() {
       const params = ${params.asJson.noSpaces};
-      return function(event) {
-        const result = process(event, params);
+      return function(event, headers) {
+        const result = process(event, params, headers);
         if (result == null) {
           return "[]"
         } else {
@@ -95,15 +96,19 @@ final case class JavascriptScriptEnrichment(
    *              The event can be updated in-place by the JS function.
    * @return either a JSON array of contexts on Success, or an error String on Failure
    */
-  def process(event: EnrichedEvent): Either[FailureDetails.EnrichmentFailure, List[SelfDescribingData[Json]]] =
+  def process(
+    event: EnrichedEvent,
+    headers: List[String],
+    maxJsonDepth: Int
+  ): Either[FailureDetails.EnrichmentFailure, List[SelfDescribingData[Json]]] =
     invocable
       .flatMap(_ =>
         Either
-          .catchNonFatal(engine.invokeFunction("getJavascriptContexts", event).asInstanceOf[String])
+          .catchNonFatal(engine.invokeFunction("getJavascriptContexts", event, headers.asJava).asInstanceOf[String])
           .leftMap(e => s"Error during execution of JavaScript function: [${e.getMessage}]")
       )
       .flatMap(contexts =>
-        parse(contexts) match {
+        JsonUtils.extractJson(contexts, maxJsonDepth) match {
           case Right(json) =>
             json.asArray match {
               case Some(array) =>
@@ -127,7 +132,7 @@ final case class JavascriptScriptEnrichment(
                 Left(s"Output of JavaScript function [$json] could be parsed as JSON but is not read as an array")
             }
           case Left(err) =>
-            Left(s"Could not parse output JSON of Javascript function. Error: [${err.getMessage}]")
+            Left(s"Could not parse output JSON of Javascript function. Error: [$err]")
         }
       )
       .leftMap(errorMsg => FailureDetails.EnrichmentFailure(enrichmentInfo, FailureDetails.EnrichmentFailureMessage.Simple(errorMsg)))

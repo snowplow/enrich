@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -69,7 +69,8 @@ case class UrbanAirshipAdapter(schemas: UrbanAirshipSchemas) extends Adapter {
   override def toRawEvents[F[_]: Monad: Clock](
     payload: CollectorPayload,
     client: IgluCirceClient[F],
-    registryLookup: RegistryLookup[F]
+    registryLookup: RegistryLookup[F],
+    maxJsonDepth: Int
   ): F[Adapted] =
     (payload.body, payload.contentType) match {
       case (None, _) =>
@@ -88,7 +89,7 @@ case class UrbanAirshipAdapter(schemas: UrbanAirshipSchemas) extends Adapter {
         )
       case (Some(body), _) =>
         val _ = client
-        val event = payloadBodyToEvent(body, payload)
+        val event = payloadBodyToEvent(body, payload, maxJsonDepth)
         Monad[F].pure(rawEventsListProcessor(List(event)))
     }
 
@@ -99,7 +100,11 @@ case class UrbanAirshipAdapter(schemas: UrbanAirshipSchemas) extends Adapter {
    * @param payload other payload details
    * @return a validated event - a success is the RawEvent, failures will contain the reasons
    */
-  private def payloadBodyToEvent(bodyJson: String, payload: CollectorPayload): ValidatedNel[FailureDetails.AdapterFailure, RawEvent] = {
+  private def payloadBodyToEvent(
+    bodyJson: String,
+    payload: CollectorPayload,
+    maxJsonDepth: Int
+  ): ValidatedNel[FailureDetails.AdapterFailure, RawEvent] = {
     def toTtmFormat(jsonTimestamp: String) =
       "%d".format(new DateTime(jsonTimestamp).getMillis)
 
@@ -110,7 +115,7 @@ case class UrbanAirshipAdapter(schemas: UrbanAirshipSchemas) extends Adapter {
         s"could not extract '$field': ${e.getMessage}"
       )
 
-    JsonUtils.extractJson(bodyJson) match {
+    JsonUtils.extractJson(bodyJson, maxJsonDepth) match {
       case Right(json) =>
         val cursor = json.hcursor
         val eventType = cursor.get[String]("type").toOption

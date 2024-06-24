@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -16,6 +16,7 @@ import java.time.Instant
 import scala.concurrent.duration._
 
 import cats.effect.IO
+import cats.Applicative
 import cats.effect.kernel.Ref
 import cats.effect.testing.specs2.CatsEffect
 import org.http4s.Uri
@@ -34,7 +35,7 @@ class MetadataSpec extends Specification with CatsEffect {
     event: MetadataEvent,
     entitiesAndCount: EntitiesAndCount
   )
-  case class TestReporter[F[_]](state: Ref[F, List[Report]]) extends MetadataReporter[F] {
+  case class TestReporter[F[_]: Applicative](state: Ref[F, List[Report]]) extends MetadataReporter[F] {
 
     def report(
       periodStart: Instant,
@@ -45,6 +46,8 @@ class MetadataSpec extends Specification with CatsEffect {
       state.update(
         _ :+ Report(periodStart, periodEnd, event, entitiesAndCount)
       )
+
+    def flush(): F[Unit] = Applicative[F].unit
   }
 
   "Metadata" should {

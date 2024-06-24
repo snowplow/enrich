@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -30,10 +30,11 @@ object Dependencies {
     // Java
     val commonsCodec     = "1.16.0"
     val commonsText      = "1.10.0"
+    val commonsIO        = "2.14.0"
     val jodaTime         = "2.10.1"
     val useragent        = "1.21"
     val uaParser         = "1.5.4"
-    val snakeYaml        = "2.2"
+    val snakeYaml        = "2.3"
     val postgresDriver   = "42.7.2"
     val mysqlClient      = "3.4.0"
     val hikariCP         = "5.0.1"
@@ -47,8 +48,8 @@ object Dependencies {
     val log4j            = "2.20.0"
     val thrift           = "0.15.0"
     val sprayJson        = "1.3.6"
-    val netty            = "4.1.108.Final"
-    val protobuf         = "3.21.9"
+    val netty            = "4.1.115.Final"
+    val protobuf         = "4.28.3"
 
     val refererParser    = "2.0.0"
     val maxmindIplookups = "0.8.1"
@@ -61,30 +62,31 @@ object Dependencies {
     val gatlingJsonpath  = "0.6.14"
     val scalaUri         = "1.5.1"
     val badRows          = "2.3.0"
-    val igluClient       = "3.1.0"
+    val igluClient       = "3.2.0"
 
     val snowplowRawEvent = "0.1.0"
     val collectorPayload = "0.0.0"
     val schemaSniffer    = "0.0.0"
 
-    val awsSdk           = "1.12.694"
-    val gcpSdk           = "2.36.1"
-    val awsSdk2          = "2.25.24"
+    val awsSdk           = "1.12.778"
+    val gcpSdk           = "2.45.0"
+    val awsSdk2          = "2.29.20"
     val kinesisClient2   = "2.4.3"
-    val kafka            = "3.7.0"
+    val kafka            = "3.9.0"
     val mskAuth          = "2.0.3"
     val nsqClient        = "1.3.0"
-    val jackson          = "2.16.1"
+    val jackson          = "2.18.1"
     val config           = "1.3.4"
 
     val decline          = "1.0.0"
     val fs2              = "3.10.2"
     val catsEffect       = "3.5.4"
-    val fs2PubSub        = "0.22.0"
+    val fs2PubSub        = "0.22.1"
     val fs2Aws           = "4.1.0"
-    val fs2Kafka         = "3.5.1"
-    val fs2BlobStorage   = "0.9.12"
-    val azureIdentity    = "1.11.1"
+    val fs2Kafka         = "3.6.0"
+    val fs2BlobStorage   = "0.9.15"
+    val azureIdentity    = "1.12.2"
+    val msal4j           = "1.17.3"
     val nimbusJoseJwt    = "9.37.2"
     val http4s           = "0.23.25"
     val log4cats         = "2.6.0"
@@ -109,6 +111,7 @@ object Dependencies {
   object Libraries {
     val commonsCodec     = "commons-codec"              %  "commons-codec"                 % V.commonsCodec
     val commonsText      = "org.apache.commons"         %  "commons-text"                  % V.commonsText
+    val commonsIO        = "commons-io"                 %  "commons-io"                    % V.commonsIO
     val jodaTime         = "joda-time"                  %  "joda-time"                     % V.jodaTime
     val useragent        = "eu.bitwalker"               %  "UserAgentUtils"                % V.useragent
     val jacksonDatabind  = "com.fasterxml.jackson.core" %  "jackson-databind"              % V.jackson
@@ -195,6 +198,7 @@ object Dependencies {
                            .exclude("software.amazon.glue", "schema-registry-serde")
     val stsSdk2          = "software.amazon.awssdk"           %  "sts"                                   % V.awsSdk2         % Runtime
     val azureIdentity    = "com.azure"                        % "azure-identity"                         % V.azureIdentity
+    val msal4j           = "com.microsoft.azure"              % "msal4j"                                 % V.msal4j
     val nimbusJoseJwt    = "com.nimbusds"                     % "nimbus-jose-jwt"                        % V.nimbusJoseJwt
     val jacksonDfXml     = "com.fasterxml.jackson.dataformat" % "jackson-dataformat-xml"                 % V.jackson
     val http4sClient     = "org.http4s"                       %% "http4s-ember-client"                   % V.http4s
@@ -216,6 +220,7 @@ object Dependencies {
       jodaTime,
       commonsCodec,
       commonsText,
+      commonsIO, // for security vulnerabilities
       useragent,
       jacksonDatabind,
       uaParser,
@@ -309,6 +314,7 @@ object Dependencies {
       fs2BlobGcs,
       gcs,
       fs2PubSub,
+      protobuf, // for security vulnerabilities
       specs2,
       specs2CE
     )
@@ -331,7 +337,8 @@ object Dependencies {
 
     val kafkaDependencies = Seq(
       fs2Kafka,
-      kafkaClients, // override kafka-clients 2.8.1 from fs2Kafka to address https://security.snyk.io/vuln/SNYK-JAVA-ORGAPACHEKAFKA-3027430
+      kafkaClients, // for security vulnerabilities
+      msal4j, // for security vulnerabilities
       mskAuth,
       specs2,
       specs2CE

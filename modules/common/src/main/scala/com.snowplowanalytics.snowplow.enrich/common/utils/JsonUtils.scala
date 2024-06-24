@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -16,6 +16,7 @@ import cats.data.NonEmptyList
 import cats.syntax.either._
 
 import io.circe.Json
+import io.circe.syntax._
 
 import org.joda.time.{DateTime, DateTimeZone}
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
@@ -119,12 +120,29 @@ object JsonUtils {
   /**
    * Converts a JSON string into an EIther[String, Json]
    * @param instance The JSON string to parse
+   * @param maxJsonDepth The maximum allowed JSON depth
    * @return either an error String or the extracted Json
    */
-  def extractJson(instance: String): Either[String, Json] =
-    io.circe.parser
-      .parse(instance)
-      .leftMap(e => s"invalid json: ${e.message}")
+  def extractJson(instance: String, maxJsonDepth: Int): Either[String, Json] =
+    for {
+      json <- io.circe.parser
+                .parse(instance)
+                .leftMap(e => s"invalid json: ${e.message}")
+      _ <- if (checkIfExceedMaxDepth(json, maxJsonDepth)) Left("invalid json: maximum allowed JSON depth exceeded")
+           else Right(json)
+    } yield json
+
+  private def checkIfExceedMaxDepth(json: Json, maxJsonDepth: Int): Boolean =
+    if (maxJsonDepth <= 0) true
+    else
+      json.fold(
+        jsonNull = false,
+        jsonBoolean = _ => false,
+        jsonNumber = _ => false,
+        jsonString = _ => false,
+        jsonArray = _.exists(checkIfExceedMaxDepth(_, maxJsonDepth - 1)),
+        jsonObject = _.toList.exists { case (_, j) => checkIfExceedMaxDepth(j.asJson, maxJsonDepth - 1) }
+      )
 
   /**
    * Strips the instance information from a Jackson

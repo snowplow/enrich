@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -49,6 +49,8 @@ object SpecHelpers extends CatsEffect {
 
   val StaticTime = 1599750938180L
 
+  val DefaultMaxJsonDepth = 40
+
   // Standard Iglu configuration
   private val igluConfig = json"""{
     "schema": "iglu:com.snowplowanalytics.iglu/resolver-config/jsonschema/1-0-0",
@@ -81,10 +83,18 @@ object SpecHelpers extends CatsEffect {
 
   /** Builds an Iglu client from the above Iglu configuration. */
   val client: IgluCirceClient[IO] = IgluCirceClient
-    .parseDefault[IO](igluConfig)
+    .parseDefault[IO](igluConfig, maxJsonDepth = 40)
     .value
     .unsafeRunSync()
     .getOrElse(throw new RuntimeException("invalid resolver configuration"))
+
+  /** Builds an Iglu client with given max JSON depth. */
+  def client(maxJsonDepth: Int): IgluCirceClient[IO] =
+    IgluCirceClient
+      .parseDefault[IO](igluConfig, maxJsonDepth)
+      .value
+      .unsafeRunSync()
+      .getOrElse(throw new RuntimeException("invalid resolver configuration"))
 
   val registryLookup = JavaNetRegistryLookup.ioLookupInstance[IO]
 
@@ -124,7 +134,7 @@ object SpecHelpers extends CatsEffect {
   /** Parse a string containing a SDJ as [[SelfDescribingData]] */
   def jsonStringToSDJ(rawJson: String): Either[String, SelfDescribingData[Json]] =
     JsonUtils
-      .extractJson(rawJson)
+      .extractJson(rawJson, DefaultMaxJsonDepth)
       .leftMap(err => s"Can't parse [$rawJson] as Json, error: [$err]")
       .flatMap(SelfDescribingData.parse[Json])
       .leftMap(err => s"Can't parse Json [$rawJson] as as SelfDescribingData, error: [$err]")
@@ -167,7 +177,7 @@ object SpecHelpers extends CatsEffect {
     Resource.make(filesCleanup(files))(_ => filesCleanup(files))
 
   def createIgluClient(registries: List[Registry]): IO[IgluCirceClient[IO]] =
-    IgluCirceClient.fromResolver[IO](Resolver(registries, None), cacheSize = 0)
+    IgluCirceClient.fromResolver[IO](Resolver[IO](registries, None), cacheSize = 0, maxJsonDepth = 40)
 
   val emitIncomplete = false
 

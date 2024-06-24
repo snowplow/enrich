@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -123,7 +123,8 @@ class ParsedConfigsSpec extends Specification with CatsEffect {
         adaptersSchemas,
         BlobStorageClients(gcs = false, s3 = true, azureStorage = None),
         License(accept = true),
-        Validation(AtomicFields.from(valueLimits = Map.empty))
+        Validation(AtomicFields.from(valueLimits = Map.empty)),
+        maxJsonDepth = 40
       )
 
       ParsedConfigs.validateConfig[IO](configFile).value.map(result => result must beLeft)

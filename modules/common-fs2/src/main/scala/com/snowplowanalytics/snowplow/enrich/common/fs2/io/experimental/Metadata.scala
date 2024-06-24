@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -79,7 +79,7 @@ object Metadata {
       new Metadata[F] {
         def report: Stream[F, Unit] =
           for {
-            _ <- Stream.eval(Logger[F].info("Starting metadata repoter"))
+            _ <- Stream.eval(Logger[F].info("Starting metadata reporter"))
             _ <- Stream.bracket(Sync[F].unit)(_ => submit(reporter, observedRef))
             _ <- Stream.fixedDelay[F](config.interval)
             _ <- Stream.eval(submit(reporter, observedRef))
@@ -103,6 +103,7 @@ object Metadata {
              case (event, entitiesAndCount) =>
                reporter.report(snapshot.periodStart, snapshot.periodEnd, event, entitiesAndCount)
            }
+      _ <- reporter.flush()
     } yield ()
 
   trait MetadataReporter[F[_]] {
@@ -112,14 +113,39 @@ object Metadata {
       event: MetadataEvent,
       entitiesAndCount: EntitiesAndCount
     ): F[Unit]
+
+    def flush(): F[Unit]
   }
 
-  case class HttpMetadataReporter[F[_]: Async](
+  case class HttpMetadataReporter[F[_]: Sync](
     config: MetadataConfig,
-    appName: String,
-    client: Client[F]
+    tracker: Tracker[F]
   ) extends MetadataReporter[F] {
-    def initTracker(
+
+    def report(
+      periodStart: Instant,
+      periodEnd: Instant,
+      event: MetadataEvent,
+      entitiesAndCount: EntitiesAndCount
+    ): F[Unit] =
+      Logger[F].debug(s"Tracking observed event ${event.schema.toSchemaUri}") >>
+        tracker.trackSelfDescribingEvent(
+          mkWebhookEvent(config.organizationId, config.pipelineId, periodStart, periodEnd, event, entitiesAndCount.count),
+          mkWebhookContexts(entitiesAndCount.entities).toSeq
+        )
+
+    def flush(): F[Unit] = tracker.flushEmitters()
+  }
+
+  object HttpMetadataReporter {
+    def resource[F[_]: Async](
+      config: MetadataConfig,
+      appName: String,
+      client: Client[F]
+    ): Resource[F, HttpMetadataReporter[F]] =
+      initTracker(config, appName, client).map(t => HttpMetadataReporter(config, t))
+
+    private def initTracker[F[_]: Async](
       config: MetadataConfig,
       appName: String,
       client: Client[F]
@@ -133,33 +159,20 @@ object Metadata {
                        https = config.endpoint.scheme.map(_ == Uri.Scheme.https).getOrElse(false)
                      ),
                      client,
+                     bufferConfig = Emitter.BufferConfig.PayloadSize(100000),
                      retryPolicy = Emitter.RetryPolicy.MaxAttempts(10),
-                     callback = Some(emitterCallback _)
+                     callback = Some(emitterCallback[F](_, _, _))
                    )
       } yield new Tracker(NonEmptyList.of(emitter), "tracker-metadata", appName)
 
-    def report(
-      periodStart: Instant,
-      periodEnd: Instant,
-      event: MetadataEvent,
-      entitiesAndCount: EntitiesAndCount
-    ): F[Unit] =
-      initTracker(config, appName, client).use { t =>
-        Logger[F].info(s"Tracking observed event ${event.schema.toSchemaUri}") >>
-          t.trackSelfDescribingEvent(
-            mkWebhookEvent(config.organizationId, config.pipelineId, periodStart, periodEnd, event, entitiesAndCount.count),
-            mkWebhookContexts(entitiesAndCount.entities).toSeq
-          ) >> t.flushEmitters()
-      }
-
-    private def emitterCallback(
+    private def emitterCallback[F[_]: Sync](
       params: Emitter.EndpointParams,
       req: Emitter.Request,
       res: Emitter.Result
     ): F[Unit] =
       res match {
         case Emitter.Result.Success(_) =>
-          Logger[F].info(s"Metadata successfully sent to ${params.getGetUri}")
+          Logger[F].debug(s"Metadata successfully sent to ${params.getUri}")
         case Emitter.Result.Failure(code) =>
           Logger[F].warn(s"Sending metadata got unexpected HTTP code $code from ${params.getUri}")
         case Emitter.Result.TrackerFailure(exception) =>

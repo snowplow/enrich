@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -60,12 +60,13 @@ object EtlPipeline {
     invalidCount: F[Unit],
     registryLookup: RegistryLookup[F],
     atomicFields: AtomicFields,
-    emitIncomplete: Boolean
+    emitIncomplete: Boolean,
+    maxJsonDepth: Int
   ): F[List[Ior[BadRow, EnrichedEvent]]] =
     input match {
       case Validated.Valid(Some(payload)) =>
         adapterRegistry
-          .toRawEvents(payload, client, processor, registryLookup)
+          .toRawEvents(payload, client, processor, registryLookup, maxJsonDepth)
           .flatMap {
             case Validated.Valid(rawEvents) =>
               rawEvents.toList.traverse { event =>
@@ -80,7 +81,8 @@ object EtlPipeline {
                     invalidCount,
                     registryLookup,
                     atomicFields,
-                    emitIncomplete
+                    emitIncomplete,
+                    maxJsonDepth
                   )
                   .value
               }

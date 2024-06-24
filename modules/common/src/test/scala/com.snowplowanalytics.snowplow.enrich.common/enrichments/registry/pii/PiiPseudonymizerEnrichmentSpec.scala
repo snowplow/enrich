@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -169,7 +169,7 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
     )
     val reg = Registry.Embedded(regConf, path = "/iglu-schemas")
     for {
-      client <- IgluCirceClient.fromResolver[IO](Resolver(List(reg), None), cacheSize = 0)
+      client <- IgluCirceClient.fromResolver[IO](Resolver[IO](List(reg), None), cacheSize = 0, maxJsonDepth = 40)
       result <- EtlPipeline
                   .processEvents[IO](
                     new AdapterRegistry[IO](Map.empty[(String, String), RemoteAdapter[IO]], adaptersSchemas),
@@ -182,7 +182,8 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
                     IO.unit,
                     SpecHelpers.registryLookup,
                     AtomicFields.from(Map.empty),
-                    emitIncomplete
+                    emitIncomplete,
+                    SpecHelpers.DefaultMaxJsonDepth
                   )
     } yield result.map(_.toEither)
   }

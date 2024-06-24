@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -70,7 +70,8 @@ case class TestEnvironment[A](
    *                  [[TestEnvironment.make]]
    */
   def run(
-    updateEnv: Environment[IO, A] => Environment[IO, A] = identity
+    updateEnv: Environment[IO, A] => Environment[IO, A] = identity,
+    streamTimeout: FiniteDuration = 5.seconds
   ): IO[(Vector[BadRow], Vector[Event], Vector[Event], Vector[Event])] = {
     val updatedEnv = updateEnv(env)
     val stream = Enrich
@@ -85,7 +86,7 @@ case class TestEnvironment[A](
         )
       )
     for {
-      _ <- stream.haltAfter(5.seconds).compile.drain
+      _ <- stream.haltAfter(streamTimeout).compile.drain
       goodVec <- good
       piiVec <- pii
       badVec <- bad
@@ -162,7 +163,8 @@ object TestEnvironment extends CatsEffect {
                       None,
                       None,
                       EnrichSpec.featureFlags,
-                      AtomicFields.from(valueLimits = Map.empty)
+                      AtomicFields.from(valueLimits = Map.empty),
+                      SpecHelpers.DefaultMaxJsonDepth
                     )
       _ <- Resource.eval(logger.info("TestEnvironment initialized"))
     } yield TestEnvironment(environment, counter, goodRef.get, piiRef.get, badRef.get, incompleteRef.get)

@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -109,7 +109,11 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
 
     loader
       .toCollectorPayload(input, processor)
-      .traverse(_.traverse(adapterWithDefaultSchemas.toRawEvents(_, SpecHelpers.client, SpecHelpers.registryLookup)))
+      .traverse(
+        _.traverse(
+          adapterWithDefaultSchemas.toRawEvents(_, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        )
+      )
       .map(
         _ must beValid(
           Some(
@@ -159,7 +163,11 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
 
     loader
       .toCollectorPayload(input, processor)
-      .traverse(_.traverse(adapterWithDefaultSchemas.toRawEvents(_, SpecHelpers.client, SpecHelpers.registryLookup)))
+      .traverse(
+        _.traverse(
+          adapterWithDefaultSchemas.toRawEvents(_, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        )
+      )
       .map(
         _ must beValid(
           Some(
@@ -212,7 +220,11 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
 
     loader
       .toCollectorPayload(input, processor)
-      .traverse(_.traverse(adapterWithDefaultSchemas.toRawEvents(_, SpecHelpers.client, SpecHelpers.registryLookup)))
+      .traverse(
+        _.traverse(
+          adapterWithDefaultSchemas.toRawEvents(_, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        )
+      )
       .map(
         _ must beValid(
           Some(
@@ -266,7 +278,11 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
 
     loader
       .toCollectorPayload(input, processor)
-      .traverse(_.traverse(adapterWithDefaultSchemas.toRawEvents(_, SpecHelpers.client, SpecHelpers.registryLookup)))
+      .traverse(
+        _.traverse(
+          adapterWithDefaultSchemas.toRawEvents(_, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        )
+      )
       .map(
         _ must beValid(
           Some(
@@ -324,7 +340,11 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
 
     loader
       .toCollectorPayload(input, processor)
-      .traverse(_.traverse(adapterWithDefaultSchemas.toRawEvents(_, SpecHelpers.client, SpecHelpers.registryLookup)))
+      .traverse(
+        _.traverse(
+          adapterWithDefaultSchemas.toRawEvents(_, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        )
+      )
       .map(
         _ must beValid(
           Some(
@@ -383,7 +403,11 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
 
     loader
       .toCollectorPayload(input, processor)
-      .traverse(_.traverse(adapterWithDefaultSchemas.toRawEvents(_, SpecHelpers.client, SpecHelpers.registryLookup)))
+      .traverse(
+        _.traverse(
+          adapterWithDefaultSchemas.toRawEvents(_, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        )
+      )
       .map(
         _ must beValid(
           Some(
@@ -444,7 +468,11 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
 
     loader
       .toCollectorPayload(input, processor)
-      .traverse(_.traverse(adapterWithDefaultSchemas.toRawEvents(_, SpecHelpers.client, SpecHelpers.registryLookup)))
+      .traverse(
+        _.traverse(
+          adapterWithDefaultSchemas.toRawEvents(_, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        )
+      )
       .map(
         _ must beValid(
           Some(
@@ -477,7 +505,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
       )
 
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beInvalid(
           NonEmptyList
@@ -505,7 +533,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
       )
 
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beInvalid(
           NonEmptyList.of(

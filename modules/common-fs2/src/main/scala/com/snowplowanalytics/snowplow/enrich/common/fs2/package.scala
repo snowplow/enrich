@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -26,8 +26,4 @@ package object fs2 {
   type AttributedByteSink[F[_]] = List[AttributedData[Array[Byte]]] => F[Unit]
 
   type Enriched = Ior[BadRow, EnrichedEvent]
-  type Result = (List[Enriched], Option[Long])
-
-  /** Function to transform an origin raw payload into good and/or bad rows */
-  type Enrich[F[_]] = Array[Byte] => F[Result]
 }

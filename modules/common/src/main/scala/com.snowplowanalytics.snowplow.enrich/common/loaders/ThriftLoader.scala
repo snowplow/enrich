@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -36,7 +36,8 @@ import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, ParseError =
 
 /** Loader for Thrift SnowplowRawEvent objects. */
 object ThriftLoader extends Loader[Array[Byte]] {
-  private val thriftDeserializer = new TDeserializer
+  private val thriftDeserializer: ThreadLocal[TDeserializer] =
+    ThreadLocal.withInitial(() => new TDeserializer)
 
   private[loaders] val ExpectedSchema =
     SchemaCriterion("com.snowplowanalytics.snowplow", "CollectorPayload", "thrift", 1, 0)
@@ -111,13 +112,13 @@ object ThriftLoader extends Loader[Array[Byte]] {
   private def extractSchema(tryBase64Decoding: Boolean, line: Array[Byte]): (SchemaSniffer, Array[Byte]) =
     try {
       val schema = new SchemaSniffer()
-      this.synchronized(thriftDeserializer.deserialize(schema, line))
+      thriftDeserializer.get.deserialize(schema, line)
       (schema, line)
     } catch {
       case NonFatal(_) if tryBase64Decoding =>
         val base64Decoded = Base64.decodeBase64(line)
         val schema = new SchemaSniffer()
-        this.synchronized(thriftDeserializer.deserialize(schema, base64Decoded))
+        thriftDeserializer.get.deserialize(schema, base64Decoded)
         (schema, base64Decoded)
     }
 
@@ -132,12 +133,10 @@ object ThriftLoader extends Loader[Array[Byte]] {
    */
   private def convertSchema1(line: Array[Byte]): ValidatedNel[FailureDetails.CPFormatViolationMessage, Option[CollectorPayload]] = {
     val collectorPayload = new CollectorPayload1
-    this.synchronized {
-      thriftDeserializer.deserialize(
-        collectorPayload,
-        line
-      )
-    }
+    thriftDeserializer.get.deserialize(
+      collectorPayload,
+      line
+    )
 
     val querystring = parseQuerystring(
       Option(collectorPayload.querystring),
@@ -195,12 +194,10 @@ object ThriftLoader extends Loader[Array[Byte]] {
    */
   private def convertOldSchema(line: Array[Byte]): ValidatedNel[FailureDetails.CPFormatViolationMessage, Option[CollectorPayload]] = {
     val snowplowRawEvent = new SnowplowRawEvent()
-    this.synchronized {
-      thriftDeserializer.deserialize(
-        snowplowRawEvent,
-        line
-      )
-    }
+    thriftDeserializer.get.deserialize(
+      snowplowRawEvent,
+      line
+    )
 
     val querystring = parseQuerystring(
       Option(snowplowRawEvent.payload.data),

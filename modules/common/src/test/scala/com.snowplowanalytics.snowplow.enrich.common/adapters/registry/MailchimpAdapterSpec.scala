@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -150,7 +150,7 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
           |}""".stripMargin.replaceAll("[\n\r]", "")
 
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beValid(
           NonEmptyList.one(
@@ -194,7 +194,7 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
           |}""".stripMargin.replaceAll("[\n\r]", "")
 
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beValid(
           NonEmptyList.one(
@@ -230,7 +230,7 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
       val expectedJson =
         "{\"schema\":\"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0\",\"data\":{\"schema\":\"" + expected + "\",\"data\":{\"type\":\"" + schema + "\"}}}"
       adapterWithDefaultSchemas
-        .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+        .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
         .map(
           _ must beValid(
             NonEmptyList.one(
@@ -269,7 +269,7 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
         Shared.context
       )
       adapterWithDefaultSchemas
-        .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+        .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
         .map(_ must beInvalid(NonEmptyList.one(expected)))
         .unsafeRunSync()
     }
@@ -314,7 +314,7 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
           |}""".stripMargin.replaceAll("[\n\r]", "")
 
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beValid(
           NonEmptyList.one(
@@ -340,7 +340,7 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
     val payload =
       CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beInvalid(
           NonEmptyList.one(
@@ -355,7 +355,7 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
     val payload =
       CollectorPayload(Shared.api, Nil, None, "stub".some, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beInvalid(
           NonEmptyList.one(
@@ -379,7 +379,7 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
       Shared.context
     )
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beInvalid(
           NonEmptyList.one(
@@ -404,7 +404,7 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
       Shared.context
     )
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beInvalid(
           NonEmptyList.one(

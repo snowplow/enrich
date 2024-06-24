@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -17,7 +17,6 @@ import cats.syntax.either._
 import cats.syntax.option._
 import cats.syntax.validated._
 import io.circe._
-import io.circe.parser._
 
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
@@ -61,7 +60,8 @@ case class MailgunAdapter(schemas: MailgunSchemas) extends Adapter {
   override def toRawEvents[F[_]: Monad: Clock](
     payload: CollectorPayload,
     client: IgluCirceClient[F],
-    registryLookup: RegistryLookup[F]
+    registryLookup: RegistryLookup[F],
+    maxJsonDepth: Int
   ): F[Adapted] =
     (payload.body, payload.contentType) match {
       case (None, _) =>
@@ -93,9 +93,9 @@ case class MailgunAdapter(schemas: MailgunSchemas) extends Adapter {
       case (Some(body), Some(_)) =>
         val _ = client
         val params = toMap(payload.querystring)
-        parse(body) match {
+        JU.extractJson(body, maxJsonDepth) match {
           case Left(e) =>
-            val msg = s"could not parse body: ${JU.stripInstanceEtc(e.getMessage).orNull}"
+            val msg = s"could not parse body: ${JU.stripInstanceEtc(e).orNull}"
             Monad[F].pure(
               FailureDetails.AdapterFailure
                 .InputData("body", body.some, msg)

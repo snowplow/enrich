@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -73,7 +73,8 @@ object RedirectAdapter extends Adapter {
   override def toRawEvents[F[_]: Monad: Clock](
     payload: CollectorPayload,
     client: IgluCirceClient[F],
-    registryLookup: RegistryLookup[F]
+    registryLookup: RegistryLookup[F],
+    maxJsonDepth: Int
   ): F[Adapted] = {
     val _ = client
     val originalParams = toMap(payload.querystring)
@@ -96,8 +97,8 @@ object RedirectAdapter extends Adapter {
                (originalParams.get("cx"), originalParams.get("co")) match {
                  case (None, None) => newCo.asRight
                  case (None, Some(Some(co))) if co == "" => newCo.asRight
-                 case (None, Some(Some(co))) => addToExistingCo(json, co).map(str => Map("co" -> str))
-                 case (Some(Some(cx)), _) => addToExistingCx(json, cx).map(str => Map("cx" -> str))
+                 case (None, Some(Some(co))) => addToExistingCo(json, co, maxJsonDepth).map(str => Map("co" -> str))
+                 case (Some(Some(cx)), _) => addToExistingCx(json, cx, maxJsonDepth).map(str => Map("cx" -> str))
                }
              } else
                // Add URI redirect as an unstructured event
@@ -152,11 +153,12 @@ object RedirectAdapter extends Adapter {
    */
   private def addToExistingCo(
     newContext: SelfDescribingData[Json],
-    existing: String
+    existing: String,
+    maxJsonDepth: Int
   ): Either[FailureDetails.TrackerProtocolViolation, String] =
     for {
       json <- JU
-                .extractJson(existing) // co|cx
+                .extractJson(existing, maxJsonDepth) // co|cx
                 .leftMap(e =>
                   FailureDetails.TrackerProtocolViolation
                     .NotJson("co|cx", existing.some, e)
@@ -178,7 +180,8 @@ object RedirectAdapter extends Adapter {
    */
   private def addToExistingCx(
     newContext: SelfDescribingData[Json],
-    existing: String
+    existing: String,
+    maxJsonDepth: Int
   ): Either[FailureDetails.TrackerProtocolViolation, String] =
     for {
       decoded <- CU
@@ -187,7 +190,7 @@ object RedirectAdapter extends Adapter {
                      FailureDetails.TrackerProtocolViolation
                        .InputData("cx", existing.some, e)
                    )
-      added <- addToExistingCo(newContext, decoded)
+      added <- addToExistingCo(newContext, decoded, maxJsonDepth)
       recoded = CU.encodeBase64Url(added)
     } yield recoded
 

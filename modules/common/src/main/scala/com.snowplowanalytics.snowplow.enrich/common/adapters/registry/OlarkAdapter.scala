@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -68,7 +68,8 @@ case class OlarkAdapter(schemas: OlarkSchemas) extends Adapter {
   override def toRawEvents[F[_]: Monad: Clock](
     payload: CollectorPayload,
     client: IgluCirceClient[F],
-    registryLookup: RegistryLookup[F]
+    registryLookup: RegistryLookup[F],
+    maxJsonDepth: Int
   ): F[Adapted] =
     (payload.body, payload.contentType) match {
       case (None, _) =>
@@ -112,7 +113,7 @@ case class OlarkAdapter(schemas: OlarkSchemas) extends Adapter {
           case TS(bodyMap) =>
             Monad[F].pure(
               (for {
-                event <- payloadBodyToEvent(bodyMap)
+                event <- payloadBodyToEvent(bodyMap, maxJsonDepth)
                 eventType = event.hcursor.get[Json]("operators").toOption match {
                               case Some(_) => "transcript"
                               case _ => "offline_message"
@@ -176,14 +177,14 @@ case class OlarkAdapter(schemas: OlarkSchemas) extends Adapter {
    * Converts a querystring payload into an event
    * @param bodyMap The converted map from the querystring
    */
-  private def payloadBodyToEvent(bodyMap: Map[String, String]): Either[FailureDetails.AdapterFailure, Json] =
+  private def payloadBodyToEvent(bodyMap: Map[String, String], maxJsonDepth: Int): Either[FailureDetails.AdapterFailure, Json] =
     bodyMap.get("data") match {
       case None | Some("") =>
         FailureDetails.AdapterFailure
           .InputData("data", none, "missing 'data' field")
           .asLeft
       case Some(json) =>
-        JU.extractJson(json)
+        JU.extractJson(json, maxJsonDepth)
           .leftMap(e => FailureDetails.AdapterFailure.NotJson("data", json.some, e))
     }
 }

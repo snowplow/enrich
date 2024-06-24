@@ -1,3 +1,20 @@
+5.2.0 (2024-12-20)
+------------------
+Install sbt in GitHub workflows
+Remove broken CI badge and link in README
+Upgrade dependencies
+Move the defaults for atomic fields lengths and max JSON depth from common-fs2 to common
+Metadata feature re-uses tracker and emits batches
+Improve cpu utilization on large instances
+Check if JSON entity exceeds max depth during conversion from String to Circe JSON
+Pass request headers to the JS enrichment (#901)
+Make maxJsonDepth when validating JSON configurable
+Enrich Kafka: Use 'docker compose' instead of 'docker-compose' in the integration tests
+Remove submit coveralls data step from Github Action workflow
+Enrich Kinesis: Bump Localstack to 3.4.0 in the integration tests
+Enrich Kinesis: remove BeforeAll trait from EnrichKinesisSpec
+Change SLULA license from 1.0 to 1.1
+
 5.0.0 (2024-06-14)
 ------------------
 Add possibilty to emit failed events in TSV format into a third stream (#872)

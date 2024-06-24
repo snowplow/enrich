@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
- * under the terms of the Snowplow Limited Use License Agreement, Version 1.0
- * located at https://docs.snowplow.io/limited-use-license-1.0
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
@@ -29,7 +29,7 @@ object BuildSettings {
   lazy val projectSettings = Seq(
     organization := "com.snowplowanalytics",
     scalaVersion := "2.12.15",
-    licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html"))
+    licenses += ("SLULA-1.1", url("https://docs.snowplow.io/limited-use-license-1.1"))
   )
 
   lazy val commonProjectSettings = projectSettings ++ Seq(

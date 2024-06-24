@@ -36,13 +36,14 @@ class JavascriptScriptEnrichmentSpec extends Specification {
   Javascript enrichment should be able to proceed with return null                   $e10
   Javascript enrichment should be able to update the fields without return statement $e11
   Javascript enrichment should be able to utilize the passed parameters              $e12
+  Javascript enrichment should be able to utilize the headers                        $e13
   """
 
   val schemaKey =
     SchemaKey("com.snowplowanalytics.snowplow", "javascript_script_config", "jsonschema", SchemaVer.Full(1, 0, 0))
 
   def e1 =
-    JavascriptScriptEnrichment(schemaKey, "[").process(buildEnriched()) must beLeft(
+    JavascriptScriptEnrichment(schemaKey, "[").process(buildEnriched(), List.empty) must beLeft(
       failureContains(_: FailureDetails.EnrichmentFailure, "Error compiling")
     )
 
@@ -51,7 +52,7 @@ class JavascriptScriptEnrichmentSpec extends Specification {
       function process(event) {
         return { foo: "bar" }
       }"""
-    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched()) must beLeft(
+    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty) must beLeft(
       failureContains(_: FailureDetails.EnrichmentFailure, "not read as an array")
     )
   }
@@ -61,7 +62,7 @@ class JavascriptScriptEnrichmentSpec extends Specification {
       function process(event) {
         return [ { foo: "bar" } ]
       }"""
-    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched()) must beLeft(
+    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty) must beLeft(
       failureContains(_: FailureDetails.EnrichmentFailure, "not self-desribing")
     )
   }
@@ -74,7 +75,7 @@ class JavascriptScriptEnrichmentSpec extends Specification {
           data:   { appId: event.getApp_id() }
         } ];
       }"""
-    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(appId)) must beRight.like {
+    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(appId), List.empty) must beRight.like {
       case List(sdj) if sdj.data.noSpaces.contains(appId) => true
       case _ => false
     }
@@ -91,7 +92,7 @@ class JavascriptScriptEnrichmentSpec extends Specification {
           data:   { foo: "bar" }
         } ];
       }"""
-    JavascriptScriptEnrichment(schemaKey, function).process(enriched)
+    JavascriptScriptEnrichment(schemaKey, function).process(enriched, List.empty)
     enriched.app_id must beEqualTo(newAppId)
   }
 
@@ -100,7 +101,7 @@ class JavascriptScriptEnrichmentSpec extends Specification {
       function process(event) {
         throw "Error"
       }"""
-    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched()) must beLeft(
+    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty) must beLeft(
       failureContains(_: FailureDetails.EnrichmentFailure, "Error during execution")
     )
   }
@@ -110,7 +111,7 @@ class JavascriptScriptEnrichmentSpec extends Specification {
       function process(event) {
         return [ ];
       }"""
-    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched()) must beRight
+    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty) must beRight
   }
 
   def e8 = {
@@ -133,7 +134,7 @@ class JavascriptScriptEnrichmentSpec extends Specification {
         SchemaKey("com.acme", "bar", "jsonschema", SchemaVer.Full(1, 0, 0)),
         json"""{"hello":"world"}"""
       )
-    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched()) must beRight.like {
+    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty) must beRight.like {
       case List(c1, c2) if c1 == context1 && c2 == context2 => true
       case _ => false
     }
@@ -145,7 +146,7 @@ class JavascriptScriptEnrichmentSpec extends Specification {
         var a = 42     // no-op
       }"""
 
-    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched()) must beRight(Nil)
+    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty) must beRight(Nil)
   }
 
   def e10 = {
@@ -154,7 +155,7 @@ class JavascriptScriptEnrichmentSpec extends Specification {
         return null
       }"""
 
-    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched()) must beRight(Nil)
+    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty) must beRight(Nil)
   }
 
   def e11 = {
@@ -165,7 +166,7 @@ class JavascriptScriptEnrichmentSpec extends Specification {
       function process(event) {
         event.setApp_id("$newAppId")
       }"""
-    JavascriptScriptEnrichment(schemaKey, function).process(enriched)
+    JavascriptScriptEnrichment(schemaKey, function).process(enriched, List.empty)
     enriched.app_id must beEqualTo(newAppId)
   }
 
@@ -178,7 +179,28 @@ class JavascriptScriptEnrichmentSpec extends Specification {
       function process(event, params) {
         event.setApp_id(params.nested.foo)
       }"""
-    JavascriptScriptEnrichment(schemaKey, function, params).process(enriched)
+    JavascriptScriptEnrichment(schemaKey, function, params).process(enriched, List.empty)
+    enriched.app_id must beEqualTo("newId")
+  }
+
+  def e13 = {
+    val appId = "greatApp"
+    val enriched = buildEnriched(appId)
+    val function =
+      s"""
+      function process(event, params, headers) {
+        for (header of headers) {
+          const jwt = header.match(/X-JWT:(.+)/i)
+          if (jwt) {
+            event.setApp_id(jwt[1].trim())
+          }
+        }
+      }"""
+
+    JavascriptScriptEnrichment(schemaKey, function).process(enriched, List.empty)
+    enriched.app_id must beEqualTo("greatApp")
+
+    JavascriptScriptEnrichment(schemaKey, function).process(enriched, List("x-jwt: newId"))
     enriched.app_id must beEqualTo("newId")
   }
 

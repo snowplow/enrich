@@ -10,6 +10,8 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
+import scala.collection.JavaConverters._
+
 import cats.data.{NonEmptyList, ValidatedNel}
 import cats.implicits._
 
@@ -73,8 +75,8 @@ final case class JavascriptScriptEnrichment(
   private val stringified = rawFunction + s"""
     var getJavascriptContexts = function() {
       const params = ${params.asJson.noSpaces};
-      return function(event) {
-        const result = process(event, params);
+      return function(event, headers) {
+        const result = process(event, params, headers);
         if (result == null) {
           return "[]"
         } else {
@@ -95,11 +97,11 @@ final case class JavascriptScriptEnrichment(
    *              The event can be updated in-place by the JS function.
    * @return either a JSON array of contexts on Success, or an error String on Failure
    */
-  def process(event: EnrichedEvent): Either[FailureDetails.EnrichmentFailure, List[SelfDescribingData[Json]]] =
+  def process(event: EnrichedEvent, headers: List[String]): Either[FailureDetails.EnrichmentFailure, List[SelfDescribingData[Json]]] =
     invocable
       .flatMap(_ =>
         Either
-          .catchNonFatal(engine.invokeFunction("getJavascriptContexts", event).asInstanceOf[String])
+          .catchNonFatal(engine.invokeFunction("getJavascriptContexts", event, headers.asJava).asInstanceOf[String])
           .leftMap(e => s"Error during execution of JavaScript function: [${e.getMessage}]")
       )
       .flatMap(contexts =>

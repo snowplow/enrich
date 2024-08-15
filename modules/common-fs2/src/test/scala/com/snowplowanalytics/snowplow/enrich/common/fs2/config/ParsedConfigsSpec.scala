@@ -123,7 +123,8 @@ class ParsedConfigsSpec extends Specification with CatsEffect {
         adaptersSchemas,
         BlobStorageClients(gcs = false, s3 = true, azureStorage = None),
         License(accept = true),
-        Validation(AtomicFields.from(valueLimits = Map.empty))
+        Validation(AtomicFields.from(valueLimits = Map.empty)),
+        maxJsonDepth = 40
       )
 
       ParsedConfigs.validateConfig[IO](configFile).value.map(result => result must beLeft)

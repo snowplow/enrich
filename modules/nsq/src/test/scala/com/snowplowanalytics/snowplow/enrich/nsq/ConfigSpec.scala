@@ -158,7 +158,8 @@ class ConfigSpec extends Specification with CatsEffect {
           )
         ),
         io.License(accept = true),
-        io.Validation(AtomicFields.from(atomicFieldLimitsDefaults ++ Map("app_id" -> 5, "mkt_clickid" -> 100000)))
+        io.Validation(AtomicFields.from(atomicFieldLimitsDefaults ++ Map("app_id" -> 5, "mkt_clickid" -> 100000))),
+        maxJsonDepth = 50
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
     }
@@ -240,7 +241,8 @@ class ConfigSpec extends Specification with CatsEffect {
         adaptersSchemas,
         io.BlobStorageClients(gcs = true, s3 = true, azureStorage = None),
         io.License(accept = true),
-        io.Validation(AtomicFields.from(atomicFieldLimitsDefaults))
+        io.Validation(AtomicFields.from(atomicFieldLimitsDefaults)),
+        maxJsonDepth = 40
       )
       ConfigFile.parse[IO](configPath.asRight).value.map(result => result must beRight(expected))
     }

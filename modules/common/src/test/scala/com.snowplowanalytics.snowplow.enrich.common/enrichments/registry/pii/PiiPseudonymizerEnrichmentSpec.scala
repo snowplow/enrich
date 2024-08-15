@@ -169,7 +169,7 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
     )
     val reg = Registry.Embedded(regConf, path = "/iglu-schemas")
     for {
-      client <- IgluCirceClient.fromResolver[IO](Resolver(List(reg), None), cacheSize = 0)
+      client <- IgluCirceClient.fromResolver[IO](Resolver[IO](List(reg), None), cacheSize = 0, maxJsonDepth = 40)
       result <- EtlPipeline
                   .processEvents[IO](
                     new AdapterRegistry[IO](Map.empty[(String, String), RemoteAdapter[IO]], adaptersSchemas),

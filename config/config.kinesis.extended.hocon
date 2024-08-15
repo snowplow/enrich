@@ -420,4 +420,8 @@
         # ...and any other 'atomic' field with custom limit
     }
   }
+
+  # Optional. The maximum allowed depth for the JSON entities in the events. The default value is 40.
+  # Event will be sent to bad row stream if it contains JSON entity with a depth that exceeds this value.
+  "maxJsonDepth": 50
 }

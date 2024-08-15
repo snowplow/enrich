@@ -210,7 +210,7 @@ object Environment {
       incomplete <- sinkIncomplete.sequence
       http4s <- Clients.mkHttp()
       clts <- clients.map(Clients.init(http4s, _))
-      igluClient <- IgluCirceClient.parseDefault[F](parsedConfigs.igluJson).resource
+      igluClient <- IgluCirceClient.parseDefault[F](parsedConfigs.igluJson, parsedConfigs.configFile.maxJsonDepth).resource
       remoteAdaptersEnabled = file.remoteAdapters.configs.nonEmpty
       metrics <- Resource.eval(Metrics.build[F](file.monitoring.metrics, remoteAdaptersEnabled, incomplete.isDefined))
       metadata <- Resource.eval(metadataReporter[F](file, processor.artifact, http4s))

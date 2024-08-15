@@ -142,6 +142,11 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
   val noSchema =
     s"""{"schema":"iglu:com.snowplowanalytics.snowplow/foo/jsonschema/1-0-0", "data": $noSchemaData}"""
 
+  val deepJson = s"""{
+    "schema": "${emailSentSchema.toSchemaUri}",
+    "data": {"d1":{"d2":{"d3":{"d4":{"d5":{"d6":6}}}}}}
+  }"""
+
   "extractAndValidateUnstructEvent" should {
     "return None if unstruct_event field is empty" >> {
       IgluUtils
@@ -352,6 +357,28 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
               s"unstructured event's schema [${s.sdj.schema}] does not match expected schema [${supersedingExampleSchema101}]"
             )
           case other => ko(s"no unstructured event was extracted [$other]")
+        }
+    }
+
+    "return a FailureDetails.SchemaViolation.IgluError containing a ValidationError if the JSON in .data exceeds the max allowed JSON depth" >> {
+      val igluScalaClient = SpecHelpers.client(5)
+      val input = new EnrichedEvent
+      val json = deepJson.toJson
+      input.setUnstruct_event(buildUnstruct(deepJson))
+
+      IgluUtils
+        .extractAndValidateUnstructEvent(input, igluScalaClient, SpecHelpers.registryLookup)
+        .value
+        .map {
+          case Ior.Both(
+                NonEmptyList(
+                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError), `unstructFieldName`, `json`, _),
+                  _
+                ),
+                None
+              ) =>
+            ok
+          case other => ko(s"[$other] is not expected one")
         }
     }
   }
@@ -582,6 +609,28 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
             ok
           case other =>
             ko(s"[$other] is not 2 SDJs with expected schema [${supersedingExampleSchema101.toSchemaUri}]")
+        }
+    }
+
+    "return a FailureDetails.SchemaViolation.IgluError containing a ValidationError if .data contains context that exceeds the max allowed JSON depth" >> {
+      val igluScalaClient = SpecHelpers.client(5)
+      val input = new EnrichedEvent
+      val json = s"[$deepJson]".toJson
+      input.setContexts(buildInputContexts(List(deepJson)))
+
+      IgluUtils
+        .extractAndValidateInputContexts(input, igluScalaClient, SpecHelpers.registryLookup)
+        .value
+        .map {
+          case Ior.Both(
+                NonEmptyList(
+                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError), `contextsFieldName`, `json`, _),
+                  Nil
+                ),
+                Nil
+              ) =>
+            ok
+          case other => ko(s"[$other] is not expected one")
         }
     }
   }

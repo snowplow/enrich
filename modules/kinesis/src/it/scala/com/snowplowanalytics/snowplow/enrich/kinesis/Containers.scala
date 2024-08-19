@@ -40,7 +40,7 @@ object Containers extends CatsEffect {
     case class DockerImage(image: String, tag: String) {
       def toStr = s"$image:$tag"
     }
-    val Localstack = DockerImage("localstack/localstack-light", "1.2.0")
+    val Localstack = DockerImage("localstack/localstack", "3.4.0")
     val Enrich = DockerImage("snowplow/snowplow-enrich-kinesis", s"${BuildInfo.version}-distroless")
     val MySQL = DockerImage("mysql", "8.0.31")
     val HTTP = DockerImage("nginx", "1.23.2")

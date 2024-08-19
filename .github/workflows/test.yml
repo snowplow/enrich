@@ -67,7 +67,3 @@ jobs:
       run: sbt coverageReport
     - name: Aggregate coverage data
       run: sbt coverageAggregate
-    - name: Submit coveralls data
-      run: sbt coveralls
-      env:
-        COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}

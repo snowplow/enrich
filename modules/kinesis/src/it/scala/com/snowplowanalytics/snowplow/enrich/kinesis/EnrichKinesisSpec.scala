@@ -20,7 +20,6 @@ import cats.effect.kernel.Resource
 import cats.effect.testing.specs2.CatsResource
 
 import org.specs2.mutable.SpecificationLike
-import org.specs2.specification.BeforeAll
 
 import com.snowplowanalytics.snowplow.enrich.kinesis.enrichments._
 
@@ -28,7 +27,7 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.test.CollectorPayloadGen
 
 import com.snowplowanalytics.snowplow.enrich.kinesis.Containers.Localstack
 
-class EnrichKinesisSpec extends CatsResource[IO, Localstack] with SpecificationLike with BeforeAll {
+class EnrichKinesisSpec extends CatsResource[IO, Localstack] with SpecificationLike {
 
   override protected val Timeout = 10.minutes
 

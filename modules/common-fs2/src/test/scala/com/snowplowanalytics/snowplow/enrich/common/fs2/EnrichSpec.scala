@@ -42,13 +42,15 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{IpLook
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.{AtomicFields, MiscEnrichments}
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
+import com.snowplowanalytics.snowplow.enrich.common.utils.{ConversionUtils, IgluUtilsSpec, JsonUtilsSpec}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.FeatureFlags
 import com.snowplowanalytics.snowplow.enrich.common.fs2.EnrichSpec.{Expected, minimalEvent, normalizeResult}
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test._
 
 class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
+
+  override protected val Timeout = 1.minutes
 
   sequential
 
@@ -78,7 +80,8 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
             IO.unit,
             SpecHelpers.registryLookup,
             AtomicFields.from(valueLimits = Map.empty),
-            SpecHelpers.emitIncomplete
+            SpecHelpers.emitIncomplete,
+            SpecHelpers.DefaultMaxJsonDepth
           )(
             EnrichSpec.payload
           )
@@ -109,7 +112,8 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
                 IO.unit,
                 SpecHelpers.registryLookup,
                 AtomicFields.from(valueLimits = Map.empty),
-                SpecHelpers.emitIncomplete
+                SpecHelpers.emitIncomplete,
+                SpecHelpers.DefaultMaxJsonDepth
               )(
                 payload
               )
@@ -148,7 +152,8 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
             IO.unit,
             SpecHelpers.registryLookup,
             AtomicFields.from(valueLimits = Map.empty),
-            SpecHelpers.emitIncomplete
+            SpecHelpers.emitIncomplete,
+            SpecHelpers.DefaultMaxJsonDepth
           )(
             Base64.getEncoder.encode(EnrichSpec.payload)
           )
@@ -173,7 +178,8 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
             IO.unit,
             SpecHelpers.registryLookup,
             AtomicFields.from(valueLimits = Map.empty),
-            SpecHelpers.emitIncomplete
+            SpecHelpers.emitIncomplete,
+            SpecHelpers.DefaultMaxJsonDepth
           )(
             Base64.getEncoder.encode(EnrichSpec.payload)
           )
@@ -288,6 +294,90 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
               (pii must be empty)
               (incomplete must be empty)
               (good must contain(exactly(one, two)))
+          }
+      }
+    }
+
+    "send events with deeply nested JSON entities to bad stream" in {
+      def payloadDeepContext(depth: Int) = {
+        val deepJsonObject = JsonUtilsSpec.createDeepJsonObject(depth)
+        EnrichSpec.collectorPayload.copy(
+          querystring = EnrichSpec.jsonEntityQueryParam(
+            "cx",
+            IgluUtilsSpec.buildInputContexts(List(deepJsonObject))
+          ) :: EnrichSpec.querystring
+        )
+      }
+
+      def payloadDeepUnstruct(depth: Int) = {
+        val deepJsonArray = JsonUtilsSpec.createDeepJsonArray(depth)
+        EnrichSpec.collectorPayload.copy(
+          querystring = EnrichSpec.jsonEntityQueryParam(
+            "ue_px",
+            IgluUtilsSpec.buildUnstruct(deepJsonArray)
+          ) :: EnrichSpec.querystring
+        )
+      }
+
+      val input = Stream.emits(
+        List(
+          EnrichSpec.payload,
+          payloadDeepContext(10000).toRaw,
+          payloadDeepUnstruct(10000).toRaw,
+          payloadDeepContext(1000000).toRaw,
+          payloadDeepUnstruct(1000000).toRaw
+        )
+      )
+
+      def badRowCheck(bad: Vector[BadRow]) = {
+        val fieldsSchemaViolation = bad.collect {
+          case BadRow.SchemaViolations(
+                _,
+                Failure.SchemaViolations(
+                  _,
+                  NonEmptyList(
+                    FailureDetails.SchemaViolation.NotJson(
+                      field,
+                      _,
+                      "invalid json: maximum allowed JSON depth exceeded"
+                    ),
+                    Nil
+                  )
+                ),
+                _
+              ) =>
+            field
+        }
+        val sizeViolationBadRows = bad.filter {
+          case _: BadRow.SizeViolation => true
+          case _ => false
+        }
+        (fieldsSchemaViolation must contain(exactly("contexts", "unstruct")))
+        (sizeViolationBadRows.size must_== 2)
+        (bad.size must_== 4)
+      }
+
+      def incompleteCheck(incomplete: Vector[Event]) = {
+        incomplete must contain(
+          beLike[Event] {
+            case event
+                if event.contexts.data.size.isEmpty &&
+                  event.unstruct_event.data.isEmpty =>
+              ok
+          }
+        ).forall
+        (incomplete.size must_== 2)
+      }
+
+      TestEnvironment.make(input).use { test =>
+        test
+          .run(streamTimeout = 10.seconds)
+          .map {
+            case (bad, pii, good, incomplete) =>
+              badRowCheck(bad)
+              incompleteCheck(incomplete)
+              (pii must be empty)
+              (good must contain(exactly(Expected)))
           }
       }
     }
@@ -559,4 +649,14 @@ object EnrichSpec {
     )
 
   val featureFlags = FeatureFlags(acceptInvalid = false, legacyEnrichmentOrder = false, tryBase64Decoding = false)
+
+  def jsonEntityQueryParam(fieldName: String, jsonEntity: String): BasicNameValuePair =
+    new BasicNameValuePair(
+      fieldName,
+      new String(
+        Base64.getEncoder.encode(
+          jsonEntity.getBytes()
+        )
+      )
+    )
 }

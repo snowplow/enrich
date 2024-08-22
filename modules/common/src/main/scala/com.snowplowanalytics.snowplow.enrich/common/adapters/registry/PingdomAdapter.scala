@@ -59,7 +59,8 @@ case class PingdomAdapter(schemas: PingdomSchemas) extends Adapter {
   override def toRawEvents[F[_]: Monad: Clock](
     payload: CollectorPayload,
     client: IgluCirceClient[F],
-    registryLookup: RegistryLookup[F]
+    registryLookup: RegistryLookup[F],
+    maxJsonDepth: Int
   ): F[Adapted] =
     payload.querystring match {
       case Nil =>
@@ -75,7 +76,7 @@ case class PingdomAdapter(schemas: PingdomSchemas) extends Adapter {
               case Some(Some(event)) =>
                 Monad[F].pure((for {
                   parsedEvent <- JsonUtils
-                                   .extractJson(event)
+                                   .extractJson(event, maxJsonDepth)
                                    .leftMap(e =>
                                      FailureDetails.AdapterFailure
                                        .NotJson("message", event.some, e)

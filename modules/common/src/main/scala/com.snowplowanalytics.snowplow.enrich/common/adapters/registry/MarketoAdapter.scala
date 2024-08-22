@@ -72,7 +72,8 @@ case class MarketoAdapter(schemas: MarketoSchemas) extends Adapter {
   override def toRawEvents[F[_]: Monad: Clock](
     payload: CollectorPayload,
     client: IgluCirceClient[F],
-    registryLookup: RegistryLookup[F]
+    registryLookup: RegistryLookup[F],
+    maxJsonDepth: Int
   ): F[Adapted] =
     (payload.body, payload.contentType) match {
       case (None, _) =>
@@ -84,7 +85,7 @@ case class MarketoAdapter(schemas: MarketoSchemas) extends Adapter {
         Monad[F].pure(failure.invalidNel)
       case (Some(body), _) =>
         val _ = client
-        val event = payloadBodyToEvent(body, payload)
+        val event = payloadBodyToEvent(body, payload, maxJsonDepth)
         Monad[F].pure(rawEventsListProcessor(List(event)))
     }
 
@@ -95,10 +96,14 @@ case class MarketoAdapter(schemas: MarketoSchemas) extends Adapter {
    * @param payload Rest of the payload details
    * @return a validated JSON payload on Success, or a NEL
    */
-  private def payloadBodyToEvent(json: String, payload: CollectorPayload): ValidatedNel[FailureDetails.AdapterFailure, RawEvent] =
+  private def payloadBodyToEvent(
+    json: String,
+    payload: CollectorPayload,
+    maxJsonDepth: Int
+  ): ValidatedNel[FailureDetails.AdapterFailure, RawEvent] =
     (for {
       parsed <- JU
-                  .extractJson(json)
+                  .extractJson(json, maxJsonDepth)
                   .leftMap(e => FailureDetails.AdapterFailure.NotJson("body", json.some, e))
 
       parsedConverted <- if (parsed.isObject) reformatParameters(parsed).asRight

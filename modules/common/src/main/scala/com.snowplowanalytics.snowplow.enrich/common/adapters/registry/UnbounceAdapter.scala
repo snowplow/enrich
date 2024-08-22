@@ -62,7 +62,8 @@ case class UnbounceAdapter(schemas: UnbounceSchemas) extends Adapter {
   override def toRawEvents[F[_]: Monad: Clock](
     payload: CollectorPayload,
     client: IgluCirceClient[F],
-    registryLookup: RegistryLookup[F]
+    registryLookup: RegistryLookup[F],
+    maxJsonDepth: Int
   ): F[Adapted] =
     (payload.body, payload.contentType) match {
       case (None, _) =>
@@ -108,7 +109,7 @@ case class UnbounceAdapter(schemas: UnbounceSchemas) extends Adapter {
           case TS(bodyMap) =>
             Monad[F].pure(
               (
-                payloadBodyToEvent(bodyMap).toValidatedNel,
+                payloadBodyToEvent(bodyMap, maxJsonDepth).toValidatedNel,
                 lookupSchema(Some("form_post"), ContextSchema).toValidatedNel
               ).mapN { (event, schema) =>
                 NonEmptyList.one(
@@ -125,7 +126,7 @@ case class UnbounceAdapter(schemas: UnbounceSchemas) extends Adapter {
         }
     }
 
-  private def payloadBodyToEvent(bodyMap: Map[String, String]): Either[FailureDetails.AdapterFailure, Json] =
+  private def payloadBodyToEvent(bodyMap: Map[String, String], maxJsonDepth: Int): Either[FailureDetails.AdapterFailure, Json] =
     (
       bodyMap.get("page_id"),
       bodyMap.get("page_name"),
@@ -159,7 +160,7 @@ case class UnbounceAdapter(schemas: UnbounceSchemas) extends Adapter {
           .asLeft
       case (Some(_), Some(_), Some(_), Some(_), Some(dataJson)) =>
         val event = (bodyMap - "data.json" - "data.xml").toList
-        JU.extractJson(dataJson)
+        JU.extractJson(dataJson, maxJsonDepth)
           .map { dJs =>
             val js = Json
               .obj(

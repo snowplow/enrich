@@ -49,6 +49,8 @@ object SpecHelpers extends CatsEffect {
 
   val StaticTime = 1599750938180L
 
+  val DefaultMaxJsonDepth = 40
+
   // Standard Iglu configuration
   private val igluConfig = json"""{
     "schema": "iglu:com.snowplowanalytics.iglu/resolver-config/jsonschema/1-0-0",
@@ -132,7 +134,7 @@ object SpecHelpers extends CatsEffect {
   /** Parse a string containing a SDJ as [[SelfDescribingData]] */
   def jsonStringToSDJ(rawJson: String): Either[String, SelfDescribingData[Json]] =
     JsonUtils
-      .extractJson(rawJson)
+      .extractJson(rawJson, DefaultMaxJsonDepth)
       .leftMap(err => s"Can't parse [$rawJson] as Json, error: [$err]")
       .flatMap(SelfDescribingData.parse[Json])
       .leftMap(err => s"Can't parse Json [$rawJson] as as SelfDescribingData, error: [$err]")

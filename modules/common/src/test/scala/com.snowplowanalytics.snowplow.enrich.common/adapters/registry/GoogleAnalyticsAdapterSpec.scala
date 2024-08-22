@@ -77,7 +77,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
   def e1 = {
     val payload = CollectorPayload(api, Nil, None, None, source, context)
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beInvalid(
           NonEmptyList.one(
@@ -91,7 +91,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
     val body = "dl=docloc"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beInvalid(
           NonEmptyList.one(
@@ -109,7 +109,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
     val body = "t=unknown&dl=docloc"
     val payload = CollectorPayload(api, Nil, None, body.some, source, context)
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beInvalid(
           NonEmptyList.of(
@@ -148,7 +148,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
     val expectedParams = static ++ Map("ue_pr" -> expectedJson, "co" -> expectedCO).toOpt
 
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
   }
 
@@ -180,7 +180,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
     val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO).toOpt
 
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
   }
 
@@ -208,7 +208,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
     val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO, "ip" -> "ip").toOpt
 
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
   }
 
@@ -246,7 +246,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
     ).toOpt
 
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
   }
 
@@ -273,7 +273,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
     val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO).toOpt
 
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
   }
 
@@ -308,7 +308,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
     ).toOpt
 
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
   }
 
@@ -338,7 +338,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
     val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO).toOpt
 
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
   }
 
@@ -365,7 +365,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
     val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO).toOpt
 
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
   }
 
@@ -401,7 +401,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
     val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO).toOpt
 
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
   }
 
@@ -431,7 +431,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
     val expectedParams = static ++ Map("ue_pr" -> expectedUE, "co" -> expectedCO).toOpt
 
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
   }
 
@@ -459,7 +459,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
     val event = RawEvent(api, expectedParams, None, source, context)
 
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(_ must beValid(NonEmptyList.of(event, event)))
   }
 
@@ -500,7 +500,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
     ).toOpt
 
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
   }
 

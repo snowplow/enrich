@@ -92,7 +92,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete
+        emitIncomplete,
+        SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value map {
         case Ior.Left(_: BadRow.SchemaViolations) => ok
@@ -130,7 +131,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete
+        emitIncomplete,
+        SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value map {
         case Ior.Left(_: BadRow.SchemaViolations) => ok
@@ -170,7 +172,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           IO.unit,
           SpecHelpers.registryLookup,
           atomicFieldLimits,
-          emitIncomplete
+          emitIncomplete,
+          SpecHelpers.DefaultMaxJsonDepth
         )
         .value
         .map {
@@ -238,7 +241,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete
+        emitIncomplete,
+        SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value map {
         case Ior.Left(
@@ -307,7 +311,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete
+        emitIncomplete,
+        SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value map {
         case Ior.Left(
@@ -372,7 +377,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete
+        emitIncomplete,
+        SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
         case Ior.Right(_) => ok
@@ -442,7 +448,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete
+        emitIncomplete,
+        SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
         case Ior.Right(_) => ok
@@ -512,7 +519,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete
+        emitIncomplete,
+        SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
         case Ior.Right(_) => ok
@@ -582,7 +590,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete
+        emitIncomplete,
+        SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
         case Ior.Left(_) => ok
@@ -652,7 +661,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete
+        emitIncomplete,
+        SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
         case Ior.Left(_) => ok
@@ -728,7 +738,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete
+        emitIncomplete,
+        SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
         case Ior.Left(_) => ok
@@ -760,7 +771,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               IO.unit,
               SpecHelpers.registryLookup,
               atomicFieldLimits,
-              emitIncomplete
+              emitIncomplete,
+              SpecHelpers.DefaultMaxJsonDepth
             )
             enriched.value.map {
               case Ior.Right(_) => ok
@@ -794,7 +806,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               IO.unit,
               SpecHelpers.registryLookup,
               atomicFieldLimits,
-              emitIncomplete
+              emitIncomplete,
+              SpecHelpers.DefaultMaxJsonDepth
             )
             enriched.value.map {
               case Ior.Right(_) => ok
@@ -837,7 +850,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               IO.unit,
               SpecHelpers.registryLookup,
               atomicFieldLimits,
-              emitIncomplete
+              emitIncomplete,
+              SpecHelpers.DefaultMaxJsonDepth
             )
             enriched.value.map {
               case Ior.Right(enriched) => enriched.se_value.toString must_== expected
@@ -866,7 +880,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete
+        emitIncomplete,
+        SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
         case Ior.Right(enriched) =>
@@ -894,7 +909,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete
+        emitIncomplete,
+        SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
         case Ior.Right(enriched) => enriched.useragent must_== "header-useragent"
@@ -921,7 +937,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete
+        emitIncomplete,
+        SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
         case Ior.Right(enriched) => enriched.useragent must_== ua
@@ -949,7 +966,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete
+        emitIncomplete,
+        SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
         case Ior.Right(enriched) =>
@@ -997,7 +1015,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete
+        emitIncomplete,
+        SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
         case Ior.Right(enriched) => enriched.app_id must_== "moo"
@@ -1049,7 +1068,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete
+        emitIncomplete,
+        SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
         case Ior.Right(enriched) =>
@@ -1206,7 +1226,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete
+        emitIncomplete,
+        SpecHelpers.DefaultMaxJsonDepth
       )
 
       enriched.value.map {
@@ -1303,7 +1324,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete = true
+        emitIncomplete = true,
+        SpecHelpers.DefaultMaxJsonDepth
       )
 
       enriched.value.map {
@@ -1401,7 +1423,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete = true
+        emitIncomplete = true,
+        SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
         case Ior.Both(_: BadRow.SchemaViolations, enriched)
@@ -1503,7 +1526,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete = true
+        emitIncomplete = true,
+        SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
         case Ior.Both(_: BadRow.SchemaViolations, enriched)
@@ -1575,7 +1599,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete = true
+        emitIncomplete = true,
+        SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
         case Ior.Both(_: BadRow.EnrichmentFailures, enriched)
@@ -1658,7 +1683,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete = true
+        emitIncomplete = true,
+        SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
         case Ior.Both(_: BadRow.SchemaViolations, enriched) if expectedDerivedContexts(enriched) => ok
@@ -1750,7 +1776,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete = true
+        emitIncomplete = true,
+        SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
         case Ior.Both(_: BadRow.SchemaViolations, enriched)
@@ -1818,7 +1845,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete = true
+        emitIncomplete = true,
+        SpecHelpers.DefaultMaxJsonDepth
       )
       def expectedDerivedContexts(enriched: EnrichedEvent): Boolean =
         SpecHelpers.listContextsSchemas(enriched.derived_contexts).count(_ == Failure.failureSchemaKey) == 2
@@ -2320,7 +2348,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           IO.unit,
           SpecHelpers.registryLookup,
           atomicFieldLimits,
-          emitIncomplete
+          emitIncomplete,
+          SpecHelpers.DefaultMaxJsonDepth
         )
         .value
         .map {
@@ -2351,7 +2380,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           IO.unit,
           SpecHelpers.registryLookup,
           atomicFieldLimits,
-          emitIncomplete
+          emitIncomplete,
+          SpecHelpers.DefaultMaxJsonDepth
         )
         .value
         .map {
@@ -2401,7 +2431,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           IO.unit,
           SpecHelpers.registryLookup,
           atomicFieldLimits,
-          emitIncomplete
+          emitIncomplete,
+          SpecHelpers.DefaultMaxJsonDepth
         )
         .value
         .map {
@@ -2438,7 +2469,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           IO.unit,
           SpecHelpers.registryLookup,
           atomicFieldLimits,
-          emitIncomplete = true
+          emitIncomplete = true,
+          SpecHelpers.DefaultMaxJsonDepth
         )
 
       enriched.value.map {

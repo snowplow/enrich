@@ -93,7 +93,7 @@ class PingdomAdapterSpec extends Specification with DataTables with ValidatedMat
       Shared.context
     )
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beValid(
           NonEmptyList.one(expected)
@@ -110,7 +110,7 @@ class PingdomAdapterSpec extends Specification with DataTables with ValidatedMat
         "empty querystring: no events to process"
       )
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beInvalid(
           NonEmptyList.one(expected)
@@ -129,7 +129,7 @@ class PingdomAdapterSpec extends Specification with DataTables with ValidatedMat
         "no `message` parameter provided"
       )
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beInvalid(
           NonEmptyList.one(expected)

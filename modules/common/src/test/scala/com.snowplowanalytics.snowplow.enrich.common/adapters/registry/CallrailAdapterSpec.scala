@@ -145,7 +145,7 @@ class CallrailAdapterSpec extends Specification with DataTables with ValidatedMa
           |}""".stripMargin.replaceAll("[\n\r]", "")
 
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beValid(
           NonEmptyList.one(
@@ -166,7 +166,7 @@ class CallrailAdapterSpec extends Specification with DataTables with ValidatedMa
     val payload = CollectorPayload(Shared.api, params, None, None, Shared.source, Shared.context)
 
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beInvalid(
           NonEmptyList.one(

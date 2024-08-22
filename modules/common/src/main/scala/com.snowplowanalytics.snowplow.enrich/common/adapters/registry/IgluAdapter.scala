@@ -66,7 +66,8 @@ object IgluAdapter extends Adapter {
   override def toRawEvents[F[_]: Monad: Clock](
     payload: CollectorPayload,
     client: IgluCirceClient[F],
-    registryLookup: RegistryLookup[F]
+    registryLookup: RegistryLookup[F],
+    maxJsonDepth: Int
   ): F[Adapted] = {
     val _ = client
     val params = toMap(payload.querystring)
@@ -77,9 +78,9 @@ object IgluAdapter extends Adapter {
           FailureDetails.AdapterFailure.InputData("contentType", none, msg).invalidNel
         )
       case (None, Some(body), Some(contentType)) =>
-        Monad[F].pure(payloadSdJsonToEvent(payload, body, contentType, params))
+        Monad[F].pure(payloadSdJsonToEvent(payload, body, contentType, params, maxJsonDepth))
       case (Some(schemaUri), _, _) => // Ignore body
-        Monad[F].pure(payloadToEventWithSchema(payload, schemaUri, params))
+        Monad[F].pure(payloadToEventWithSchema(payload, schemaUri, params, maxJsonDepth))
       case (None, None, _) =>
         val nel = NonEmptyList.of(
           FailureDetails.AdapterFailure
@@ -103,11 +104,12 @@ object IgluAdapter extends Adapter {
     payload: CollectorPayload,
     body: String,
     contentType: String,
-    params: Map[String, Option[String]]
+    params: Map[String, Option[String]],
+    maxJsonDepth: Int
   ): ValidatedNel[FailureDetails.AdapterFailure, NonEmptyList[RawEvent]] =
     contentType match {
-      case contentTypes._1 => sdJsonBodyToEvent(payload, body, params)
-      case contentTypes._2 => sdJsonBodyToEvent(payload, body, params)
+      case contentTypes._1 => sdJsonBodyToEvent(payload, body, params, maxJsonDepth)
+      case contentTypes._2 => sdJsonBodyToEvent(payload, body, params, maxJsonDepth)
       case _ =>
         val msg = s"expected one of ${List(contentTypes._1, contentTypes._2).mkString(", ")}"
         FailureDetails.AdapterFailure
@@ -124,9 +126,10 @@ object IgluAdapter extends Adapter {
   private[registry] def sdJsonBodyToEvent(
     payload: CollectorPayload,
     body: String,
-    params: Map[String, Option[String]]
+    params: Map[String, Option[String]],
+    maxJsonDepth: Int
   ): ValidatedNel[FailureDetails.AdapterFailure, NonEmptyList[RawEvent]] =
-    JsonUtils.extractJson(body) match {
+    JsonUtils.extractJson(body, maxJsonDepth) match {
       case Right(parsed) =>
         SelfDescribingData.parse(parsed) match {
           case Left(parseError) =>
@@ -165,7 +168,8 @@ object IgluAdapter extends Adapter {
   private[registry] def payloadToEventWithSchema(
     payload: CollectorPayload,
     schemaUri: String,
-    params: Map[String, Option[String]]
+    params: Map[String, Option[String]],
+    maxJsonDepth: Int
   ): ValidatedNel[FailureDetails.AdapterFailure, NonEmptyList[RawEvent]] =
     SchemaKey.fromUri(schemaUri) match {
       case Left(parseError) =>
@@ -194,8 +198,8 @@ object IgluAdapter extends Adapter {
               .valid
           case (Some(body), Some(contentType)) =>
             contentType match {
-              case contentTypes._1 => jsonBodyToEvent(payload, body, key, params)
-              case contentTypes._2 => jsonBodyToEvent(payload, body, key, params)
+              case contentTypes._1 => jsonBodyToEvent(payload, body, key, params, maxJsonDepth)
+              case contentTypes._2 => jsonBodyToEvent(payload, body, key, params, maxJsonDepth)
               case contentTypes._3 => formBodyToEvent(payload, body, key, params)
               case _ =>
                 val msg = s"expected one of $contentTypesStr"
@@ -223,7 +227,8 @@ object IgluAdapter extends Adapter {
     payload: CollectorPayload,
     body: String,
     schemaUri: SchemaKey,
-    params: Map[String, Option[String]]
+    params: Map[String, Option[String]],
+    maxJsonDepth: Int
   ): ValidatedNel[FailureDetails.AdapterFailure, NonEmptyList[RawEvent]] = {
     def buildRawEvent(e: Json): RawEvent =
       RawEvent(
@@ -234,7 +239,7 @@ object IgluAdapter extends Adapter {
         context = payload.context
       )
 
-    JsonUtils.extractJson(body) match {
+    JsonUtils.extractJson(body, maxJsonDepth) match {
       case Right(parsed) =>
         parsed.asArray match {
           case Some(array) =>

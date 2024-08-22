@@ -60,7 +60,7 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
       "subscriptionType": "company.change",
       "eventId": 16
     }"""
-    adapterWithDefaultSchemas.payloadBodyToEvents(bodyStr) must beRight(List(expected))
+    adapterWithDefaultSchemas.payloadBodyToEvents(bodyStr, DefaultMaxJsonDepth) must beRight(List(expected))
   }
 
   def e2 =
@@ -71,7 +71,7 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
           """{"something:"some"}""".some,
           """invalid json: expected : got 'some"}' (line 1, column 14)"""
         ) |> { (_, input, expected) =>
-      adapterWithDefaultSchemas.payloadBodyToEvents(input) must beLeft(expected)
+      adapterWithDefaultSchemas.payloadBodyToEvents(input, DefaultMaxJsonDepth) must beLeft(expected)
     }
 
   def e3 = {
@@ -99,7 +99,9 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
         Shared.context
       )
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beValid(expected))
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+      .map(_ must beValid(expected))
   }
 
   def e4 = {
@@ -119,7 +121,7 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
       "no schema associated with the provided type parameter at index 0"
     )
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beInvalid(
           NonEmptyList.one(expected)
@@ -131,7 +133,7 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
     val payload =
       CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beInvalid(
           NonEmptyList.one(
@@ -146,7 +148,7 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
     val payload =
       CollectorPayload(Shared.api, Nil, None, "stub".some, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beInvalid(
           NonEmptyList.one(
@@ -171,7 +173,7 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
       Shared.context
     )
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beInvalid(
           NonEmptyList.one(

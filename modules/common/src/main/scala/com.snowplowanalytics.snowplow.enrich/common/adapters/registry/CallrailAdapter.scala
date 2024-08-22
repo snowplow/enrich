@@ -66,7 +66,8 @@ case class CallrailAdapter(schemas: CallrailSchemas) extends Adapter {
   override def toRawEvents[F[_]: Monad: Clock](
     payload: CollectorPayload,
     client: IgluCirceClient[F],
-    registryLookup: RegistryLookup[F]
+    registryLookup: RegistryLookup[F],
+    maxJsonDepth: Int
   ): F[Adapted] = {
     val _ = client
     val params = toMap(payload.querystring)

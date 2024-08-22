@@ -69,7 +69,8 @@ object EnrichmentManager {
     invalidCount: F[Unit],
     registryLookup: RegistryLookup[F],
     atomicFields: AtomicFields,
-    emitIncomplete: Boolean
+    emitIncomplete: Boolean,
+    maxJsonDepth: Int
   ): IorT[F, BadRow, EnrichedEvent] = {
     def enrich(enriched: EnrichedEvent): IorT[F, NonEmptyList[NonEmptyList[Failure]], List[SelfDescribingData[Json]]] =
       for {
@@ -79,7 +80,8 @@ object EnrichmentManager {
                            etlTstamp,
                            processor,
                            client,
-                           registryLookup
+                           registryLookup,
+                           maxJsonDepth
                          )
                            .leftMap(NonEmptyList.one)
                            .possiblyExitingEarly(emitIncomplete)
@@ -93,7 +95,8 @@ object EnrichmentManager {
                                  enriched,
                                  extractResult.contexts,
                                  extractResult.unstructEvent,
-                                 featureFlags.legacyEnrichmentOrder
+                                 featureFlags.legacyEnrichmentOrder,
+                                 maxJsonDepth
                                )
                                  .leftMap(NonEmptyList.one)
                                  .possiblyExitingEarly(emitIncomplete)
@@ -179,13 +182,14 @@ object EnrichmentManager {
     etlTstamp: DateTime,
     processor: Processor,
     client: IgluCirceClient[F],
-    registryLookup: RegistryLookup[F]
+    registryLookup: RegistryLookup[F],
+    maxJsonDepth: Int
   ): IorT[F, NonEmptyList[Failure], IgluUtils.EventExtractResult] =
     for {
       _ <- setupEnrichedEvent[F](raw, enrichedEvent, etlTstamp, processor)
              .leftMap(NonEmptyList.one)
       extract <- IgluUtils
-                   .extractAndValidateInputJsons(enrichedEvent, client, registryLookup)
+                   .extractAndValidateInputJsons(enrichedEvent, client, registryLookup, maxJsonDepth)
                    .leftMap { l: NonEmptyList[Failure] => l }
     } yield extract
 
@@ -201,10 +205,11 @@ object EnrichmentManager {
     enriched: EnrichedEvent,
     inputContexts: List[SelfDescribingData[Json]],
     unstructEvent: Option[SelfDescribingData[Json]],
-    legacyOrder: Boolean
+    legacyOrder: Boolean,
+    maxJsonDepth: Int
   ): IorT[F, NonEmptyList[Failure], List[SelfDescribingData[Json]]] =
     IorT {
-      accState(registry, raw, inputContexts, unstructEvent, legacyOrder)
+      accState(registry, raw, inputContexts, unstructEvent, legacyOrder, maxJsonDepth)
         .runS(Accumulation(enriched, Nil, Nil))
         .map {
           case Accumulation(_, failures, contexts) =>
@@ -283,7 +288,8 @@ object EnrichmentManager {
     raw: RawEvent,
     inputContexts: List[SelfDescribingData[Json]],
     unstructEvent: Option[SelfDescribingData[Json]],
-    legacyOrder: Boolean
+    legacyOrder: Boolean,
+    maxJsonDepth: Int
   ): EStateT[F, Unit] = {
     val getCookieContexts = headerContexts[F, CookieExtractorEnrichment](
       raw.context.headers,
@@ -317,7 +323,7 @@ object EnrichmentManager {
         _       <- getYauaaContext[F](registry.yauaa, raw.context.headers)            // Runs YAUAA enrichment (gets info thanks to user agent)
         _       <- extractSchemaFields[F](unstructEvent)                              // Extract the event vendor/name/format/version
         _       <- registry.javascriptScript.traverse(                                // Execute the JavaScript scripting enrichment
-                     getJsScript[F](_, raw.context.headers)
+                     getJsScript[F](_, raw.context.headers, maxJsonDepth)
                    )
         _       <- getCurrency[F](raw.context.timestamp, registry.currencyConversion) // Finalize the currency conversion
         _       <- getWeatherContext[F](registry.weather)                             // Fetch weather context
@@ -350,7 +356,7 @@ object EnrichmentManager {
         _       <- extractSchemaFields[F](unstructEvent)                              // Extract the event vendor/name/format/version
         _       <- geoLocation[F](registry.ipLookups)                                 // Execute IP lookup enrichment
         _       <- registry.javascriptScript.traverse(                                // Execute the JavaScript scripting enrichment
-                     getJsScript[F](_, raw.context.headers)
+                     getJsScript[F](_, raw.context.headers, maxJsonDepth)
                    )
         _       <- sqlContexts                                                        // Derive some contexts with custom SQL Query enrichment
         _       <- apiContexts                                                        // Derive some contexts with custom API Request enrichment
@@ -793,12 +799,13 @@ object EnrichmentManager {
   // Execute the JavaScript scripting enrichment
   def getJsScript[F[_]: Applicative](
     javascriptScript: JavascriptScriptEnrichment,
-    headers: List[String]
+    headers: List[String],
+    maxJsonDepth: Int
   ): EStateT[F, Unit] =
     EStateT.fromEither {
       case (event, derivedContexts) =>
         ME.formatContexts(derivedContexts).foreach(c => event.derived_contexts = c)
-        javascriptScript.process(event, headers).leftMap(NonEmptyList.one)
+        javascriptScript.process(event, headers, maxJsonDepth).leftMap(NonEmptyList.one)
     }
 
   def headerContexts[F[_]: Applicative, A](

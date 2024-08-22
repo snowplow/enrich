@@ -60,12 +60,13 @@ object EtlPipeline {
     invalidCount: F[Unit],
     registryLookup: RegistryLookup[F],
     atomicFields: AtomicFields,
-    emitIncomplete: Boolean
+    emitIncomplete: Boolean,
+    maxJsonDepth: Int
   ): F[List[Ior[BadRow, EnrichedEvent]]] =
     input match {
       case Validated.Valid(Some(payload)) =>
         adapterRegistry
-          .toRawEvents(payload, client, processor, registryLookup)
+          .toRawEvents(payload, client, processor, registryLookup, maxJsonDepth)
           .flatMap {
             case Validated.Valid(rawEvents) =>
               rawEvents.toList.traverse { event =>
@@ -80,7 +81,8 @@ object EtlPipeline {
                     invalidCount,
                     registryLookup,
                     atomicFields,
-                    emitIncomplete
+                    emitIncomplete,
+                    maxJsonDepth
                   )
                   .value
               }

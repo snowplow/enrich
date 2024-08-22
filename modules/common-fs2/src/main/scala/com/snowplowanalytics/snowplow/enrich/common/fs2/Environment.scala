@@ -129,7 +129,8 @@ final case class Environment[F[_], A](
   region: Option[String],
   cloud: Option[Cloud],
   featureFlags: FeatureFlags,
-  atomicFields: AtomicFields
+  atomicFields: AtomicFields,
+  maxJsonDepth: Int
 )
 
 object Environment {
@@ -252,7 +253,8 @@ object Environment {
       getRegionFromConfig(file).orElse(getRegion),
       cloud,
       featureFlags,
-      atomicFields
+      atomicFields,
+      parsedConfigs.configFile.maxJsonDepth
     )
   }
 

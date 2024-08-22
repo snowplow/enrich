@@ -215,7 +215,8 @@ class EventGenEtlPipelineSpec extends Specification with CatsEffect {
       IO.unit,
       SpecHelpers.registryLookup,
       AtomicFields.from(Map.empty),
-      SpecHelpers.emitIncomplete
+      SpecHelpers.emitIncomplete,
+      SpecHelpers.DefaultMaxJsonDepth
     )
 
   def rethrowBadRows[A]: Pipe[IO, ValidatedNel[BadRow, A], A] =

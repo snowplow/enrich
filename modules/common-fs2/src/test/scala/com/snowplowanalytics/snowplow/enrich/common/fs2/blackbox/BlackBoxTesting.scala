@@ -105,7 +105,8 @@ object BlackBoxTesting extends Specification with CatsEffect {
               IO.unit,
               SpecHelpers.registryLookup,
               AtomicFields.from(valueLimits = Map.empty),
-              SpecHelpers.emitIncomplete
+              SpecHelpers.emitIncomplete,
+              SpecHelpers.DefaultMaxJsonDepth
             )(
               input
             )

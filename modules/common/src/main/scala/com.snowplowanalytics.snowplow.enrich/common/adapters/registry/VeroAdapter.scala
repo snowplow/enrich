@@ -56,7 +56,8 @@ case class VeroAdapter(schemas: VeroSchemas) extends Adapter {
   override def toRawEvents[F[_]: Monad: Clock](
     payload: CollectorPayload,
     client: IgluCirceClient[F],
-    registryLookup: RegistryLookup[F]
+    registryLookup: RegistryLookup[F],
+    maxJsonDepth: Int
   ): F[Adapted] =
     (payload.body, payload.contentType) match {
       case (None, _) =>
@@ -68,7 +69,7 @@ case class VeroAdapter(schemas: VeroSchemas) extends Adapter {
         Monad[F].pure(failure.invalidNel)
       case (Some(body), _) =>
         val _ = client
-        val event = payloadBodyToEvent(body, payload)
+        val event = payloadBodyToEvent(body, payload, maxJsonDepth)
         Monad[F].pure(rawEventsListProcessor(List(event.toValidatedNel)))
     }
 
@@ -79,10 +80,14 @@ case class VeroAdapter(schemas: VeroSchemas) extends Adapter {
    * @param payload The details of the payload
    * @return a Validation boxing either a NEL of RawEvents on Success, or a NEL of Failure Strings
    */
-  private def payloadBodyToEvent(json: String, payload: CollectorPayload): Either[FailureDetails.AdapterFailure, RawEvent] =
+  private def payloadBodyToEvent(
+    json: String,
+    payload: CollectorPayload,
+    maxJsonDepth: Int
+  ): Either[FailureDetails.AdapterFailure, RawEvent] =
     for {
       parsed <- JsonUtils
-                  .extractJson(json)
+                  .extractJson(json, maxJsonDepth)
                   .leftMap(e => FailureDetails.AdapterFailure.NotJson("body", json.some, e))
       eventType <- parsed.hcursor
                      .get[String]("type")

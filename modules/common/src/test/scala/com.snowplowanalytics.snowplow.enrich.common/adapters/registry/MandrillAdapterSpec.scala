@@ -57,7 +57,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
   def e1 = {
     val bodyStr = "mandrill_events=%5B%7B%22event%22%3A%20%22subscribe%22%7D%5D"
     val expected = List(json"""{"event": "subscribe"}""")
-    adapterWithDefaultSchemas.payloadBodyToEvents(bodyStr) must beRight(expected)
+    adapterWithDefaultSchemas.payloadBodyToEvents(bodyStr, SpecHelpers.DefaultMaxJsonDepth) must beRight(expected)
   }
 
   def e2 =
@@ -80,7 +80,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
           "events_mandrill=something".some,
           "no `mandrill_events` parameter provided"
         ) |> { (_, str, expected) =>
-      adapterWithDefaultSchemas.payloadBodyToEvents(str) must beLeft(expected)
+      adapterWithDefaultSchemas.payloadBodyToEvents(str, SpecHelpers.DefaultMaxJsonDepth) must beLeft(expected)
     }
 
   def e3 = {
@@ -90,7 +90,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
       """[{"event":"click}]""".some,
       "invalid json: exhausted input"
     )
-    adapterWithDefaultSchemas.payloadBodyToEvents(bodyStr) must beLeft(expected)
+    adapterWithDefaultSchemas.payloadBodyToEvents(bodyStr, SpecHelpers.DefaultMaxJsonDepth) must beLeft(expected)
   }
 
   def e4 = { // Spec for nine seperate events being passed and returned.
@@ -226,7 +226,9 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
         Shared.context
       )
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beValid(expected))
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+      .map(_ must beValid(expected))
   }
 
   def e5 = { // Spec for nine seperate events where two have incorrect event names and one does not have event as a parameter
@@ -257,14 +259,16 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
         "cannot determine event type: type parameter not provided at index 2"
       )
     )
-    adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid(expected))
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+      .map(_ must beInvalid(expected))
   }
 
   def e6 = {
     val payload =
       CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beInvalid(
           NonEmptyList.one(
@@ -280,7 +284,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
     val payload =
       CollectorPayload(Shared.api, Nil, None, body.some, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beInvalid(
           NonEmptyList.one(
@@ -300,7 +304,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
     val payload =
       CollectorPayload(Shared.api, Nil, ct, body.some, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
-      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
         _ must beInvalid(
           NonEmptyList.one(

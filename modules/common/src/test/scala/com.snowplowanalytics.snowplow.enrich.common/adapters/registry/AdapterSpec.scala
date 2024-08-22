@@ -56,7 +56,8 @@ class AdapterSpec extends Specification with DataTables with ValidatedMatchers {
     override def toRawEvents[F[_]: Monad: Clock](
       payload: CollectorPayload,
       client: IgluCirceClient[F],
-      registryLookup: RegistryLookup[F]
+      registryLookup: RegistryLookup[F],
+      maxJsonDepth: Int
     ) =
       Monad[F].pure(
         FailureDetails.AdapterFailure

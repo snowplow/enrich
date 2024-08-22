@@ -67,7 +67,8 @@ case class MandrillAdapter(schemas: MandrillSchemas) extends Adapter {
   override def toRawEvents[F[_]: Monad: Clock](
     payload: CollectorPayload,
     client: IgluCirceClient[F],
-    registryLookup: RegistryLookup[F]
+    registryLookup: RegistryLookup[F],
+    maxJsonDepth: Int
   ): F[Adapted] =
     (payload.body, payload.contentType) match {
       case (None, _) =>
@@ -90,7 +91,7 @@ case class MandrillAdapter(schemas: MandrillSchemas) extends Adapter {
             .invalidNel
         )
       case (Some(body), _) =>
-        payloadBodyToEvents(body) match {
+        payloadBodyToEvents(body, maxJsonDepth) match {
           case Left(str) => Monad[F].pure(str.invalidNel)
           case Right(list) =>
             val _ = client
@@ -133,7 +134,7 @@ case class MandrillAdapter(schemas: MandrillSchemas) extends Adapter {
    * @param rawEventString The encoded string from the Mandrill payload body
    * @return a list of single events formatted as JSONs or a Failure String
    */
-  private[registry] def payloadBodyToEvents(rawEventString: String): Either[FailureDetails.AdapterFailure, List[Json]] =
+  private[registry] def payloadBodyToEvents(rawEventString: String, maxJsonDepth: Int): Either[FailureDetails.AdapterFailure, List[Json]] =
     for {
       bodyMap <- ConversionUtils
                    .parseUrlEncodedForm(rawEventString)
@@ -159,7 +160,7 @@ case class MandrillAdapter(schemas: MandrillSchemas) extends Adapter {
                        .asLeft
                    case Some(dStr) =>
                      JsonUtils
-                       .extractJson(dStr)
+                       .extractJson(dStr, maxJsonDepth)
                        .leftMap(e =>
                          FailureDetails.AdapterFailure
                            .NotJson("mandril_events", dStr.some, e)

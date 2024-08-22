@@ -182,7 +182,8 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
                     IO.unit,
                     SpecHelpers.registryLookup,
                     AtomicFields.from(Map.empty),
-                    emitIncomplete
+                    emitIncomplete,
+                    SpecHelpers.DefaultMaxJsonDepth
                   )
     } yield result.map(_.toEither)
   }

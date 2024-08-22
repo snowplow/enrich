@@ -64,7 +64,8 @@ case class SendgridAdapter(schemas: SendgridSchemas) extends Adapter {
   override def toRawEvents[F[_]: Monad: Clock](
     payload: CollectorPayload,
     client: IgluCirceClient[F],
-    registryLookup: RegistryLookup[F]
+    registryLookup: RegistryLookup[F],
+    maxJsonDepth: Int
   ): F[Adapted] =
     (payload.body, payload.contentType) match {
       case (None, _) =>
@@ -88,7 +89,7 @@ case class SendgridAdapter(schemas: SendgridSchemas) extends Adapter {
         )
       case (Some(body), _) =>
         val _ = client
-        val events = payloadBodyToEvents(body, payload)
+        val events = payloadBodyToEvents(body, payload, maxJsonDepth)
         Monad[F].pure(rawEventsListProcessor(events))
     }
 
@@ -100,8 +101,12 @@ case class SendgridAdapter(schemas: SendgridSchemas) extends Adapter {
    * @return a list of validated events, successes will be the corresponding raw events failures
    * will contain a non empty list of the reason(s) for the particular event failing
    */
-  private def payloadBodyToEvents(body: String, payload: CollectorPayload): List[ValidatedNel[FailureDetails.AdapterFailure, RawEvent]] =
-    JsonUtils.extractJson(body) match {
+  private def payloadBodyToEvents(
+    body: String,
+    payload: CollectorPayload,
+    maxJsonDepth: Int
+  ): List[ValidatedNel[FailureDetails.AdapterFailure, RawEvent]] =
+    JsonUtils.extractJson(body, maxJsonDepth) match {
       case Right(json) =>
         json.asArray match {
           case Some(array) =>

@@ -82,7 +82,8 @@ class UrbanAirshipAdapterSpec extends Specification with ValidatedMatchers with 
       Shared.cljSource,
       Shared.context
     )
-    val actual = adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+    val actual =
+      adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
 
     val expectedUnstructEventJson = json"""{
       "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
@@ -134,13 +135,17 @@ class UrbanAirshipAdapterSpec extends Specification with ValidatedMatchers with 
         Shared.cljSource,
         Shared.context
       )
-      adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid)
+      adapterWithDefaultSchemas
+        .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .map(_ must beInvalid)
     }
 
     "reject unparsable json" in {
       val payload =
         CollectorPayload(Shared.api, Nil, None, """{ """.some, Shared.cljSource, Shared.context)
-      adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid)
+      adapterWithDefaultSchemas
+        .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .map(_ must beInvalid)
     }
 
     "reject badly formatted json" in {
@@ -153,7 +158,9 @@ class UrbanAirshipAdapterSpec extends Specification with ValidatedMatchers with 
           Shared.cljSource,
           Shared.context
         )
-      adapterWithDefaultSchemas.toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup).map(_ must beInvalid)
+      adapterWithDefaultSchemas
+        .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .map(_ must beInvalid)
     }
 
     "reject content types" in {
@@ -166,7 +173,7 @@ class UrbanAirshipAdapterSpec extends Specification with ValidatedMatchers with 
         Shared.context
       )
       adapterWithDefaultSchemas
-        .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup)
+        .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
         .map(
           _ must beInvalid(
             NonEmptyList.one(

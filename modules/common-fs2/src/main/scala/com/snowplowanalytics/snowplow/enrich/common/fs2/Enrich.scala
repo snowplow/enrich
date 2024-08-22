@@ -73,7 +73,8 @@ object Enrich {
         env.metrics.invalidCount,
         env.registryLookup,
         env.atomicFields,
-        env.sinkIncomplete.isDefined
+        env.sinkIncomplete.isDefined,
+        env.maxJsonDepth
       )
 
     val enriched =
@@ -121,7 +122,8 @@ object Enrich {
     invalidCount: F[Unit],
     registryLookup: RegistryLookup[F],
     atomicFields: AtomicFields,
-    emitIncomplete: Boolean
+    emitIncomplete: Boolean,
+    maxJsonDepth: Int
   )(
     row: Array[Byte]
   ): F[Result] = {
@@ -143,7 +145,8 @@ object Enrich {
                       invalidCount,
                       registryLookup,
                       atomicFields,
-                      emitIncomplete
+                      emitIncomplete,
+                      maxJsonDepth
                     )
       } yield (enriched, collectorTstamp)
 

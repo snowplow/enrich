@@ -46,7 +46,8 @@ final case class RemoteAdapter[F[_]: Monad](
    * @return a Validation boxing either a NEL of RawEvents on Success, or a NEL of Failure Strings
    */
   def toRawEvents(
-    payload: CollectorPayload
+    payload: CollectorPayload,
+    maxJsonDepth: Int
   ): F[Adapted] =
     payload.body match {
       case Some(body) if body.nonEmpty =>
@@ -58,7 +59,7 @@ final case class RemoteAdapter[F[_]: Monad](
         )
         httpClient
           .getResponse(remoteUrl, None, None, Some(json.noSpaces), "POST")
-          .map(processResponse(payload, _).toValidatedNel)
+          .map(processResponse(payload, _, maxJsonDepth).toValidatedNel)
       case _ =>
         val msg = s"empty body: not a valid remote adapter $remoteUrl payload"
         Monad[F].pure(
@@ -71,7 +72,8 @@ final case class RemoteAdapter[F[_]: Monad](
    */
   def processResponse(
     payload: CollectorPayload,
-    response: Either[Throwable, String]
+    response: Either[Throwable, String],
+    maxJsonDepth: Int
   ): Either[FailureDetails.AdapterFailure, NonEmptyList[RawEvent]] =
     for {
       res <- response
@@ -83,7 +85,7 @@ final case class RemoteAdapter[F[_]: Monad](
                  )
                )
       json <- JsonUtils
-                .extractJson(res)
+                .extractJson(res, maxJsonDepth)
                 .leftMap(e => FailureDetails.AdapterFailure.NotJson("body", res.some, "[REMOTE_ADAPTER] " + e))
       events <- json.hcursor
                   .downField("events")

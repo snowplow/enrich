@@ -67,7 +67,8 @@ case class HubSpotAdapter(schemas: HubspotSchemas) extends Adapter {
   override def toRawEvents[F[_]: Monad: Clock](
     payload: CollectorPayload,
     client: IgluCirceClient[F],
-    registryLookup: RegistryLookup[F]
+    registryLookup: RegistryLookup[F],
+    maxJsonDepth: Int
   ): F[Adapted] =
     (payload.body, payload.contentType) match {
       case (None, _) =>
@@ -90,7 +91,7 @@ case class HubSpotAdapter(schemas: HubspotSchemas) extends Adapter {
         )
         Monad[F].pure(failure.invalidNel)
       case (Some(body), _) =>
-        payloadBodyToEvents(body) match {
+        payloadBodyToEvents(body, maxJsonDepth) match {
           case Left(f) => Monad[F].pure(f.invalidNel)
           case Right(list) =>
             val _ = client
@@ -130,10 +131,10 @@ case class HubSpotAdapter(schemas: HubspotSchemas) extends Adapter {
    * @param body The payload body from the HubSpot event
    * @return either a Successful List of JValue JSONs or a Failure String
    */
-  private[registry] def payloadBodyToEvents(body: String): Either[FailureDetails.AdapterFailure, List[Json]] =
+  private[registry] def payloadBodyToEvents(body: String, maxJsonDepth: Integer): Either[FailureDetails.AdapterFailure, List[Json]] =
     for {
       b <- JsonUtils
-             .extractJson(body)
+             .extractJson(body, maxJsonDepth)
              .leftMap(e => FailureDetails.AdapterFailure.NotJson("body", body.some, e))
       a <- b.asArray.toRight(
              FailureDetails.AdapterFailure.InputData("body", body.some, "not a json array")

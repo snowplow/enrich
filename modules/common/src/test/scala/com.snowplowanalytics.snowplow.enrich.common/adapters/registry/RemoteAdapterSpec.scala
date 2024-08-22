@@ -176,7 +176,7 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers with CatsEf
 
     SpecHelpers.httpClient.use { http =>
       adapter(http)
-        .toRawEvents(payload)
+        .toRawEvents(payload, SpecHelpers.DefaultMaxJsonDepth)
         .map(_ must beValid(expected))
     }
   }
@@ -193,7 +193,7 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers with CatsEf
     )
     SpecHelpers.httpClient.use { http =>
       adapter(http)
-        .toRawEvents(emptyListPayload)
+        .toRawEvents(emptyListPayload, SpecHelpers.DefaultMaxJsonDepth)
         .map(_ must beInvalid(expected))
     }
   }
@@ -210,7 +210,7 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers with CatsEf
     )
     SpecHelpers.httpClient.use { http =>
       adapter(http)
-        .toRawEvents(bodylessPayload)
+        .toRawEvents(bodylessPayload, SpecHelpers.DefaultMaxJsonDepth)
         .map(_ must beInvalid(expected))
     }
   }
@@ -225,7 +225,7 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers with CatsEf
       """[REMOTE_ADAPTER] invalid json: expected " got 'invali...' (line 1, column 2)"""
     )
     SpecHelpers.httpClient.use { http =>
-      IO.pure(adapter(http).processResponse(bodylessPayload, invalidJsonResponse) must beLeft(expected))
+      IO.pure(adapter(http).processResponse(bodylessPayload, invalidJsonResponse, DefaultMaxJsonDepth) must beLeft(expected))
     }
   }
 
@@ -239,7 +239,7 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers with CatsEf
       "[REMOTE_ADAPTER] could not be decoded as a list of json objects: Got value '\"response\"' with wrong type, expecting array: DownField(events)"
     )
     SpecHelpers.httpClient.use { http =>
-      IO.pure(adapter(http).processResponse(bodylessPayload, unexpectedJsonResponse) must beLeft(expected))
+      IO.pure(adapter(http).processResponse(bodylessPayload, unexpectedJsonResponse, DefaultMaxJsonDepth) must beLeft(expected))
     }
   }
 
@@ -253,7 +253,7 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers with CatsEf
       "[REMOTE_ADAPTER] empty list of events"
     )
     SpecHelpers.httpClient.use { http =>
-      IO.pure(adapter(http).processResponse(bodylessPayload, emptyJsonResponse) must beLeft(expected))
+      IO.pure(adapter(http).processResponse(bodylessPayload, emptyJsonResponse, DefaultMaxJsonDepth) must beLeft(expected))
     }
   }
 }

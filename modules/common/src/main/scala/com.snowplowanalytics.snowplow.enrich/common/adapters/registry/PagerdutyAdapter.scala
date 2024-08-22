@@ -62,7 +62,8 @@ case class PagerdutyAdapter(schemas: PagerdutySchemas) extends Adapter {
   override def toRawEvents[F[_]: Monad: Clock](
     payload: CollectorPayload,
     client: IgluCirceClient[F],
-    registryLookup: RegistryLookup[F]
+    registryLookup: RegistryLookup[F],
+    maxJsonDepth: Int
   ): F[Adapted] =
     (payload.body, payload.contentType) match {
       case (None, _) =>
@@ -85,7 +86,7 @@ case class PagerdutyAdapter(schemas: PagerdutySchemas) extends Adapter {
             .invalidNel
         )
       case (Some(body), _) =>
-        payloadBodyToEvents(body) match {
+        payloadBodyToEvents(body, maxJsonDepth) match {
           case Left(str) => Monad[F].pure(str.invalidNel)
           case Right(list) =>
             val _ = client
@@ -126,9 +127,9 @@ case class PagerdutyAdapter(schemas: PagerdutySchemas) extends Adapter {
    * @param body The payload body from the PagerDuty event
    * @return either a Successful List of JValue JSONs or a Failure String
    */
-  private[registry] def payloadBodyToEvents(body: String): Either[FailureDetails.AdapterFailure, List[Json]] =
+  private[registry] def payloadBodyToEvents(body: String, maxJsonDepth: Int): Either[FailureDetails.AdapterFailure, List[Json]] =
     JsonUtils
-      .extractJson(body)
+      .extractJson(body, maxJsonDepth)
       .leftMap(e => FailureDetails.AdapterFailure.NotJson("body", body.some, e))
       .flatMap { p =>
         p.hcursor.downField("messages").focus.flatMap(_.asArray) match {

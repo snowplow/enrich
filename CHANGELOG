@@ -1,3 +1,7 @@
+5.1.1 (2024-08-29)
+------------------
+Check if JSON entity exceeds max depth during conversion from String to Circe JSON
+
 5.1.0 (2024-08-21)
 ------------------
 Enrich Kinesis: remove BeforeAll trait from EnrichKinesisSpec

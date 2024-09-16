@@ -71,7 +71,7 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
       SpecHelpers.createIgluClient(List(TestEnvironment.embeddedRegistry)).flatMap { igluClient =>
         Enrich
           .enrichWith(
-            TestEnvironment.enrichmentReg.pure[IO],
+            TestEnvironment.enrichmentReg,
             TestEnvironment.adapterRegistry,
             igluClient,
             None,
@@ -81,8 +81,8 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
             SpecHelpers.registryLookup,
             AtomicFields.from(valueLimits = Map.empty),
             SpecHelpers.emitIncomplete,
-            SpecHelpers.DefaultMaxJsonDepth
-          )(
+            SpecHelpers.DefaultMaxJsonDepth,
+            identity[Array[Byte]],
             EnrichSpec.payload
           )
           .map(normalizeResult)
@@ -103,7 +103,7 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
           .flatMap { igluClient =>
             Enrich
               .enrichWith(
-                TestEnvironment.enrichmentReg.pure[IO],
+                TestEnvironment.enrichmentReg,
                 TestEnvironment.adapterRegistry,
                 igluClient,
                 None,
@@ -113,8 +113,8 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
                 SpecHelpers.registryLookup,
                 AtomicFields.from(valueLimits = Map.empty),
                 SpecHelpers.emitIncomplete,
-                SpecHelpers.DefaultMaxJsonDepth
-              )(
+                SpecHelpers.DefaultMaxJsonDepth,
+                identity[Array[Byte]],
                 payload
               )
               .map(normalizeResult)
@@ -143,7 +143,7 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
       SpecHelpers.createIgluClient(List(TestEnvironment.embeddedRegistry)).flatMap { igluClient =>
         Enrich
           .enrichWith(
-            TestEnvironment.enrichmentReg.pure[IO],
+            TestEnvironment.enrichmentReg,
             TestEnvironment.adapterRegistry,
             igluClient,
             None,
@@ -153,8 +153,8 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
             SpecHelpers.registryLookup,
             AtomicFields.from(valueLimits = Map.empty),
             SpecHelpers.emitIncomplete,
-            SpecHelpers.DefaultMaxJsonDepth
-          )(
+            SpecHelpers.DefaultMaxJsonDepth,
+            identity[Array[Byte]],
             Base64.getEncoder.encode(EnrichSpec.payload)
           )
           .map(normalizeResult)
@@ -169,7 +169,7 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
       SpecHelpers.createIgluClient(List(TestEnvironment.embeddedRegistry)).flatMap { igluClient =>
         Enrich
           .enrichWith(
-            TestEnvironment.enrichmentReg.pure[IO],
+            TestEnvironment.enrichmentReg,
             TestEnvironment.adapterRegistry,
             igluClient,
             None,
@@ -179,8 +179,8 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
             SpecHelpers.registryLookup,
             AtomicFields.from(valueLimits = Map.empty),
             SpecHelpers.emitIncomplete,
-            SpecHelpers.DefaultMaxJsonDepth
-          )(
+            SpecHelpers.DefaultMaxJsonDepth,
+            identity[Array[Byte]],
             Base64.getEncoder.encode(EnrichSpec.payload)
           )
           .map(normalizeResult)
@@ -588,7 +588,7 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
   def sinkOne(
     environment: Environment[IO, Array[Byte]],
     event: Ior[BadRow, EnrichedEvent]
-  ): IO[Unit] = Enrich.sinkChunk(List((List(event), None)), environment)
+  ): IO[Unit] = Enrich.sinkChunk(List(Enrich.Result(Array.emptyByteArray, List(event), None)), environment)
 }
 
 object EnrichSpec {
@@ -620,8 +620,8 @@ object EnrichSpec {
         Validated.Invalid(badRow)
     }
 
-  def normalizeResult(payload: Result): List[Ior[BadRow, Event]] =
-    payload._1.map {
+  def normalizeResult(payload: Enrich.Result[Any]): List[Ior[BadRow, Event]] =
+    payload.enriched.map {
       case Ior.Right(enriched) => normalize(ConversionUtils.tabSeparatedEnrichedEvent(enriched)).toIor
       case Ior.Left(err) => Ior.Left(err)
       case Ior.Both(_, enriched) => normalize(ConversionUtils.tabSeparatedEnrichedEvent(enriched)).toIor

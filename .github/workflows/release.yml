@@ -20,13 +20,13 @@ jobs:
           - nsq
         include:
           - app: kinesis
-            run_snyk: ${{ !contains(github.ref, 'rc') }}
+            run_snyk: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc') }}
           - app: pubsub
-            run_snyk: ${{ !contains(github.ref, 'rc') }}
+            run_snyk: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc') }}
           - app: kafka
-            run_snyk: ${{ !contains(github.ref, 'rc') }}
+            run_snyk: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc') }}
           - app: nsq
-            run_snyk: ${{ !contains(github.ref, 'rc') }}
+            run_snyk: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc') }}
     steps:
     - uses: actions/checkout@v2
       if: startsWith(github.ref, 'refs/tags/')

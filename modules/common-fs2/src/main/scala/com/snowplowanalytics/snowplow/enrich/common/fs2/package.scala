@@ -26,8 +26,4 @@ package object fs2 {
   type AttributedByteSink[F[_]] = List[AttributedData[Array[Byte]]] => F[Unit]
 
   type Enriched = Ior[BadRow, EnrichedEvent]
-  type Result = (List[Enriched], Option[Long])
-
-  /** Function to transform an origin raw payload into good and/or bad rows */
-  type Enrich[F[_]] = Array[Byte] => F[Result]
 }

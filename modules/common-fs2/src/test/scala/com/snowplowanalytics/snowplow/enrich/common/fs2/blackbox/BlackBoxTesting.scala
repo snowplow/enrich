@@ -96,7 +96,7 @@ object BlackBoxTesting extends Specification with CatsEffect {
         getEnrichmentRegistry(enrichmentConfig, igluClient).use { registry =>
           Enrich
             .enrichWith(
-              IO.pure(registry),
+              registry,
               TestEnvironment.adapterRegistry,
               igluClient,
               None,
@@ -106,12 +106,13 @@ object BlackBoxTesting extends Specification with CatsEffect {
               SpecHelpers.registryLookup,
               AtomicFields.from(valueLimits = Map.empty),
               SpecHelpers.emitIncomplete,
-              SpecHelpers.DefaultMaxJsonDepth
-            )(
+              SpecHelpers.DefaultMaxJsonDepth,
+              identity[Array[Byte]],
               input
             )
+            .map(_.enriched)
             .map {
-              case (List(Ior.Right(enriched)), _) => checkEnriched(enriched, expected)
+              case List(Ior.Right(enriched)) => checkEnriched(enriched, expected)
               case other => ko(s"there should be one enriched event but got $other")
             }
         }

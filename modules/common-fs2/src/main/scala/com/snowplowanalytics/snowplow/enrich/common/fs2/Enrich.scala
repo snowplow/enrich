@@ -20,10 +20,10 @@ import cats.data.{Ior, NonEmptyList, ValidatedNel}
 import cats.{Monad, Parallel}
 import cats.implicits._
 
-import cats.effect.kernel.{Async, Clock, Sync}
+import cats.effect.kernel.{Async, Sync}
 import cats.effect.implicits._
 
-import fs2.{Pipe, Stream}
+import fs2.{Chunk, Pipe, Stream}
 
 import _root_.io.sentry.SentryClient
 
@@ -51,6 +51,12 @@ object Enrich {
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
     Slf4jLogger.getLogger[F]
 
+  case class Result[+A](
+    original: A,
+    enriched: List[Enriched],
+    collectorTstamp: Option[Long]
+  )
+
   /**
    * Run a primary enrichment stream, reading from [[Environment]] source, enriching
    * via [[enrichWith]] and sinking into the Good, Bad, and Pii sinks.
@@ -61,59 +67,58 @@ object Enrich {
    * they'll be refreshed periodically by [[Assets.updateStream]]
    */
   def run[F[_]: Async, A](env: Environment[F, A]): Stream[F, Unit] = {
-    val enrichmentsRegistry: F[EnrichmentRegistry[F]] = env.enrichments.get.map(_.registry)
-    val enrich: Enrich[F] =
-      enrichWith[F](
-        enrichmentsRegistry,
-        env.adapterRegistry,
-        env.igluClient,
-        env.sentry,
-        env.processor,
-        env.featureFlags,
-        env.metrics.invalidCount,
-        env.registryLookup,
-        env.atomicFields,
-        env.sinkIncomplete.isDefined,
-        env.maxJsonDepth
-      )
 
-    val enriched =
-      env.source.chunks
-        .evalTap(chunk => Logger[F].debug(s"Starting to process chunk of size ${chunk.size}"))
-        .evalTap(chunk => env.metrics.rawCount(chunk.size))
-        .map(chunk => chunk.map(a => (a, env.getPayload(a))))
-        .evalMap(chunk =>
-          for {
-            begin <- Clock[F].realTime
-            result <-
-              env.semaphore.permit.use { _ =>
-                chunk.toList.map { case (orig, bytes) => enrich(bytes).map((orig, _)) }.parSequenceN(env.streamsSettings.concurrency.enrich)
-              }
-            end <- Clock[F].realTime
-            _ <- Logger[F].debug(s"Chunk of size ${chunk.size} enriched in ${end - begin} ms")
-          } yield result
-        )
-
-    val sinkAndCheckpoint: Pipe[F, List[(A, Result)], Unit] =
-      _.parEvalMap(env.streamsSettings.concurrency.sink)(chunk =>
+    def enrichChunk(chunk: Chunk[A]): F[List[Result[A]]] =
+      env.semaphore.permit.surround {
         for {
-          begin <- Clock[F].realTime
-          result <- sinkChunk(chunk.map(_._2), env).as(chunk.map(_._1))
-          end <- Clock[F].realTime
+          _ <- Logger[F].debug(s"Starting to process chunk of size ${chunk.size}")
+          _ <- env.metrics.rawCount(chunk.size)
+          begin <- Sync[F].realTime
+          enrichments <- env.enrichments.get
+          result <- chunk.parTraverseN(env.streamsSettings.concurrency.enrich) { payload =>
+                      enrichWith[F, A](
+                        enrichments.registry,
+                        env.adapterRegistry,
+                        env.igluClient,
+                        env.sentry,
+                        env.processor,
+                        env.featureFlags,
+                        env.metrics.invalidCount,
+                        env.registryLookup,
+                        env.atomicFields,
+                        env.sinkIncomplete.isDefined,
+                        env.maxJsonDepth,
+                        env.getPayload,
+                        payload
+                      )
+                    }
+          end <- Sync[F].realTime
+          _ <- Logger[F].debug(s"Chunk of size ${chunk.size} enriched in ${end - begin} ms")
+        } yield result.toList
+      }
+
+    val enrichedStream: Stream[F, List[Result[A]]] = env.source.chunks.evalMap(enrichChunk)
+
+    val sinkAndCheckpoint: Pipe[F, List[Result[A]], Unit] =
+      _.parEvalMap(env.streamsSettings.concurrency.sink) { chunk =>
+        for {
+          begin <- Sync[F].realTime
+          _ <- sinkChunk(chunk, env)
+          end <- Sync[F].realTime
           _ <- Logger[F].debug(s"Chunk of size ${chunk.size} sunk in ${end - begin}")
-        } yield result
-      )
+        } yield chunk.map(_.original)
+      }
         .evalMap(env.checkpoint)
 
-    enriched.through(CleanCancellation(sinkAndCheckpoint))
+    enrichedStream.through(CleanCancellation(sinkAndCheckpoint))
   }
 
   /**
    * Enrich a single `CollectorPayload` to get list of bad rows and/or enriched events
    * @return enriched event or bad row, along with the collector timestamp
    */
-  def enrichWith[F[_]: Sync](
-    enrichRegistry: F[EnrichmentRegistry[F]],
+  def enrichWith[F[_]: Sync, A](
+    enrichRegistry: EnrichmentRegistry[F],
     adapterRegistry: AdapterRegistry[F],
     igluClient: IgluCirceClient[F],
     sentry: Option[SentryClient],
@@ -123,20 +128,19 @@ object Enrich {
     registryLookup: RegistryLookup[F],
     atomicFields: AtomicFields,
     emitIncomplete: Boolean,
-    maxJsonDepth: Int
-  )(
-    row: Array[Byte]
-  ): F[Result] = {
-    val payload = ThriftLoader.toCollectorPayload(row, processor, featureFlags.tryBase64Decoding)
-    val collectorTstamp = payload.toOption.flatMap(_.flatMap(_.context.timestamp).map(_.getMillis))
-
-    val result =
-      for {
-        etlTstamp <- Clock[F].realTime.map(time => new DateTime(time.toMillis))
-        registry <- enrichRegistry
-        enriched <- EtlPipeline.processEvents[F](
+    maxJsonDepth: Int,
+    getPayload: A => Array[Byte],
+    row: A
+  ): F[Result[A]] =
+    for {
+      bytes <- Sync[F].delay(getPayload(row))
+      payload <- Sync[F].delay(ThriftLoader.toCollectorPayload(bytes, processor, featureFlags.tryBase64Decoding))
+      etlTstamp <- Sync[F].realTime.map(time => new DateTime(time.toMillis))
+      collectorTstamp = payload.toOption.flatMap(_.flatMap(_.context.timestamp).map(_.getMillis))
+      enriched <- EtlPipeline
+                    .processEvents[F](
                       adapterRegistry,
-                      registry,
+                      enrichRegistry,
                       igluClient,
                       processor,
                       etlTstamp,
@@ -148,35 +152,32 @@ object Enrich {
                       emitIncomplete,
                       maxJsonDepth
                     )
-      } yield (enriched, collectorTstamp)
-
-    result.handleErrorWith(sendToSentry[F](row, sentry, processor, collectorTstamp))
-  }
+                    .handleErrorWith(recoverFromError[F](bytes, sentry, processor))
+    } yield Result(row, enriched, collectorTstamp)
 
   /** Stringify `ThriftLoader` result for debugging purposes */
   def payloadToString(payload: ValidatedNel[BadRow.CPFormatViolation, Option[CollectorPayload]]): String =
     payload.fold(_.asJson.noSpaces, _.map(_.toBadRowPayload.asJson.noSpaces).getOrElse("None"))
 
   /** Log an error, turn the problematic `CollectorPayload` into `BadRow` and notify Sentry if configured */
-  def sendToSentry[F[_]: Sync: Clock](
-    original: Array[Byte],
+  def recoverFromError[F[_]: Sync](
+    bytes: Array[Byte],
     sentry: Option[SentryClient],
-    processor: Processor,
-    collectorTstamp: Option[Long]
+    processor: Processor
   )(
     error: Throwable
-  ): F[Result] =
+  ): F[List[Enriched]] =
     for {
       _ <- Logger[F].error("Runtime exception during payload enrichment. CollectorPayload converted to generic_error and ack'ed")
-      now <- Clock[F].realTimeInstant
-      badRow = genericBadRow(original, now, error, processor)
+      now <- Sync[F].realTimeInstant
+      badRow = genericBadRow(bytes, now, error, processor)
       _ <- sentry match {
              case Some(client) =>
                Sync[F].delay(client.sendException(error))
              case None =>
                Sync[F].unit
            }
-    } yield (List(Ior.left(badRow)), collectorTstamp)
+    } yield List(Ior.left(badRow))
 
   /** Build a `generic_error` bad row for unhandled runtime errors */
   def genericBadRow(
@@ -192,12 +193,12 @@ object Enrich {
   }
 
   def sinkChunk[F[_]: Parallel: Sync, A](
-    chunk: List[Result],
+    chunk: List[Result[A]],
     env: Environment[F, A]
   ): F[Unit] = {
     val (bad, enriched, incomplete) =
       chunk
-        .flatMap(_._1)
+        .flatMap(_.enriched)
         .foldLeft((List.empty[BadRow], List.empty[EnrichedEvent], List.empty[EnrichedEvent])) {
           case (previous, item) =>
             val (bad, enriched, incomplete) = previous
@@ -231,7 +232,7 @@ object Enrich {
         env.piiAttributes,
         env.processor,
         env.streamsSettings.maxRecordSize
-      ) *> env.metrics.enrichLatency(chunk.headOption.flatMap(_._2)),
+      ) *> env.metrics.enrichLatency(chunk.headOption.flatMap(_.collectorTstamp)),
       sinkBad(allBad, env.sinkBad, env.metrics.badCount),
       if (incompleteTooBig.nonEmpty) Logger[F].warn(s"${incompleteTooBig.size} incomplete events discarded because they are too big")
       else Sync[F].unit,

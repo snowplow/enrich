@@ -35,7 +35,7 @@ class Tp2AdapterSpec extends Specification with CatsEffect {
       SpecHelpers.createIgluClient(List(TestEnvironment.embeddedRegistry)).flatMap { igluClient =>
         Enrich
           .enrichWith(
-            TestEnvironment.enrichmentReg.pure[IO],
+            TestEnvironment.enrichmentReg,
             TestEnvironment.adapterRegistry,
             igluClient,
             None,
@@ -45,12 +45,13 @@ class Tp2AdapterSpec extends Specification with CatsEffect {
             SpecHelpers.registryLookup,
             AtomicFields.from(valueLimits = Map.empty),
             SpecHelpers.emitIncomplete,
-            SpecHelpers.DefaultMaxJsonDepth
-          )(
+            SpecHelpers.DefaultMaxJsonDepth,
+            identity[Array[Byte]],
             input
           )
+          .map(_.enriched)
           .map {
-            case (l, _) if l.forall(_.isRight) => l must haveSize(10)
+            case l if l.forall(_.isRight) => l must haveSize(10)
             case other => ko(s"there should be 10 enriched events, got $other")
           }
       }

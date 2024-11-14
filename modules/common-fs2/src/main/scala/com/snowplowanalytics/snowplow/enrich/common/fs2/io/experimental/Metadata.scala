@@ -103,6 +103,7 @@ object Metadata {
              case (event, entitiesAndCount) =>
                reporter.report(snapshot.periodStart, snapshot.periodEnd, event, entitiesAndCount)
            }
+      _ <- reporter.flush
     } yield ()
 
   trait MetadataReporter[F[_]] {
@@ -112,6 +113,8 @@ object Metadata {
       event: MetadataEvent,
       entitiesAndCount: EntitiesAndCount
     ): F[Unit]
+
+    def flush(): F[Unit]
   }
 
   case class HttpMetadataReporter[F[_]: Async](
@@ -119,6 +122,11 @@ object Metadata {
     appName: String,
     client: Client[F]
   ) extends MetadataReporter[F] {
+    // Probably shouldn't do this?
+    // Should this still be a resource?
+    // How would I release the resource automatically?
+    val tracker: Resource[F, Tracker[F]] = initTracker(config, appName, client)
+
     def initTracker(
       config: MetadataConfig,
       appName: String,
@@ -133,6 +141,7 @@ object Metadata {
                        https = config.endpoint.scheme.map(_ == Uri.Scheme.https).getOrElse(false)
                      ),
                      client,
+                     bufferConfig = Emitter.BufferConfig.PayloadSize(100000),
                      retryPolicy = Emitter.RetryPolicy.MaxAttempts(10),
                      callback = Some(emitterCallback _)
                    )
@@ -144,12 +153,17 @@ object Metadata {
       event: MetadataEvent,
       entitiesAndCount: EntitiesAndCount
     ): F[Unit] =
-      initTracker(config, appName, client).use { t =>
+      tracker.allocated.flatMap { case (t, _) =>
         Logger[F].debug(s"Tracking observed event ${event.schema.toSchemaUri}") >>
           t.trackSelfDescribingEvent(
             mkWebhookEvent(config.organizationId, config.pipelineId, periodStart, periodEnd, event, entitiesAndCount.count),
             mkWebhookContexts(entitiesAndCount.entities).toSeq
-          ) >> t.flushEmitters()
+          )
+      }
+
+    def flush(): F[Unit] =
+      tracker.allocated.flatMap { case (t, _) =>
+        t.flushEmitters()
       }
 
     private def emitterCallback(

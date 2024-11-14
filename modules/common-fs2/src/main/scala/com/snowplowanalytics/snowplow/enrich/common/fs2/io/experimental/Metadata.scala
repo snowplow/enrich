@@ -79,7 +79,7 @@ object Metadata {
       new Metadata[F] {
         def report: Stream[F, Unit] =
           for {
-            _ <- Stream.eval(Logger[F].info("Starting metadata repoter"))
+            _ <- Stream.eval(Logger[F].info("Starting metadata reporter"))
             _ <- Stream.bracket(Sync[F].unit)(_ => submit(reporter, observedRef))
             _ <- Stream.fixedDelay[F](config.interval)
             _ <- Stream.eval(submit(reporter, observedRef))
@@ -145,7 +145,7 @@ object Metadata {
       entitiesAndCount: EntitiesAndCount
     ): F[Unit] =
       initTracker(config, appName, client).use { t =>
-        Logger[F].info(s"Tracking observed event ${event.schema.toSchemaUri}") >>
+        Logger[F].debug(s"Tracking observed event ${event.schema.toSchemaUri}") >>
           t.trackSelfDescribingEvent(
             mkWebhookEvent(config.organizationId, config.pipelineId, periodStart, periodEnd, event, entitiesAndCount.count),
             mkWebhookContexts(entitiesAndCount.entities).toSeq
@@ -159,7 +159,7 @@ object Metadata {
     ): F[Unit] =
       res match {
         case Emitter.Result.Success(_) =>
-          Logger[F].info(s"Metadata successfully sent to ${params.getGetUri}")
+          Logger[F].debug(s"Metadata successfully sent to ${params.getUri}")
         case Emitter.Result.Failure(code) =>
           Logger[F].warn(s"Sending metadata got unexpected HTTP code $code from ${params.getUri}")
         case Emitter.Result.TrackerFailure(exception) =>

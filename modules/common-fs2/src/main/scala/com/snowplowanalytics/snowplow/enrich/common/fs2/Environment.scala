@@ -214,7 +214,7 @@ object Environment {
       igluClient <- IgluCirceClient.parseDefault[F](parsedConfigs.igluJson, parsedConfigs.configFile.maxJsonDepth).resource
       remoteAdaptersEnabled = file.remoteAdapters.configs.nonEmpty
       metrics <- Resource.eval(Metrics.build[F](file.monitoring.metrics, remoteAdaptersEnabled, incomplete.isDefined))
-      metadata <- Resource.eval(metadataReporter[F](file, processor.artifact, http4s))
+      metadata <- metadataReporter[F](file, processor.artifact, http4s)
       assets = parsedConfigs.enrichmentConfigs.flatMap(_.filesToCache)
       remoteAdapters <- prepareRemoteAdapters[F](file.remoteAdapters, metrics)
       adapterRegistry = new AdapterRegistry(remoteAdapters, file.adaptersSchemas)
@@ -277,11 +277,16 @@ object Environment {
     config: ConfigFile,
     appName: String,
     httpClient: Http4sClient[F]
-  ): F[Metadata[F]] =
-    config.experimental
-      .flatMap(_.metadata)
-      .map(metadataConfig => Metadata.build[F](metadataConfig, Metadata.HttpMetadataReporter[F](metadataConfig, appName, httpClient)))
-      .getOrElse(Metadata.noop[F].pure[F])
+  ): Resource[F, Metadata[F]] =
+    config.experimental.flatMap(_.metadata) match {
+      case Some(metadataConfig) =>
+        for {
+          reporter <- Metadata.HttpMetadataReporter.resource(metadataConfig, appName, httpClient)
+          metadata <- Resource.eval(Metadata.build(metadataConfig, reporter))
+        } yield metadata
+      case None =>
+        Resource.pure(Metadata.noop[F])
+    }
 
   private implicit class EitherTOps[F[_], E: Show, A](eitherT: EitherT[F, E, A]) {
     def resource(implicit F: Sync[F]): Resource[F, A] = {

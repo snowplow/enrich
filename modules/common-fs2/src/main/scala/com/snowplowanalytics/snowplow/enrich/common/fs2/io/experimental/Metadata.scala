@@ -103,7 +103,7 @@ object Metadata {
              case (event, entitiesAndCount) =>
                reporter.report(snapshot.periodStart, snapshot.periodEnd, event, entitiesAndCount)
            }
-      _ <- reporter.flush
+      _ <- reporter.flush()
     } yield ()
 
   trait MetadataReporter[F[_]] {
@@ -117,17 +117,35 @@ object Metadata {
     def flush(): F[Unit]
   }
 
-  case class HttpMetadataReporter[F[_]: Async](
+  case class HttpMetadataReporter[F[_]: Sync](
     config: MetadataConfig,
-    appName: String,
-    client: Client[F]
+    tracker: Tracker[F]
   ) extends MetadataReporter[F] {
-    // Probably shouldn't do this?
-    // Should this still be a resource?
-    // How would I release the resource automatically?
-    val tracker: Resource[F, Tracker[F]] = initTracker(config, appName, client)
 
-    def initTracker(
+    def report(
+      periodStart: Instant,
+      periodEnd: Instant,
+      event: MetadataEvent,
+      entitiesAndCount: EntitiesAndCount
+    ): F[Unit] =
+      Logger[F].debug(s"Tracking observed event ${event.schema.toSchemaUri}") >>
+        tracker.trackSelfDescribingEvent(
+          mkWebhookEvent(config.organizationId, config.pipelineId, periodStart, periodEnd, event, entitiesAndCount.count),
+          mkWebhookContexts(entitiesAndCount.entities).toSeq
+        )
+
+    def flush(): F[Unit] = tracker.flushEmitters()
+  }
+
+  object HttpMetadataReporter {
+    def resource[F[_]: Async](
+      config: MetadataConfig,
+      appName: String,
+      client: Client[F]
+    ): Resource[F, HttpMetadataReporter[F]] =
+      initTracker(config, appName, client).map(t => HttpMetadataReporter(config, t))
+
+    private def initTracker[F[_]: Async](
       config: MetadataConfig,
       appName: String,
       client: Client[F]
@@ -143,30 +161,11 @@ object Metadata {
                      client,
                      bufferConfig = Emitter.BufferConfig.PayloadSize(100000),
                      retryPolicy = Emitter.RetryPolicy.MaxAttempts(10),
-                     callback = Some(emitterCallback _)
+                     callback = Some(emitterCallback[F](_, _, _))
                    )
       } yield new Tracker(NonEmptyList.of(emitter), "tracker-metadata", appName)
 
-    def report(
-      periodStart: Instant,
-      periodEnd: Instant,
-      event: MetadataEvent,
-      entitiesAndCount: EntitiesAndCount
-    ): F[Unit] =
-      tracker.allocated.flatMap { case (t, _) =>
-        Logger[F].debug(s"Tracking observed event ${event.schema.toSchemaUri}") >>
-          t.trackSelfDescribingEvent(
-            mkWebhookEvent(config.organizationId, config.pipelineId, periodStart, periodEnd, event, entitiesAndCount.count),
-            mkWebhookContexts(entitiesAndCount.entities).toSeq
-          )
-      }
-
-    def flush(): F[Unit] =
-      tracker.allocated.flatMap { case (t, _) =>
-        t.flushEmitters()
-      }
-
-    private def emitterCallback(
+    private def emitterCallback[F[_]: Sync](
       params: Emitter.EndpointParams,
       req: Emitter.Request,
       res: Emitter.Result

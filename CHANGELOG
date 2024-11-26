@@ -1,6 +1,11 @@
+5.1.4 (2024-11-26)
+------------------
+Upgrade dependencies
+Move the defaults for atomic fields lengths and max JSON depth from common-fs2 to common
+
 5.1.3 (2024-11-18)
 ------------------
-Metadata feature re-uses tracker and emits batches (#8)
+Metadata feature re-uses tracker and emits batches
 
 5.1.2 (2024-09-17)
 ------------------

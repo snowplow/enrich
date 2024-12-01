@@ -1,6 +1,5 @@
 {
-	"schema": "iglu:com.snowplowanalytics.snowplow/currency_conversion_config/jsonschema/1-0-0",
-
+	"schema": "iglu:com.snowplowanalytics.snowplow/currency_conversion_config/jsonschema/2-0-0",
 	"data": {
 
 		"enabled": false,
@@ -11,6 +10,48 @@
 			"apiKey": "{{KEY}}",
 			"baseCurrency": "USD",
 			"rateAt": "EOD_PRIOR"
+		},
+		"mappings": [
+		{
+			"field": "contexts",
+			"schemaCriterion": "iglu:ecommerce.tracking/product_entity/jsonschema/1-*-*",
+			"derivedContext": "iglu:ecommerce.tracking/normalized_product_entity/jsonschema/1-0-0",
+			"currencyJsonPath": "$.currency",
+			"fields": [
+			{
+				"jsonPath": "$.price",
+				"outputField": "price"
+			},
+			{
+				"jsonPath": "$.list_price",
+				"outputField": "list_price"
+			}
+			]
+		},
+		{
+			"field": "contexts",
+			"schemaCriterion": "iglu:ecommerce.tracking/transaction_entity/jsonschema/1-*-*",
+			"derivedContext": "iglu:ecommerce.tracking/normalized_transaction_entity/jsonschema/1-0-0",
+			"currencyJsonPath": "$.currency",
+			"fields": [
+			{
+				"jsonPath": "$.revenue",
+				"outputField": "revenue"
+			},
+			{
+				"jsonPath": "$.tax",
+				"outputField": "tax"
+			},
+			{
+				"jsonPath": "$.shipping",
+				"outputField": "shipping"
+			},
+			{
+				"jsonPath": "$.discount_amount",
+				"outputField": "discount_amount"
+			}
+			]
 		}
+		]
 	}
 }

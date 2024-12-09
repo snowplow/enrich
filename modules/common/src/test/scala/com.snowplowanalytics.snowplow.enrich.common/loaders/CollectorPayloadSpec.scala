@@ -51,7 +51,7 @@ class CollectorPayloadSpec extends Specification with DataTables with ScalaCheck
       prop { payload: CollectorPayload =>
         val bytes = CollectorPayloadSpec.thriftSerializer.serialize(payload.toThrift)
         val result = ThriftLoader.toCollectorPayload(bytes, Processor("test", "0.0.1"))
-        result must beValid(Some(payload))
+        result must beValid(payload)
       }
     }
   }

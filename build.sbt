@@ -19,7 +19,7 @@ lazy val root = project.in(file("."))
   .settings(projectSettings)
   .settings(compilerSettings)
   .settings(resolverSettings)
-  .aggregate(common, commonFs2, pubsub, kinesis, kafka, nsq)
+  .aggregate(common, commonFs2, commonStreams, pubsub, kinesis, kinesisStreams, kafka, nsq)
 
 lazy val common = project
   .in(file("modules/common"))
@@ -34,6 +34,14 @@ lazy val commonFs2 = project
   .settings(libraryDependencies ++= commonFs2Dependencies)
   .settings(Defaults.itSettings)
   .configs(IntegrationTest)
+  .settings(addCompilerPlugin(betterMonadicFor))
+  .dependsOn(common % "test->test;compile->compile")
+
+lazy val commonStreams = project
+  .in(file("modules/common-streams/core"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(commonStreamsBuildSettings)
+  .settings(libraryDependencies ++= commonStreamsDependencies)
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(common % "test->test;compile->compile")
 
@@ -112,6 +120,29 @@ lazy val kinesisDistroless = project
   .configs(IntegrationTest)
   .settings((IntegrationTest / test) := (IntegrationTest / test).dependsOn(Docker / publishLocal).value)
   .settings((IntegrationTest / testOnly) := (IntegrationTest / testOnly).dependsOn(Docker / publishLocal).evaluated)
+
+lazy val kinesisStreams = project
+  .in(file("modules/common-streams/kinesis"))
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDockerPlugin)
+  .settings(kinesisStreamsBuildSettings)
+  .settings(libraryDependencies ++= kinesisStreamsDependencies)
+  .settings(excludeDependencies ++= exclusions)
+  .settings(addCompilerPlugin(betterMonadicFor))
+  .dependsOn(common % "compile->compile;test->test")
+  .dependsOn(commonStreams % "test->test;compile->compile")
+  .dependsOn(awsUtils % "compile->compile")
+
+lazy val kinesisStreamsDistroless = project
+  .in(file("modules/distroless/streams/kinesis"))
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDistrolessDockerPlugin)
+  .settings(sourceDirectory := (kinesisStreams / sourceDirectory).value)
+  .settings(kinesisStreamsDistrolessBuildSettings)
+  .settings(libraryDependencies ++= kinesisStreamsDependencies)
+  .settings(excludeDependencies ++= exclusions)
+  .settings(addCompilerPlugin(betterMonadicFor))
+  .dependsOn(common % "compile->compile;test->test")
+  .dependsOn(commonStreams % "compile->compile")
+  .dependsOn(awsUtils % "compile->compile")
 
 lazy val kafka = project
   .in(file("modules/kafka"))

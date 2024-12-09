@@ -808,7 +808,7 @@ object PiiPseudonymizerEnrichmentSpec {
       source,
       context
     )
-    val input = Some(collectorPayload).validNel
+    val input = collectorPayload.validNel
     val regConf = Registry.Config(
       "test-schema",
       0,

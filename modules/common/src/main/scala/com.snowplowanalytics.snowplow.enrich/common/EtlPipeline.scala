@@ -56,7 +56,7 @@ object EtlPipeline {
     client: IgluCirceClient[F],
     processor: Processor,
     etlTstamp: DateTime,
-    input: ValidatedNel[BadRow, Option[CollectorPayload]],
+    input: ValidatedNel[BadRow, CollectorPayload],
     featureFlags: FeatureFlags,
     invalidCount: F[Unit],
     registryLookup: RegistryLookup[F],
@@ -65,7 +65,7 @@ object EtlPipeline {
     maxJsonDepth: Int
   ): F[List[OptionIor[BadRow, EnrichedEvent]]] =
     input match {
-      case Validated.Valid(Some(payload)) =>
+      case Validated.Valid(payload) =>
         adapterRegistry
           .toRawEvents(payload, client, processor, registryLookup, maxJsonDepth)
           .flatMap {
@@ -92,7 +92,5 @@ object EtlPipeline {
           }
       case Validated.Invalid(badRows) =>
         Sync[F].pure(badRows.toList.map(br => OptionIor.Left(br)))
-      case Validated.Valid(None) =>
-        Sync[F].pure(Nil)
     }
 }

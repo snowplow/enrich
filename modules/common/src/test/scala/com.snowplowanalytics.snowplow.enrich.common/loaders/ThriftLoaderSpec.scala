@@ -60,7 +60,7 @@ class ThriftLoaderSpec extends Specification with ValidatedMatchers with ScalaCh
         context = context
       )
 
-      result must beValid(expected.some)
+      result must beValid(expected)
     }
 
     "parse valid page ping GET payload" >> {
@@ -129,7 +129,7 @@ class ThriftLoaderSpec extends Specification with ValidatedMatchers with ScalaCh
         context = context
       )
 
-      result must beValid(expected.some)
+      result must beValid(expected)
     }
 
     "parse valid unstructured event GET payload" >> {
@@ -193,7 +193,7 @@ class ThriftLoaderSpec extends Specification with ValidatedMatchers with ScalaCh
         context = context
       )
 
-      result must beValid(expected.some)
+      result must beValid(expected)
     }
 
     "parse valid parameterless payload" >> {
@@ -228,7 +228,7 @@ class ThriftLoaderSpec extends Specification with ValidatedMatchers with ScalaCh
         context = context
       )
 
-      result must beValid(expected.some)
+      result must beValid(expected)
     }
 
     "parse base64 encoded event" >> {
@@ -292,7 +292,7 @@ class ThriftLoaderSpec extends Specification with ValidatedMatchers with ScalaCh
         context = context
       )
 
-      result must beValid(expected.some)
+      result must beValid(expected)
     }
 
     "fail to parse base64 encoded event when 'tryBase64Decoding' is false" >> {

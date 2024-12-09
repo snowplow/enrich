@@ -1,0 +1,197 @@
+/*
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
+ * All rights reserved.
+ *
+ * This software is made available by Snowplow Analytics, Ltd.,
+ * under the terms of the Snowplow Limited Use License Agreement, Version 1.1
+ * located at https://docs.snowplow.io/limited-use-license-1.1
+ * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
+ * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
+ */
+package com.snowplowanalytics.snowplow.enrich.streams.common
+
+import java.lang.reflect.Field
+
+import cats.implicits._
+
+import cats.effect.{Async, Resource, Sync}
+
+import org.http4s.client.Client
+
+import io.sentry.Sentry
+
+import com.snowplowanalytics.snowplow.badrows.{Processor => BadRowProcessor}
+
+import com.snowplowanalytics.iglu.client.resolver.Resolver
+import com.snowplowanalytics.iglu.client.resolver.registries.{Http4sRegistryLookup, RegistryLookup}
+import com.snowplowanalytics.iglu.client.IgluCirceClient
+
+import com.snowplowanalytics.snowplow.sources.SourceAndAck
+import com.snowplowanalytics.snowplow.sinks.Sink
+import com.snowplowanalytics.snowplow.runtime.{AppHealth, AppInfo, HealthProbe}
+
+import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
+
+/**
+ * Resources and runtime-derived configuration needed for processing events
+ *
+ * @param cpuParallelism
+ *   The processing Pipe involves several steps, some of which are cpu-intensive. We run
+ *   cpu-intensive steps in parallel, so that on big instances we can take advantage of all cores.
+ *   For each of those cpu-intensive steps, `cpuParallelism` controls the parallelism of that step.
+ */
+case class Environment[F[_]](
+  appInfo: AppInfo,
+  source: SourceAndAck[F],
+  appHealth: AppHealth.Interface[F, String, RuntimeService],
+  enrichedSink: Sink[F],
+  failedSink: Option[Sink[F]],
+  badSink: Sink[F],
+  metrics: Metrics[F],
+  cpuParallelism: Int,
+  sinkMaxSize: Int,
+  adapterRegistry: AdapterRegistry[F],
+  enrichmentRegistry: EnrichmentRegistry[F],
+  igluClient: IgluCirceClient[F],
+  httpClient: Client[F],
+  registryLookup: RegistryLookup[F],
+  validation: Config.Validation,
+  getPartitionKey: EnrichedEvent => Option[String],
+  getAttributes: EnrichedEvent => Map[String, String]
+) {
+  def badRowProcessor = BadRowProcessor(appInfo.name, appInfo.version)
+}
+
+object Environment {
+
+  def fromConfig[F[_]: Async, SourceConfig, SinkConfig](
+    config: Config.WithIglu[SourceConfig, SinkConfig],
+    appInfo: AppInfo,
+    toSource: SourceConfig => F[SourceAndAck[F]],
+    toSink: SinkConfig => Resource[F, Sink[F]]
+  ): Resource[F, Environment[F]] =
+    for {
+      _ <- enableSentry[F](appInfo, config.main.monitoring.sentry)
+      sourceAndAck <- Resource.eval(toSource(config.main.input))
+      sourceReporter = sourceAndAck.isHealthy(config.main.monitoring.healthProbe.unhealthyLatency).map(_.showIfUnhealthy)
+      appHealth <- Resource.eval(AppHealth.init[F, String, RuntimeService](List(sourceReporter)))
+      _ <- HealthProbe.resource(config.main.monitoring.healthProbe.port, appHealth)
+      enrichedSink <- toSink(config.main.output.enriched.sink).onError {
+                        case _ => Resource.eval(appHealth.beUnhealthyForRuntimeService(RuntimeService.EnrichedSink))
+                      }
+      failedSink <- config.main.output.failed.traverse { sinkConfig =>
+                      toSink(sinkConfig.sink)
+                        .onError {
+                          case _ => Resource.eval(appHealth.beUnhealthyForRuntimeService(RuntimeService.FailedSink))
+                        }
+                    }
+      badSink <- toSink(config.main.output.bad.sink).onError {
+                   case _ => Resource.eval(appHealth.beUnhealthyForRuntimeService(RuntimeService.BadSink))
+                 }
+      metrics <- Resource.eval(Metrics.build(config.main.monitoring.metrics))
+      cpuParallelism = chooseCpuParallelism(config.main)
+      adapterRegistry = new AdapterRegistry(Map.empty, config.main.adaptersSchemas)
+      enrichmentRegistry = EnrichmentRegistry[F]()
+      resolver <- mkResolver[F](config.iglu)
+      igluClient <- Resource.eval(IgluCirceClient.fromResolver(resolver, config.iglu.cacheSize, config.main.validation.maxJsonDepth))
+      httpClient <- HttpClient.resource[F](
+                      config.main.http.client
+                    )
+      registryLookup = Http4sRegistryLookup(httpClient)
+      getPartitionKey <- getPartitionKey(config.main.output.enriched.partitionKey)
+      getAttributes <- getAttributes(config.main.output.enriched.attributes)
+    } yield Environment(
+      appInfo = appInfo,
+      source = sourceAndAck,
+      appHealth = appHealth,
+      enrichedSink = enrichedSink,
+      failedSink = failedSink,
+      badSink = badSink,
+      metrics = metrics,
+      cpuParallelism = cpuParallelism,
+      sinkMaxSize = config.main.output.enriched.maxRecordSize,
+      adapterRegistry = adapterRegistry,
+      enrichmentRegistry = enrichmentRegistry,
+      igluClient = igluClient,
+      httpClient = httpClient,
+      registryLookup = registryLookup,
+      validation = config.main.validation,
+      getPartitionKey,
+      getAttributes
+    )
+
+  private def enableSentry[F[_]: Sync](appInfo: AppInfo, config: Option[Config.Sentry]): Resource[F, Unit] =
+    config match {
+      case Some(c) =>
+        val acquire = Sync[F].delay {
+          Sentry.init { options =>
+            options.setDsn(c.dsn)
+            options.setRelease(appInfo.version)
+            c.tags.foreach {
+              case (k, v) =>
+                options.setTag(k, v)
+            }
+          }
+        }
+
+        Resource.makeCase(acquire) {
+          case (_, Resource.ExitCase.Errored(e)) => Sync[F].delay(Sentry.captureException(e)).void
+          case _ => Sync[F].unit
+        }
+      case None =>
+        Resource.unit[F]
+    }
+
+  private def mkResolver[F[_]: Async](resolverConfig: Resolver.ResolverConfig): Resource[F, Resolver[F]] =
+    Resource.eval {
+      Resolver
+        .fromConfig[F](resolverConfig)
+        .leftMap(e => new RuntimeException(s"Error while parsing Iglu resolver config", e))
+        .value
+        .rethrow
+    }
+
+  private val enrichedFieldsMap: Map[String, Field] = ConversionUtils.EnrichedFields.map(f => f.getName -> f).toMap
+
+  private def getPartitionKey[F[_]: Sync](partitionKey: Option[String]): Resource[F, EnrichedEvent => Option[String]] =
+    partitionKey.fold[Resource[F, EnrichedEvent => Option[String]]](Resource.pure(_ => None)) { key =>
+      enrichedFieldsMap.get(key) match {
+        case Some(field) =>
+          Resource.pure { enriched =>
+            Option(field.get(enriched).toString)
+          }
+        case None =>
+          Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"$key is not a valid partition key")))
+      }
+    }
+
+  private def getAttributes[F[_]: Sync](attributes: Option[Set[String]]): Resource[F, EnrichedEvent => Map[String, String]] =
+    attributes
+      .flatMap(maybeAttributes => if (maybeAttributes.isEmpty) None else Some(maybeAttributes))
+      .fold[Resource[F, EnrichedEvent => Map[String, String]]](Resource.pure(_ => Map.empty)) { set =>
+        val fields = set.toList.map(enrichedFieldsMap.get)
+        fields.sequence match {
+          case Some(valid) =>
+            Resource.pure { enriched =>
+              valid.map(field => field.getName -> field.get(enriched).toString).toMap
+            }
+          case None =>
+            val wrongFields = set.zip(fields).collect { case (fieldName, None) => fieldName }
+            Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"[${wrongFields.mkString(", ")}] not valid attributes")))
+        }
+      }
+
+  /**
+   * See the description of `cpuParallelism` on the [[Environment]] class
+   *
+   * For bigger instances (more cores) we want more parallelism, so that cpu-intensive steps can
+   * take advantage of all the cores.
+   */
+  private def chooseCpuParallelism(config: AnyConfig): Int =
+    (Runtime.getRuntime.availableProcessors * config.cpuParallelismFraction)
+      .setScale(0, BigDecimal.RoundingMode.UP)
+      .toInt
+}

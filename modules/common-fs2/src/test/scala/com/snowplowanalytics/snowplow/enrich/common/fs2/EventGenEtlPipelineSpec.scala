@@ -209,7 +209,7 @@ class EventGenEtlPipelineSpec extends Specification with CatsEffect {
       client.rethrowT.unsafeRunSync(),
       processor,
       dateTime,
-      Some(e).validNel,
+      e.validNel,
       EtlPipeline.FeatureFlags(acceptInvalid = false, legacyEnrichmentOrder = false),
       IO.unit,
       SpecHelpers.registryLookup,
@@ -270,7 +270,6 @@ class EventGenEtlPipelineSpec extends Specification with CatsEffect {
           .emit(ThriftLoader.toCollectorPayload(payload.toRaw, process))
           .covary[IO]
           .through(rethrowBadRows)
-          .unNone
           .evalMap(processEvents)
           .flatMap(Stream.emits)
           .through(rethrowBadRow)

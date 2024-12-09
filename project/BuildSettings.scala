@@ -12,7 +12,7 @@
 import sbt._
 import sbt.Keys._
 import sbt.nio.Keys.{ReloadOnSourceChanges, onChangedBuildSource}
-import sbtbuildinfo.BuildInfoPlugin.autoImport.{BuildInfoKey, buildInfoKeys, buildInfoPackage}
+import sbtbuildinfo.BuildInfoPlugin.autoImport._
 import sbtdynver.DynVerPlugin.autoImport._
 import com.typesafe.sbt.SbtNativePackager.autoImport._
 import com.typesafe.sbt.packager.archetypes.jar.LauncherJarPlugin.autoImport.packageJavaLauncherJar
@@ -29,6 +29,7 @@ object BuildSettings {
   lazy val projectSettings = Seq(
     organization := "com.snowplowanalytics",
     scalaVersion := "2.12.20",
+    scalacOptions += "-Ywarn-macros:after",
     licenses += ("SLULA-1.1", url("https://docs.snowplow.io/limited-use-license-1.1"))
   )
 
@@ -42,6 +43,12 @@ object BuildSettings {
     name := "snowplow-enrich-common-fs2",
     moduleName := "snowplow-enrich-common-fs2",
     description := "Common functionality for streaming enrich applications built on top of functional streams"
+  )
+
+  lazy val commonStreamsProjectSettings = projectSettings ++ Seq(
+    name := "snowplow-enrich-common-streams",
+    moduleName := "snowplow-enrich-common-streams",
+    description := "Core library to build Enrich apps with common-streams"
   )
 
   lazy val awsUtilsProjectSettings = projectSettings ++ Seq(
@@ -82,6 +89,15 @@ object BuildSettings {
     // remove this after not relying on scala-xml 1.x anymore
     // See https://github.com/sbt/sbt/issues/6997 for details
     libraryDependencySchemes += "org.scala-lang.modules" %% "scala-xml" % VersionScheme.Always
+  )
+
+  lazy val kinesisStreamsProjectSettings = projectSettings ++ Seq(
+    name := "snowplow-enrich-kinesis-streams",
+    moduleName := "snowplow-enrich-kinesis-streams",
+    description := "Enrich application for Kinesis built on top of common-streams",
+    buildInfoOptions += BuildInfoOption.Traits("com.snowplowanalytics.snowplow.runtime.AppInfo"),
+    buildInfoKeys := Seq[BuildInfoKey](name, version, dockerAlias, BuildInfoKey("cloud" -> "AWS")),
+    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.streams.kinesis"
   )
 
   lazy val kafkaProjectSettings = projectSettings ++ Seq(
@@ -185,7 +201,11 @@ object BuildSettings {
   lazy val buildSettings = Seq(
     Global / cancelable := true,
     Global / onChangedBuildSource := ReloadOnSourceChanges
-  ) ++ compilerSettings ++ resolverSettings ++ formattingSettings
+  ) ++ compilerSettings ++ resolverSettings ++ formattingSettings ++ Seq(
+    // used in configuration parsing unit tests
+    Test / envVars := Map(
+      "HOSTNAME" -> "testWorkerId"
+    ))
 
   lazy val commonBuildSettings = {
     // Project
@@ -202,6 +222,16 @@ object BuildSettings {
   lazy val commonFs2BuildSettings = {
     // Project
     commonFs2ProjectSettings ++ buildSettings ++
+    // Tests
+    scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp ++ Seq(
+      Test / fork := true,
+      Test / javaOptions := Seq("-Dnashorn.args=--language=es6")
+    )
+  }
+
+  lazy val commonStreamsBuildSettings = {
+    // Project
+    commonStreamsProjectSettings ++ buildSettings ++
     // Tests
     scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp ++ Seq(
       Test / fork := true,
@@ -253,6 +283,23 @@ object BuildSettings {
   }
 
   lazy val kinesisDistrolessBuildSettings = kinesisBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
+
+  lazy val kinesisStreamsBuildSettings = {
+    // Project
+    kinesisStreamsProjectSettings ++ buildSettings ++
+    // Build and publish
+    dockerSettingsFocal ++
+      Seq(Docker / packageName := "snowplow-enrich-kinesis") ++
+      Seq(Docker / version := s"${version.value}-next") ++
+    // Tests
+    scoverageSettings ++ noParallelTestExecution ++ Seq(Test / fork := true) ++ Seq(
+      Test / unmanagedClasspath += {
+        baseDirectory.value.getParentFile.getParentFile.getParentFile / "config"
+      }
+    )
+  }
+
+  lazy val kinesisStreamsDistrolessBuildSettings = kinesisStreamsBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
 
   lazy val kafkaBuildSettings = {
     // Project

@@ -1,0 +1,19 @@
+{
+  "license": {
+    "accept": true
+  }
+
+  "input": {
+    "streamName": "snowplow-collector-payloads"
+  }
+
+  "output": {
+    "enriched": {
+      "streamName": "snowplow-enriched"
+    }
+
+    "bad": {
+      "streamName": "snowplow-bad"
+    }
+  }
+}

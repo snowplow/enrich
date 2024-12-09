@@ -79,7 +79,7 @@ object Dependencies {
     val jackson          = "2.18.1"
     val config           = "1.3.4"
 
-    val decline          = "1.0.0"
+    val decline          = "2.4.1"
     val fs2              = "3.10.2"
     val catsEffect       = "3.5.4"
     val fs2PubSub        = "0.22.1"
@@ -97,6 +97,8 @@ object Dependencies {
 
     val snowplowTracker  = "2.0.0"
 
+    val streams          = "0.11.1-M1"
+
     val specs2            = "4.20.3"
     val specs2Cats        = "4.20.3"
     val specs2CE          = "1.5.0"
@@ -105,6 +107,7 @@ object Dependencies {
     val dockerJava        = "3.3.6"
     val parserCombinators = "2.1.1"
     val sentry            = "1.7.30"
+    val sentry7           = "7.16.0"
 
     val betterMonadicFor = "0.3.1"
   }
@@ -157,7 +160,12 @@ object Dependencies {
     val nettyCodec       = "io.netty"                   %  "netty-codec"                   % V.netty
     val slf4j            = "org.slf4j"                  %  "slf4j-simple"                  % V.slf4j
     val sentry           = "io.sentry"                  %  "sentry"                        % V.sentry
+    val sentry7          = "io.sentry"                  %  "sentry"                        % V.sentry7 // breaking change for common-fs2
     val protobuf         = "com.google.protobuf"        %  "protobuf-java"                 % V.protobuf
+
+    val streams         = "com.snowplowanalytics" %% "streams-core"   % V.streams
+    val kinesisSnowplow = "com.snowplowanalytics" %% "kinesis"        % V.streams
+    val runtime         = "com.snowplowanalytics" %% "runtime-common" % V.streams
 
     val specs2             = "org.specs2"             %% "specs2-core"                   % V.specs2            % Test
     val specs2Cats         = "org.specs2"             %% "specs2-cats"                   % V.specs2Cats        % Test
@@ -184,6 +192,7 @@ object Dependencies {
 
     // FS2
     val decline          = "com.monovore"                     %% "decline"                               % V.decline
+    val declineEffect    = "com.monovore"                     %% "decline-effect"                        % V.decline
     val fs2PubSub        = "com.permutive"                    %% "fs2-google-pubsub-grpc"                % V.fs2PubSub
     val fs2AwsKinesis    = ("io.laserdisc"                    %% "fs2-aws-kinesis"                       % V.fs2Aws)
                            .exclude("com.amazonaws", "amazon-kinesis-producer")
@@ -296,6 +305,14 @@ object Dependencies {
       circeParser % Test
     )
 
+    val commonStreamsDependencies = Seq(
+      declineEffect,
+      igluClientHttp4s,
+      runtime,
+      sentry7,
+      streams
+    )
+
     val awsUtilsDependencies = Seq(
       fs2BlobS3,
       s3Sdk2
@@ -336,6 +353,10 @@ object Dependencies {
       sts,
       specs2,
       specs2CE
+    )
+
+    val kinesisStreamsDependencies = Seq(
+      kinesisSnowplow
     )
 
     val kafkaDependencies = Seq(

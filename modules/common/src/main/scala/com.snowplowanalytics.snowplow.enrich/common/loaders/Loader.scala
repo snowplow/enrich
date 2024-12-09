@@ -36,13 +36,13 @@ abstract class Loader[T] {
    * @param processor processing asset (e.g. Spark enrich)
    * @return a CanonicalInput object, Option-boxed, or None if no input was extractable.
    */
-  def toCollectorPayload(line: T, processor: Processor): ValidatedNel[BadRow.CPFormatViolation, Option[CollectorPayload]]
+  def toCollectorPayload(line: T, processor: Processor): ValidatedNel[BadRow.CPFormatViolation, CollectorPayload]
 
   def toCollectorPayload(
     line: T,
     processor: Processor,
     @annotation.unused tryBase64Decoding: Boolean
-  ): ValidatedNel[BadRow.CPFormatViolation, Option[CollectorPayload]] =
+  ): ValidatedNel[BadRow.CPFormatViolation, CollectorPayload] =
     toCollectorPayload(line, processor)
 
   /**

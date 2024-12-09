@@ -44,7 +44,6 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
   EtlPipeline should always produce either bad or good row for each event of the payload   $e1
   Processing of events with malformed query string should be supported                     $e2
   Processing of invalid CollectorPayload (CPFormatViolation bad row) should be supported   $e3
-  Absence of CollectorPayload (None) should be supported                                   $e4
   """
 
   val adapterRegistry = new AdapterRegistry[IO](
@@ -68,7 +67,7 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
                     client,
                     processor,
                     dateTime,
-                    Some(collectorPayloadBatched).validNel,
+                    collectorPayloadBatched.validNel,
                     AcceptInvalid.featureFlags,
                     IO.unit,
                     SpecHelpers.registryLookup,
@@ -87,7 +86,6 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
       thriftBytesMalformedQS = EtlPipelineSpec.buildThriftBytesMalformedQS()
       collectorPayload = ThriftLoader
                            .toCollectorPayload(thriftBytesMalformedQS, processor)
-                           .map(_.get)
                            .toOption
                            .get
       output <- EtlPipeline
@@ -97,7 +95,7 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
                     client,
                     processor,
                     dateTime,
-                    Some(collectorPayload).validNel,
+                    collectorPayload.validNel,
                     AcceptInvalid.featureFlags,
                     IO.unit,
                     SpecHelpers.registryLookup,
@@ -133,27 +131,6 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
       case OptionIor.Left(_: BadRow.CPFormatViolation) :: Nil => ok
       case other => ko(s"[$other] is not a CPFormatViolation bad row")
     }
-
-  def e4 =
-    for {
-      client <- igluClient
-      collectorPayload = None
-      output <- EtlPipeline
-                  .processEvents[IO](
-                    adapterRegistry,
-                    enrichmentReg,
-                    client,
-                    processor,
-                    dateTime,
-                    collectorPayload.validNel[BadRow],
-                    AcceptInvalid.featureFlags,
-                    IO.unit,
-                    SpecHelpers.registryLookup,
-                    AtomicFields.from(Map.empty),
-                    emitIncomplete,
-                    SpecHelpers.DefaultMaxJsonDepth
-                  )
-    } yield output must beEqualTo(Nil)
 }
 
 object EtlPipelineSpec {

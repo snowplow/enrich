@@ -40,6 +40,8 @@ jobs:
       uses: actions/setup-java@v1
       with:
         java-version: 11
+    - name: Install sbt
+      uses: sbt/setup-sbt@v1
     - name: Docker login
       uses: docker/login-action@v1
       with:
@@ -142,6 +144,8 @@ jobs:
       uses: actions/setup-java@v1
       with:
         java-version: 11
+    - name: Install sbt
+      uses: sbt/setup-sbt@v1
     - name: Deploy SCE on Maven Central
       run: sbt "project common" ci-release
       env:

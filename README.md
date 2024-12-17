@@ -1,7 +1,6 @@
 [![Release][release-image]][releases]
 [![License][license-image]][license]
 [![Coverage Status][coveralls-image]][coveralls]
-[![CI][ci-image]][ci]
 
 # Snowplow Enrich
 
@@ -37,16 +36,13 @@ Licensed under the [Snowplow Limited Use License Agreement][license]. _(If you a
 [roadmap]: https://github.com/snowplow/enrich/issues
 [contributing]: https://docs.snowplowanalytics.com/docs/contributing/
 
-[ci]: https://github.com/snowplow/enrich/actions?query=workflow%3ACI
-[ci-image]: https://github.com/snowplow/enrich/workflows/CI/badge.svg
-
 [coveralls]: https://coveralls.io/github/snowplow/enrich?branch=master
 [coveralls-image]: https://coveralls.io/repos/github/snowplow/enrich/badge.svg?branch=master
 
-[release-image]: https://img.shields.io/badge/release-5.0.0-blue.svg?style=flat
+[release-image]: https://img.shields.io/github/v/release/snowplow/enrich?sort=semver&style=flat
 [releases]: https://github.com/snowplow/enrich/releases
 
-[license]: https://docs.snowplow.io/limited-use-license-1.0
-[license-image]: https://img.shields.io/badge/license-Snowplow--Limited-Use-blue.svg?style=flat
+[license]: https://docs.snowplow.io/limited-use-license-1.1
+[license-image]: https://img.shields.io/badge/license-Snowplow--Limited--Use-blue.svg?style=flat
 
 [faq]: https://docs.snowplow.io/docs/contributing/limited-use-license-faq/

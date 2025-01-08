@@ -38,6 +38,7 @@ class InputSpec extends Specification with ValidatedMatchers with CatsEffect {
   POJO invalid key return failure                       $e6
   skip lookup on missing (in event) key                 $e7
   match modelless criterion (*-*-*)                     $e8
+  skip inputs that are allowed to be missing            $e9
   """
 
   object ContextCase {
@@ -289,4 +290,34 @@ class InputSpec extends Specification with ValidatedMatchers with CatsEffect {
         ko("Context is missing")
     }
   }
+
+  def e9 = {
+    val jsonLongitudeInput = Input.Json(
+      "longitude",
+      "contexts",
+      SchemaCriterion(
+        "com.snowplowanalytics.snowplow",
+        "geolocation_context",
+        "jsonschema",
+        1,
+        1
+      ),
+      "$.missing",
+      true
+    )
+    val pojoLatitudeInput = Input.Pojo("latitude", "geo_latitude", false)
+    val event = new EnrichedEvent
+    event.setGeo_latitude(42.0f)
+
+    val templateContext = Input.buildTemplateContext(
+      List(pojoLatitudeInput, jsonLongitudeInput),
+      event,
+      derivedContexts = Nil,
+      customContexts = List(ContextCase.overriderContext),
+      unstructEvent = None
+    )
+
+    templateContext must beValid(Some(Map("latitude" -> "42.0")))
+  }
+
 }

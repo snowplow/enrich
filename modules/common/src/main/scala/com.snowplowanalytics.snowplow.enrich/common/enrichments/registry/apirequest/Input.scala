@@ -91,7 +91,11 @@ object Input {
    * Describes how to take key from POJO source
    * @param field `EnrichedEvent` object field
    */
-  final case class Pojo(key: String, field: String) extends Input
+  final case class Pojo(
+    key: String,
+    field: String,
+    allowMissing: Boolean = false
+  ) extends Input
 
   /**
    * @param field where to get this JSON, one of unstruct_event, contexts or derived_contexts
@@ -104,7 +108,8 @@ object Input {
     key: String,
     field: String,
     criterion: SchemaCriterion,
-    jsonPath: String
+    jsonPath: String,
+    allowMissing: Boolean = false
   ) extends Input
 
   implicit val inputApiCirceDecoder: Decoder[Input] =
@@ -116,17 +121,18 @@ object Input {
                  .toRight(DecodingFailure("Key is missing", cur.history))
         keyString <- key.as[String]
         pojo = obj.get("pojo").map { pojoJson =>
-                 pojoJson.hcursor
-                   .downField("field")
-                   .as[String]
-                   .map(field => Pojo(keyString, field))
+                 for {
+                   field <- pojoJson.hcursor.downField("field").as[String]
+                   allowMissing <- pojoJson.hcursor.downField("allowMissing").as[Boolean].handleError(_ => false)
+                 } yield Pojo(keyString, field, allowMissing)
                }
         json = obj.get("json").map { jsonJson =>
                  for {
                    field <- jsonJson.hcursor.downField("field").as[String]
                    criterion <- jsonJson.hcursor.downField("schemaCriterion").as[SchemaCriterion]
                    jsonPath <- jsonJson.hcursor.downField("jsonPath").as[String]
-                 } yield Json(keyString, field, criterion, jsonPath)
+                   allowMissing <- jsonJson.hcursor.downField("allowMissing").as[Boolean].handleError(_ => false)
+                 } yield Json(keyString, field, criterion, jsonPath, allowMissing)
                }
         _ <- if (json.isDefined && pojo.isDefined)
                DecodingFailure("Either json or pojo input must be specified, both provided", cur.history).asLeft
@@ -157,7 +163,14 @@ object Input {
 
   /**
    * Get template context out of input configurations
-   * If any of inputs missing it will return None
+   * If any required input is missing it will return None.
+   * If an optional input is missing it will not affect the result of the fold.
+   * Example 1:
+   *  Input1 is required and exists in the json, which yields Some(x), however optional Input2 is missing, therefore the result is Some(Map(x'))
+   * Example 2:
+   *  Input1 is required and missing in the json, which yields None, Input2 is optional and available but the result is None
+   * Example 3:
+   *  Input1 is optional and missing, the result is Some(Map.empty)
    * @param inputs input-configurations with for keys and instructions how to get values
    * @param event current enriching event
    * @param derivedContexts list of contexts derived on enrichment process
@@ -171,15 +184,22 @@ object Input {
     derivedContexts: List[SelfDescribingData[JSON]],
     customContexts: List[SelfDescribingData[JSON]],
     unstructEvent: Option[SelfDescribingData[JSON]]
-  ): TemplateContext =
+  ): TemplateContext = {
+    def pull(input: Input) = input.pull(event, derivedContexts, customContexts, unstructEvent)
+
     inputs
-      .traverse(_.pull(event, derivedContexts, customContexts, unstructEvent))
+      .traverse {
+        case json @ Input.Json(_, _, _, _, true) => pull(json).map(_.orElse(Some(Map.empty)))
+        case pojo @ Input.Pojo(_, _, true) => pull(pojo).map(_.orElse(Some(Map.empty)))
+        case input => pull(input)
+      }
       .map { filledInputs =>
         filledInputs.sequence // Swap List[Option[Map[K, V]]] with Option[List[Map[K, V]]]
           .map(_.foldLeft(List.empty[(String, String)]) { (acc, e) =>
-            acc |+| e.toList
+            acc |+| e.filterNot(_._2.isEmpty).toList
           }.toMap)
       }
+  }
 
   /**
    * Get data out of all JSON contexts matching `schemaCriterion`

@@ -30,6 +30,8 @@ jobs:
       uses: actions/setup-java@v1
       with:
         java-version: 11
+    - name: Install sbt
+      uses: sbt/setup-sbt@v1
     - name: Start HTTP server to test API enrichment in Common Enrich
       run: python integration-tests/common/api-enrichment-test.py 8001 &
     - name: Start HTTP server to test API enrichment in Common Fs2

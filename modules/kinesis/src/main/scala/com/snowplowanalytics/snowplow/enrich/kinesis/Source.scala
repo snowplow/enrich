@@ -30,7 +30,7 @@ import software.amazon.awssdk.regions.Region
 import software.amazon.kinesis.common.{ConfigsBuilder, InitialPositionInStream, InitialPositionInStreamExtended}
 import software.amazon.kinesis.coordinator.Scheduler
 import software.amazon.kinesis.metrics.MetricsLevel
-import software.amazon.kinesis.processor.ShardRecordProcessorFactory
+import software.amazon.kinesis.processor.{ShardRecordProcessorFactory, SingleStreamTracker}
 import software.amazon.kinesis.retrieval.polling.PollingConfig
 import software.amazon.kinesis.retrieval.fanout.FanOutConfig
 import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClient
@@ -125,9 +125,11 @@ object Source {
           InitialPositionInStreamExtended.newInitialPositionAtTimestamp(Date.from(timestamp))
       }
 
+      val stt: SingleStreamTracker = new SingleStreamTracker(kinesisConfig.streamName, initPositionExtended)
+
       val retrievalConfig =
         configsBuilder.retrievalConfig
-          .initialPositionInStreamExtended(initPositionExtended)
+          .streamTracker(stt)
           .retrievalSpecificConfig {
             kinesisConfig.retrievalMode match {
               case Input.Kinesis.Retrieval.FanOut =>

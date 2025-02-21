@@ -81,7 +81,7 @@ object SpecHelpers extends CatsEffect {
 
   /** Builds an Iglu client from the above Iglu configuration. */
   val client: IgluCirceClient[IO] = IgluCirceClient
-    .parseDefault[IO](igluConfig)
+    .parseDefault[IO](igluConfig, 40)
     .value
     .unsafeRunSync()
     .getOrElse(throw new RuntimeException("invalid resolver configuration"))
@@ -167,7 +167,7 @@ object SpecHelpers extends CatsEffect {
     Resource.make(filesCleanup(files))(_ => filesCleanup(files))
 
   def createIgluClient(registries: List[Registry]): IO[IgluCirceClient[IO]] =
-    IgluCirceClient.fromResolver[IO](Resolver(registries, None), cacheSize = 0)
+    IgluCirceClient.fromResolver[IO](Resolver[IO](registries, None), cacheSize = 0, maxJsonDepth = 40)
 
   val emitIncomplete = false
 

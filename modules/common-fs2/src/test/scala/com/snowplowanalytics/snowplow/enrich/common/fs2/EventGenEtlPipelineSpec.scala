@@ -166,7 +166,8 @@ class EventGenEtlPipelineSpec extends Specification with CatsEffect {
   val adapterRegistry = new AdapterRegistry(Map.empty[(String, String), RemoteAdapter[IO]], SpecHelpers.adaptersSchemas)
   val enrichmentReg = EnrichmentRegistry[IO]()
   val igluCentral = Registry.IgluCentral
-  val client = IgluCirceClient.parseDefault[IO](json"""
+  val client = IgluCirceClient.parseDefault[IO](
+    json"""
       {
         "schema": "iglu:com.snowplowanalytics.iglu/resolver-config/jsonschema/1-0-1",
         "data": {
@@ -195,7 +196,9 @@ class EventGenEtlPipelineSpec extends Specification with CatsEffect {
           ]
         }
       }
-      """)
+      """,
+    40
+  )
   val processor = Processor("sce-test-suite", "1.0.0")
   val dateTime = DateTime.now()
   val process = Processor("EventGenEtlPipelineSpec", "v1")

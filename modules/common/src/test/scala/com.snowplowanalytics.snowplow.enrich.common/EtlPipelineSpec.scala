@@ -53,7 +53,7 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
   )
   val enrichmentReg = EnrichmentRegistry[IO]()
   val igluCentral = Registry.IgluCentral
-  def igluClient = IgluCirceClient.fromResolver[IO](Resolver(List(igluCentral), None), cacheSize = 0)
+  def igluClient = IgluCirceClient.fromResolver[IO](Resolver[IO](List(igluCentral), None), cacheSize = 0, maxJsonDepth = 40)
   val processor = Processor("sce-test-suite", "1.0.0")
   val dateTime = DateTime.now()
 

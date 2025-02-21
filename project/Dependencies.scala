@@ -62,7 +62,7 @@ object Dependencies {
     val gatlingJsonpath  = "0.6.14"
     val scalaUri         = "1.5.1"
     val badRows          = "2.3.0"
-    val igluClient       = "3.2.0"
+    val igluClient       = "4.0.2"
 
     val snowplowRawEvent = "0.1.0"
     val collectorPayload = "0.0.0"

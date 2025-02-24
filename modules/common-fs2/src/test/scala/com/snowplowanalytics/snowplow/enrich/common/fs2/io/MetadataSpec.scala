@@ -13,41 +13,44 @@ package com.snowplowanalytics.snowplow.enrich.common.fs2.io.experimental
 
 import java.util.UUID
 import java.time.Instant
-import scala.concurrent.duration._
 
-import cats.effect.IO
-import cats.Applicative
-import cats.effect.kernel.Ref
-import cats.effect.testing.specs2.CatsEffect
-import org.http4s.Uri
+import scala.concurrent.duration._
 
 import org.specs2.mutable.Specification
 
+import cats.Applicative
+
+import cats.effect.IO
+import cats.effect.kernel.Ref
+import cats.effect.testing.specs2.CatsEffect
+
+import io.circe.parser.parse
+
+import org.http4s.Uri
+
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Metadata => MetadataConfig}
-import Metadata.{EntitiesAndCount, MetadataEvent, MetadataReporter}
+
+import Metadata.{Aggregates, EntitiesAndCount, MetadataEvent, MetadataReporter}
 
 class MetadataSpec extends Specification with CatsEffect {
   case class Report(
     periodStart: Instant,
     periodEnd: Instant,
-    event: MetadataEvent,
-    entitiesAndCount: EntitiesAndCount
+    aggregates: Aggregates
   )
   case class TestReporter[F[_]: Applicative](state: Ref[F, List[Report]]) extends MetadataReporter[F] {
 
     def report(
       periodStart: Instant,
       periodEnd: Instant,
-      event: MetadataEvent,
-      entitiesAndCount: EntitiesAndCount
+      aggregates: Aggregates
     ): F[Unit] =
       state.update(
-        _ :+ Report(periodStart, periodEnd, event, entitiesAndCount)
+        _ :+ Report(periodStart, periodEnd, aggregates)
       )
-
-    def flush(): F[Unit] = Applicative[F].unit
   }
 
   "Metadata" should {
@@ -63,28 +66,28 @@ class MetadataSpec extends Specification with CatsEffect {
         Uri.unsafeFromString("https://localhost:443"),
         50.millis,
         UUID.fromString("dfc1aef8-2656-492b-b5ba-c77702f850bc"),
-        UUID.fromString("8c121fdd-dc8c-4cdc-bad1-3cefbe2b01ff")
+        UUID.fromString("8c121fdd-dc8c-4cdc-bad1-3cefbe2b01ff"),
+        150000
       )
 
       for {
         state <- Ref.of[IO, List[Report]](List.empty)
-        system <- Metadata.build[IO](config, TestReporter(state))
+        system <- Metadata.build[IO](config.interval, TestReporter(state))
         _ <- system.observe(List(event))
         _ <- system.report.take(1).compile.drain
         res <- state.get
         report = res.head
-      } yield {
-        report.event should beEqualTo(MetadataSpec.expectedMetadaEvent)
-
-        report.entitiesAndCount.entities should containTheSameElementsAs(
-          Seq(
-            SchemaKey("com.snowplowanalytics.snowplow", "web_page", "jsonschema", SchemaVer.Full(1, 0, 0)),
-            SchemaKey("org.w3", "PerformanceTiming", "jsonschema", SchemaVer.Full(1, 0, 0))
+      } yield report.aggregates should beEqualTo(
+        Map(
+          MetadataSpec.expectedMetadaEvent -> EntitiesAndCount(
+            Set(
+              SchemaKey("com.snowplowanalytics.snowplow", "web_page", "jsonschema", SchemaVer.Full(1, 0, 0)),
+              SchemaKey("org.w3", "PerformanceTiming", "jsonschema", SchemaVer.Full(1, 0, 0))
+            ),
+            1
           )
         )
-
-        report.entitiesAndCount.count should beEqualTo(1)
-      }
+      )
     }
 
     "get entities in event's contexts and find scenarioId if present" in {
@@ -171,7 +174,7 @@ class MetadataSpec extends Specification with CatsEffect {
 
     "put scenario_id in the JSON if defined" in {
       val json = Metadata
-        .mkWebhookEvent(
+        .mkObservedEvent(
           UUID.randomUUID(),
           UUID.randomUUID(),
           Instant.now(),
@@ -191,7 +194,7 @@ class MetadataSpec extends Specification with CatsEffect {
 
     "put null as scenario_id in the JSON if not defined" in {
       val json = Metadata
-        .mkWebhookEvent(
+        .mkObservedEvent(
           UUID.randomUUID(),
           UUID.randomUUID(),
           Instant.now(),
@@ -207,6 +210,74 @@ class MetadataSpec extends Specification with CatsEffect {
         )
         .toString
       json.contains("\"scenario_id\" : null,") must beTrue
+    }
+
+    "batch up multiple metadata events inside an HTTP body" in {
+      "respecting maxBodySize" in {
+        def metadataEvent(i: Int) =
+          MetadataEvent(
+            MetadataSpec.eventSchema.copy(version = SchemaVer.Full(1, 0, i)),
+            Some("app"),
+            Some("js tracker"),
+            Some("web"),
+            Some("scenario")
+          )
+        val aggregates = Map(
+          metadataEvent(1) -> EntitiesAndCount(Set(MetadataSpec.eventSchema), 1),
+          metadataEvent(2) -> EntitiesAndCount(Set(MetadataSpec.eventSchema), 2),
+          metadataEvent(3) -> EntitiesAndCount(Set(MetadataSpec.eventSchema), 3)
+        )
+
+        val appId = "test"
+        val organizationId = UUID.fromString("cc6151b4-30bb-4fd9-b2ff-3ac4285eda45")
+        val pipelineId = UUID.fromString("9b5afd1e-7c30-4669-87b4-26898f601cc7")
+        val periodStart = Instant.ofEpochSecond(123456789)
+        val periodEnd = Instant.ofEpochSecond(234567890)
+
+        Metadata.batchUp(aggregates, appId, organizationId, pipelineId, periodStart, periodEnd, 1500) must beEqualTo(
+          List(
+            """{"schema":"iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-4","data":[{"aid":"test","e":"ue","ue_px":"eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5zbm93cGxvdy91bnN0cnVjdF9ldmVudC9qc29uc2NoZW1hLzEtMC0wIiwiZGF0YSI6eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5jb25zb2xlL29ic2VydmVkX2V2ZW50L2pzb25zY2hlbWEvNi0wLTEiLCJkYXRhIjp7Im9yZ2FuaXphdGlvbklkIjoiY2M2MTUxYjQtMzBiYi00ZmQ5LWIyZmYtM2FjNDI4NWVkYTQ1IiwicGlwZWxpbmVJZCI6IjliNWFmZDFlLTdjMzAtNDY2OS04N2I0LTI2ODk4ZjYwMWNjNyIsImV2ZW50VmVuZG9yIjoiY29tLmFjbWUiLCJldmVudE5hbWUiOiJleGFtcGxlIiwiZXZlbnRWZXJzaW9uIjoiMS0wLTMiLCJzb3VyY2UiOiJhcHAiLCJ0cmFja2VyIjoianMgdHJhY2tlciIsInBsYXRmb3JtIjoid2ViIiwic2NlbmFyaW9faWQiOiJzY2VuYXJpbyIsImV2ZW50Vm9sdW1lIjozLCJwZXJpb2RTdGFydCI6IjE5NzMtMTEtMjlUMjE6MzM6MDlaIiwicGVyaW9kRW5kIjoiMTk3Ny0wNi0wN1QyMTo0NDo1MFoifX19","cx":"eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5zbm93cGxvdy9jb250ZXh0cy9qc29uc2NoZW1hLzEtMC0xIiwiZGF0YSI6W3sic2NoZW1hIjoiaWdsdTpjb20uc25vd3Bsb3dhbmFseXRpY3MuY29uc29sZS9vYnNlcnZlZF9lbnRpdHkvanNvbnNjaGVtYS80LTAtMCIsImRhdGEiOnsiZW50aXR5VmVuZG9yIjoiY29tLmFjbWUiLCJlbnRpdHlOYW1lIjoiZXhhbXBsZSIsImVudGl0eVZlcnNpb24iOiIxLTAtMCJ9fV19"}]}""",
+            """{"schema":"iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-4","data":[{"aid":"test","e":"ue","ue_px":"eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5zbm93cGxvdy91bnN0cnVjdF9ldmVudC9qc29uc2NoZW1hLzEtMC0wIiwiZGF0YSI6eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5jb25zb2xlL29ic2VydmVkX2V2ZW50L2pzb25zY2hlbWEvNi0wLTEiLCJkYXRhIjp7Im9yZ2FuaXphdGlvbklkIjoiY2M2MTUxYjQtMzBiYi00ZmQ5LWIyZmYtM2FjNDI4NWVkYTQ1IiwicGlwZWxpbmVJZCI6IjliNWFmZDFlLTdjMzAtNDY2OS04N2I0LTI2ODk4ZjYwMWNjNyIsImV2ZW50VmVuZG9yIjoiY29tLmFjbWUiLCJldmVudE5hbWUiOiJleGFtcGxlIiwiZXZlbnRWZXJzaW9uIjoiMS0wLTIiLCJzb3VyY2UiOiJhcHAiLCJ0cmFja2VyIjoianMgdHJhY2tlciIsInBsYXRmb3JtIjoid2ViIiwic2NlbmFyaW9faWQiOiJzY2VuYXJpbyIsImV2ZW50Vm9sdW1lIjoyLCJwZXJpb2RTdGFydCI6IjE5NzMtMTEtMjlUMjE6MzM6MDlaIiwicGVyaW9kRW5kIjoiMTk3Ny0wNi0wN1QyMTo0NDo1MFoifX19","cx":"eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5zbm93cGxvdy9jb250ZXh0cy9qc29uc2NoZW1hLzEtMC0xIiwiZGF0YSI6W3sic2NoZW1hIjoiaWdsdTpjb20uc25vd3Bsb3dhbmFseXRpY3MuY29uc29sZS9vYnNlcnZlZF9lbnRpdHkvanNvbnNjaGVtYS80LTAtMCIsImRhdGEiOnsiZW50aXR5VmVuZG9yIjoiY29tLmFjbWUiLCJlbnRpdHlOYW1lIjoiZXhhbXBsZSIsImVudGl0eVZlcnNpb24iOiIxLTAtMCJ9fV19"}]}""",
+            """{"schema":"iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-4","data":[{"aid":"test","e":"ue","ue_px":"eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5zbm93cGxvdy91bnN0cnVjdF9ldmVudC9qc29uc2NoZW1hLzEtMC0wIiwiZGF0YSI6eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5jb25zb2xlL29ic2VydmVkX2V2ZW50L2pzb25zY2hlbWEvNi0wLTEiLCJkYXRhIjp7Im9yZ2FuaXphdGlvbklkIjoiY2M2MTUxYjQtMzBiYi00ZmQ5LWIyZmYtM2FjNDI4NWVkYTQ1IiwicGlwZWxpbmVJZCI6IjliNWFmZDFlLTdjMzAtNDY2OS04N2I0LTI2ODk4ZjYwMWNjNyIsImV2ZW50VmVuZG9yIjoiY29tLmFjbWUiLCJldmVudE5hbWUiOiJleGFtcGxlIiwiZXZlbnRWZXJzaW9uIjoiMS0wLTEiLCJzb3VyY2UiOiJhcHAiLCJ0cmFja2VyIjoianMgdHJhY2tlciIsInBsYXRmb3JtIjoid2ViIiwic2NlbmFyaW9faWQiOiJzY2VuYXJpbyIsImV2ZW50Vm9sdW1lIjoxLCJwZXJpb2RTdGFydCI6IjE5NzMtMTEtMjlUMjE6MzM6MDlaIiwicGVyaW9kRW5kIjoiMTk3Ny0wNi0wN1QyMTo0NDo1MFoifX19","cx":"eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5zbm93cGxvdy9jb250ZXh0cy9qc29uc2NoZW1hLzEtMC0xIiwiZGF0YSI6W3sic2NoZW1hIjoiaWdsdTpjb20uc25vd3Bsb3dhbmFseXRpY3MuY29uc29sZS9vYnNlcnZlZF9lbnRpdHkvanNvbnNjaGVtYS80LTAtMCIsImRhdGEiOnsiZW50aXR5VmVuZG9yIjoiY29tLmFjbWUiLCJlbnRpdHlOYW1lIjoiZXhhbXBsZSIsImVudGl0eVZlcnNpb24iOiIxLTAtMCJ9fV19"}]}"""
+          )
+        )
+        Metadata.batchUp(aggregates, appId, organizationId, pipelineId, periodStart, periodEnd, 3000) must beEqualTo(
+          List(
+            """{"schema":"iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-4","data":[{"aid":"test","e":"ue","ue_px":"eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5zbm93cGxvdy91bnN0cnVjdF9ldmVudC9qc29uc2NoZW1hLzEtMC0wIiwiZGF0YSI6eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5jb25zb2xlL29ic2VydmVkX2V2ZW50L2pzb25zY2hlbWEvNi0wLTEiLCJkYXRhIjp7Im9yZ2FuaXphdGlvbklkIjoiY2M2MTUxYjQtMzBiYi00ZmQ5LWIyZmYtM2FjNDI4NWVkYTQ1IiwicGlwZWxpbmVJZCI6IjliNWFmZDFlLTdjMzAtNDY2OS04N2I0LTI2ODk4ZjYwMWNjNyIsImV2ZW50VmVuZG9yIjoiY29tLmFjbWUiLCJldmVudE5hbWUiOiJleGFtcGxlIiwiZXZlbnRWZXJzaW9uIjoiMS0wLTMiLCJzb3VyY2UiOiJhcHAiLCJ0cmFja2VyIjoianMgdHJhY2tlciIsInBsYXRmb3JtIjoid2ViIiwic2NlbmFyaW9faWQiOiJzY2VuYXJpbyIsImV2ZW50Vm9sdW1lIjozLCJwZXJpb2RTdGFydCI6IjE5NzMtMTEtMjlUMjE6MzM6MDlaIiwicGVyaW9kRW5kIjoiMTk3Ny0wNi0wN1QyMTo0NDo1MFoifX19","cx":"eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5zbm93cGxvdy9jb250ZXh0cy9qc29uc2NoZW1hLzEtMC0xIiwiZGF0YSI6W3sic2NoZW1hIjoiaWdsdTpjb20uc25vd3Bsb3dhbmFseXRpY3MuY29uc29sZS9vYnNlcnZlZF9lbnRpdHkvanNvbnNjaGVtYS80LTAtMCIsImRhdGEiOnsiZW50aXR5VmVuZG9yIjoiY29tLmFjbWUiLCJlbnRpdHlOYW1lIjoiZXhhbXBsZSIsImVudGl0eVZlcnNpb24iOiIxLTAtMCJ9fV19"}]}""",
+            """{"schema":"iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-4","data":[{"aid":"test","e":"ue","ue_px":"eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5zbm93cGxvdy91bnN0cnVjdF9ldmVudC9qc29uc2NoZW1hLzEtMC0wIiwiZGF0YSI6eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5jb25zb2xlL29ic2VydmVkX2V2ZW50L2pzb25zY2hlbWEvNi0wLTEiLCJkYXRhIjp7Im9yZ2FuaXphdGlvbklkIjoiY2M2MTUxYjQtMzBiYi00ZmQ5LWIyZmYtM2FjNDI4NWVkYTQ1IiwicGlwZWxpbmVJZCI6IjliNWFmZDFlLTdjMzAtNDY2OS04N2I0LTI2ODk4ZjYwMWNjNyIsImV2ZW50VmVuZG9yIjoiY29tLmFjbWUiLCJldmVudE5hbWUiOiJleGFtcGxlIiwiZXZlbnRWZXJzaW9uIjoiMS0wLTIiLCJzb3VyY2UiOiJhcHAiLCJ0cmFja2VyIjoianMgdHJhY2tlciIsInBsYXRmb3JtIjoid2ViIiwic2NlbmFyaW9faWQiOiJzY2VuYXJpbyIsImV2ZW50Vm9sdW1lIjoyLCJwZXJpb2RTdGFydCI6IjE5NzMtMTEtMjlUMjE6MzM6MDlaIiwicGVyaW9kRW5kIjoiMTk3Ny0wNi0wN1QyMTo0NDo1MFoifX19","cx":"eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5zbm93cGxvdy9jb250ZXh0cy9qc29uc2NoZW1hLzEtMC0xIiwiZGF0YSI6W3sic2NoZW1hIjoiaWdsdTpjb20uc25vd3Bsb3dhbmFseXRpY3MuY29uc29sZS9vYnNlcnZlZF9lbnRpdHkvanNvbnNjaGVtYS80LTAtMCIsImRhdGEiOnsiZW50aXR5VmVuZG9yIjoiY29tLmFjbWUiLCJlbnRpdHlOYW1lIjoiZXhhbXBsZSIsImVudGl0eVZlcnNpb24iOiIxLTAtMCJ9fV19"},{"aid":"test","e":"ue","ue_px":"eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5zbm93cGxvdy91bnN0cnVjdF9ldmVudC9qc29uc2NoZW1hLzEtMC0wIiwiZGF0YSI6eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5jb25zb2xlL29ic2VydmVkX2V2ZW50L2pzb25zY2hlbWEvNi0wLTEiLCJkYXRhIjp7Im9yZ2FuaXphdGlvbklkIjoiY2M2MTUxYjQtMzBiYi00ZmQ5LWIyZmYtM2FjNDI4NWVkYTQ1IiwicGlwZWxpbmVJZCI6IjliNWFmZDFlLTdjMzAtNDY2OS04N2I0LTI2ODk4ZjYwMWNjNyIsImV2ZW50VmVuZG9yIjoiY29tLmFjbWUiLCJldmVudE5hbWUiOiJleGFtcGxlIiwiZXZlbnRWZXJzaW9uIjoiMS0wLTEiLCJzb3VyY2UiOiJhcHAiLCJ0cmFja2VyIjoianMgdHJhY2tlciIsInBsYXRmb3JtIjoid2ViIiwic2NlbmFyaW9faWQiOiJzY2VuYXJpbyIsImV2ZW50Vm9sdW1lIjoxLCJwZXJpb2RTdGFydCI6IjE5NzMtMTEtMjlUMjE6MzM6MDlaIiwicGVyaW9kRW5kIjoiMTk3Ny0wNi0wN1QyMTo0NDo1MFoifX19","cx":"eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5zbm93cGxvdy9jb250ZXh0cy9qc29uc2NoZW1hLzEtMC0xIiwiZGF0YSI6W3sic2NoZW1hIjoiaWdsdTpjb20uc25vd3Bsb3dhbmFseXRpY3MuY29uc29sZS9vYnNlcnZlZF9lbnRpdHkvanNvbnNjaGVtYS80LTAtMCIsImRhdGEiOnsiZW50aXR5VmVuZG9yIjoiY29tLmFjbWUiLCJlbnRpdHlOYW1lIjoiZXhhbXBsZSIsImVudGl0eVZlcnNpb24iOiIxLTAtMCJ9fV19"}]}"""
+          )
+        )
+        Metadata.batchUp(aggregates, appId, organizationId, pipelineId, periodStart, periodEnd, 4500) must beEqualTo(
+          List(
+            """{"schema":"iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-4","data":[{"aid":"test","e":"ue","ue_px":"eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5zbm93cGxvdy91bnN0cnVjdF9ldmVudC9qc29uc2NoZW1hLzEtMC0wIiwiZGF0YSI6eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5jb25zb2xlL29ic2VydmVkX2V2ZW50L2pzb25zY2hlbWEvNi0wLTEiLCJkYXRhIjp7Im9yZ2FuaXphdGlvbklkIjoiY2M2MTUxYjQtMzBiYi00ZmQ5LWIyZmYtM2FjNDI4NWVkYTQ1IiwicGlwZWxpbmVJZCI6IjliNWFmZDFlLTdjMzAtNDY2OS04N2I0LTI2ODk4ZjYwMWNjNyIsImV2ZW50VmVuZG9yIjoiY29tLmFjbWUiLCJldmVudE5hbWUiOiJleGFtcGxlIiwiZXZlbnRWZXJzaW9uIjoiMS0wLTMiLCJzb3VyY2UiOiJhcHAiLCJ0cmFja2VyIjoianMgdHJhY2tlciIsInBsYXRmb3JtIjoid2ViIiwic2NlbmFyaW9faWQiOiJzY2VuYXJpbyIsImV2ZW50Vm9sdW1lIjozLCJwZXJpb2RTdGFydCI6IjE5NzMtMTEtMjlUMjE6MzM6MDlaIiwicGVyaW9kRW5kIjoiMTk3Ny0wNi0wN1QyMTo0NDo1MFoifX19","cx":"eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5zbm93cGxvdy9jb250ZXh0cy9qc29uc2NoZW1hLzEtMC0xIiwiZGF0YSI6W3sic2NoZW1hIjoiaWdsdTpjb20uc25vd3Bsb3dhbmFseXRpY3MuY29uc29sZS9vYnNlcnZlZF9lbnRpdHkvanNvbnNjaGVtYS80LTAtMCIsImRhdGEiOnsiZW50aXR5VmVuZG9yIjoiY29tLmFjbWUiLCJlbnRpdHlOYW1lIjoiZXhhbXBsZSIsImVudGl0eVZlcnNpb24iOiIxLTAtMCJ9fV19"},{"aid":"test","e":"ue","ue_px":"eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5zbm93cGxvdy91bnN0cnVjdF9ldmVudC9qc29uc2NoZW1hLzEtMC0wIiwiZGF0YSI6eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5jb25zb2xlL29ic2VydmVkX2V2ZW50L2pzb25zY2hlbWEvNi0wLTEiLCJkYXRhIjp7Im9yZ2FuaXphdGlvbklkIjoiY2M2MTUxYjQtMzBiYi00ZmQ5LWIyZmYtM2FjNDI4NWVkYTQ1IiwicGlwZWxpbmVJZCI6IjliNWFmZDFlLTdjMzAtNDY2OS04N2I0LTI2ODk4ZjYwMWNjNyIsImV2ZW50VmVuZG9yIjoiY29tLmFjbWUiLCJldmVudE5hbWUiOiJleGFtcGxlIiwiZXZlbnRWZXJzaW9uIjoiMS0wLTIiLCJzb3VyY2UiOiJhcHAiLCJ0cmFja2VyIjoianMgdHJhY2tlciIsInBsYXRmb3JtIjoid2ViIiwic2NlbmFyaW9faWQiOiJzY2VuYXJpbyIsImV2ZW50Vm9sdW1lIjoyLCJwZXJpb2RTdGFydCI6IjE5NzMtMTEtMjlUMjE6MzM6MDlaIiwicGVyaW9kRW5kIjoiMTk3Ny0wNi0wN1QyMTo0NDo1MFoifX19","cx":"eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5zbm93cGxvdy9jb250ZXh0cy9qc29uc2NoZW1hLzEtMC0xIiwiZGF0YSI6W3sic2NoZW1hIjoiaWdsdTpjb20uc25vd3Bsb3dhbmFseXRpY3MuY29uc29sZS9vYnNlcnZlZF9lbnRpdHkvanNvbnNjaGVtYS80LTAtMCIsImRhdGEiOnsiZW50aXR5VmVuZG9yIjoiY29tLmFjbWUiLCJlbnRpdHlOYW1lIjoiZXhhbXBsZSIsImVudGl0eVZlcnNpb24iOiIxLTAtMCJ9fV19"},{"aid":"test","e":"ue","ue_px":"eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5zbm93cGxvdy91bnN0cnVjdF9ldmVudC9qc29uc2NoZW1hLzEtMC0wIiwiZGF0YSI6eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5jb25zb2xlL29ic2VydmVkX2V2ZW50L2pzb25zY2hlbWEvNi0wLTEiLCJkYXRhIjp7Im9yZ2FuaXphdGlvbklkIjoiY2M2MTUxYjQtMzBiYi00ZmQ5LWIyZmYtM2FjNDI4NWVkYTQ1IiwicGlwZWxpbmVJZCI6IjliNWFmZDFlLTdjMzAtNDY2OS04N2I0LTI2ODk4ZjYwMWNjNyIsImV2ZW50VmVuZG9yIjoiY29tLmFjbWUiLCJldmVudE5hbWUiOiJleGFtcGxlIiwiZXZlbnRWZXJzaW9uIjoiMS0wLTEiLCJzb3VyY2UiOiJhcHAiLCJ0cmFja2VyIjoianMgdHJhY2tlciIsInBsYXRmb3JtIjoid2ViIiwic2NlbmFyaW9faWQiOiJzY2VuYXJpbyIsImV2ZW50Vm9sdW1lIjoxLCJwZXJpb2RTdGFydCI6IjE5NzMtMTEtMjlUMjE6MzM6MDlaIiwicGVyaW9kRW5kIjoiMTk3Ny0wNi0wN1QyMTo0NDo1MFoifX19","cx":"eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5zbm93cGxvdy9jb250ZXh0cy9qc29uc2NoZW1hLzEtMC0xIiwiZGF0YSI6W3sic2NoZW1hIjoiaWdsdTpjb20uc25vd3Bsb3dhbmFseXRpY3MuY29uc29sZS9vYnNlcnZlZF9lbnRpdHkvanNvbnNjaGVtYS80LTAtMCIsImRhdGEiOnsiZW50aXR5VmVuZG9yIjoiY29tLmFjbWUiLCJlbnRpdHlOYW1lIjoiZXhhbXBsZSIsImVudGl0eVZlcnNpb24iOiIxLTAtMCJ9fV19"}]}"""
+          )
+        )
+      }
+
+      "creating a valid JSON that handles special characters" in {
+        def metadataEvent(i: Int) =
+          MetadataEvent(
+            MetadataSpec.eventSchema.copy(version = SchemaVer.Full(1, 0, i)),
+            Some("app{,\"}:;[']"),
+            Some("tracker{,\"}:;[']"),
+            Some("web"),
+            Some("scenario{,\"}:;[']")
+          )
+        val aggregates = Map(
+          metadataEvent(1) -> EntitiesAndCount(Set(MetadataSpec.eventSchema), 1),
+          metadataEvent(2) -> EntitiesAndCount(Set(MetadataSpec.eventSchema), 2)
+        )
+
+        val appId = "test{,\"}:;[']"
+        val organizationId = UUID.fromString("cc6151b4-30bb-4fd9-b2ff-3ac4285eda45")
+        val pipelineId = UUID.fromString("9b5afd1e-7c30-4669-87b4-26898f601cc7")
+        val periodStart = Instant.ofEpochSecond(123456789)
+        val periodEnd = Instant.ofEpochSecond(234567890)
+
+        Metadata.batchUp(aggregates, appId, organizationId, pipelineId, periodStart, periodEnd, 1500).map { body =>
+          parse(body) must beRight
+        }
+      }
     }
   }
 }

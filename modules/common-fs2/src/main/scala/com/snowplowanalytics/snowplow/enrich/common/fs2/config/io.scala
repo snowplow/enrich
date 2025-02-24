@@ -18,7 +18,7 @@ import java.util.UUID
 import cats.syntax.either._
 
 import scala.concurrent.duration.{Duration, FiniteDuration}
-import _root_.io.circe.{Decoder, DecodingFailure}
+import _root_.io.circe.{Decoder, DecodingFailure, HCursor}
 import _root_.io.circe.generic.extras.semiauto._
 import _root_.io.circe.config.syntax._
 
@@ -308,6 +308,19 @@ object io {
       deriveConfiguredDecoder[Concurrency]
   }
 
+  final case class Http(client: Http.Client)
+  object Http {
+    case class Client(
+      maxConnectionsPerServer: Int
+    )
+    object Client {
+      implicit val clientDecoder: Decoder[Client] =
+        deriveConfiguredDecoder[Client]
+    }
+    implicit val httpDecoder: Decoder[Http] =
+      deriveConfiguredDecoder[Http]
+  }
+
   final case class MetricsReporters(
     statsd: Option[MetricsReporters.StatsD],
     stdout: Option[MetricsReporters.Stdout],
@@ -402,11 +415,27 @@ object io {
     endpoint: Uri,
     interval: FiniteDuration,
     organizationId: UUID,
-    pipelineId: UUID
+    pipelineId: UUID,
+    maxBodySize: Int
   )
   object Metadata {
-    implicit val metadataDecoder: Decoder[Metadata] =
-      deriveConfiguredDecoder[Metadata]
+    // The app should define a default max body size.
+    // This can't be put inside the usual application.conf because metadata reporting is optional.
+    val defaultMaxBodySize = 149000
+
+    implicit val metadataDecoder: Decoder[Metadata] = new Decoder[Metadata] {
+      def apply(c: HCursor): Decoder.Result[Metadata] =
+        for {
+          endpoint <- c.downField("endpoint").as[Uri]
+          interval <- c.downField("interval").as[FiniteDuration]
+          organizationId <- c.downField("organizationId").as[UUID]
+          pipelineId <- c.downField("pipelineId").as[UUID]
+          maxBodySize <- c.downField("maxBodySize").as[Int].recover {
+                           case failure if failure.reason == DecodingFailure.Reason.MissingField =>
+                             defaultMaxBodySize
+                         }
+        } yield Metadata(endpoint, interval, organizationId, pipelineId, maxBodySize)
+    }
   }
 
   case class Experimental(metadata: Option[Metadata])
@@ -566,5 +595,4 @@ object io {
     else
       Right(AtomicFields.from(fieldsLimits))
   }
-
 }

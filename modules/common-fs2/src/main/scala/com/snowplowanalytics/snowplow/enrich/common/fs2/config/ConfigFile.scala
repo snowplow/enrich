@@ -44,6 +44,7 @@ final case class ConfigFile(
   concurrency: Concurrency,
   assetsUpdatePeriod: Option[FiniteDuration],
   remoteAdapters: RemoteAdapterConfigs,
+  http: Http,
   monitoring: Monitoring,
   telemetry: Telemetry,
   featureFlags: FeatureFlags,

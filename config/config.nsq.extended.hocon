@@ -149,6 +149,13 @@
     ]
   }
 
+  # Configuration of internal http client used for iglu resolver, alerts, telemetry and metadata
+  "http": {
+    "client": {
+      "maxConnectionsPerServer": 4
+    }
+  }
+
   "monitoring": {
 
     # Optional, for tracking runtime exceptions

@@ -53,6 +53,13 @@
   # no assets will be updated if the key is absent
   "assetsUpdatePeriod": "7 days"
 
+  # Configuration of internal http client used for iglu resolver, alerts, telemetry and metadata
+  "http": {
+    "client": {
+      "maxConnectionsPerServer": 4
+    }
+  }
+
   "monitoring": {
 
     # Optional, for tracking runtime exceptions

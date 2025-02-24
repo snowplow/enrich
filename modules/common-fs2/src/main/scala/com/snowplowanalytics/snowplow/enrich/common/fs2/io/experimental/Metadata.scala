@@ -11,30 +11,32 @@
 package com.snowplowanalytics.snowplow.enrich.common.fs2.io.experimental
 
 import java.time.Instant
-import java.util.UUID
+import java.util.{Base64, UUID}
+import java.nio.charset.StandardCharsets
+
+import scala.concurrent.duration._
 
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import cats.implicits._
-import cats.Applicative
-import cats.data.NonEmptyList
+import cats.{Applicative, Show}
 import cats.kernel.Semigroup
-import cats.effect.kernel.{Async, Clock, Ref, Resource, Spawn, Sync}
-import cats.effect.std.Random
+import cats.effect.kernel.{Async, Clock, Ref, Spawn, Sync}
+import cats.effect.implicits._
 import fs2.Stream
 import io.circe.Json
 import io.circe.parser._
 import io.circe.syntax._
-import org.http4s.Uri
+import org.http4s.{MediaType, Method, Request, Status, Uri}
 import org.http4s.client.Client
+import org.http4s.headers.`Content-Type`
+import retry.{RetryDetails, RetryPolicies, retryingOnFailuresAndAllErrors}
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
-import com.snowplowanalytics.snowplow.scalatracker.{Emitter, Tracker}
-import com.snowplowanalytics.snowplow.scalatracker.emitters.http4s.{Http4sEmitter, ceTracking}
 
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Metadata => MetadataConfig}
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.{MiscEnrichments => ME}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
 /**
@@ -72,7 +74,7 @@ object Metadata {
     Slf4jLogger.getLogger[F]
 
   def build[F[_]: Async](
-    config: MetadataConfig,
+    interval: FiniteDuration,
     reporter: MetadataReporter[F]
   ): F[Metadata[F]] =
     MetadataEventsRef.init[F].map { observedRef =>
@@ -81,7 +83,7 @@ object Metadata {
           for {
             _ <- Stream.eval(Logger[F].info("Starting metadata reporter"))
             _ <- Stream.bracket(Sync[F].unit)(_ => submit(reporter, observedRef))
-            _ <- Stream.fixedDelay[F](config.interval)
+            _ <- Stream.fixedDelay[F](interval)
             _ <- Stream.eval(submit(reporter, observedRef))
           } yield ()
 
@@ -99,89 +101,70 @@ object Metadata {
   private def submit[F[_]: Sync](reporter: MetadataReporter[F], ref: MetadataEventsRef[F]): F[Unit] =
     for {
       snapshot <- MetadataEventsRef.snapshot(ref)
-      _ <- snapshot.aggregates.toList.traverse {
-             case (event, entitiesAndCount) =>
-               reporter.report(snapshot.periodStart, snapshot.periodEnd, event, entitiesAndCount)
-           }
-      _ <- reporter.flush()
+      _ <- reporter.report(snapshot.periodStart, snapshot.periodEnd, snapshot.aggregates)
     } yield ()
 
   trait MetadataReporter[F[_]] {
     def report(
       periodStart: Instant,
       periodEnd: Instant,
-      event: MetadataEvent,
-      entitiesAndCount: EntitiesAndCount
+      aggregates: Aggregates
     ): F[Unit]
-
-    def flush(): F[Unit]
   }
 
-  case class HttpMetadataReporter[F[_]: Sync](
-    config: MetadataConfig,
-    tracker: Tracker[F]
+  case class HttpMetadataReporter[F[_]: Async](
+    endpoint: Uri,
+    organizationId: UUID,
+    pipelineId: UUID,
+    client: Client[F],
+    appId: String,
+    maxBodySize: Int
   ) extends MetadataReporter[F] {
 
     def report(
       periodStart: Instant,
       periodEnd: Instant,
-      event: MetadataEvent,
-      entitiesAndCount: EntitiesAndCount
+      aggregates: Aggregates
     ): F[Unit] =
-      Logger[F].debug(s"Tracking observed event ${event.schema.toSchemaUri}") >>
-        tracker.trackSelfDescribingEvent(
-          mkWebhookEvent(config.organizationId, config.pipelineId, periodStart, periodEnd, event, entitiesAndCount.count),
-          mkWebhookContexts(entitiesAndCount.entities).toSeq
+      Logger[F].debug(s"Sending ${aggregates.size} metadata events") >>
+        batchUp(
+          aggregates,
+          appId,
+          organizationId,
+          pipelineId,
+          periodStart,
+          periodEnd,
+          maxBodySize
         )
+          .parTraverse_ { body =>
+            val request = Request[F](method = Method.POST, uri = endpoint)
+              .withEntity(body)
+              .withContentType(`Content-Type`(MediaType.application.json))
 
-    def flush(): F[Unit] = tracker.flushEmitters()
-  }
+            sendWithRetries(client, request)
+          }
 
-  object HttpMetadataReporter {
-    def resource[F[_]: Async](
-      config: MetadataConfig,
-      appName: String,
-      client: Client[F]
-    ): Resource[F, HttpMetadataReporter[F]] =
-      initTracker(config, appName, client).map(t => HttpMetadataReporter(config, t))
-
-    private def initTracker[F[_]: Async](
-      config: MetadataConfig,
-      appName: String,
-      client: Client[F]
-    ): Resource[F, Tracker[F]] =
-      for {
-        implicit0(random: Random[F]) <- Resource.eval(Random.scalaUtilRandom[F])
-        emitter <- Http4sEmitter.build(
-                     Emitter.EndpointParams(
-                       config.endpoint.host.map(_.toString()).getOrElse("localhost"),
-                       config.endpoint.port,
-                       https = config.endpoint.scheme.map(_ == Uri.Scheme.https).getOrElse(false)
-                     ),
-                     client,
-                     bufferConfig = Emitter.BufferConfig.PayloadSize(100000),
-                     retryPolicy = Emitter.RetryPolicy.MaxAttempts(10),
-                     callback = Some(emitterCallback[F](_, _, _))
-                   )
-      } yield new Tracker(NonEmptyList.of(emitter), "tracker-metadata", appName)
-
-    private def emitterCallback[F[_]: Sync](
-      params: Emitter.EndpointParams,
-      req: Emitter.Request,
-      res: Emitter.Result
-    ): F[Unit] =
-      res match {
-        case Emitter.Result.Success(_) =>
-          Logger[F].debug(s"Metadata successfully sent to ${params.getUri}")
-        case Emitter.Result.Failure(code) =>
-          Logger[F].warn(s"Sending metadata got unexpected HTTP code $code from ${params.getUri}")
-        case Emitter.Result.TrackerFailure(exception) =>
-          Logger[F].warn(
-            s"Metadata failed to reach ${params.getUri} with following exception $exception after ${req.attempt} attempts"
-          )
-        case Emitter.Result.RetriesExceeded(failure) =>
-          Logger[F].error(s"Stopped trying to send metadata after following failure: $failure")
+    implicit def showRetryDetails: Show[RetryDetails] =
+      Show {
+        case RetryDetails.GivingUp(totalRetries, totalDelay) =>
+          s"Giving up on retrying, total retries: $totalRetries, total delay: ${totalDelay.toSeconds} seconds"
+        case RetryDetails.WillDelayAndRetry(nextDelay, retriesSoFar, cumulativeDelay) =>
+          s"Will retry in ${nextDelay.toMillis} milliseconds, retries so far: $retriesSoFar, total delay so far: ${cumulativeDelay.toMillis} milliseconds"
       }
+
+    def sendWithRetries(client: Client[F], request: Request[F]): F[Unit] = {
+      val policy = RetryPolicies.fibonacciBackoff[F](100.millis).join(RetryPolicies.limitRetries(10))
+      def wasSuccessful(status: Status) = Sync[F].pure(status.isSuccess)
+      def onFailure(status: Status, retryDetails: RetryDetails) =
+        Logger[F].warn(show"Got error code ${status.code} when sending metadata. $retryDetails")
+      def onError(err: Throwable, retryDetails: RetryDetails) =
+        Logger[F].error(err)(show"Error when sending metadata. $retryDetails")
+
+      retryingOnFailuresAndAllErrors(policy, wasSuccessful, onFailure, onError)(client.status(request)).void
+      // If the 10th attempt ends up in an exception, then the exception gets raised up and crashes the app.
+      // We don't want that. We want to drop the request and keep going.
+      .voidError
+    }
   }
 
   /**
@@ -254,7 +237,7 @@ object Metadata {
       } yield MetadataSnapshot(aggregates, periodStart, periodEnd)
   }
 
-  def unwrapEntities(event: EnrichedEvent): (Set[SchemaKey], Option[String]) = {
+  private[experimental] def unwrapEntities(event: EnrichedEvent): (Set[SchemaKey], Option[String]) = {
     case class Entities(schemas: Set[SchemaKey], scenarioId: Option[String])
 
     def unwrap(str: String): Entities = {
@@ -289,21 +272,46 @@ object Metadata {
     (schemas, entities.scenarioId)
   }
 
-  def schema(event: EnrichedEvent): SchemaKey =
-    SchemaKey(
-      Option(event.event_vendor).getOrElse("unknown-vendor"),
-      Option(event.event_name).getOrElse("unknown-name"),
-      Option(event.event_format).getOrElse("unknown-format"),
-      SchemaVer.parseFull(event.event_version).getOrElse(SchemaVer.Full(0, 0, 0))
-    )
-
   def recalculate(previous: Aggregates, events: List[EnrichedEvent]): Aggregates =
     previous |+| events.map { e =>
       val (entities, scenarioId) = unwrapEntities(e)
       Map(MetadataEvent(e, scenarioId) -> EntitiesAndCount(entities, 1))
     }.combineAll
 
-  def mkWebhookEvent(
+  // It is safe to put the strings in the JSON directly because they have been created by circe from `Json`.
+  // Special characters have been escaped.
+  private def mkPayloadData(jsonEscapedEvents: List[String]): String =
+    s"""{"schema":"iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-4","data":[${jsonEscapedEvents.mkString(",")}]}"""
+
+  private def mkMetadataEvent(
+    appId: String,
+    organizationId: UUID,
+    pipelineId: UUID,
+    periodStart: Instant,
+    periodEnd: Instant,
+    event: MetadataEvent,
+    entities: Seq[SchemaKey],
+    count: Int
+  ): Json = {
+    val encoder = Base64.getEncoder
+
+    val observedEvent = mkObservedEvent(organizationId, pipelineId, periodStart, periodEnd, event, count)
+    val uePr = SelfDescribingData(ME.UnstructEventSchema, observedEvent.normalize).asString
+    val uePx = new String(encoder.encode(uePr.getBytes(StandardCharsets.UTF_8)))
+
+    val observedEntities = mkObservedEntities(entities)
+    val co = SelfDescribingData(ME.ContextsSchema, Json.fromValues(observedEntities.map(_.normalize))).asString
+    val cx = new String(encoder.encode(co.getBytes(StandardCharsets.UTF_8)))
+
+    Json.obj(
+      "aid" -> appId.asJson,
+      "e" -> "ue".asJson,
+      "ue_px" -> uePx.asJson,
+      "cx" -> cx.asJson
+    )
+  }
+
+  private[experimental] def mkObservedEvent(
     organizationId: UUID,
     pipelineId: UUID,
     periodStart: Instant,
@@ -329,7 +337,7 @@ object Metadata {
       )
     )
 
-  def mkWebhookContexts(entities: Set[SchemaKey]): Set[SelfDescribingData[Json]] =
+  private[experimental] def mkObservedEntities(entities: Seq[SchemaKey]): Seq[SelfDescribingData[Json]] =
     entities.map(entity =>
       SelfDescribingData[Json](
         SchemaKey("com.snowplowanalytics.console", "observed_entity", "jsonschema", SchemaVer.Full(4, 0, 0)),
@@ -339,4 +347,48 @@ object Metadata {
         )
       )
     )
+
+  // Returns a list of bodies ready to be put inside HTTP requests,
+  // where each body contains multiple metadata events
+  private[experimental] def batchUp(
+    aggregates: Aggregates,
+    appId: String,
+    organizationId: UUID,
+    pipelineId: UUID,
+    periodStart: Instant,
+    periodEnd: Instant,
+    maxBytes: Int
+  ): List[String] = {
+    val stringified = aggregates
+      .map {
+        case (event, entitiesAndCount) =>
+          mkMetadataEvent(
+            appId,
+            organizationId,
+            pipelineId,
+            periodStart,
+            periodEnd,
+            event,
+            entitiesAndCount.entities.toSeq,
+            entitiesAndCount.count
+          ).noSpaces
+      }
+
+    case class Body(weight: Int, events: List[String])
+
+    stringified
+      .foldLeft(List.empty[Body]) {
+        case (bodies, event) =>
+          bodies match {
+            case Nil =>
+              List(Body(event.length, List(event)))
+            case head :: tail if head.weight + event.length < maxBytes =>
+              Body(head.weight + event.length, event :: head.events) :: tail
+            case other =>
+              Body(event.length, List(event)) :: other
+          }
+
+      }
+      .map(body => mkPayloadData(body.events))
+  }
 }

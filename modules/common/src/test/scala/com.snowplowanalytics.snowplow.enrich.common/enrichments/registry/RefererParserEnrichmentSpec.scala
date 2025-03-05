@@ -55,6 +55,10 @@ class RefererParserEnrichmentSpec extends Specification with DataTables with Cat
         Medium.Email,
         "Yahoo! Mail"
       ) |
+      "ChatGPT" !! "https://www.chatgpt.com" ! ChatbotReferer(
+        Medium.Chatbot,
+        "ChatGPT"
+      ) |
       "Internal referer" !! "https://www.snowplowanalytics.com/account/profile" ! InternalReferer(
         Medium.Internal
       ) |

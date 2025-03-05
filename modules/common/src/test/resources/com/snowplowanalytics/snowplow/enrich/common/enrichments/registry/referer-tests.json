@@ -1089,5 +1089,28 @@
                 "odnoklassniki.ru"
             ]
         }
+    },
+    "chatbot": {
+        "ChatGPT": {
+            "domains": [
+                "chatgpt.com",
+                "chat.openai.com"
+            ]
+        },
+        "Google Gemini": {
+            "domains": [
+                "gemini.google.com"
+            ]
+        },
+        "Microsoft Copilot": {
+            "domains": [
+                "copilot.microsoft.com"
+            ]
+        },
+        "META.ai": {
+            "domains": [
+                "meta.ai"
+            ]
+        }
     }
 }

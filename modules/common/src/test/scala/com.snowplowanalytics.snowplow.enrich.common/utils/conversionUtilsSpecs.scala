@@ -439,6 +439,7 @@ class ExtractInetAddressSpec extends Specification with ScalaCheck {
   def is = s2"""
   extractInetAddress should return None on invalid string $e1
   extractInetAddress should return Some on every valid IPv6 $e2
+  extractInetAddress should return Some on IPv4-mapped IPv6 address $e3
   """
 
   def e1 =
@@ -448,6 +449,9 @@ class ExtractInetAddressSpec extends Specification with ScalaCheck {
     prop { (ip: String) =>
       ConversionUtils.extractInetAddress(ip) must beSome
     }.setGen(ipv6Gen.map(_.toInet6Address.getHostAddress))
+
+  def e3 =
+    ConversionUtils.extractInetAddress("[::FFFF:192.168.8.165]").map(_.getHostAddress) must beSome("0:0:0:0:0:ffff:c0a8:8a5")
 
   // Implementation taken from http4s tests suite
   private case class Ipv6Address(

@@ -41,6 +41,7 @@ object Dependencies {
     val jaywayJsonpath   = "2.7.0"
     val jsonsmart        = "2.4.10"
     val iabClient        = "0.2.0"
+    val ipaddress        = "5.5.1"
     val yauaa            = "7.11.0"
     val log4jToSlf4j     = "2.18.0"
     val guava            = "33.1.0-jre"
@@ -149,6 +150,7 @@ object Dependencies {
     val collectorPayload = "com.snowplowanalytics"      %  "collector-payload-1"           % V.collectorPayload
     val schemaSniffer    = "com.snowplowanalytics"      %  "schema-sniffer-1"              % V.schemaSniffer
     val iabClient        = "com.snowplowanalytics"      %  "iab-spiders-and-robots-client" % V.iabClient
+    val ipaddress        = "com.github.seancfoley"      %  "ipaddress"                     % V.ipaddress
     val thrift           = "org.apache.thrift"          %  "libthrift"                     % V.thrift
     val sprayJson        = "io.spray"                   %% "spray-json"                    % V.sprayJson
     val nettyAll         = "io.netty"                   %  "netty-all"                     % V.netty
@@ -231,6 +233,7 @@ object Dependencies {
       jaywayJsonpath,
       jsonsmart,
       iabClient,
+      ipaddress,
       yauaa,
       log4jToSlf4j,
       guava,

@@ -50,6 +50,8 @@ import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
 
 class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatchers with CatsEffect {
 
+  import PiiPseudonymizerEnrichmentSpec._
+
   def is = s2"""
   Hashing configured scalar fields in POJO should work                                                        $e1
   Hashing configured JSON fields in POJO should work in the simplest case and not affect anything else        $e2
@@ -61,178 +63,6 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
   Hashing configured JSON fields in POJO should not create new fields                                         $e8
   removeAddedFields should remove fields added by PII enrichment                                              $e9
   """
-
-  def commonSetup(enrichmentReg: EnrichmentRegistry[IO]): IO[List[Either[BadRow, EnrichedEvent]]] = {
-    val context =
-      CollectorPayload.Context(
-        Some(DateTime.parse("2017-07-14T03:39:39.000+00:00")),
-        Some("127.0.0.1"),
-        None,
-        None,
-        Nil,
-        None
-      )
-    val source = CollectorPayload.Source("clj-tomcat", "UTF-8", None)
-    val collectorPayload = CollectorPayload(
-      CollectorPayload.Api("com.snowplowanalytics.snowplow", "tp2"),
-      SpecHelpers.toNameValuePairs(
-        "e" -> "se",
-        "aid" -> "ads",
-        "uid" -> "john@acme.com",
-        "ip" -> "70.46.123.145",
-        "fp" -> "its_you_again!",
-        "url" -> "http://foo.bar?utm_term=hello&utm_content=world&msclkid=500&_sp=duid",
-        "dnuid" -> "gfhdgjfgndf",
-        "nuid" -> "kuykyfkfykukfuy",
-        "tr_id" -> "t5465463",
-        "ti_id" -> "6546b56356b354bbv",
-        "se_ca" -> "super category",
-        "se_ac" -> "great action",
-        "se_la" -> "awesome label",
-        "se_pr" -> "good property",
-        "duid" -> "786d1b69-a603-4eb8-9178-fed2a195a1ed",
-        "sid" -> "87857856-a603-4eb8-9178-fed2a195a1ed",
-        "co" ->
-          """
-        |{
-        |  "schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
-        |  "data":[
-        |      {
-        |      "schema":  "iglu:com.acme/email_sent/jsonschema/1-0-0",
-        |      "data": {
-        |        "emailAddress" : "jim@acme.com",
-        |        "emailAddress2" : "bob@acme.com"
-        |      }
-        |    },
-        |    {
-        |      "data": {
-        |        "emailAddress" : "tim@acme.com",
-        |        "emailAddress2" : "tom@acme.com",
-        |        "schema": "iglu:com.acme/email_sent/jsonschema/1-0-0",
-        |        "data": {
-        |          "emailAddress" : "jim@acme.com",
-        |          "emailAddress2" : "bob@acme.com"
-        |        },
-        |        "someInt": 1
-        |      },
-        |      "schema":  "iglu:com.acme/email_sent/jsonschema/1-1-0"
-        |    },
-        |    {
-        |      "schema": "iglu:com.test/array/jsonschema/1-0-0",
-        |      "data": {
-        |        "field" : ["hello", "world"],
-        |        "field2" : null,
-        |        "field3": null,
-        |        "field4": ""
-        |      }
-        |    }
-        |  ]
-        |}
-      """.stripMargin,
-        "ue_pr" -> """
-        |{
-        |   "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
-        |   "data":{
-        |     "schema":"iglu:com.mailgun/message_clicked/jsonschema/1-0-0",
-        |     "data":{
-        |       "recipient":"alice@example.com",
-        |       "city":"San Francisco",
-        |       "ip":"50.56.129.169",
-        |       "myVar2":"awesome",
-        |       "timestamp":"2016-06-30T14:31:09.000Z",
-        |       "url":"http://mailgun.net",
-        |       "userAgent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.31 (KHTML, like Gecko) Chrome/26.0.1410.43 Safari/537.31",
-        |       "domain":"sandboxbcd3ccb1a529415db665622619a61616.mailgun.org",
-        |       "signature":"ffe2d315a1d937bd09d9f5c35ddac1eb448818e2203f5a41e3a7bd1fb47da385",
-        |       "country":"US",
-        |       "clientType":"browser",
-        |       "clientOs":"Linux",
-        |       "token":"cd89cd860be0e318371f4220b7e0f368b60ac9ab066354737f",
-        |       "clientName":"Chrome",
-        |       "region":"CA",
-        |       "deviceType":"desktop",
-        |       "myVar1":"Mailgun Variable #1"
-        |     }
-        |   }
-        |}""".stripMargin.replaceAll("[\n\r]", "")
-      ),
-      None,
-      None,
-      source,
-      context
-    )
-    val input = Some(collectorPayload).validNel
-    val regConf = Registry.Config(
-      "test-schema",
-      0,
-      List("com.snowplowanalytics.snowplow", "com.acme", "com.mailgun")
-    )
-    val reg = Registry.Embedded(regConf, path = "/iglu-schemas")
-    for {
-      client <- IgluCirceClient.fromResolver[IO](Resolver[IO](List(reg), None), cacheSize = 0, maxJsonDepth = 40)
-      result <- EtlPipeline
-                  .processEvents[IO](
-                    new AdapterRegistry[IO](Map.empty[(String, String), RemoteAdapter[IO]], adaptersSchemas),
-                    enrichmentReg,
-                    client,
-                    Processor("spark", "0.0.0"),
-                    new DateTime(1500000000L),
-                    input,
-                    AcceptInvalid.featureFlags,
-                    IO.unit,
-                    SpecHelpers.registryLookup,
-                    AtomicFields.from(Map.empty),
-                    emitIncomplete,
-                    SpecHelpers.DefaultMaxJsonDepth
-                  )
-    } yield result.map(_.toEither)
-  }
-
-  private val ipEnrichment = {
-    val js = json"""{
-      "enabled": true,
-      "parameters": {
-        "geo": {
-          "database": "GeoIP2-City.mmdb",
-          "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
-        },
-        "isp": {
-          "database": "GeoIP2-ISP.mmdb",
-          "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
-        }
-      }
-    }"""
-    val schemaKey = SchemaKey(
-      "com.snowplowanalytics.snowplow",
-      "ip_lookups",
-      "jsonschema",
-      SchemaVer.Full(2, 0, 0)
-    )
-    IpLookupsEnrichment.parse(js, schemaKey, true).toOption.get.enrichment[IO](SpecHelpers.blockingEC)
-  }
-
-  private val campaignAttributionEnrichment = {
-    val js = json"""{
-		  "enabled": true,
-		  "parameters": {
-		    "mapping": "static",
-		    "fields": {
-          "mktMedium": ["utm_medium"],
-          "mktSource": ["utm_source"],
-          "mktTerm": ["utm_term"],
-          "mktContent": ["utm_content"],
-          "mktCampaign": ["utm_campaign"]
-		    }
-		  }
-    }"""
-    val schemaKey = SchemaKey(
-      "com.snowplowanalytics.snowplow",
-      "campaign_attribution",
-      "jsonschema",
-      SchemaVer.Full(1, 0, 1)
-    )
-    CampaignAttributionEnrichment.parse(js, schemaKey).toOption.get.enrichment
-  }
 
   def e1 = {
     val actual = for {
@@ -288,7 +118,8 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
                             "SHA-256",
                             hashFunction = DigestUtils.sha256Hex(_: Array[Byte]),
                             "pepper123"
-                          )
+                          ),
+                          anonymousOnly = false
                         ).some
                       )
       output <- commonSetup(enrichmentReg)
@@ -397,7 +228,8 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
                             "MD5",
                             hashFunction = DigestUtils.sha256Hex(_: Array[Byte]),
                             "pepper123"
-                          )
+                          ),
+                          anonymousOnly = false
                         ).some
                       )
       output <- commonSetup(enrichmentReg)
@@ -506,7 +338,8 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
                             "SHA-384",
                             hashFunction = DigestUtils.sha256Hex(_: Array[Byte]),
                             "pepper123"
-                          )
+                          ),
+                          anonymousOnly = false
                         ).some
                       )
       output <- commonSetup(enrichmentReg)
@@ -557,7 +390,8 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
                             "SHA-512",
                             hashFunction = DigestUtils.sha256Hex(_: Array[Byte]),
                             "pepper123"
-                          )
+                          ),
+                          anonymousOnly = false
                         ).some
                       )
       output <- commonSetup(enrichmentReg)
@@ -611,7 +445,8 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
                             "MD-2",
                             hashFunction = DigestUtils.sha256Hex(_: Array[Byte]),
                             "pepper123"
-                          )
+                          ),
+                          anonymousOnly = false
                         ).some
                       )
       output <- commonSetup(enrichmentReg)
@@ -665,7 +500,8 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
                             "SHA-256",
                             hashFunction = DigestUtils.sha256Hex(_: Array[Byte]),
                             "pepper123"
-                          )
+                          ),
+                          anonymousOnly = false
                         ).some
                       )
       output <- commonSetup(enrichmentReg)
@@ -730,7 +566,8 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
                             "SHA-256",
                             hashFunction = DigestUtils.sha256Hex(_: Array[Byte]),
                             "pepper123"
-                          )
+                          ),
+                          anonymousOnly = false
                         ).some
                       )
       output <- commonSetup(enrichmentReg)
@@ -794,7 +631,8 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
                             "SHA-256",
                             hashFunction = DigestUtils.sha256Hex(_: Array[Byte]),
                             "pepper123"
-                          )
+                          ),
+                          anonymousOnly = false
                         ).some
                       )
       output <- commonSetup(enrichmentReg)
@@ -866,5 +704,179 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
     """
 
     PiiPseudonymizerEnrichment.removeAddedFields(hashed, orig) must beEqualTo(expected)
+  }
+}
+
+object PiiPseudonymizerEnrichmentSpec {
+  def commonSetup(enrichmentReg: EnrichmentRegistry[IO], headers: List[String] = Nil): IO[List[Either[BadRow, EnrichedEvent]]] = {
+    val context =
+      CollectorPayload.Context(
+        Some(DateTime.parse("2017-07-14T03:39:39.000+00:00")),
+        Some("127.0.0.1"),
+        None,
+        None,
+        headers,
+        None
+      )
+    val source = CollectorPayload.Source("clj-tomcat", "UTF-8", None)
+    val collectorPayload = CollectorPayload(
+      CollectorPayload.Api("com.snowplowanalytics.snowplow", "tp2"),
+      SpecHelpers.toNameValuePairs(
+        "e" -> "se",
+        "aid" -> "ads",
+        "uid" -> "john@acme.com",
+        "ip" -> "70.46.123.145",
+        "fp" -> "its_you_again!",
+        "url" -> "http://foo.bar?utm_term=hello&utm_content=world&msclkid=500&_sp=duid",
+        "dnuid" -> "gfhdgjfgndf",
+        "nuid" -> "kuykyfkfykukfuy",
+        "tr_id" -> "t5465463",
+        "ti_id" -> "6546b56356b354bbv",
+        "se_ca" -> "super category",
+        "se_ac" -> "great action",
+        "se_la" -> "awesome label",
+        "se_pr" -> "good property",
+        "duid" -> "786d1b69-a603-4eb8-9178-fed2a195a1ed",
+        "sid" -> "87857856-a603-4eb8-9178-fed2a195a1ed",
+        "co" ->
+          """
+            |{
+            |  "schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
+            |  "data":[
+            |      {
+            |      "schema":  "iglu:com.acme/email_sent/jsonschema/1-0-0",
+            |      "data": {
+            |        "emailAddress" : "jim@acme.com",
+            |        "emailAddress2" : "bob@acme.com"
+            |      }
+            |    },
+            |    {
+            |      "data": {
+            |        "emailAddress" : "tim@acme.com",
+            |        "emailAddress2" : "tom@acme.com",
+            |        "schema": "iglu:com.acme/email_sent/jsonschema/1-0-0",
+            |        "data": {
+            |          "emailAddress" : "jim@acme.com",
+            |          "emailAddress2" : "bob@acme.com"
+            |        },
+            |        "someInt": 1
+            |      },
+            |      "schema":  "iglu:com.acme/email_sent/jsonschema/1-1-0"
+            |    },
+            |    {
+            |      "schema": "iglu:com.test/array/jsonschema/1-0-0",
+            |      "data": {
+            |        "field" : ["hello", "world"],
+            |        "field2" : null,
+            |        "field3": null,
+            |        "field4": ""
+            |      }
+            |    }
+            |  ]
+            |}
+      """.stripMargin,
+        "ue_pr" -> """
+                     |{
+                     |   "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+                     |   "data":{
+                     |     "schema":"iglu:com.mailgun/message_clicked/jsonschema/1-0-0",
+                     |     "data":{
+                     |       "recipient":"alice@example.com",
+                     |       "city":"San Francisco",
+                     |       "ip":"50.56.129.169",
+                     |       "myVar2":"awesome",
+                     |       "timestamp":"2016-06-30T14:31:09.000Z",
+                     |       "url":"http://mailgun.net",
+                     |       "userAgent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.31 (KHTML, like Gecko) Chrome/26.0.1410.43 Safari/537.31",
+                     |       "domain":"sandboxbcd3ccb1a529415db665622619a61616.mailgun.org",
+                     |       "signature":"ffe2d315a1d937bd09d9f5c35ddac1eb448818e2203f5a41e3a7bd1fb47da385",
+                     |       "country":"US",
+                     |       "clientType":"browser",
+                     |       "clientOs":"Linux",
+                     |       "token":"cd89cd860be0e318371f4220b7e0f368b60ac9ab066354737f",
+                     |       "clientName":"Chrome",
+                     |       "region":"CA",
+                     |       "deviceType":"desktop",
+                     |       "myVar1":"Mailgun Variable #1"
+                     |     }
+                     |   }
+                     |}""".stripMargin.replaceAll("[\n\r]", "")
+      ),
+      None,
+      None,
+      source,
+      context
+    )
+    val input = Some(collectorPayload).validNel
+    val regConf = Registry.Config(
+      "test-schema",
+      0,
+      List("com.snowplowanalytics.snowplow", "com.acme", "com.mailgun")
+    )
+    val reg = Registry.Embedded(regConf, path = "/iglu-schemas")
+    for {
+      client <- IgluCirceClient.fromResolver[IO](Resolver[IO](List(reg), None), cacheSize = 0, maxJsonDepth = 40)
+      result <- EtlPipeline
+                  .processEvents[IO](
+                    new AdapterRegistry[IO](Map.empty[(String, String), RemoteAdapter[IO]], adaptersSchemas),
+                    enrichmentReg,
+                    client,
+                    Processor("spark", "0.0.0"),
+                    new DateTime(1500000000L),
+                    input,
+                    AcceptInvalid.featureFlags,
+                    IO.unit,
+                    SpecHelpers.registryLookup,
+                    AtomicFields.from(Map.empty),
+                    emitIncomplete,
+                    SpecHelpers.DefaultMaxJsonDepth
+                  )
+    } yield result.map(_.toEither)
+  }
+
+  val ipEnrichment = {
+    val js = json"""{
+      "enabled": true,
+      "parameters": {
+        "geo": {
+          "database": "GeoIP2-City.mmdb",
+          "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
+        },
+        "isp": {
+          "database": "GeoIP2-ISP.mmdb",
+          "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
+        }
+      }
+    }"""
+    val schemaKey = SchemaKey(
+      "com.snowplowanalytics.snowplow",
+      "ip_lookups",
+      "jsonschema",
+      SchemaVer.Full(2, 0, 0)
+    )
+    IpLookupsEnrichment.parse(js, schemaKey, true).toOption.get.enrichment[IO](SpecHelpers.blockingEC)
+  }
+
+  val campaignAttributionEnrichment = {
+    val js = json"""{
+		  "enabled": true,
+		  "parameters": {
+		    "mapping": "static",
+		    "fields": {
+          "mktMedium": ["utm_medium"],
+          "mktSource": ["utm_source"],
+          "mktTerm": ["utm_term"],
+          "mktContent": ["utm_content"],
+          "mktCampaign": ["utm_campaign"]
+		    }
+		  }
+    }"""
+    val schemaKey = SchemaKey(
+      "com.snowplowanalytics.snowplow",
+      "campaign_attribution",
+      "jsonschema",
+      SchemaVer.Full(1, 0, 1)
+    )
+    CampaignAttributionEnrichment.parse(js, schemaKey).toOption.get.enrichment
   }
 }

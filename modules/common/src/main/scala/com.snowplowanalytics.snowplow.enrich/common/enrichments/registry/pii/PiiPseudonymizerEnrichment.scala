@@ -47,7 +47,6 @@ object PiiPseudonymizerEnrichment extends ParseableEnrichment {
       "pii_enrichment_config",
       "jsonschema",
       2,
-      0,
       0
     )
 
@@ -69,7 +68,14 @@ object PiiPseudonymizerEnrichment extends ParseableEnrichment {
                        .extract[PiiStrategyPseudonymize](config, "parameters", "strategy")
                        .toEither
       piiFieldList <- extractFields(piiFields)
-    } yield PiiPseudonymizerConf(schemaKey, piiFieldList, emitIdentificationEvent, piiStrategy)
+      anonymousOnly <- CirceUtils
+                         .extract[Option[Boolean]](conf, "anonymousOnly")
+                         .map {
+                           case Some(value) => value
+                           case None => false
+                         }
+                         .toEither
+    } yield PiiPseudonymizerConf(schemaKey, piiFieldList, emitIdentificationEvent, piiStrategy, anonymousOnly)
   }.toValidatedNel
 
   private[pii] def getHashFunction(strategyFunction: String): Either[String, DigestFunction] =
@@ -169,14 +175,24 @@ object PiiPseudonymizerEnrichment extends ParseableEnrichment {
 final case class PiiPseudonymizerEnrichment(
   fieldList: List[PiiField],
   emitIdentificationEvent: Boolean,
-  strategy: PiiStrategy
+  strategy: PiiStrategy,
+  anonymousOnly: Boolean
 ) extends Enrichment {
 
-  def transformer(event: EnrichedEvent): Option[SelfDescribingData[Json]] = {
-    val modifiedFields = fieldList.flatMap(_.transform(event, strategy))
-    if (emitIdentificationEvent && modifiedFields.nonEmpty)
-      SelfDescribingData(Adapter.UnstructEvent, PiiModifiedFields(modifiedFields, strategy).asJson).some
-    else None
+  /**
+   * Mask PII fields except if anonymousOnly is true and SP-Anonymous header is not present
+   * Header check is case-insensitive
+   */
+  def transformer(event: EnrichedEvent, headers: List[String]): Option[SelfDescribingData[Json]] = {
+    lazy val anonymousHeaderExist = headers.exists(_.toLowerCase.startsWith("sp-anonymous"))
+    if (anonymousOnly && !anonymousHeaderExist)
+      None
+    else {
+      val modifiedFields = fieldList.flatMap(_.transform(event, strategy))
+      if (emitIdentificationEvent && modifiedFields.nonEmpty)
+        SelfDescribingData(Adapter.UnstructEvent, PiiModifiedFields(modifiedFields, strategy).asJson).some
+      else None
+    }
   }
 }
 

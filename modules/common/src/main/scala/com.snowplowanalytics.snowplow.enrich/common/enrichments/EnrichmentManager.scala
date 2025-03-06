@@ -331,7 +331,7 @@ object EnrichmentManager {
         _       <- sqlContexts                                                        // Derive some contexts with custom SQL Query enrichment
         _       <- apiContexts                                                        // Derive some contexts with custom API Request enrichment
         _       <- anonIp[F](registry.anonIp)                                         // Anonymize the IP
-        _       <- piiTransform[F](registry.piiPseudonymizer)                         // Run PII pseudonymization
+        _       <- piiTransform[F](registry.piiPseudonymizer, raw.context.headers)    // Run PII pseudonymization
         // format: on
       } yield ()
     else
@@ -361,7 +361,7 @@ object EnrichmentManager {
         _       <- sqlContexts                                                        // Derive some contexts with custom SQL Query enrichment
         _       <- apiContexts                                                        // Derive some contexts with custom API Request enrichment
         _       <- anonIp[F](registry.anonIp)                                         // Anonymize the IP
-        _       <- piiTransform[F](registry.piiPseudonymizer)                         // Run PII pseudonymization
+        _       <- piiTransform[F](registry.piiPseudonymizer, raw.context.headers)    // Run PII pseudonymization
         // format: on
       } yield ()
 
@@ -877,12 +877,12 @@ object EnrichmentManager {
         }
     }
 
-  def piiTransform[F[_]: Applicative](piiPseudonymizer: Option[PiiPseudonymizerEnrichment]): EStateT[F, Unit] =
+  def piiTransform[F[_]: Applicative](piiPseudonymizer: Option[PiiPseudonymizerEnrichment], headers: List[String]): EStateT[F, Unit] =
     EStateT.fromEither {
       case (event, _) =>
         piiPseudonymizer match {
           case Some(pseudonymizer) =>
-            pseudonymizer.transformer(event).foreach(p => event.pii = p.asString)
+            pseudonymizer.transformer(event, headers).foreach(p => event.pii = p.asString)
             Nil.asRight
           case None =>
             Nil.asRight

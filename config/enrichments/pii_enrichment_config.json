@@ -1,5 +1,5 @@
 {
-  "schema": "iglu:com.snowplowanalytics.snowplow.enrichments/pii_enrichment_config/jsonschema/2-0-0",
+  "schema": "iglu:com.snowplowanalytics.snowplow.enrichments/pii_enrichment_config/jsonschema/2-0-1",
   "data": {
     "vendor": "com.snowplowanalytics.snowplow.enrichments",
     "name": "pii_enrichment_config",
@@ -30,7 +30,8 @@
           "hashFunction": "SHA-1",
           "salt": "pepper123"
         }
-      }
+      },
+      "anonymousOnly": false
     }
   }
 }

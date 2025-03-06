@@ -435,7 +435,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
             "MD5",
             hashFunction = DigestUtils.sha256Hex(_: Array[Byte]),
             "pepper123"
-          )
+          ),
+          anonymousOnly = false
         ).some
       )
       val enriched = EnrichmentManager.enrichEvent[IO](
@@ -506,7 +507,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
             "MD5",
             hashFunction = DigestUtils.sha256Hex(_: Array[Byte]),
             "pepper123"
-          )
+          ),
+          anonymousOnly = false
         ).some
       )
       val enriched = EnrichmentManager.enrichEvent[IO](
@@ -577,7 +579,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
             "MD5",
             hashFunction = DigestUtils.sha256Hex(_: Array[Byte]),
             "pepper123"
-          )
+          ),
+          anonymousOnly = false
         ).some
       )
       val enriched = EnrichmentManager.enrichEvent[IO](
@@ -648,7 +651,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
             "MD5",
             hashFunction = DigestUtils.sha256Hex(_: Array[Byte]),
             "pepper123"
-          )
+          ),
+          anonymousOnly = false
         ).some
       )
       val enriched = EnrichmentManager.enrichEvent[IO](
@@ -725,7 +729,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
             "MD5",
             hashFunction = DigestUtils.sha256Hex(_: Array[Byte]),
             "pepper123"
-          )
+          ),
+          anonymousOnly = false
         ).some
       )
       val enriched = EnrichmentManager.enrichEvent[IO](

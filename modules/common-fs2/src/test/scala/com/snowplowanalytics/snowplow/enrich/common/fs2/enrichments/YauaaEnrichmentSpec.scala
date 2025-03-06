@@ -51,7 +51,7 @@ class YauaaEnrichmentSpec extends Specification with CatsEffect {
       val expected = Contexts(
         List(
           SelfDescribingData(
-            SchemaKey("nl.basjes", "yauaa_context", "jsonschema", SchemaVer.Full(1, 0, 4)),
+            SchemaKey("nl.basjes", "yauaa_context", "jsonschema", SchemaVer.Full(1, 0, 5)),
             json"""{
           "deviceBrand" : "Apple",
           "deviceName" : "Apple Macintosh",
@@ -61,6 +61,7 @@ class YauaaEnrichmentSpec extends Specification with CatsEffect {
           "agentInformationEmail": "Unknown",
           "networkType": "Unknown",
           "layoutEngineBuild" : "20100101",
+          "webviewAppNameVersion": "Unknown ??",
           "webviewAppNameVersionMajor": "Unknown ??",
           "layoutEngineNameVersionMajor" : "Gecko 81",
           "operatingSystemName" : "Mac OS",

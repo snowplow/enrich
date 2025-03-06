@@ -196,7 +196,7 @@ class YauaaEnrichmentSpec extends Specification with ValidatedMatchers {
       yauaaEnrichment.analyzeUserAgent(uaFirefox, headers)("agentName") shouldEqual "Firefox"
     }
 
-    "create a JSON with the schema 1-0-4 and the data" >> {
+    "create a JSON with the schema 1-0-5 and the data" >> {
       val expected =
         SelfDescribingData(
           YauaaEnrichment.outputSchema,
@@ -208,6 +208,7 @@ class YauaaEnrichmentSpec extends Specification with ValidatedMatchers {
             "agentInformationEmail" : "Unknown",
             "networkType" : "Unknown",
             "operatingSystemVersionBuild":"R16NW",
+            "webviewAppNameVersion": "Unknown ??",
             "webviewAppNameVersionMajor" : "Unknown ??",
             "layoutEngineNameVersionMajor":"Blink 62",
             "operatingSystemName":"Android",

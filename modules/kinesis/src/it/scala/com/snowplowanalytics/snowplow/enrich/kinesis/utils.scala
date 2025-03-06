@@ -59,7 +59,7 @@ object utils extends CatsEffect {
         enriched
           .merge(bad)
           .merge(incomplete)
-          .interruptAfter(3.minutes)
+          .interruptAfter(4.minutes)
           .concurrently(collectorPayloads.evalMap(bytes => rawSink(List(bytes))))
     }
 

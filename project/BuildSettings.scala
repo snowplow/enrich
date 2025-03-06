@@ -28,7 +28,7 @@ object BuildSettings {
 
   lazy val projectSettings = Seq(
     organization := "com.snowplowanalytics",
-    scalaVersion := "2.12.15",
+    scalaVersion := "2.12.20",
     licenses += ("SLULA-1.1", url("https://docs.snowplow.io/limited-use-license-1.1"))
   )
 
@@ -75,7 +75,13 @@ object BuildSettings {
     moduleName := "snowplow-enrich-kinesis",
     description := "High-performance streaming enrich app working with Kinesis, built on top of functional streams",
     buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
-    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.kinesis.generated"
+    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.kinesis.generated",
+    // scala compiler 2.12.20 uses scala-xml 2.x
+    // refined 0.9.28 (coming from fs-aws-kinesis 4.1.0, the last version published for 2.12) uses scala-xml 1.x
+    // this is added to pick scala-xml 2.x always so that sbt does not throw binary incompatible error
+    // remove this after not relying on scala-xml 1.x anymore
+    // See https://github.com/sbt/sbt/issues/6997 for details
+    libraryDependencySchemes += "org.scala-lang.modules" %% "scala-xml" % VersionScheme.Always
   )
 
   lazy val kafkaProjectSettings = projectSettings ++ Seq(

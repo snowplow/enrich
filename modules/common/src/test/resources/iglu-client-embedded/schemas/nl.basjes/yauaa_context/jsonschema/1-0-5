@@ -5,13 +5,14 @@
         "vendor": "nl.basjes",
         "name": "yauaa_context",
         "format": "jsonschema",
-        "version": "1-0-4"
+        "version": "1-0-5"
     },
     "type": "object",
     "properties": {
         "deviceClass": {
             "description": "See https://yauaa.basjes.nl/README-Output.html",
-            "enum": ["Desktop", "Anonymized", "Unknown", "UNKNOWN", "Mobile", "Tablet", "Phone", "Watch", "Virtual Reality", "eReader", "Set-top box", "TV", "Game Console", "Home Appliance", "Handheld Game Console", "Voice", "Car", "Robot", "Robot Mobile", "Spy", "Hacker", "Augmented Reality", "Robot Imitator"]
+            "type": "string",
+            "maxLength": 32
         },
         "deviceName": {
             "description": "Example: Google Nexus 6",
@@ -42,7 +43,7 @@
         "operatingSystemClass": {
             "description": "See https://yauaa.basjes.nl/README-Output.html",
             "type": "string",
-            "enum": ["Desktop", "Mobile", "Cloud", "Embedded", "Game Console", "Hacker", "Anonymized", "Unknown"]
+            "maxLength": 32
         },
         "operatingSystemName": {
             "description": "Examples: Linux, Android.",
@@ -64,7 +65,7 @@
         "layoutEngineClass": {
             "description": "See https://yauaa.basjes.nl/README-Output.html",
             "type": "string",
-            "enum": ["Browser", "Mobile App", "Hacker", "Robot", "Unknown", "Special", "Cloud", "eReader"]
+            "maxLength": 32
         },
         "layoutEngineName": {
             "type": "string",
@@ -93,7 +94,7 @@
         "agentClass": {
             "description": "See https://yauaa.basjes.nl/README-Output.html",
             "type": "string",
-            "enum": ["Browser", "Browser Webview", "Mobile App", "Robot", "Robot Mobile", "Cloud Application", "Email Client", "Voice", "Special", "Testclient", "Hacker", "Unknown", "Desktop App", "eReader"]
+            "maxLength": 32
         },
         "agentName": {
             "description": "Example: Chrome.",
@@ -136,7 +137,7 @@
         },
         "agentSecurity": {
             "type": "string",
-            "enum": ["Weak security", "Strong security", "Unknown", "Hacker", "No security"]
+            "maxLength": 32
         },
         "agentUuid": {
             "type": "string"
@@ -148,6 +149,10 @@
             "type": "string"
         },
         "webviewAppVersionMajor": {
+            "type": "string",
+            "maxLength": 1000
+        },
+        "webviewAppNameVersion": {
             "type": "string",
             "maxLength": 1000
         },

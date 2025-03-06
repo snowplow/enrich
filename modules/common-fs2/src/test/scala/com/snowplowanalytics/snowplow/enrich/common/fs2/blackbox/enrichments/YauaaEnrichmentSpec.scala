@@ -49,7 +49,7 @@ class YauaaEnrichmentSpec extends Specification with CatsEffect {
         "derived_contexts" -> json"""{
           "schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1",
           "data":[{
-            "schema":"iglu:nl.basjes/yauaa_context/jsonschema/1-0-4",
+            "schema":"iglu:nl.basjes/yauaa_context/jsonschema/1-0-5",
             "data": {
               "deviceBrand":"Unknown",
               "deviceName":"Linux Desktop",
@@ -59,6 +59,7 @@ class YauaaEnrichmentSpec extends Specification with CatsEffect {
               "agentInformationEmail": "Unknown",
               "networkType": "Unknown",
               "operatingSystemVersionBuild":"??",
+              "webviewAppNameVersion": "Unknown ??",
               "webviewAppNameVersionMajor": "Unknown ??",
               "layoutEngineNameVersionMajor":"Blink 106",
               "operatingSystemName":"Linux",
@@ -81,7 +82,9 @@ class YauaaEnrichmentSpec extends Specification with CatsEffect {
               "deviceCpu":"Intel x86_64",
               "agentClass":"Browser",
               "layoutEngineVersion":"106.0",
-              "agentInformationUrl": "Unknown"
+              "agentInformationUrl": "Unknown",
+              "deviceFirmwareVersion": "??",
+              "deviceVersion": "??"
             }
           }]
         }""".noSpaces

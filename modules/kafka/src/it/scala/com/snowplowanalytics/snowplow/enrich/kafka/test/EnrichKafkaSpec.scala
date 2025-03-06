@@ -125,7 +125,7 @@ class EnrichKafkaSpec extends Specification with CatsEffect {
 
   val aggregates = run().unsafeRunSync()
 
-  "enrich-kinesis" should {
+  "enrich-kafka" should {
     "emit the expected enriched events" in {
       aggregates.good.size must beEqualTo(nbGood)
     }

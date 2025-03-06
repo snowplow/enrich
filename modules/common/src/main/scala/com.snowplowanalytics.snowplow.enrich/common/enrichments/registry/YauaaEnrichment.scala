@@ -39,7 +39,7 @@ object YauaaEnrichment extends ParseableEnrichment {
   val DefaultDeviceClass = "Unknown"
   val DefaultResult = Map(decapitalize(UserAgent.DEVICE_CLASS) -> DefaultDeviceClass)
 
-  val outputSchema: SchemaKey = SchemaKey("nl.basjes", "yauaa_context", "jsonschema", SchemaVer.Full(1, 0, 4))
+  val outputSchema: SchemaKey = SchemaKey("nl.basjes", "yauaa_context", "jsonschema", SchemaVer.Full(1, 0, 5))
 
   /**
    * Creates a YauaaConf instance from a JValue containing the configuration of the enrichment.
@@ -79,6 +79,7 @@ final case class YauaaEnrichment(cacheSize: Option[Int]) extends Enrichment {
   private val uaa: UserAgentAnalyzer = {
     val a = UserAgentAnalyzer
       .newBuilder()
+      .hideMatcherLoadStats()
       .build()
     cacheSize.foreach(a.setCacheSize)
     a
@@ -152,6 +153,7 @@ final case class YauaaEnrichment(cacheSize: Option[Int]) extends Enrichment {
     "webviewAppName",
     "webviewAppVersion",
     "webviewAppVersionMajor",
+    "webviewAppNameVersion",
     "webviewAppNameVersionMajor",
     "facebookCarrier",
     "facebookDeviceClass",

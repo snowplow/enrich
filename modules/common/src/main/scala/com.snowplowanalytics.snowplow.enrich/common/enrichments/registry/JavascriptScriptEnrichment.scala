@@ -28,6 +28,7 @@ import com.snowplowanalytics.snowplow.badrows.FailureDetails
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.JavascriptScriptConf
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.{CirceUtils, ConversionUtils, JsonUtils}
+import JavascriptScriptEnrichment.{JavascriptRejectionException, Result}
 
 object JavascriptScriptEnrichment extends ParseableEnrichment {
   override val supportedSchema =
@@ -57,6 +58,31 @@ object JavascriptScriptEnrichment extends ParseableEnrichment {
       params <- CirceUtils.extract[Option[JsonObject]](c, "parameters", "config").toEither
       _ <- if (script.isEmpty) Left("Provided script for JS enrichment is empty") else Right(())
     } yield JavascriptScriptConf(schemaKey, script, params.getOrElse(JsonObject.empty))).toValidatedNel
+
+  /**
+   * Represents the result of JS enrichment script
+   */
+  sealed trait Result extends Product with Serializable
+
+  object Result {
+
+    /**
+     * Failed result from the JS enrichment script
+     */
+    case class Failure(f: FailureDetails.EnrichmentFailure) extends Result
+
+    /**
+     * Successful result from the JS enrichment script
+     */
+    case class Success(l: List[SelfDescribingData[Json]]) extends Result
+
+    /**
+     * Event is dropped in JS enrichment script
+     */
+    case object Dropped extends Result
+  }
+
+  class JavascriptRejectionException extends Exception
 }
 
 final case class JavascriptScriptEnrichment(
@@ -100,40 +126,51 @@ final case class JavascriptScriptEnrichment(
     event: EnrichedEvent,
     headers: List[String],
     maxJsonDepth: Int
-  ): Either[FailureDetails.EnrichmentFailure, List[SelfDescribingData[Json]]] =
-    invocable
-      .flatMap(_ =>
-        Either
-          .catchNonFatal(engine.invokeFunction("getJavascriptContexts", event, headers.asJava).asInstanceOf[String])
-          .leftMap(e => s"Error during execution of JavaScript function: [${e.getMessage}]")
-      )
-      .flatMap(contexts =>
-        JsonUtils.extractJson(contexts, maxJsonDepth) match {
-          case Right(json) =>
-            json.asArray match {
-              case Some(array) =>
-                array
-                  .parTraverse(json =>
-                    SelfDescribingData
-                      .parse(json)
-                      .leftMap(error => (error, json))
-                      .leftMap(NonEmptyList.one)
-                  )
-                  .map(_.toList)
-                  .leftMap { s =>
-                    val msg = s.toList
-                      .map {
-                        case (error, json) => s"error code:[${error.code}],json:[${json.noSpaces}]"
-                      }
-                      .mkString(";")
-                    s"Resulting contexts are not self-desribing. Error(s): [$msg]"
-                  }
-              case None =>
-                Left(s"Output of JavaScript function [$json] could be parsed as JSON but is not read as an array")
-            }
-          case Left(err) =>
-            Left(s"Could not parse output JSON of Javascript function. Error: [$err]")
-        }
-      )
-      .leftMap(errorMsg => FailureDetails.EnrichmentFailure(enrichmentInfo, FailureDetails.EnrichmentFailureMessage.Simple(errorMsg)))
+  ): Result =
+    (for {
+      _ <- invocable.leftMap(createFailure)
+      contexts <- Either
+                    .catchNonFatal(engine.invokeFunction("getJavascriptContexts", event, headers.asJava).asInstanceOf[String])
+                    .leftMap {
+                      case e if isRejectionException(e) => Result.Dropped
+                      case e => createFailure(s"Error during execution of JavaScript function: [${e.getMessage}]")
+                    }
+      json <- JsonUtils
+                .extractJson(contexts, maxJsonDepth)
+                .leftMap(err => createFailure(s"Could not parse output JSON of Javascript function. Error: [$err]"))
+      l <- parseContexts(json).leftMap(createFailure)
+    } yield Result.Success(l)).merge
+
+  private def parseContexts(json: Json): Either[String, List[SelfDescribingData[Json]]] =
+    json.asArray match {
+      case Some(array) =>
+        array
+          .parTraverse(json =>
+            SelfDescribingData
+              .parse(json)
+              .leftMap(error => (error, json))
+              .leftMap(NonEmptyList.one)
+          )
+          .map(_.toList)
+          .leftMap { s =>
+            val msg = s.toList
+              .map {
+                case (error, json) => s"error code:[${error.code}],json:[${json.noSpaces}]"
+              }
+              .mkString(";")
+            s"Resulting contexts are not self-desribing. Error(s): [$msg]"
+          }
+      case None =>
+        Left(s"Output of JavaScript function [$json] could be parsed as JSON but is not read as an array")
+    }
+
+  private def createFailure(errorMsg: String) =
+    Result.Failure(FailureDetails.EnrichmentFailure(enrichmentInfo, FailureDetails.EnrichmentFailureMessage.Simple(errorMsg)))
+
+  private def isRejectionException(t: Throwable): Boolean =
+    Option(t.getCause) match {
+      case Some(cause) if cause.isInstanceOf[JavascriptRejectionException] => true
+      case Some(cause) => isRejectionException(cause)
+      case None => false
+    }
 }

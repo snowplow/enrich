@@ -73,6 +73,7 @@ object StatsDReporter {
       Metrics.RawCounterName -> snapshot.rawCount.toString,
       Metrics.GoodCounterName -> snapshot.goodCount.toString,
       Metrics.BadCounterName -> snapshot.badCount.toString,
+      Metrics.DroppedCounterName -> snapshot.droppedCount.toString,
       Metrics.InvalidCounterName -> snapshot.invalidCount.toString
     ) ++ snapshot.enrichLatency.map(l => Metrics.LatencyGaugeName -> l.toString) ++
       snapshot.incompleteCount.map(cnt => Metrics.IncompleteCounterName -> cnt.toString) ++

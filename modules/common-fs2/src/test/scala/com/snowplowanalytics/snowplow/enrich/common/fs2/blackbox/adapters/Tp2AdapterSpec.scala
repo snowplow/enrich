@@ -23,6 +23,7 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.test.TestEnvironment
 import com.snowplowanalytics.snowplow.enrich.common.fs2.blackbox.BlackBoxTesting
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
+import com.snowplowanalytics.snowplow.enrich.common.utils.OptionIor
 
 class Tp2AdapterSpec extends Specification with CatsEffect {
   "enrichWith" should {
@@ -51,7 +52,11 @@ class Tp2AdapterSpec extends Specification with CatsEffect {
           )
           .map(_.enriched)
           .map {
-            case l if l.forall(_.isRight) => l must haveSize(10)
+            case l if l.forall {
+                  case OptionIor.Right(_) => true
+                  case _ => false
+                } =>
+              l must haveSize(10)
             case other => ko(s"there should be 10 enriched events, got $other")
           }
       }

@@ -10,11 +10,12 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common
 
-import cats.data.{EitherT, Ior, ValidatedNel}
+import cats.data.{EitherT, ValidatedNel}
 
 import com.snowplowanalytics.snowplow.badrows.BadRow
 
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.utils.OptionIor
 
 package object fs2 {
 
@@ -25,5 +26,5 @@ package object fs2 {
   type ByteSink[F[_]] = List[Array[Byte]] => F[Unit]
   type AttributedByteSink[F[_]] = List[AttributedData[Array[Byte]]] => F[Unit]
 
-  type Enriched = Ior[BadRow, EnrichedEvent]
+  type Enriched = OptionIor[BadRow, EnrichedEvent]
 }

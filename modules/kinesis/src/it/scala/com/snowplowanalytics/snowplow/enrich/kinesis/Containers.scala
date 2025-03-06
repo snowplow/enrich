@@ -108,7 +108,8 @@ object Containers extends CatsEffect {
         "STREAM_ENRICHED" -> streams.enriched,
         "STREAM_BAD" -> streams.bad,
         "STREAM_INCOMPLETE" -> streams.incomplete,
-        "LOCALSTACK_ENDPOINT" -> s"http://${localstack.alias}:${localstack.internalPort}"
+        "LOCALSTACK_ENDPOINT" -> s"http://${localstack.alias}:${localstack.internalPort}",
+        "STATSD_TAG" -> uuid
       ),
       fileSystemBind = Seq(
         GenericContainer.FileSystemBind(

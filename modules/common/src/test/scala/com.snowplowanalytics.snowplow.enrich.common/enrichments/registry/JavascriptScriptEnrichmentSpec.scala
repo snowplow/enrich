@@ -15,6 +15,7 @@ package enrichments.registry
 import io.circe.literal._
 
 import org.specs2.Specification
+import org.specs2.matcher.MatchResult
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 
@@ -22,6 +23,7 @@ import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
+import JavascriptScriptEnrichment.Result
 
 class JavascriptScriptEnrichmentSpec extends Specification {
   def is = s2"""
@@ -38,23 +40,24 @@ class JavascriptScriptEnrichmentSpec extends Specification {
   Javascript enrichment should be able to update the fields without return statement $e11
   Javascript enrichment should be able to utilize the passed parameters              $e12
   Javascript enrichment should be able to utilize the headers                        $e13
+  Javascript enrichment should drop event when dropped method is called             $e14
   """
 
   val schemaKey =
     SchemaKey("com.snowplowanalytics.snowplow", "javascript_script_config", "jsonschema", SchemaVer.Full(1, 0, 0))
 
   def e1 =
-    JavascriptScriptEnrichment(schemaKey, "[").process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beLeft(
-      failureContains(_: FailureDetails.EnrichmentFailure, "Error compiling")
-    )
+    JavascriptScriptEnrichment(schemaKey, "[").process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beLike {
+      failureContains("Error compiling")
+    }
 
   def e2 = {
     val function = s"""
       function process(event) {
         return { foo: "bar" }
       }"""
-    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beLeft(
-      failureContains(_: FailureDetails.EnrichmentFailure, "not read as an array")
+    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beLike(
+      failureContains("not read as an array")
     )
   }
 
@@ -63,8 +66,8 @@ class JavascriptScriptEnrichmentSpec extends Specification {
       function process(event) {
         return [ { foo: "bar" } ]
       }"""
-    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beLeft(
-      failureContains(_: FailureDetails.EnrichmentFailure, "not self-desribing")
+    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beLike(
+      failureContains("not self-desribing")
     )
   }
 
@@ -76,11 +79,9 @@ class JavascriptScriptEnrichmentSpec extends Specification {
           data:   { appId: event.getApp_id() }
         } ];
       }"""
-    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(appId), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beRight
-      .like {
-        case List(sdj) if sdj.data.noSpaces.contains(appId) => true
-        case _ => false
-      }
+    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(appId), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beLike {
+      case Result.Success(List(sdj)) if sdj.data.noSpaces.contains(appId) => ok
+    }
   }
 
   def e5 = {
@@ -103,8 +104,8 @@ class JavascriptScriptEnrichmentSpec extends Specification {
       function process(event) {
         throw "Error"
       }"""
-    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beLeft(
-      failureContains(_: FailureDetails.EnrichmentFailure, "Error during execution")
+    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beLike(
+      failureContains("Error during execution")
     )
   }
 
@@ -113,7 +114,9 @@ class JavascriptScriptEnrichmentSpec extends Specification {
       function process(event) {
         return [ ];
       }"""
-    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beRight
+    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beLike {
+      case Result.Success(_) => ok
+    }
   }
 
   def e8 = {
@@ -136,11 +139,9 @@ class JavascriptScriptEnrichmentSpec extends Specification {
         SchemaKey("com.acme", "bar", "jsonschema", SchemaVer.Full(1, 0, 0)),
         json"""{"hello":"world"}"""
       )
-    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beRight
-      .like {
-        case List(c1, c2) if c1 == context1 && c2 == context2 => true
-        case _ => false
-      }
+    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beLike {
+      case Result.Success(List(c1, c2)) if c1 == context1 && c2 == context2 => ok
+    }
   }
 
   def e9 = {
@@ -149,7 +150,9 @@ class JavascriptScriptEnrichmentSpec extends Specification {
         var a = 42     // no-op
       }"""
 
-    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beRight(Nil)
+    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beEqualTo(
+      Result.Success(Nil)
+    )
   }
 
   def e10 = {
@@ -158,7 +161,9 @@ class JavascriptScriptEnrichmentSpec extends Specification {
         return null
       }"""
 
-    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beRight(Nil)
+    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beEqualTo(
+      Result.Success(Nil)
+    )
   }
 
   def e11 = {
@@ -207,6 +212,16 @@ class JavascriptScriptEnrichmentSpec extends Specification {
     enriched.app_id must beEqualTo("newId")
   }
 
+  def e14 = {
+    val function = s"""
+      function process(event) {
+        event.drop()
+      }"""
+    JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beEqualTo(
+      Result.Dropped
+    )
+  }
+
   def buildEnriched(appId: String = "my super app"): EnrichedEvent = {
     val e = new EnrichedEvent()
     e.platform = "server"
@@ -214,9 +229,9 @@ class JavascriptScriptEnrichmentSpec extends Specification {
     e
   }
 
-  def failureContains(failure: FailureDetails.EnrichmentFailure, pattern: String): Boolean =
-    failure match {
-      case FailureDetails.EnrichmentFailure(_, FailureDetails.EnrichmentFailureMessage.Simple(msg)) if msg.contains(pattern) => true
-      case _ => false
-    }
+  def failureContains(pattern: String): PartialFunction[Result, MatchResult[Any]] = {
+    case Result.Failure(FailureDetails.EnrichmentFailure(_, FailureDetails.EnrichmentFailureMessage.Simple(msg)))
+        if msg.contains(pattern) =>
+      ok
+  }
 }

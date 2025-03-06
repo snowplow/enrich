@@ -23,6 +23,7 @@ import cats.implicits._
 import io.circe.Json
 
 import com.snowplowanalytics.snowplow.badrows.Payload.PartiallyEnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.JavascriptScriptEnrichment.JavascriptRejectionException
 
 /**
  * The canonical output format for enriched events.
@@ -249,6 +250,11 @@ class EnrichedEvent extends Serializable {
 
   // Fields modified in PII enrichemnt (JSON String)
   @BeanProperty var pii: String = _
+
+  // This method can be called from JS enrichment script to drop an event.
+  // Raised exception will be caught by JS enrichment and event will be dropped.
+  def drop(): Unit =
+    throw new JavascriptRejectionException
 }
 
 object EnrichedEvent {

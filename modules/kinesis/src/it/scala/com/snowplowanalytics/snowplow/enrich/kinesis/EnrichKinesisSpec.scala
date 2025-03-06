@@ -121,12 +121,12 @@ class EnrichKinesisSpec extends CatsResource[IO, Localstack] with SpecificationL
           good.size.toLong must beEqualTo(nbGood)
           bad.size.toLong must beEqualTo(nbBad)
           incomplete.size.toLong must beEqualTo(nbBad)
-          counters must contain(s"'snowplow.enrich.raw;env=test': ${nbGood + nbBad}")
-          counters must contain(s"'snowplow.enrich.good;env=test': $nbGood")
-          counters must contain(s"'snowplow.enrich.bad;env=test': $nbBad")
-          counters must contain(s"'snowplow.enrich.invalid_enriched;env=test': 0")
-          counters must contain(s"'snowplow.enrich.incomplete;env=test': $nbBad")
-          gauges must contain(s"'snowplow.enrich.latency;env=test': ")
+          counters must contain(s"'snowplow.enrich.raw;env=$uuid': ${nbGood + nbBad}")
+          counters must contain(s"'snowplow.enrich.good;env=$uuid': $nbGood")
+          counters must contain(s"'snowplow.enrich.bad;env=$uuid': $nbBad")
+          counters must contain(s"'snowplow.enrich.invalid_enriched;env=$uuid': 0")
+          counters must contain(s"'snowplow.enrich.incomplete;env=$uuid': $nbBad")
+          gauges must contain(s"'snowplow.enrich.latency;env=$uuid': ")
         }
       }
     }

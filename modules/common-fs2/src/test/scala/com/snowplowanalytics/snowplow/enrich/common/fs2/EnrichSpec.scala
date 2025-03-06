@@ -15,7 +15,7 @@ import java.util.{Base64, UUID}
 
 import scala.concurrent.duration._
 
-import cats.data.{Ior, NonEmptyList, Validated}
+import cats.data.{NonEmptyList, Validated}
 import cats.implicits._
 
 import cats.effect.IO
@@ -42,7 +42,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{IpLook
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.{AtomicFields, MiscEnrichments}
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.{ConversionUtils, IgluUtilsSpec, JsonUtilsSpec}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{ConversionUtils, IgluUtilsSpec, JsonUtilsSpec, OptionIor}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.FeatureFlags
 import com.snowplowanalytics.snowplow.enrich.common.fs2.EnrichSpec.{Expected, minimalEvent, normalizeResult}
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
@@ -87,7 +87,7 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
           )
           .map(normalizeResult)
           .map {
-            case List(Ior.Right(event)) => event must beEqualTo(expected)
+            case List(OptionIor.Right(event)) => event must beEqualTo(expected)
             case other => ko(s"Expected one valid event, got $other")
           }
       }
@@ -119,7 +119,7 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
               )
               .map(normalizeResult)
               .map {
-                case List(Ior.Right(e)) => e.event must beSome("page_view")
+                case List(OptionIor.Right(e)) => e.event must beSome("page_view")
                 case other => ko(s"Expected one valid event, got $other")
               }
           }
@@ -159,7 +159,7 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
           )
           .map(normalizeResult)
           .map {
-            case List(Ior.Right(event)) => event must beEqualTo(expected)
+            case List(OptionIor.Right(event)) => event must beEqualTo(expected)
             case other => ko(s"Expected one valid event, got $other")
           }
       }
@@ -185,7 +185,7 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
           )
           .map(normalizeResult)
           .map {
-            case List(Ior.Left(_)) => ok
+            case List(OptionIor.Left(_)) => ok
             case other => ko(s"Expected one bad row, got $other")
           }
       }
@@ -238,6 +238,7 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
           (counter.raw must_== 3L)
           (counter.good must_== 1L)
           (counter.bad must_== 2L)
+          (counter.dropped must_== 0L)
           (counter.incomplete must_== 1L)
           (bad.size must_== 2)
           (good.size must_== 1)
@@ -573,21 +574,111 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
         }
       }
     }
+
+    "drop" should {
+      "drop events and metrics should be updated accordingly" in {
+        val script = """
+          function process(event, params) {
+            if(event.getUser_ipaddress() == "drop") {
+              event.drop();
+            } else if (event.getUser_ipaddress() == "incomplete") {
+              throw "BOOM";
+            } else {
+              return [ ];
+            }
+          }"""
+        val config = json"""{
+          "parameters": {
+            "script": ${ConversionUtils.encodeBase64Url(script)}
+          }
+        }"""
+        val schemaKey = SchemaKey(
+          "com.snowplowanalytics.snowplow",
+          "javascript_script_config",
+          "jsonschema",
+          SchemaVer.Full(1, 0, 0)
+        )
+        val jsEnrichConf =
+          JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
+
+        val droppedEvent1 = EnrichSpec.collectorPayload.copy(
+          context = EnrichSpec.context.copy(ipAddress = Some("drop"))
+        )
+        val droppedEvent2 = EnrichSpec.collectorPayload.copy(
+          context = EnrichSpec.context.copy(ipAddress = Some("drop")),
+          querystring = List(
+            new BasicNameValuePair("e", "pv"),
+            new BasicNameValuePair("tr_tt", "not number")
+          )
+        )
+        val droppedEvent3 = EnrichSpec.collectorPayload.copy(
+          context = EnrichSpec.context.copy(ipAddress = Some("drop")),
+          querystring = EnrichSpec.jsonEntityQueryParam(
+            "ue_px",
+            IgluUtilsSpec.buildUnstruct(
+              """
+              {
+                "schema":"iglu:com.acme/output/jsonschema/1-0-0",
+                "data": {
+                  "output": 1
+                }
+              }"""
+            )
+          ) :: EnrichSpec.querystring
+        )
+        val incompleteEvent = EnrichSpec.collectorPayload.copy(
+          context = EnrichSpec.context.copy(ipAddress = Some("incomplete"))
+        )
+
+        val input = Stream.emits(
+          List(
+            Array.empty[Byte],
+            EnrichSpec.payload,
+            EnrichSpec.payload,
+            droppedEvent1.toRaw,
+            droppedEvent2.toRaw,
+            droppedEvent3.toRaw,
+            incompleteEvent.toRaw,
+            incompleteEvent.toRaw
+          )
+        )
+
+        TestEnvironment.make(input, List(jsEnrichConf)).use { test =>
+          val enrichStream = Enrich.run[IO, Array[Byte]](test.env)
+          for {
+            _ <- enrichStream.compile.drain
+            good <- test.good
+            bad <- test.bad
+            incomplete <- test.incomplete
+            counter <- test.counter.get
+          } yield {
+            (counter.raw must_== 8L)
+            (counter.good must_== 2L)
+            (counter.bad must_== 3L)
+            (counter.dropped must_== 3L)
+            (counter.incomplete must_== 2L)
+            (good.size must_== 2)
+            (bad.size must_== 3)
+            (incomplete.size must_== 2)
+          }
+        }
+      }
+    }
   }
 
   def sinkGood(
     environment: Environment[IO, Array[Byte]],
     enriched: EnrichedEvent
-  ): IO[Unit] = sinkOne(environment, Ior.Right(enriched))
+  ): IO[Unit] = sinkOne(environment, OptionIor.Right(enriched))
 
   def sinkBad(
     environment: Environment[IO, Array[Byte]],
     badRow: BadRow
-  ): IO[Unit] = sinkOne(environment, Ior.Left(badRow))
+  ): IO[Unit] = sinkOne(environment, OptionIor.Left(badRow))
 
   def sinkOne(
     environment: Environment[IO, Array[Byte]],
-    event: Ior[BadRow, EnrichedEvent]
+    event: OptionIor[BadRow, EnrichedEvent]
   ): IO[Unit] = Enrich.sinkChunk(List(Enrich.Result(Array.emptyByteArray, List(event), None)), environment)
 }
 
@@ -620,11 +711,12 @@ object EnrichSpec {
         Validated.Invalid(badRow)
     }
 
-  def normalizeResult(payload: Enrich.Result[Any]): List[Ior[BadRow, Event]] =
+  def normalizeResult(payload: Enrich.Result[Any]): List[OptionIor[BadRow, Event]] =
     payload.enriched.map {
-      case Ior.Right(enriched) => normalize(ConversionUtils.tabSeparatedEnrichedEvent(enriched)).toIor
-      case Ior.Left(err) => Ior.Left(err)
-      case Ior.Both(_, enriched) => normalize(ConversionUtils.tabSeparatedEnrichedEvent(enriched)).toIor
+      case OptionIor.Right(enriched) => normalize(ConversionUtils.tabSeparatedEnrichedEvent(enriched)).toOptionIor
+      case OptionIor.Left(err) => OptionIor.Left(err)
+      case OptionIor.Both(_, enriched) => normalize(ConversionUtils.tabSeparatedEnrichedEvent(enriched)).toOptionIor
+      case OptionIor.None => OptionIor.None
     }
 
   val minimalEvent = Event
@@ -659,4 +751,12 @@ object EnrichSpec {
         )
       )
     )
+
+  private implicit class ValidatedOps[A, B](val v: Validated[A, B]) extends AnyVal {
+    def toOptionIor: OptionIor[A, B] =
+      v match {
+        case Validated.Invalid(a) => OptionIor.Left(a)
+        case Validated.Valid(b) => OptionIor.Right(b)
+      }
+  }
 }

@@ -44,6 +44,7 @@ import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdap
 import com.snowplowanalytics.snowplow.enrich.common.loaders._
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.AcceptInvalid
+import com.snowplowanalytics.snowplow.enrich.common.utils.OptionIor
 
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
@@ -831,7 +832,12 @@ object PiiPseudonymizerEnrichmentSpec {
                     emitIncomplete,
                     SpecHelpers.DefaultMaxJsonDepth
                   )
-    } yield result.map(_.toEither)
+    } yield result.map {
+      case OptionIor.Left(e) => Left(e)
+      case OptionIor.Right(e) => Right(e)
+      case OptionIor.Both(l, _) => Left(l)
+      case OptionIor.None => throw new Exception("None isn't expected here")
+    }
   }
 
   val ipEnrichment = {

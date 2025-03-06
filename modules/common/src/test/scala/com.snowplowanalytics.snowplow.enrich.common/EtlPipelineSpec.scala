@@ -11,7 +11,6 @@
 package com.snowplowanalytics.snowplow.enrich.common
 
 import cats.syntax.validated._
-import cats.data.Ior
 
 import cats.effect.IO
 import cats.effect.testing.specs2.CatsEffect
@@ -36,6 +35,7 @@ import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.{AtomicFields, EnrichmentRegistry}
 import com.snowplowanalytics.snowplow.enrich.common.loaders.{CollectorPayload, ThriftLoader}
+import com.snowplowanalytics.snowplow.enrich.common.utils.OptionIor
 
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
 
@@ -77,7 +77,7 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
                     SpecHelpers.DefaultMaxJsonDepth
                   )
     } yield output must be like {
-      case Ior.Right(_) :: Ior.Left(_) :: Ior.Left(_) :: Ior.Left(_) :: Nil => ok
+      case OptionIor.Right(_) :: OptionIor.Left(_) :: OptionIor.Left(_) :: OptionIor.Left(_) :: Nil => ok
       case other => ko(s"[$other] is not a list with 1 enriched event and 3 bad rows")
     }
 
@@ -106,7 +106,7 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
                     SpecHelpers.DefaultMaxJsonDepth
                   )
     } yield output must be like {
-      case Ior.Right(_) :: Nil => ok
+      case OptionIor.Right(_) :: Nil => ok
       case other => ko(s"[$other] is not a list with 1 enriched event")
     }
 
@@ -130,7 +130,7 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
                     SpecHelpers.DefaultMaxJsonDepth
                   )
     } yield output must be like {
-      case Ior.Left(_: BadRow.CPFormatViolation) :: Nil => ok
+      case OptionIor.Left(_: BadRow.CPFormatViolation) :: Nil => ok
       case other => ko(s"[$other] is not a CPFormatViolation bad row")
     }
 

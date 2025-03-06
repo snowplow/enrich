@@ -16,7 +16,7 @@ import java.util.Base64
 
 import org.joda.time.DateTime
 
-import cats.data.{Ior, NonEmptyList, ValidatedNel}
+import cats.data.{NonEmptyList, ValidatedNel}
 import cats.{Monad, Parallel}
 import cats.implicits._
 
@@ -42,7 +42,7 @@ import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.loaders.{CollectorPayload, ThriftLoader}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.{AtomicFields, EnrichmentRegistry}
-import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
+import com.snowplowanalytics.snowplow.enrich.common.utils.{ConversionUtils, OptionIor}
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.FeatureFlags
 
@@ -177,7 +177,7 @@ object Enrich {
              case None =>
                Sync[F].unit
            }
-    } yield List(Ior.left(badRow))
+    } yield List(OptionIor.Left(badRow))
 
   /** Build a `generic_error` bad row for unhandled runtime errors */
   def genericBadRow(
@@ -196,16 +196,17 @@ object Enrich {
     chunk: List[Result[A]],
     env: Environment[F, A]
   ): F[Unit] = {
-    val (bad, enriched, incomplete) =
+    val (bad, enriched, incomplete, droppedCount) =
       chunk
         .flatMap(_.enriched)
-        .foldLeft((List.empty[BadRow], List.empty[EnrichedEvent], List.empty[EnrichedEvent])) {
+        .foldLeft((List.empty[BadRow], List.empty[EnrichedEvent], List.empty[EnrichedEvent], 0)) {
           case (previous, item) =>
-            val (bad, enriched, incomplete) = previous
+            val (bad, enriched, incomplete, droppedCount) = previous
             item match {
-              case Ior.Right(e) => (bad, e :: enriched, incomplete)
-              case Ior.Left(br) => (br :: bad, enriched, incomplete)
-              case Ior.Both(br, i) => (br :: bad, enriched, i :: incomplete)
+              case OptionIor.Right(e) => (bad, e :: enriched, incomplete, droppedCount)
+              case OptionIor.Left(br) => (br :: bad, enriched, incomplete, droppedCount)
+              case OptionIor.Both(br, i) => (br :: bad, enriched, i :: incomplete, droppedCount)
+              case OptionIor.None => (bad, enriched, incomplete, droppedCount + 1)
             }
         }
 
@@ -236,7 +237,8 @@ object Enrich {
       sinkBad(allBad, env.sinkBad, env.metrics.badCount),
       if (incompleteTooBig.nonEmpty) Logger[F].warn(s"${incompleteTooBig.size} incomplete events discarded because they are too big")
       else Sync[F].unit,
-      sinkIncomplete(incompleteBytes, env.sinkIncomplete, env.metrics.incompleteCount)
+      sinkIncomplete(incompleteBytes, env.sinkIncomplete, env.metrics.incompleteCount),
+      env.metrics.droppedCount(droppedCount)
     ).parSequence_
   }
 

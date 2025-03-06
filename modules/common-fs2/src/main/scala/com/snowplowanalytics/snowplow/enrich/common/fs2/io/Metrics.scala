@@ -43,6 +43,9 @@ trait Metrics[F[_]] {
   /** Increment bad events */
   def badCount(nb: Int): F[Unit]
 
+  /** Increment dropped events count */
+  def droppedCount(nb: Int): F[Unit]
+
   /** Increment incomplete events */
   def incompleteCount(nb: Int): F[Unit]
 
@@ -66,6 +69,7 @@ object Metrics {
   val RawCounterName = "raw"
   val GoodCounterName = "good"
   val BadCounterName = "bad"
+  val DroppedCounterName = "dropped"
   val IncompleteCounterName = "incomplete"
   val InvalidCounterName = "invalid_enriched"
   val RemoteAdaptersSuccessCounterName = "remote_adapters_success"
@@ -77,6 +81,7 @@ object Metrics {
     rawCount: Int,
     goodCount: Int,
     badCount: Int,
+    droppedCount: Int,
     incompleteCount: Option[Int],
     invalidCount: Int,
     remoteAdaptersSuccessCount: Option[Int],
@@ -149,6 +154,10 @@ object Metrics {
         refsStatsd.badCount.update(_ + nb) *>
           refsStdout.badCount.update(_ + nb)
 
+      def droppedCount(nb: Int): F[Unit] =
+        refsStatsd.droppedCount.update(_ + nb) *>
+          refsStdout.droppedCount.update(_ + nb)
+
       def incompleteCount(nb: Int): F[Unit] =
         refsStatsd.incompleteCount.update(_.map(_ + nb)) *>
           refsStdout.incompleteCount.update(_.map(_ + nb))
@@ -172,6 +181,7 @@ object Metrics {
     rawCount: Ref[F, Int],
     goodCount: Ref[F, Int],
     badCount: Ref[F, Int],
+    droppedCount: Ref[F, Int],
     incompleteCount: Ref[F, Option[Int]],
     invalidCount: Ref[F, Int],
     remoteAdaptersSuccessCount: Ref[F, Option[Int]],
@@ -186,6 +196,7 @@ object Metrics {
         rawCounter <- Ref.of[F, Int](0)
         goodCounter <- Ref.of[F, Int](0)
         badCounter <- Ref.of[F, Int](0)
+        droppedCounter <- Ref.of[F, Int](0)
         incompleteCounter <- Ref.of[F, Option[Int]](if (incompleteEventsEnabled) Some(0) else None)
         invalidCounter <- Ref.of[F, Int](0)
         remoteAdaptersSuccessCounter <- Ref.of[F, Option[Int]](if (remoteAdaptersEnabled) Some(0) else None)
@@ -196,6 +207,7 @@ object Metrics {
         rawCounter,
         goodCounter,
         badCounter,
+        droppedCounter,
         incompleteCounter,
         invalidCounter,
         remoteAdaptersSuccessCounter,
@@ -213,20 +225,23 @@ object Metrics {
         rawCount <- refs.rawCount.getAndSet(0)
         goodCount <- refs.goodCount.getAndSet(0)
         badCount <- refs.badCount.getAndSet(0)
+        droppedCount <- refs.droppedCount.getAndSet(0)
         incompleteCount <- refs.incompleteCount.getAndSet(if (incompleteEventsEnabled) Some(0) else None)
         invalidCount <- refs.invalidCount.getAndSet(0)
         remoteAdaptersSuccessCount <- refs.remoteAdaptersSuccessCount.getAndSet(if (remoteAdaptersEnabled) Some(0) else None)
         remoteAdaptersFailureCount <- refs.remoteAdaptersFailureCount.getAndSet(if (remoteAdaptersEnabled) Some(0) else None)
         remoteAdaptersTimeoutCount <- refs.remoteAdaptersTimeoutCount.getAndSet(if (remoteAdaptersEnabled) Some(0) else None)
-      } yield MetricSnapshot(latency,
-                             rawCount,
-                             goodCount,
-                             badCount,
-                             incompleteCount,
-                             invalidCount,
-                             remoteAdaptersSuccessCount,
-                             remoteAdaptersFailureCount,
-                             remoteAdaptersTimeoutCount
+      } yield MetricSnapshot(
+        latency,
+        rawCount,
+        goodCount,
+        badCount,
+        droppedCount,
+        incompleteCount,
+        invalidCount,
+        remoteAdaptersSuccessCount,
+        remoteAdaptersFailureCount,
+        remoteAdaptersTimeoutCount
       )
   }
 
@@ -255,6 +270,7 @@ object Metrics {
           _ <- logger.info(s"${MetricsReporters.normalizeMetric(config.prefix, RawCounterName)} = ${snapshot.rawCount}")
           _ <- logger.info(s"${MetricsReporters.normalizeMetric(config.prefix, GoodCounterName)} = ${snapshot.goodCount}")
           _ <- logger.info(s"${MetricsReporters.normalizeMetric(config.prefix, BadCounterName)} = ${snapshot.badCount}")
+          _ <- logger.info(s"${MetricsReporters.normalizeMetric(config.prefix, DroppedCounterName)} = ${snapshot.droppedCount}")
           _ <- snapshot.incompleteCount
                  .map(cnt => logger.info(s"${MetricsReporters.normalizeMetric(config.prefix, IncompleteCounterName)} = $cnt"))
                  .getOrElse(Applicative[F].unit)
@@ -281,6 +297,7 @@ object Metrics {
       def rawCount(nb: Int): F[Unit] = Applicative[F].unit
       def goodCount(nb: Int): F[Unit] = Applicative[F].unit
       def badCount(nb: Int): F[Unit] = Applicative[F].unit
+      def droppedCount(nb: Int): F[Unit] = Applicative[F].unit
       def incompleteCount(nb: Int): F[Unit] = Applicative[F].unit
       def invalidCount: F[Unit] = Applicative[F].unit
       def remoteAdaptersSuccessCount: F[Unit] = Applicative[F].unit

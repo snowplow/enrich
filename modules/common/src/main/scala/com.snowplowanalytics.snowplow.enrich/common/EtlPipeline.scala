@@ -10,7 +10,7 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common
 
-import cats.data.{Ior, Validated, ValidatedNel}
+import cats.data.{Validated, ValidatedNel}
 import cats.effect.kernel.Sync
 import cats.implicits._
 
@@ -25,6 +25,7 @@ import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.{AtomicFields, EnrichmentManager, EnrichmentRegistry}
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.utils.OptionIor
 
 /** Expresses the end-to-end event pipeline supported by the Scala Common Enrich project. */
 object EtlPipeline {
@@ -62,7 +63,7 @@ object EtlPipeline {
     atomicFields: AtomicFields,
     emitIncomplete: Boolean,
     maxJsonDepth: Int
-  ): F[List[Ior[BadRow, EnrichedEvent]]] =
+  ): F[List[OptionIor[BadRow, EnrichedEvent]]] =
     input match {
       case Validated.Valid(Some(payload)) =>
         adapterRegistry
@@ -87,10 +88,10 @@ object EtlPipeline {
                   .value
               }
             case Validated.Invalid(badRow) =>
-              Sync[F].pure(List(Ior.left(badRow)))
+              Sync[F].pure(List(OptionIor.Left(badRow)))
           }
       case Validated.Invalid(badRows) =>
-        Sync[F].pure(badRows.toList.map(br => Ior.left(br)))
+        Sync[F].pure(badRows.toList.map(br => OptionIor.Left(br)))
       case Validated.Valid(None) =>
         Sync[F].pure(Nil)
     }

@@ -24,6 +24,7 @@ case class Counter(
   raw: Long,
   good: Long,
   bad: Long,
+  dropped: Long,
   incomplete: Long,
   latency: Option[Long],
   invalid: Long,
@@ -33,7 +34,7 @@ case class Counter(
 )
 
 object Counter {
-  val empty: Counter = Counter(0L, 0L, 0L, 0L, None, 0L, None, None, None)
+  val empty: Counter = Counter(0L, 0L, 0L, 0L, 0L, None, 0L, None, None, None)
 
   def make[F[_]: Sync]: F[Ref[F, Counter]] =
     Ref.of[F, Counter](empty)
@@ -56,6 +57,9 @@ object Counter {
 
       def badCount(nb: Int): F[Unit] =
         ref.update(cnt => cnt.copy(bad = cnt.bad + nb))
+
+      def droppedCount(nb: Int): F[Unit] =
+        ref.update(cnt => cnt.copy(dropped = cnt.dropped + nb))
 
       def incompleteCount(nb: Int): F[Unit] =
         ref.update(cnt => cnt.copy(incomplete = cnt.incomplete + nb))

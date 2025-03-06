@@ -13,13 +13,13 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments
 import org.apache.commons.codec.digest.DigestUtils
 
 import org.specs2.mutable.Specification
-import org.specs2.matcher.EitherMatchers
+import org.specs2.matcher.{EitherMatchers, MatchResult}
 
 import cats.effect.IO
 import cats.effect.testing.specs2.CatsEffect
 
 import cats.implicits._
-import cats.data.{Ior, NonEmptyList}
+import cats.data.NonEmptyList
 
 import io.circe.Json
 import io.circe.literal._
@@ -44,7 +44,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii.{
   PiiStrategyPseudonymize
 }
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.{AtomicError, ConversionUtils}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{AtomicError, ConversionUtils, OptionIor}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{
   CrossNavigationEnrichment,
   HttpHeaderExtractorEnrichment,
@@ -96,7 +96,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value map {
-        case Ior.Left(_: BadRow.SchemaViolations) => ok
+        case OptionIor.Left(_: BadRow.SchemaViolations) => ok
         case other => ko(s"[$other] is not a SchemaViolations bad row")
       }
     }
@@ -135,7 +135,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value map {
-        case Ior.Left(_: BadRow.SchemaViolations) => ok
+        case OptionIor.Left(_: BadRow.SchemaViolations) => ok
         case other => ko(s"[$other] is not a SchemaViolations bad row")
       }
     }
@@ -177,7 +177,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         )
         .value
         .map {
-          case Ior.Left(
+          case OptionIor.Left(
                 BadRow.SchemaViolations(
                   _,
                   BadRowFailure.SchemaViolations(_,
@@ -245,7 +245,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value map {
-        case Ior.Left(
+        case OptionIor.Left(
               BadRow.EnrichmentFailures(
                 _,
                 BadRowFailure.EnrichmentFailures(
@@ -315,7 +315,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value map {
-        case Ior.Left(
+        case OptionIor.Left(
               BadRow.SchemaViolations(
                 _,
                 BadRowFailure.SchemaViolations(
@@ -381,7 +381,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
-        case Ior.Right(_) => ok
+        case OptionIor.Right(_) => ok
         case other => ko(s"[$other] is not an enriched event")
       }
     }
@@ -453,7 +453,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
-        case Ior.Right(_) => ok
+        case OptionIor.Right(_) => ok
         case other => ko(s"[$other] is not an enriched event")
       }
     }
@@ -525,7 +525,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
-        case Ior.Right(_) => ok
+        case OptionIor.Right(_) => ok
         case other => ko(s"[$other] is not an enriched event")
       }
     }
@@ -597,7 +597,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
-        case Ior.Left(_) => ok
+        case OptionIor.Left(_) => ok
         case other => ko(s"[$other] is not a bad row")
       }
     }
@@ -669,7 +669,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
-        case Ior.Left(_) => ok
+        case OptionIor.Left(_) => ok
         case other => ko(s"[$other] is not a bad row")
       }
     }
@@ -747,7 +747,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
-        case Ior.Left(_) => ok
+        case OptionIor.Left(_) => ok
         case other => ko(s"[$other] is not a bad row")
       }
     }
@@ -780,7 +780,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               SpecHelpers.DefaultMaxJsonDepth
             )
             enriched.value.map {
-              case Ior.Right(_) => ok
+              case OptionIor.Right(_) => ok
               case other => ko(s"[$other] is not an enriched event")
             }
           }
@@ -815,7 +815,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               SpecHelpers.DefaultMaxJsonDepth
             )
             enriched.value.map {
-              case Ior.Right(_) => ok
+              case OptionIor.Right(_) => ok
               case other => ko(s"[$other] is not an enriched event")
             }
           }
@@ -859,7 +859,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               SpecHelpers.DefaultMaxJsonDepth
             )
             enriched.value.map {
-              case Ior.Right(enriched) => enriched.se_value.toString must_== expected
+              case OptionIor.Right(enriched) => enriched.se_value.toString must_== expected
               case other => ko(s"[$other] is not an enriched event")
             }
         }
@@ -889,7 +889,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
-        case Ior.Right(enriched) =>
+        case OptionIor.Right(enriched) =>
           enriched.useragent must_== qs_ua
           enriched.derived_contexts must contain("\"agentName\":\"Firefox\"")
         case other => ko(s"[$other] is not an enriched event")
@@ -918,7 +918,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
-        case Ior.Right(enriched) => enriched.useragent must_== "header-useragent"
+        case OptionIor.Right(enriched) => enriched.useragent must_== "header-useragent"
         case other => ko(s"[$other] is not an enriched event")
       }
     }
@@ -946,7 +946,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
-        case Ior.Right(enriched) => enriched.useragent must_== ua
+        case OptionIor.Right(enriched) => enriched.useragent must_== ua
         case other => ko(s"[$other] is not an enriched event")
       }
     }
@@ -975,7 +975,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
-        case Ior.Right(enriched) =>
+        case OptionIor.Right(enriched) =>
           enriched.useragent must_== qs_ua
           enriched.derived_contexts must contain("\"agentName\":\"%1$S\"")
         case other => ko(s"[$other] is not an enriched event")
@@ -1024,7 +1024,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
-        case Ior.Right(enriched) => enriched.app_id must_== "moo"
+        case OptionIor.Right(enriched) => enriched.app_id must_== "moo"
         case other => ko(s"[$other] is not an enriched event")
       }
     }
@@ -1077,7 +1077,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
-        case Ior.Right(enriched) =>
+        case OptionIor.Right(enriched) =>
           enriched.app_id must_== "test_app_id"
           enriched.platform must_== "test_platform"
         case other => ko(s"[$other] is not an enriched event")
@@ -1236,7 +1236,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       )
 
       enriched.value.map {
-        case Ior.Right(enriched) =>
+        case OptionIor.Right(enriched) =>
           val p = EnrichedEvent.toPartiallyEnrichedEvent(enriched)
           val contextsJson = jparse(p.contexts.get).toOption.get
           val derivedContextsJson = jparse(p.derived_contexts.get).toOption.get
@@ -1334,7 +1334,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       )
 
       enriched.value.map {
-        case Ior.Both(_: BadRow.SchemaViolations, enriched)
+        case OptionIor.Both(_: BadRow.SchemaViolations, enriched)
             if Option(enriched.unstruct_event).isEmpty &&
               SpecHelpers.listContextsSchemas(enriched.contexts) == List(clientSessionSchema) &&
               expectedDerivedContexts(enriched) =>
@@ -1432,7 +1432,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
-        case Ior.Both(_: BadRow.SchemaViolations, enriched)
+        case OptionIor.Both(_: BadRow.SchemaViolations, enriched)
             if Option(enriched.contexts).isEmpty &&
               SpecHelpers.getUnstructSchema(enriched.unstruct_event) == clientSessionSchema &&
               expectedDerivedContexts(enriched) =>
@@ -1535,7 +1535,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
-        case Ior.Both(_: BadRow.SchemaViolations, enriched)
+        case OptionIor.Both(_: BadRow.SchemaViolations, enriched)
             if SpecHelpers.getUnstructSchema(enriched.unstruct_event) == clientSessionSchema &&
               SpecHelpers.listContextsSchemas(enriched.contexts) == List(clientSessionSchema) &&
               expectedDerivedContexts(enriched) =>
@@ -1608,7 +1608,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
-        case Ior.Both(_: BadRow.EnrichmentFailures, enriched)
+        case OptionIor.Both(_: BadRow.EnrichmentFailures, enriched)
             if SpecHelpers.getUnstructSchema(enriched.unstruct_event) == clientSessionSchema &&
               expectedDerivedContexts(enriched) =>
           ok
@@ -1692,7 +1692,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
-        case Ior.Both(_: BadRow.SchemaViolations, enriched) if expectedDerivedContexts(enriched) => ok
+        case OptionIor.Both(_: BadRow.SchemaViolations, enriched) if expectedDerivedContexts(enriched) => ok
         case other => ko(s"[$other] doesn't have a SchemaViolations bad row in the Left")
       }
     }
@@ -1785,7 +1785,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
-        case Ior.Both(_: BadRow.SchemaViolations, enriched)
+        case OptionIor.Both(_: BadRow.SchemaViolations, enriched)
             if SpecHelpers.getUnstructSchema(enriched.unstruct_event) == clientSessionSchema &&
               expectedDerivedContexts(enriched) =>
           ok
@@ -1871,7 +1871,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         }
 
       enriched.value.map {
-        case Ior.Both(badRow, enriched)
+        case OptionIor.Both(badRow, enriched)
             if Option(enriched.unstruct_event).isEmpty &&
               expectedDerivedContexts(enriched) &&
               expectedBadRow(badRow) =>
@@ -1893,7 +1893,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       val crossNavigationEnabled = Some(new CrossNavigationEnrichment(schemaKey))
       val qsMap: Option[QueryStringParameters] = None
       val input = new EnrichedEvent()
-      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      val inputState = EnrichmentManager.Accumulation.Enriched(input, Nil, Nil)
       EnrichmentManager
         .getCrossDomain[IO](
           qsMap,
@@ -1902,7 +1902,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         .runS(inputState)
         .map(
           _ must beLike {
-            case acc: EnrichmentManager.Accumulation =>
+            case acc: EnrichmentManager.Accumulation.Enriched =>
               val p = EnrichedEvent.toPartiallyEnrichedEvent(acc.event)
               (p.refr_domain_userid must beNone) and
                 (p.refr_dvce_tstamp must beNone) and
@@ -1916,7 +1916,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       val crossNavigationDisabled = None
       val qsMap: Option[QueryStringParameters] = None
       val input = new EnrichedEvent()
-      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      val inputState = EnrichmentManager.Accumulation.Enriched(input, Nil, Nil)
       EnrichmentManager
         .getCrossDomain[IO](
           qsMap,
@@ -1925,7 +1925,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         .runS(inputState)
         .map(
           _ must beLike {
-            case acc: EnrichmentManager.Accumulation =>
+            case acc: EnrichmentManager.Accumulation.Enriched =>
               val p = EnrichedEvent.toPartiallyEnrichedEvent(acc.event)
               (p.refr_domain_userid must beNone) and
                 (p.refr_dvce_tstamp must beNone) and
@@ -1939,7 +1939,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       val crossNavigationEnabled = Some(new CrossNavigationEnrichment(schemaKey))
       val qsMap: Option[QueryStringParameters] = Some(List(("_sp" -> Some(""))))
       val input = new EnrichedEvent()
-      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      val inputState = EnrichmentManager.Accumulation.Enriched(input, Nil, Nil)
       EnrichmentManager
         .getCrossDomain[IO](
           qsMap,
@@ -1948,7 +1948,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         .runS(inputState)
         .map(
           _ must beLike {
-            case acc: EnrichmentManager.Accumulation =>
+            case acc: EnrichmentManager.Accumulation.Enriched =>
               val p = EnrichedEvent.toPartiallyEnrichedEvent(acc.event)
               (p.refr_domain_userid must beNone) and
                 (p.refr_dvce_tstamp must beNone) and
@@ -1962,7 +1962,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       val crossNavigationDisabled = None
       val qsMap: Option[QueryStringParameters] = Some(List(("_sp" -> Some(""))))
       val input = new EnrichedEvent()
-      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      val inputState = EnrichmentManager.Accumulation.Enriched(input, Nil, Nil)
       EnrichmentManager
         .getCrossDomain[IO](
           qsMap,
@@ -1971,7 +1971,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         .runS(inputState)
         .map(
           _ must beLike {
-            case acc: EnrichmentManager.Accumulation =>
+            case acc: EnrichmentManager.Accumulation.Enriched =>
               val p = EnrichedEvent.toPartiallyEnrichedEvent(acc.event)
               (p.refr_domain_userid must beNone) and
                 (p.refr_dvce_tstamp must beNone) and
@@ -2005,7 +2005,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         )
       )
       val input = new EnrichedEvent()
-      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      val inputState = EnrichmentManager.Accumulation.Enriched(input, Nil, Nil)
       EnrichmentManager
         .getCrossDomain[IO](
           qsMap,
@@ -2014,7 +2014,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         .runS(inputState)
         .map(
           _ must beLike {
-            case acc: EnrichmentManager.Accumulation =>
+            case acc: EnrichmentManager.Accumulation.Enriched =>
               val p = EnrichedEvent.toPartiallyEnrichedEvent(acc.event)
               (p.refr_domain_userid must beEqualTo(expectedRefrDuid)) and
                 (p.refr_dvce_tstamp must beEqualTo(expectedRefrTstamp)) and
@@ -2034,7 +2034,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       val expectedRefrDuid = Some("abc")
       val expectedRefrTstamp = Some("2023-10-13 05:44:03.762")
       val input = new EnrichedEvent()
-      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      val inputState = EnrichmentManager.Accumulation.Enriched(input, Nil, Nil)
       EnrichmentManager
         .getCrossDomain[IO](
           qsMap,
@@ -2043,7 +2043,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         .runS(inputState)
         .map(
           _ must beLike {
-            case acc: EnrichmentManager.Accumulation =>
+            case acc: EnrichmentManager.Accumulation.Enriched =>
               val p = EnrichedEvent.toPartiallyEnrichedEvent(acc.event)
               (p.refr_domain_userid must beEqualTo(expectedRefrDuid)) and
                 (p.refr_dvce_tstamp must beEqualTo(expectedRefrTstamp)) and
@@ -2077,7 +2077,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         )
       )
       val input = new EnrichedEvent()
-      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      val inputState = EnrichmentManager.Accumulation.Enriched(input, Nil, Nil)
       EnrichmentManager
         .getCrossDomain[IO](
           qsMap,
@@ -2086,7 +2086,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         .runS(inputState)
         .map(
           _ must beLike {
-            case acc: EnrichmentManager.Accumulation =>
+            case acc: EnrichmentManager.Accumulation.Enriched =>
               val p = EnrichedEvent.toPartiallyEnrichedEvent(acc.event)
               (p.refr_domain_userid must beEqualTo(expectedRefrDuid)) and
                 (p.refr_dvce_tstamp must beEqualTo(expectedRefrTstamp)) and
@@ -2106,7 +2106,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       val expectedRefrDuid = Some("abc")
       val expectedRefrTstamp = Some("2023-10-13 05:44:03.762")
       val input = new EnrichedEvent()
-      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      val inputState = EnrichmentManager.Accumulation.Enriched(input, Nil, Nil)
       EnrichmentManager
         .getCrossDomain[IO](
           qsMap,
@@ -2115,7 +2115,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         .runS(inputState)
         .map(
           _ must beLike {
-            case acc: EnrichmentManager.Accumulation =>
+            case acc: EnrichmentManager.Accumulation.Enriched =>
               val p = EnrichedEvent.toPartiallyEnrichedEvent(acc.event)
               (p.refr_domain_userid must beEqualTo(expectedRefrDuid)) and
                 (p.refr_dvce_tstamp must beEqualTo(expectedRefrTstamp)) and
@@ -2147,7 +2147,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           "Not in the expected format: ms since epoch"
         )
       )
-      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      val inputState = EnrichmentManager.Accumulation.Enriched(input, Nil, Nil)
       EnrichmentManager
         .getCrossDomain[IO](
           qsMap,
@@ -2156,7 +2156,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         .runS(inputState)
         .map(
           _ must beLike {
-            case acc: EnrichmentManager.Accumulation =>
+            case acc: EnrichmentManager.Accumulation.Enriched =>
               (acc.errors must not beEmpty) and
                 (acc.errors must beEqualTo(List(expectedFail))) and
                 (acc.contexts must beEmpty)
@@ -2181,7 +2181,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           "Not in the expected format: ms since epoch"
         )
       )
-      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      val inputState = EnrichmentManager.Accumulation.Enriched(input, Nil, Nil)
       EnrichmentManager
         .getCrossDomain[IO](
           qsMap,
@@ -2190,7 +2190,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         .runS(inputState)
         .map(
           _ must beLike {
-            case acc: EnrichmentManager.Accumulation =>
+            case acc: EnrichmentManager.Accumulation.Enriched =>
               (acc.errors must not beEmpty) and
                 (acc.errors must beEqualTo(List(expectedFail))) and
                 (acc.contexts must beEmpty)
@@ -2204,14 +2204,14 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       val input = new EnrichedEvent()
       input.setUser_ipaddress("127.0.0.1")
       input.setDerived_tstamp("2010-06-30 01:20:01.000")
-      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      val inputState = EnrichmentManager.Accumulation.Enriched(input, Nil, Nil)
       for {
         iab <- iabEnrichment
         result <- EnrichmentManager
                     .getIabContext[IO](Some(iab))
                     .runS(inputState)
       } yield result must beLike {
-        case acc: EnrichmentManager.Accumulation =>
+        case acc: EnrichmentManager.Accumulation.Enriched =>
           (acc.errors must beEmpty) and (acc.contexts must beEmpty)
       }
     }
@@ -2220,14 +2220,14 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       val input = new EnrichedEvent()
       input.setUseragent("Firefox")
       input.setDerived_tstamp("2010-06-30 01:20:01.000")
-      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      val inputState = EnrichmentManager.Accumulation.Enriched(input, Nil, Nil)
       for {
         iab <- iabEnrichment
         result <- EnrichmentManager
                     .getIabContext[IO](Some(iab))
                     .runS(inputState)
       } yield result must beLike {
-        case acc: EnrichmentManager.Accumulation =>
+        case acc: EnrichmentManager.Accumulation.Enriched =>
           (acc.errors must beEmpty) and (acc.contexts must beEmpty)
       }
     }
@@ -2236,14 +2236,14 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       val input = new EnrichedEvent()
       input.setUser_ipaddress("127.0.0.1")
       input.setUseragent("Firefox")
-      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      val inputState = EnrichmentManager.Accumulation.Enriched(input, Nil, Nil)
       for {
         iab <- iabEnrichment
         result <- EnrichmentManager
                     .getIabContext[IO](Some(iab))
                     .runS(inputState)
       } yield result must beLike {
-        case acc: EnrichmentManager.Accumulation =>
+        case acc: EnrichmentManager.Accumulation.Enriched =>
           (acc.errors must beEmpty) and (acc.contexts must beEmpty)
       }
     }
@@ -2253,14 +2253,14 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       input.setUser_ipaddress("invalid")
       input.setUseragent("Firefox")
       input.setDerived_tstamp("2010-06-30 01:20:01.000")
-      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      val inputState = EnrichmentManager.Accumulation.Enriched(input, Nil, Nil)
       for {
         iab <- iabEnrichment
         result <- EnrichmentManager
                     .getIabContext[IO](Some(iab))
                     .runS(inputState)
       } yield result must beLike {
-        case acc: EnrichmentManager.Accumulation =>
+        case acc: EnrichmentManager.Accumulation.Enriched =>
           (acc.errors must beEmpty) and (acc.contexts must beEmpty)
       }
     }
@@ -2270,14 +2270,14 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       input.setUser_ipaddress("localhost")
       input.setUseragent("Firefox")
       input.setDerived_tstamp("2010-06-30 01:20:01.000")
-      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      val inputState = EnrichmentManager.Accumulation.Enriched(input, Nil, Nil)
       for {
         iab <- iabEnrichment
         result <- EnrichmentManager
                     .getIabContext[IO](Some(iab))
                     .runS(inputState)
       } yield result must beLike {
-        case acc: EnrichmentManager.Accumulation =>
+        case acc: EnrichmentManager.Accumulation.Enriched =>
           (acc.errors must beEmpty) and (acc.contexts must beEmpty)
       }
     }
@@ -2287,14 +2287,14 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       input.setUser_ipaddress("127.0.0.1")
       input.setUseragent("Firefox")
       input.setDerived_tstamp("2010-06-30 01:20:01.000")
-      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      val inputState = EnrichmentManager.Accumulation.Enriched(input, Nil, Nil)
       for {
         iab <- iabEnrichment
         result <- EnrichmentManager
                     .getIabContext[IO](Some(iab))
                     .runS(inputState)
       } yield result must beLike {
-        case acc: EnrichmentManager.Accumulation =>
+        case acc: EnrichmentManager.Accumulation.Enriched =>
           (acc.errors must beEmpty) and (acc.contexts must not beEmpty)
       }
     }
@@ -2303,12 +2303,12 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
   "getCollectorVersionSet" should {
     "return an enrichment failure if v_collector is null" >> {
       val input = new EnrichedEvent()
-      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      val inputState = EnrichmentManager.Accumulation.Enriched(input, Nil, Nil)
       EnrichmentManager
         .getCollectorVersionSet[IO]
         .runS(inputState)
         .map(_ must beLike {
-          case acc: EnrichmentManager.Accumulation =>
+          case acc: EnrichmentManager.Accumulation.Enriched =>
             acc.errors must not beEmpty
         })
     }
@@ -2316,12 +2316,12 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
     "return an enrichment failure if v_collector is empty" >> {
       val input = new EnrichedEvent()
       input.v_collector = ""
-      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      val inputState = EnrichmentManager.Accumulation.Enriched(input, Nil, Nil)
       EnrichmentManager
         .getCollectorVersionSet[IO]
         .runS(inputState)
         .map(_ must beLike {
-          case acc: EnrichmentManager.Accumulation =>
+          case acc: EnrichmentManager.Accumulation.Enriched =>
             acc.errors must not beEmpty
         })
     }
@@ -2329,12 +2329,12 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
     "return Unit if v_collector is set" >> {
       val input = new EnrichedEvent()
       input.v_collector = "v42"
-      val inputState = EnrichmentManager.Accumulation(input, Nil, Nil)
+      val inputState = EnrichmentManager.Accumulation.Enriched(input, Nil, Nil)
       EnrichmentManager
         .getCollectorVersionSet[IO]
         .runS(inputState)
         .map(_ must beLike {
-          case acc: EnrichmentManager.Accumulation =>
+          case acc: EnrichmentManager.Accumulation.Enriched =>
             acc.errors must beEmpty
         })
     }
@@ -2358,7 +2358,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         )
         .value
         .map {
-          case Ior.Left(
+          case OptionIor.Left(
                 BadRow.SchemaViolations(
                   _,
                   BadRowFailure.SchemaViolations(_, NonEmptyList(FailureDetails.SchemaViolation.IgluError(schemaKey, clientError), Nil)),
@@ -2390,7 +2390,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         )
         .value
         .map {
-          case Ior.Right(_) => ok
+          case OptionIor.Right(_) => ok
           case other => ko(s"[$other] is not an enriched event")
         }
     }
@@ -2441,7 +2441,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         )
         .value
         .map {
-          case Ior.Left(
+          case OptionIor.Left(
                 BadRow.SchemaViolations(
                   _,
                   BadRowFailure.SchemaViolations(_,
@@ -2479,7 +2479,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         )
 
       enriched.value.map {
-        case Ior.Both(_: BadRow.SchemaViolations, enriched) if Option(enriched.v_tracker).isEmpty => ok
+        case OptionIor.Both(_: BadRow.SchemaViolations, enriched) if Option(enriched.v_tracker).isEmpty => ok
         case other => ko(s"[$other] is not a SchemaViolations bad row and an enriched event without tracker version")
       }
     }
@@ -2498,25 +2498,25 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       )
     )
     val emailSentSDJ = SelfDescribingData.parse[Json](jparse(emailSent).toOption.get).toOption.get
-    "set derived contexts correctly if enrichment result is Ior.Left" >> {
+    "set derived contexts correctly if enrichment result is OptionIor.Left" >> {
       val enriched = new EnrichedEvent()
-      val enrichmentResult = Ior.Left(NonEmptyList.of(NonEmptyList.of(sv, ef), NonEmptyList.of(sv, ef)))
+      val enrichmentResult = OptionIor.Left(NonEmptyList.of(NonEmptyList.of(sv, ef), NonEmptyList.of(sv, ef)))
       EnrichmentManager.setDerivedContexts(enriched, enrichmentResult, processor)
       val schemas = SpecHelpers.listContextsSchemas(enriched.derived_contexts)
       schemas.size must beEqualTo(4)
       forall(schemas)(s => s must beEqualTo(Failure.failureSchemaKey))
     }
-    "set derived contexts correctly if enrichment result is Ior.Right" >> {
+    "set derived contexts correctly if enrichment result is OptionIor.Right" >> {
       val enriched = new EnrichedEvent()
-      val enrichmentResult = Ior.Right(List(emailSentSDJ, emailSentSDJ))
+      val enrichmentResult = OptionIor.Right(List(emailSentSDJ, emailSentSDJ))
       EnrichmentManager.setDerivedContexts(enriched, enrichmentResult, processor)
       val schemas = SpecHelpers.listContextsSchemas(enriched.derived_contexts)
       schemas.size must beEqualTo(2)
       forall(schemas)(s => s must beEqualTo(emailSentSchema))
     }
-    "set derived contexts correctly if enrichment result is Ior.Both" >> {
+    "set derived contexts correctly if enrichment result is OptionIor.Both" >> {
       val enriched = new EnrichedEvent()
-      val enrichmentResult = Ior.Both(
+      val enrichmentResult = OptionIor.Both(
         NonEmptyList.of(NonEmptyList.of(sv, ef), NonEmptyList.of(sv, ef)),
         List(emailSentSDJ, emailSentSDJ)
       )
@@ -2525,6 +2525,151 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       schemas.size must beEqualTo(6)
       schemas.count(_ == Failure.failureSchemaKey) must beEqualTo(4)
       schemas.count(_ == emailSentSchema) must beEqualTo(2)
+    }
+  }
+
+  "drop" should {
+    val defaultScript = """
+        function process(event) {
+          event.drop();
+        }"""
+    val defaultParameters = Map(
+      "e" -> "pp",
+      "tv" -> "js-0.13.1",
+      "p" -> "web"
+    ).toOpt
+    val defaultMatcher: OptionIor[BadRow, EnrichedEvent] => MatchResult[Any] = {
+      case OptionIor.None => ok
+      case other => ko(s"[$other] is not a None")
+    }
+
+    def commonDropTest(
+      matcher: OptionIor[BadRow, EnrichedEvent] => MatchResult[Any] = defaultMatcher,
+      script: String = defaultScript,
+      parameters: Map[String, Option[String]] = defaultParameters,
+      emitIncomplete: Boolean = false,
+      collectorName: String = source.name
+    ) = {
+      val config =
+        json"""{
+        "parameters": {
+          "script": ${ConversionUtils.encodeBase64Url(script)}
+        }
+      }"""
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow",
+        "javascript_script_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val jsEnrichConf =
+        JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
+      val jsEnrich = JavascriptScriptEnrichment(jsEnrichConf.schemaKey, jsEnrichConf.rawFunction)
+      val enrichmentReg = EnrichmentRegistry[IO](javascriptScript = List(jsEnrich))
+
+      val rawEvent = RawEvent(api, parameters, None, source.copy(name = collectorName), context)
+      EnrichmentManager
+        .enrichEvent[IO](
+          enrichmentReg,
+          client,
+          processor,
+          timestamp,
+          rawEvent,
+          AcceptInvalid.featureFlags,
+          IO.unit,
+          SpecHelpers.registryLookup,
+          atomicFieldLimits,
+          emitIncomplete,
+          SpecHelpers.DefaultMaxJsonDepth
+        )
+        .value
+        .map(matcher)
+    }
+
+    "drop good event" >> {
+      commonDropTest()
+    }
+
+    "drop event that should end up as SchemaViolations bad row normally" >> {
+      commonDropTest(
+        parameters = Map(
+          "e" -> "ue",
+          "tv" -> "js-0.13.1",
+          "p" -> "web",
+          "ue_pr" ->
+            """
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data":{
+              "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+              "data": {
+                "emailAddress": "hello@world.com",
+                "emailAddress2": "foo@bar.org",
+                "unallowedAdditionalField": "foo@bar.org"
+              }
+            }
+          }"""
+        ).toOpt
+      )
+    }
+
+    "drop event with oversized atomic field" >> {
+      commonDropTest(parameters = fatBody)
+    }
+
+    "drop event that should end up as incomplete event normally when emitIncomplete is true" >> {
+      commonDropTest(parameters = fatBody, emitIncomplete = true)
+    }
+
+    "drop event with multiple failures" >> {
+      commonDropTest(
+        parameters = Map(
+          "e" -> "ue",
+          "tv" -> "js-0.13.1",
+          "p" -> "web",
+          "tr_tt" -> "not number",
+          "ue_pr" ->
+            """
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data":{
+              "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+              "data": {
+                "emailAddress": "hello@world.com",
+                "emailAddress2": "foo@bar.org",
+                "unallowedAdditionalField": "foo@bar.org"
+              }
+            }
+          }"""
+        ).toOpt,
+        collectorName = ""
+      )
+    }
+
+    "drop event with multiple failures when emitIncomplete is true" >> {
+      commonDropTest(
+        parameters = Map(
+          "e" -> "ue",
+          "tv" -> "js-0.13.1",
+          "p" -> "web",
+          "tr_tt" -> "not number",
+          "ue_pr" ->
+            """
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data":{
+              "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+              "data": {
+                "emailAddress": "hello@world.com",
+                "emailAddress2": "foo@bar.org",
+                "unallowedAdditionalField": "foo@bar.org"
+              }
+            }
+          }"""
+        ).toOpt,
+        collectorName = "",
+        emitIncomplete = true
+      )
     }
   }
 }

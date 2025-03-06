@@ -36,13 +36,16 @@ object CollectorPayloadGen {
 
   private val base64Encoder = Base64.getEncoder()
 
-  def generate[F[_]: Sync](nbGoodEvents: Long, nbBadRows: Long = 0L): Stream[F, Array[Byte]] =
-    generateRaw(nbGoodEvents, nbBadRows).map(_.toThrift).map(new TSerializer().serialize)
+  def generate[F[_]: Sync](nbGoodEvents: Long, nbBadRows: Long = 0L, nbGoodDroppedEvents: Long = 0L, nbBadDroppedEvents: Long = 0L): Stream[F, Array[Byte]] =
+    generateRaw(nbGoodEvents, nbBadRows, nbGoodDroppedEvents, nbBadDroppedEvents).map(_.toThrift).map(new TSerializer().serialize)
 
-  def generateRaw[F[_]: Sync](nbGoodEvents: Long, nbBadRows: Long): Stream[F, CollectorPayload] =
-    Stream.repeatEval(runGen(collectorPayloadGen(true))).take(nbGoodEvents) ++ Stream.repeatEval(runGen(collectorPayloadGen(false))).take(nbBadRows)
+  def generateRaw[F[_]: Sync](nbGoodEvents: Long, nbBadRows: Long, nbGoodDroppedEvents: Long, nbBadDroppedEvents: Long): Stream[F, CollectorPayload] =
+    Stream.repeatEval(runGen(collectorPayloadGen(valid = true, drop = false))).take(nbGoodEvents) ++
+      Stream.repeatEval(runGen(collectorPayloadGen(valid = false, drop = false))).take(nbBadRows) ++
+      Stream.repeatEval(runGen(collectorPayloadGen(valid = true, drop = true))).take(nbGoodDroppedEvents) ++
+      Stream.repeatEval(runGen(collectorPayloadGen(valid = false, drop = true))).take(nbBadDroppedEvents)
 
-  private def collectorPayloadGen(valid: Boolean): Gen[CollectorPayload] =
+  private def collectorPayloadGen(valid: Boolean, drop: Boolean): Gen[CollectorPayload] =
     for {
       vendor <- Gen.const("com.snowplowanalytics.snowplow")
       version <- Gen.const("tp2")
@@ -52,7 +55,7 @@ object CollectorPayloadGen {
 
       contentType = Some("application/json")
 
-      body <- bodyGen(valid).map(Some(_))
+      body <- bodyGen(valid, drop).map(Some(_))
 
       name = "scala-tracker_1.0.0"
       encoding = "UTF8"
@@ -68,12 +71,16 @@ object CollectorPayloadGen {
       context = CollectorPayload.Context(timestamp, ipAddress, useragent, refererUri, headers, userId)
     } yield CollectorPayload(api, queryString, contentType, body, source, context)
 
-  private def bodyGen(valid: Boolean): Gen[String] =
+  private def bodyGen(valid: Boolean, drop: Boolean): Gen[String] =
     for {
       p <- Gen.oneOf("web", "mob", "app").withKey("p")
       aid <- Gen.const("enrich-kinesis-integration-tests").withKey("aid")
       e <- Gen.const("ue").withKey("e")
-      tv <- Gen.oneOf("scala-tracker_1.0.0", "js_2.0.0", "go_1.2.3").withKey("tv")
+      tv <-
+        if (drop)
+          Gen.const("drop").withKey("tv")
+        else
+          Gen.oneOf("scala-tracker_1.0.0", "js_2.0.0", "go_1.2.3").withKey("tv")
       uePx <-
         if(valid)
           ueGen.map(_.toString).map(str => base64Encoder.encodeToString(str.getBytes)).withKey("ue_px")

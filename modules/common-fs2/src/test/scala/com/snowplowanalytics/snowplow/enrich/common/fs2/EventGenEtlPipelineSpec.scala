@@ -10,7 +10,7 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2
 
-import cats.data.{Ior, ValidatedNel}
+import cats.data.ValidatedNel
 import cats.effect.testing.specs2.CatsEffect
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
@@ -26,6 +26,7 @@ import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent.toPart
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
+import com.snowplowanalytics.snowplow.enrich.common.utils.OptionIor
 import com.snowplowanalytics.snowplow.eventgen.runGen
 import com.snowplowanalytics.snowplow.eventgen.enrich.{SdkEvent => GenSdkEvent}
 import org.specs2.matcher.MustMatchers.{left => _, right => _}
@@ -43,9 +44,7 @@ import org.specs2.specification.core.{Fragment, Fragments}
 
 import java.time.Instant
 import scala.util.{Random, Try}
-
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
-
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 
 class EventGenEtlPipelineSpec extends Specification with CatsEffect {
@@ -203,7 +202,7 @@ class EventGenEtlPipelineSpec extends Specification with CatsEffect {
   val dateTime = DateTime.now()
   val process = Processor("EventGenEtlPipelineSpec", "v1")
 
-  def processEvents(e: CollectorPayload): IO[List[Ior[BadRow, EnrichedEvent]]] =
+  def processEvents(e: CollectorPayload): IO[List[OptionIor[BadRow, EnrichedEvent]]] =
     EtlPipeline.processEvents[IO](
       adapterRegistry,
       enrichmentReg,
@@ -230,10 +229,15 @@ class EventGenEtlPipelineSpec extends Specification with CatsEffect {
         ).toEither
       ).rethrow[IO, A]
 
-  def rethrowBadRow[A]: Pipe[IO, Ior[BadRow, A], A] =
-    (in: Stream[IO, Ior[BadRow, A]]) =>
+  def rethrowBadRow[A]: Pipe[IO, OptionIor[BadRow, A], A] =
+    (in: Stream[IO, OptionIor[BadRow, A]]) =>
       in
-        .map(_.leftMap(br => new Exception(br.compact)).toEither)
+        .map {
+          case OptionIor.Right(a) => Right(a)
+          case OptionIor.Left(b) => Left(new Exception(b.compact))
+          case OptionIor.Both(l, _) => Left(new Exception(l.compact))
+          case OptionIor.None => Left(new Exception("OptionIor None is returned"))
+        }
         .rethrow[IO, A]
 
   val innerFolder: Json.Folder[Json] = new Json.Folder[Json] {

@@ -19,7 +19,6 @@ import cats.effect.kernel.Resource
 
 import cats.effect.testing.specs2.CatsEffect
 
-import cats.data.Ior
 import cats.data.Validated.{Invalid, Valid}
 
 import io.circe.Json
@@ -36,7 +35,7 @@ import com.snowplowanalytics.iglu.client.resolver.registries.Registry
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
-import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, ShiftExecution}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, OptionIor, ShiftExecution}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 
@@ -112,7 +111,7 @@ object BlackBoxTesting extends Specification with CatsEffect {
             )
             .map(_.enriched)
             .map {
-              case List(Ior.Right(enriched)) => checkEnriched(enriched, expected)
+              case List(OptionIor.Right(enriched)) => checkEnriched(enriched, expected)
               case other => ko(s"there should be one enriched event but got $other")
             }
         }

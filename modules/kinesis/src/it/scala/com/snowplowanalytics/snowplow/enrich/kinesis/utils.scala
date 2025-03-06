@@ -41,6 +41,8 @@ object utils extends CatsEffect {
     final case class Incomplete(incomplete: Event) extends OutputRow
   }
 
+  case class KinesisTestResources(localstack: Containers.Localstack, statsdAdmin: StatsdAdmin)
+
   def mkEnrichPipe(
     localstackPort: Int,
     uuid: String

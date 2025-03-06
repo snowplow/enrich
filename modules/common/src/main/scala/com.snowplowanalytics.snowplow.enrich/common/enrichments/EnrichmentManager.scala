@@ -15,8 +15,8 @@ import java.net.URI
 import java.time.Instant
 import org.joda.time.DateTime
 import io.circe.Json
-import cats.{Applicative, Functor, Monad}
-import cats.data.{EitherT, Ior, IorT, NonEmptyList, OptionT, StateT}
+import cats.{Applicative, Monad}
+import cats.data.{EitherT, IorT, NonEmptyList, OptionT, StateT}
 import cats.implicits._
 import cats.effect.kernel.{Clock, Sync}
 
@@ -24,8 +24,8 @@ import com.snowplowanalytics.refererparser._
 
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
-import com.snowplowanalytics.snowplow.enrich.common.utils.AtomicError
 
+import com.snowplowanalytics.snowplow.enrich.common.utils.{AtomicError, IgluUtils, OptionIor, ConversionUtils => CU}
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
@@ -41,8 +41,9 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequ
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii.PiiPseudonymizerEnrichment
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.SqlQueryEnrichment
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.web.{PageEnrichments => WPE}
+import com.snowplowanalytics.snowplow.enrich.common.utils.OptionIorT
+import com.snowplowanalytics.snowplow.enrich.common.utils.OptionIorT._
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.{IgluUtils, ConversionUtils => CU}
 
 object EnrichmentManager {
 
@@ -71,8 +72,8 @@ object EnrichmentManager {
     atomicFields: AtomicFields,
     emitIncomplete: Boolean,
     maxJsonDepth: Int
-  ): IorT[F, BadRow, EnrichedEvent] = {
-    def enrich(enriched: EnrichedEvent): IorT[F, NonEmptyList[NonEmptyList[Failure]], List[SelfDescribingData[Json]]] =
+  ): OptionIorT[F, BadRow, EnrichedEvent] = {
+    def enrich(enriched: EnrichedEvent): OptionIorT[F, NonEmptyList[NonEmptyList[Failure]], List[SelfDescribingData[Json]]] =
       for {
         extractResult <- mapAndValidateInput(
                            raw,
@@ -84,7 +85,7 @@ object EnrichmentManager {
                            maxJsonDepth
                          )
                            .leftMap(NonEmptyList.one)
-                           .possiblyExitingEarly(emitIncomplete)
+                           .toOptionIorT
         _ = {
           enriched.contexts = ME.formatContexts(extractResult.contexts).orNull
           enriched.unstruct_event = ME.formatUnstructEvent(extractResult.unstructEvent).orNull
@@ -99,7 +100,6 @@ object EnrichmentManager {
                                  maxJsonDepth
                                )
                                  .leftMap(NonEmptyList.one)
-                                 .possiblyExitingEarly(emitIncomplete)
         validContexts <- validateEnriched(
                            enriched,
                            enrichmentsContexts,
@@ -111,14 +111,14 @@ object EnrichmentManager {
                            emitIncomplete
                          )
                            .leftMap(NonEmptyList.one)
-                           .possiblyExitingEarly(emitIncomplete)
+                           .toOptionIorT
         derivedContexts = validContexts ::: extractResult.validationInfoContexts
       } yield derivedContexts
 
     // derived contexts are set lastly because we want to include failure entities
     // to derived contexts as well and we can get failure entities only in the end
     // of the enrichment process
-    IorT(
+    OptionIorT(
       for {
         enrichedEvent <- Sync[F].delay(new EnrichedEvent)
         enrichmentResult <- enrich(enrichedEvent).value
@@ -134,7 +134,17 @@ object EnrichmentManager {
                      )
                    }
                    .map(_ => enrichedEvent)
-      } yield result
+      } yield
+        if (emitIncomplete)
+          result
+        else
+          // if emitIncomplete is false, we don't need right side of
+          // Both which is for incomplete event therefore we just return
+          // its left side
+          result match {
+            case OptionIor.Both(l, _) => OptionIor.Left(l)
+            case o => o
+          }
     )
   }
 
@@ -166,7 +176,7 @@ object EnrichmentManager {
 
   def setDerivedContexts(
     enriched: EnrichedEvent,
-    enrichmentResult: Ior[NonEmptyList[NonEmptyList[Failure]], List[SelfDescribingData[Json]]],
+    enrichmentResult: OptionIor[NonEmptyList[NonEmptyList[Failure]], List[SelfDescribingData[Json]]],
     processor: Processor
   ): Unit = {
     val derivedContexts = enrichmentResult.leftMap { ll =>
@@ -207,21 +217,22 @@ object EnrichmentManager {
     unstructEvent: Option[SelfDescribingData[Json]],
     legacyOrder: Boolean,
     maxJsonDepth: Int
-  ): IorT[F, NonEmptyList[Failure], List[SelfDescribingData[Json]]] =
-    IorT {
+  ): OptionIorT[F, NonEmptyList[Failure], List[SelfDescribingData[Json]]] =
+    OptionIorT {
       accState(registry, raw, inputContexts, unstructEvent, legacyOrder, maxJsonDepth)
-        .runS(Accumulation(enriched, Nil, Nil))
+        .runS(Accumulation.Enriched(enriched, Nil, Nil))
         .map {
-          case Accumulation(_, failures, contexts) =>
+          case Accumulation.Enriched(_, failures, contexts) =>
             failures.toNel match {
               case Some(nel) =>
-                Ior.both(
+                OptionIor.Both(
                   nel.map(f => Failure.EnrichmentFailure(f)),
                   contexts
                 )
               case None =>
-                Ior.right(contexts)
+                OptionIor.Right(contexts)
             }
+          case Accumulation.Dropped => OptionIor.None
         }
     }
 
@@ -242,11 +253,18 @@ object EnrichmentManager {
              .leftMap { v: Failure => NonEmptyList.one(v) }
     } yield validContexts
 
-  private[enrichments] case class Accumulation(
-    event: EnrichedEvent,
-    errors: List[FailureDetails.EnrichmentFailure],
-    contexts: List[SelfDescribingData[Json]]
-  )
+  private[enrichments] sealed trait Accumulation extends Product with Serializable
+
+  private[enrichments] object Accumulation {
+    case class Enriched(
+      event: EnrichedEvent,
+      errors: List[FailureDetails.EnrichmentFailure],
+      contexts: List[SelfDescribingData[Json]]
+    ) extends Accumulation
+
+    case object Dropped extends Accumulation
+  }
+
   private[enrichments] type EStateT[F[_], A] = StateT[F, Accumulation, A]
 
   private object EStateT {
@@ -264,22 +282,40 @@ object EnrichmentManager {
         List[SelfDescribingData[Json]]) => F[Either[NonEmptyList[FailureDetails.EnrichmentFailure], List[SelfDescribingData[Json]]]]
     ): EStateT[F, Unit] =
       EStateT {
-        case Accumulation(event, errors, contexts) =>
+        case Accumulation.Enriched(event, errors, contexts) =>
           f(event, contexts).map {
-            case Right(contexts2) => (Accumulation(event, errors, contexts2 ::: contexts), ())
-            case Left(moreErrors) => (Accumulation(event, moreErrors.toList ::: errors, contexts), ())
+            case Right(contexts2) => (Accumulation.Enriched(event, errors, contexts2 ::: contexts), ())
+            case Left(moreErrors) => (Accumulation.Enriched(event, moreErrors.toList ::: errors, contexts), ())
           }
+        case Accumulation.Dropped => Applicative[F].pure((Accumulation.Dropped, ()))
       }
 
     def fromEitherOpt[F[_]: Applicative, A](
       f: EnrichedEvent => Either[NonEmptyList[FailureDetails.EnrichmentFailure], Option[A]]
     ): EStateT[F, Option[A]] =
       EStateT {
-        case acc @ Accumulation(event, errors, contexts) =>
+        case acc @ Accumulation.Enriched(event, errors, contexts) =>
           f(event) match {
-            case Right(opt) => (acc, opt).pure[F]
-            case Left(moreErrors) => (Accumulation(event, moreErrors.toList ::: errors, contexts), Option.empty[A]).pure[F]
+            case Right(opt) => Applicative[F].pure((acc, opt))
+            case Left(moreErrors) =>
+              Applicative[F].pure((Accumulation.Enriched(event, moreErrors.toList ::: errors, contexts), Option.empty[A]))
           }
+        case Accumulation.Dropped => Applicative[F].pure((Accumulation.Dropped, Option.empty[A]))
+      }
+
+    def fromJsEnrichmentResult[F[_]: Applicative](
+      f: (EnrichedEvent, List[SelfDescribingData[Json]]) => JavascriptScriptEnrichment.Result
+    ): EStateT[F, Unit] =
+      EStateT {
+        case Accumulation.Enriched(event, errors, contexts) =>
+          f(event, contexts) match {
+            case JavascriptScriptEnrichment.Result.Success(c) =>
+              Applicative[F].pure((Accumulation.Enriched(event, errors, c ::: contexts), ()))
+            case JavascriptScriptEnrichment.Result.Failure(e) =>
+              Applicative[F].pure((Accumulation.Enriched(event, e :: errors, contexts), ()))
+            case JavascriptScriptEnrichment.Result.Dropped => Applicative[F].pure((Accumulation.Dropped, ()))
+          }
+        case Accumulation.Dropped => Applicative[F].pure((Accumulation.Dropped, ()))
       }
   }
 
@@ -805,10 +841,10 @@ object EnrichmentManager {
     headers: List[String],
     maxJsonDepth: Int
   ): EStateT[F, Unit] =
-    EStateT.fromEither {
+    EStateT.fromJsEnrichmentResult {
       case (event, derivedContexts) =>
         ME.formatContexts(derivedContexts).foreach(c => event.derived_contexts = c)
-        javascriptScript.process(event, headers, maxJsonDepth).leftMap(NonEmptyList.one)
+        javascriptScript.process(event, headers, maxJsonDepth)
     }
 
   def headerContexts[F[_]: Applicative, A](
@@ -888,18 +924,4 @@ object EnrichmentManager {
             Nil.asRight
         }
     }
-
-  private implicit class IorTOps[F[_], A, B](val iorT: IorT[F, A, B]) extends AnyVal {
-
-    /** If the incomplete events feature is disabled, then convert a Both to a Left, so we don't waste time with next steps */
-    def possiblyExitingEarly(emitIncomplete: Boolean)(implicit F: Functor[F]): IorT[F, A, B] =
-      if (emitIncomplete) iorT
-      else
-        IorT {
-          iorT.value.map {
-            case Ior.Both(bad, _) => Ior.Left(bad)
-            case other => other
-          }
-        }
-  }
 }

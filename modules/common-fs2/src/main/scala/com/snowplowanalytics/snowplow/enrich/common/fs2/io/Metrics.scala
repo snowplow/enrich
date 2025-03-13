@@ -64,7 +64,7 @@ trait Metrics[F[_]] {
 
 object Metrics {
 
-  val LoggerName = "enrich.metrics"
+  val LoggerName = "com.snowplowanalytics.enrich.metrics"
   val LatencyGaugeName = "latency"
   val RawCounterName = "raw"
   val GoodCounterName = "good"

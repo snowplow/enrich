@@ -39,7 +39,7 @@ object Dependencies {
     val mysqlClient      = "3.4.0"
     val hikariCP         = "5.0.1"
     val jaywayJsonpath   = "2.7.0"
-    val jsonsmart        = "2.4.10"
+    val jsonsmart        = "2.5.2"
     val iabClient        = "0.2.0"
     val ipaddress        = "5.5.1"
     val yauaa            = "7.30.0"
@@ -49,7 +49,7 @@ object Dependencies {
     val log4j            = "2.20.0"
     val thrift           = "0.15.0"
     val sprayJson        = "1.3.6"
-    val netty            = "4.1.115.Final"
+    val netty            = "4.1.118.Final"
     val protobuf         = "4.28.3"
 
     val refererParser    = "2.1.0"

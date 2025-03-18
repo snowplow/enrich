@@ -1,3 +1,17 @@
+5.3.0 (2025-03-18)
+------------------
+Add a method to drop events
+Add anonymous mode to PII enrichment
+Do not use Scala tracker to send metadata events
+Run integration tests in separate jobs in CI
+Make default log level from 3rd party libraries 'warn'
+Upgrade yauaa to 7.30.0
+Upgrade amazon-kinesis-client to 2.6.1
+Upgrade iglu-scala-client to 4.0.2
+Upgrade ipaddress to 5.5.1
+Upgrade scala-referer-parser to 2.1.0
+Upgrade dependencies to fix some vulnerabilities
+
 5.2.0 (2024-12-20)
 ------------------
 Install sbt in GitHub workflows

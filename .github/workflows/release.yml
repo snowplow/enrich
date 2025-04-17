@@ -9,7 +9,7 @@ on:
 
 jobs:
   publish_docker:
-    if: startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/heads/snapshot')
+    if: ${{ github.event.repository.private == true && (startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/heads/snapshot')) }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -28,18 +28,19 @@ jobs:
           - app: nsq
             run_snyk: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc') }}
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
       if: startsWith(github.ref, 'refs/tags/')
     - name: Checkout with history for version info
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
       if: startsWith(github.ref, 'refs/heads/snapshot')
       with:
         fetch-depth: 0
     - uses: coursier/cache-action@v6
     - name: Set up JDK 11
-      uses: actions/setup-java@v1
+      uses: actions/setup-java@v4
       with:
         java-version: 11
+        distribution: 'temurin'
     - name: Install sbt
       uses: sbt/setup-sbt@v1
     - name: Docker login
@@ -135,15 +136,16 @@ jobs:
         SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
   publish_sce:
-    if: startsWith(github.ref, 'refs/tags/')
+    if: ${{ github.event.repository.private == true && startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - uses: coursier/cache-action@v6
     - name: Set up JDK 11
-      uses: actions/setup-java@v1
+      uses: actions/setup-java@v4
       with:
         java-version: 11
+        distribution: 'temurin'
     - name: Install sbt
       uses: sbt/setup-sbt@v1
     - name: Deploy SCE on Maven Central

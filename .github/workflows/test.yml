@@ -9,6 +9,7 @@ on:
 
 jobs:
   unit-tests:
+    if: ${{ github.event.repository.private == true }}
     runs-on: ubuntu-latest
 
     services:
@@ -24,12 +25,13 @@ jobs:
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - uses: coursier/cache-action@v6
     - name: Set up JDK 11
-      uses: actions/setup-java@v1
+      uses: actions/setup-java@v4
       with:
         java-version: 11
+        distribution: 'temurin'
     - name: Install sbt
       uses: sbt/setup-sbt@v1
     - name: Start HTTP server to test API enrichment in Common Enrich
@@ -56,14 +58,16 @@ jobs:
       run: sbt coverageAggregate
 
   it-kinesis:
+    if: ${{ github.event.repository.private == true }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: coursier/cache-action@v6
       - name: Set up JDK 11
-        uses: actions/setup-java@v1
+        uses: actions/setup-java@v4
         with:
           java-version: 11
+          distribution: 'temurin'
       - name: Install sbt
         uses: sbt/setup-sbt@v1
       - name: Publish asset
@@ -75,14 +79,16 @@ jobs:
           AWS_SECRET_ACCESS_KEY: bar
 
   it-drop-events:
+    if: ${{ github.event.repository.private == true }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: coursier/cache-action@v6
       - name: Set up JDK 11
-        uses: actions/setup-java@v1
+        uses: actions/setup-java@v4
         with:
           java-version: 11
+          distribution: 'temurin'
       - name: Install sbt
         uses: sbt/setup-sbt@v1
       - name: Publish asset
@@ -94,14 +100,16 @@ jobs:
           AWS_SECRET_ACCESS_KEY: bar
 
   it-kafka:
+    if: ${{ github.event.repository.private == true }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: coursier/cache-action@v6
       - name: Set up JDK 11
-        uses: actions/setup-java@v1
+        uses: actions/setup-java@v4
         with:
           java-version: 11
+          distribution: 'temurin'
       - name: Install sbt
         uses: sbt/setup-sbt@v1
       - name: Publish asset
@@ -113,14 +121,16 @@ jobs:
           docker compose -f integration-tests/enrich-kafka/docker-compose.yml down
 
   it-nsq:
+    if: ${{ github.event.repository.private == true }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: coursier/cache-action@v6
       - name: Set up JDK 11
-        uses: actions/setup-java@v1
+        uses: actions/setup-java@v4
         with:
           java-version: 11
+          distribution: 'temurin'
       - name: Install sbt
         uses: sbt/setup-sbt@v1
       - name: Publish asset

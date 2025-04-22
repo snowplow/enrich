@@ -24,8 +24,9 @@ import org.specs2.matcher.ValidatedMatchers
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 
-import com.snowplowanalytics.snowplow.enrich.common.utils.ShiftExecution
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 
 object SqlQueryEnrichmentIntegrationTest {
   def continuousIntegration: Boolean =
@@ -98,13 +99,11 @@ class SqlQueryEnrichmentIntegrationTest extends Specification with ValidatedMatc
         json"""{"singleColumn": 42}"""
       )
 
-    ShiftExecution.ofSingleThread[IO].use { shift =>
-      for {
-        enrichment <- SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[IO](shift)).toOption.get
-        contexts <- enrichment.lookup(new EnrichedEvent, Nil, Nil, None)
-      } yield contexts must beValid.like {
-        case List(json) => json must beEqualTo(expected)
-      }
+    for {
+      enrichment <- SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[IO](SpecHelpers.blockingEC)).toOption.get
+      contexts <- enrichment.lookup(new EnrichedEvent, Nil, Nil, None)
+    } yield contexts must beValid.like {
+      case List(json) => json must beEqualTo(expected)
     }
   }
 
@@ -342,19 +341,17 @@ class SqlQueryEnrichmentIntegrationTest extends Specification with ValidatedMatc
         json"""{"city": "London", "country": "England", "pk": 2 } """
       )
 
-    ShiftExecution.ofSingleThread[IO].use { shift =>
-      for {
-        enrichment <- SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[IO](shift)).toOption.get
-        actual1 <- enrichment.lookup(event1, List(weatherContext1), List(geoContext1), Some(ue1))
-        res1 = actual1 must beValid(List(expected1))
-        actual2 <- enrichment.lookup(event2, List(weatherContext2), List(geoContext2), Some(ue2))
-        res2 = actual2 must beValid(List(expected2))
-        actual3 <- enrichment.lookup(event3, List(weatherContext3), List(geoContext3), Some(ue3))
-        res3 = actual3 must beValid(List(expected3))
-        actual4 <- enrichment.lookup(event4, List(weatherContext4), List(geoContext4, clientSession4), Some(ue4))
-        res4 = actual4 must beValid(List(expected4))
-      } yield res1 and res2 and res3 and res4
-    }
+    for {
+      enrichment <- SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[IO](SpecHelpers.blockingEC)).toOption.get
+      actual1 <- enrichment.lookup(event1, List(weatherContext1), List(geoContext1), Some(ue1))
+      res1 = actual1 must beValid(List(expected1))
+      actual2 <- enrichment.lookup(event2, List(weatherContext2), List(geoContext2), Some(ue2))
+      res2 = actual2 must beValid(List(expected2))
+      actual3 <- enrichment.lookup(event3, List(weatherContext3), List(geoContext3), Some(ue3))
+      res3 = actual3 must beValid(List(expected3))
+      actual4 <- enrichment.lookup(event4, List(weatherContext4), List(geoContext4, clientSession4), Some(ue4))
+      res4 = actual4 must beValid(List(expected4))
+    } yield res1 and res2 and res3 and res4
   }
 
   def e3 = {
@@ -405,12 +402,10 @@ class SqlQueryEnrichmentIntegrationTest extends Specification with ValidatedMatc
     val event = new EnrichedEvent
     event.user_id = null
 
-    ShiftExecution.ofSingleThread[IO].use { shift =>
-      for {
-        enrichment <- SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[IO](shift)).toOption.get
-        contexts <- enrichment.lookup(event, Nil, Nil, None)
-      } yield contexts must beValid(Nil)
-    }
+    for {
+      enrichment <- SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[IO](SpecHelpers.blockingEC)).toOption.get
+      contexts <- enrichment.lookup(event, Nil, Nil, None)
+    } yield contexts must beValid(Nil)
   }
 
   def e4 = {
@@ -468,11 +463,9 @@ class SqlQueryEnrichmentIntegrationTest extends Specification with ValidatedMatc
 
     val event = new EnrichedEvent
 
-    ShiftExecution.ofSingleThread[IO].use { shift =>
-      for {
-        enrichment <- SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[IO](shift)).toOption.get
-        contexts <- enrichment.lookup(event, Nil, Nil, None)
-      } yield contexts.toEither
-    }
+    for {
+      enrichment <- SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[IO](SpecHelpers.blockingEC)).toOption.get
+      contexts <- enrichment.lookup(event, Nil, Nil, None)
+    } yield contexts.toEither
   }
 }

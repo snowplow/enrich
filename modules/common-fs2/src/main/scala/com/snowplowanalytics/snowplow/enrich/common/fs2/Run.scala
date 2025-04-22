@@ -10,15 +10,9 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.fs2
 
-import java.util.concurrent.Executors
-
-import scala.concurrent.ExecutionContext
-
 import cats.implicits._
 
 import fs2.Stream
-
-import scala.concurrent.ExecutionContext
 
 import cats.effect.kernel.{Async, Resource, Sync}
 import cats.effect.ExitCode
@@ -78,7 +72,6 @@ object Run {
               parsed =>
                 for {
                   _ <- Logger[F].info(s"Initialising resources for $name $version")
-                  blockingEC = ExecutionContext.fromExecutorService(Executors.newCachedThreadPool)
                   processor = Processor(name, version)
                   file = parsed.configFile
                   _ <- checkLicense(file.license.accept)
@@ -96,7 +89,6 @@ object Run {
                             case p: Input.FileSystem =>
                               val env = Environment
                                 .make[F, Array[Byte]](
-                                  blockingEC,
                                   parsed,
                                   Source.filesystem[F](p.dir),
                                   sinkGood,
@@ -127,7 +119,6 @@ object Run {
                               }
                               val env = Environment
                                 .make[F, A](
-                                  blockingEC,
                                   parsed,
                                   mkSource(file.input, file.monitoring),
                                   sinkGood,
@@ -170,7 +161,7 @@ object Run {
   ): F[ExitCode] =
     environment.use { env =>
       val enrich = Enrich.run[F, A](env)
-      val updates = Assets.run[F, A](env.blockingEC, env.shifter, env.semaphore, env.assetsUpdatePeriod, env.assetsState, env.enrichments)
+      val updates = Assets.run[F, A](env.semaphore, env.assetsUpdatePeriod, env.assetsState, env.enrichments)
       val telemetry = Telemetry.run[F, A](env)
       val reporting = env.metrics.report
       val metadata = env.metadata.report

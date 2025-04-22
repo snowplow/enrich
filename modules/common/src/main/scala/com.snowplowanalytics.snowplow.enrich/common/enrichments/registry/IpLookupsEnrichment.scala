@@ -11,13 +11,14 @@
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.net.URI
+import java.util.concurrent.Executors
 
 import scala.concurrent.ExecutionContext
 
 import cats.data.{NonEmptyList, ValidatedNel}
 import cats.implicits._
 
-import cats.effect.kernel.Async
+import cats.effect.kernel.{Async, Resource, Sync}
 
 import io.circe._
 
@@ -133,3 +134,13 @@ private[enrichments] final case class IpLookupsDatabase(
   uri: URI,
   db: String
 )
+
+/**
+ * ATM for every event we execute IP lookup on this execution context, in case there is some I/O happening.
+ * When scala-maxmind-iplookups gets updated so that blocking calls get executed inside Sync[F].blocking(),
+ * we can remove this.
+ */
+object IpLookupExecutionContext {
+  def mk[F[_]: Sync]: Resource[F, ExecutionContext] =
+    Resource.make(Sync[F].delay(ExecutionContext.fromExecutorService(Executors.newCachedThreadPool)))(ec => Sync[F].delay(ec.shutdown()))
+}

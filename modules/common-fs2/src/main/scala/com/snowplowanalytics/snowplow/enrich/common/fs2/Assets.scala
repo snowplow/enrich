@@ -12,7 +12,6 @@ package com.snowplowanalytics.snowplow.enrich.common.fs2
 
 import java.net.URI
 
-import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.util.control.NonFatal
 
@@ -30,8 +29,6 @@ import fs2.io.file.{CopyFlag, CopyFlags, Files, Path}
 
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
-
-import com.snowplowanalytics.snowplow.enrich.common.utils.ShiftExecution
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients
 
@@ -129,8 +126,6 @@ object Assets {
 
   /** Initializes the [[updateStream]] if refresh period is specified. */
   def run[F[_]: Async, A](
-    blockingEC: ExecutionContext,
-    shifter: ShiftExecution[F],
     sem: Semaphore[F],
     updatePeriod: Option[FiniteDuration],
     assetsState: Assets.State[F],
@@ -141,7 +136,7 @@ object Assets {
         val init = for {
           _ <- Logger[F].info(show"Assets will be checked every $interval")
           assets <- enrichments.get.map(_.configs.flatMap(_.filesToCache))
-        } yield updateStream[F](shifter, sem, assetsState, enrichments, interval, assets, blockingEC)
+        } yield updateStream[F](sem, assetsState, enrichments, interval, assets)
         Stream.eval(init).flatten
       case None =>
         Stream.empty.covary[F]
@@ -152,13 +147,11 @@ object Assets {
    * If that's the case, updates them locally for the enrichments and updates the state.
    */
   def updateStream[F[_]: Async](
-    shifter: ShiftExecution[F],
     sem: Semaphore[F],
     state: State[F],
     enrichments: Ref[F, Environment.Enrichments[F]],
     interval: FiniteDuration,
-    assets: List[Asset],
-    blockingEC: ExecutionContext
+    assets: List[Asset]
   ): Stream[F, Unit] =
     Stream.fixedDelay[F](interval).evalMap { _ =>
       for {
@@ -172,7 +165,7 @@ object Assets {
                  Logger[F].info("All the assets are still the same, no update")
                else
                  sem.permit.use { _ =>
-                   update(shifter, state, enrichments, newAssets, blockingEC)
+                   update(state, enrichments, newAssets)
                  }
              }
       } yield ()
@@ -218,11 +211,9 @@ object Assets {
    * 3. Updates the enrichments config
    */
   def update[F[_]: Async](
-    shifter: ShiftExecution[F],
     state: State[F],
     enrichments: Ref[F, Environment.Enrichments[F]],
-    newAssets: List[Downloaded],
-    blockingEC: ExecutionContext
+    newAssets: List[Downloaded]
   ): F[Unit] =
     for {
       _ <- newAssets.traverse_ { a =>
@@ -237,7 +228,7 @@ object Assets {
 
       _ <- Logger[F].info("Reinitializing enrichments")
       old <- enrichments.get
-      fresh <- old.reinitialize(blockingEC, shifter)
+      fresh <- old.reinitialize
       _ <- enrichments.set(fresh)
     } yield ()
 

@@ -30,7 +30,7 @@ import com.snowplowanalytics.forex.model.AccountType
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest.{ApiRequestEnrichment, HttpApi}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.{Rdbms, SqlQueryEnrichment}
-import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, ShiftExecution}
+import com.snowplowanalytics.snowplow.enrich.common.utils.HttpClient
 
 sealed trait EnrichmentConf {
 
@@ -86,7 +86,7 @@ object EnrichmentConf {
     cache: SqlQueryEnrichment.Cache,
     ignoreOnError: Boolean
   ) extends EnrichmentConf {
-    def enrichment[F[_]: Async](shifter: ShiftExecution[F]): F[SqlQueryEnrichment[F]] =
+    def enrichment[F[_]: Async](ec: ExecutionContext): F[SqlQueryEnrichment[F]] =
       SqlQueryEnrichment.create[F](
         schemaKey,
         inputs,
@@ -95,7 +95,7 @@ object EnrichmentConf {
         output,
         cache,
         ignoreOnError,
-        shifter
+        ec
       )
   }
 

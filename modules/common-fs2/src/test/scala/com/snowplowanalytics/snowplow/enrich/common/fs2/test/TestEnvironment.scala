@@ -41,7 +41,6 @@ import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
-import com.snowplowanalytics.snowplow.enrich.common.utils.ShiftExecution
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.{Assets, AttributedData, Enrich, EnrichSpec, Environment}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.Environment.{Enrichments, StreamsSettings}
@@ -77,13 +76,7 @@ case class TestEnvironment[A](
     val stream = Enrich
       .run[IO, A](updatedEnv)
       .merge(
-        Assets.run[IO, A](updatedEnv.blockingEC,
-                          updatedEnv.shifter,
-                          updatedEnv.semaphore,
-                          updatedEnv.assetsUpdatePeriod,
-                          updatedEnv.assetsState,
-                          updatedEnv.enrichments
-        )
+        Assets.run[IO, A](updatedEnv.semaphore, updatedEnv.assetsUpdatePeriod, updatedEnv.assetsState, updatedEnv.enrichments)
       )
     for {
       _ <- stream.haltAfter(streamTimeout).compile.drain
@@ -125,8 +118,7 @@ object TestEnvironment extends CatsEffect {
       clients = Clients.init[IO](http4s, Nil)
       sem <- Resource.eval(Semaphore[IO](1L))
       assetsState <- Resource.eval(Assets.State.make(sem, clients, enrichments.flatMap(_.filesToCache)))
-      shifter <- ShiftExecution.ofSingleThread[IO]
-      enrichmentsRef <- Enrichments.make[IO](enrichments, SpecHelpers.blockingEC, shifter)
+      enrichmentsRef <- Enrichments.make[IO](enrichments)
       goodRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
       piiRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
       badRef <- Resource.eval(Ref.of[IO, Vector[Array[Byte]]](Vector.empty))
@@ -139,8 +131,6 @@ object TestEnvironment extends CatsEffect {
                       sem,
                       assetsState,
                       http4s,
-                      SpecHelpers.blockingEC,
-                      shifter,
                       source,
                       adapterRegistry,
                       g => goodRef.update(_ ++ g),

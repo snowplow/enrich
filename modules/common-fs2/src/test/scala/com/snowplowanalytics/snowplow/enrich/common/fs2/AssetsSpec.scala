@@ -27,8 +27,6 @@ import cats.effect.unsafe.implicits.global
 
 import cats.effect.testing.specs2.CatsEffect
 
-import com.snowplowanalytics.snowplow.enrich.common.utils.ShiftExecution
-
 import com.snowplowanalytics.snowplow.enrich.common.fs2.io.Clients
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.test._
@@ -112,17 +110,16 @@ class AssetsSpec extends Specification with CatsEffect with ScalaCheck {
         .flatMap { state =>
           val resources =
             for {
-              shiftExecution <- ShiftExecution.ofSingleThread[IO]
               sem <- Resource.eval(Semaphore[IO](1L))
-              enrichments <- Environment.Enrichments.make[IO](List(), SpecHelpers.blockingEC, shiftExecution)
+              enrichments <- Environment.Enrichments.make[IO](List())
               _ <- SpecHelpers.filesResource(TestFiles)
-            } yield (shiftExecution, sem, enrichments)
+            } yield (sem, enrichments)
 
           val update = Stream
             .resource(resources)
             .flatMap {
-              case (shift, sem, enrichments) =>
-                Assets.updateStream[IO](shift, sem, state, enrichments, 1.second, List(uri -> filename), SpecHelpers.blockingEC)
+              case (sem, enrichments) =>
+                Assets.updateStream[IO](sem, state, enrichments, 1.second, List(uri -> filename))
             }
             .haltAfter(2.second)
 

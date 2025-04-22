@@ -13,6 +13,7 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlque
 import java.sql.Connection
 import javax.sql.DataSource
 
+import scala.concurrent.ExecutionContext
 import scala.collection.immutable.IntMap
 
 import com.zaxxer.hikari.HikariDataSource
@@ -32,7 +33,7 @@ import com.snowplowanalytics.snowplow.badrows.FailureDetails
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.SqlQueryConf
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{CachingEvaluator, Enrichment, ParseableEnrichment}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.{CirceUtils, ShiftExecution}
+import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
 
 /** Lets us create an SqlQueryConf from a Json */
 object SqlQueryEnrichment extends ParseableEnrichment {
@@ -107,7 +108,7 @@ object SqlQueryEnrichment extends ParseableEnrichment {
     output: Output,
     cache: Cache,
     ignoreOnError: Boolean,
-    shifter: ShiftExecution[F]
+    ec: ExecutionContext
   ): F[SqlQueryEnrichment[F]] = {
     val cacheConfig = CachingEvaluator.Config(
       size = cache.size,
@@ -128,7 +129,7 @@ object SqlQueryEnrichment extends ParseableEnrichment {
           output,
           evaluator,
           executor,
-          shifter,
+          ec,
           getDataSource(db),
           ignoreOnError
         )
@@ -160,7 +161,7 @@ final case class SqlQueryEnrichment[F[_]: Async](
   output: Output,
   sqlQueryEvaluator: SqlQueryEvaluator[F],
   dbExecutor: DbExecutor[F],
-  shifter: ShiftExecution[F],
+  ec: ExecutionContext,
   dataSource: DataSource,
   ignoreOnError: Boolean
 ) extends Enrichment {
@@ -246,7 +247,7 @@ final case class SqlQueryEnrichment[F[_]: Async](
         } yield result
     }
 
-    shifter.shift(eitherT.value)
+    Async[F].evalOn(eitherT.value, ec)
   }
 
   private def buildPlaceHolderMap(

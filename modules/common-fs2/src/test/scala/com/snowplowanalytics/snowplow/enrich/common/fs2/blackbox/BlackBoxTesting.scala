@@ -35,7 +35,7 @@ import com.snowplowanalytics.iglu.client.resolver.registries.Registry
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
-import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, OptionIor, ShiftExecution}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, OptionIor}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 
@@ -139,7 +139,6 @@ object BlackBoxTesting extends Specification with CatsEffect {
 
   private def getEnrichmentRegistry(enrichmentConfig: Option[Json], igluClient: IgluCirceClient[IO]): Resource[IO, EnrichmentRegistry[IO]] =
     for {
-      shift <- ShiftExecution.ofSingleThread[IO]
       http4s <- Clients.mkHttp[IO]()
       http = HttpClient.fromHttp4sClient[IO](http4s)
       registry = enrichmentConfig match {
@@ -155,7 +154,7 @@ object BlackBoxTesting extends Specification with CatsEffect {
                                   case Invalid(e) => IO.raiseError(new IllegalArgumentException(s"can't parse enrichmentsJson: $e"))
                                   case Valid(list) => IO.pure(list)
                                 }
-                       built <- EnrichmentRegistry.build[IO](confs, shift, http, SpecHelpers.blockingEC).value
+                       built <- EnrichmentRegistry.build[IO](confs, http, SpecHelpers.blockingEC, SpecHelpers.blockingEC).value
                        registry <- built match {
                                      case Left(e) => IO.raiseError(new IllegalArgumentException(s"can't build EnrichmentRegistry: $e"))
                                      case Right(r) => IO.pure(r)

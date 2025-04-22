@@ -41,10 +41,11 @@ import com.snowplowanalytics.snowplow.badrows.Processor
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.{AtomicFields, EnrichmentRegistry}
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{EnrichmentConf, IpLookupExecutionContext}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.ApiRequestConf
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.SqlExecutionContext
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, ShiftExecution}
+import com.snowplowanalytics.snowplow.enrich.common.utils.HttpClient
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.{ConfigFile, ParsedConfigs}
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input.Kinesis
@@ -72,8 +73,6 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.io.experimental.Metadata
  * @param assetsState         a main entity from [[Assets]] stream, controlling when assets
  *                            have to be replaced with newer ones
  * @param httpClient          client used to perform HTTP requests
- * @param blockingEC          thread pool for blocking operations (only used for IP lookup)
- * @param shifter             thread pool for blocking jdbc operations in the SqlEnrichment
  * @param source              stream of records containing the collector payloads
  * @param sinkGood            function that sinks enriched event
  * @param sinkPii             function that sinks pii event
@@ -105,8 +104,6 @@ final case class Environment[F[_], A](
   semaphore: Semaphore[F],
   assetsState: Assets.State[F],
   httpClient: Http4sClient[F],
-  blockingEC: ExecutionContext,
-  shifter: ShiftExecution[F],
   source: Stream[F, A],
   adapterRegistry: AdapterRegistry[F],
   sinkGood: AttributedByteSink[F],
@@ -138,45 +135,46 @@ object Environment {
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
     Slf4jLogger.getLogger[F]
 
-  /** Registry with all allocated clients (MaxMind, IAB etc) and their original configs */
   final case class Enrichments[F[_]: Async](
     registry: EnrichmentRegistry[F],
     configs: List[EnrichmentConf],
-    httpApiEnrichment: HttpClient[F]
+    apiEnrichmentClient: HttpClient[F],
+    ipLookupEC: ExecutionContext,
+    sqlEC: ExecutionContext
   ) {
 
     /** Initialize same enrichments, specified by configs (in case DB files updated) */
-    def reinitialize(blockingEC: ExecutionContext, shifter: ShiftExecution[F]): F[Enrichments[F]] =
+    def reinitialize: F[Enrichments[F]] =
       Enrichments
-        .buildRegistry(configs, blockingEC, shifter, httpApiEnrichment)
-        .map(registry => Enrichments(registry, configs, httpApiEnrichment))
+        .buildRegistry(configs, apiEnrichmentClient, ipLookupEC, sqlEC)
+        .map(registry => Enrichments(registry, configs, apiEnrichmentClient, ipLookupEC, sqlEC))
   }
 
   object Enrichments {
     def make[F[_]: Async](
-      configs: List[EnrichmentConf],
-      blockingEC: ExecutionContext,
-      shifter: ShiftExecution[F]
+      configs: List[EnrichmentConf]
     ): Resource[F, Ref[F, Enrichments[F]]] =
       for {
         // We don't want the HTTP client of API enrichment to be reinitialized each time the assets are refreshed
-        httpClient <- configs.collectFirst { case api: ApiRequestConf => api.api.timeout } match {
-                        case Some(timeout) =>
-                          Clients.mkHttp(readTimeout = timeout.millis).map(HttpClient.fromHttp4sClient[F])
-                        case None =>
-                          Resource.pure[F, HttpClient[F]](HttpClient.noop[F])
-                      }
-        registry <- Resource.eval(buildRegistry[F](configs, blockingEC, shifter, httpClient))
-        ref <- Resource.eval(Ref.of(Enrichments[F](registry, configs, httpClient)))
+        apiEnrichmentClient <- configs.collectFirst { case api: ApiRequestConf => api.api.timeout } match {
+                                 case Some(timeout) =>
+                                   Clients.mkHttp(readTimeout = timeout.millis).map(HttpClient.fromHttp4sClient[F])
+                                 case None =>
+                                   Resource.pure[F, HttpClient[F]](HttpClient.noop[F])
+                               }
+        ipLookupEC <- IpLookupExecutionContext.mk
+        sqlEC <- SqlExecutionContext.mk
+        registry <- Resource.eval(buildRegistry[F](configs, apiEnrichmentClient, ipLookupEC, sqlEC))
+        ref <- Resource.eval(Ref.of(Enrichments[F](registry, configs, apiEnrichmentClient, ipLookupEC, sqlEC)))
       } yield ref
 
     def buildRegistry[F[_]: Async](
       configs: List[EnrichmentConf],
-      blockingEC: ExecutionContext,
-      shifter: ShiftExecution[F],
-      httpApiEnrichment: HttpClient[F]
+      apiEnrichmentClient: HttpClient[F],
+      ipLookupEC: ExecutionContext,
+      sqlEC: ExecutionContext
     ) =
-      EnrichmentRegistry.build[F](configs, shifter, httpApiEnrichment, blockingEC).value.flatMap {
+      EnrichmentRegistry.build[F](configs, apiEnrichmentClient, ipLookupEC, sqlEC).value.flatMap {
         case Right(reg) => Async[F].pure(reg)
         case Left(error) => Async[F].raiseError[EnrichmentRegistry[F]](new RuntimeException(error))
       }
@@ -184,7 +182,6 @@ object Environment {
 
   /** Initialize and allocate all necessary resources */
   def make[F[_]: Async, A](
-    blockingEC: ExecutionContext,
     parsedConfigs: ParsedConfigs,
     source: Stream[F, A],
     sinkGood: Resource[F, AttributedByteSink[F]],
@@ -220,8 +217,7 @@ object Environment {
       adapterRegistry = new AdapterRegistry(remoteAdapters, file.adaptersSchemas)
       sem <- Resource.eval(Semaphore(1L))
       assetsState <- Resource.eval(Assets.State.make[F](sem, clts, assets))
-      shifter <- ShiftExecution.ofSingleThread[F]
-      enrichments <- Enrichments.make[F](parsedConfigs.enrichmentConfigs, blockingEC, shifter)
+      enrichments <- Enrichments.make[F](parsedConfigs.enrichmentConfigs)
     } yield Environment[F, A](
       igluClient,
       Http4sRegistryLookup(http4s),
@@ -229,8 +225,6 @@ object Environment {
       sem,
       assetsState,
       http4s,
-      blockingEC,
-      shifter,
       source,
       adapterRegistry,
       good,

@@ -33,7 +33,7 @@ class UrbanAirshipAdapterSpec extends Specification with ValidatedMatchers with 
     val api = CollectorPayload.Api("com.urbanairship.connect", "v1")
     val cljSource = CollectorPayload.Source("clj-tomcat", "UTF-8", None)
     val context = CollectorPayload.Context(
-      None,
+      DateTime.parse("2013-10-07T23:35:30.000Z"),
       "37.157.33.123".some,
       None,
       None,
@@ -201,11 +201,9 @@ class UrbanAirshipAdapterSpec extends Specification with ValidatedMatchers with 
     "have the correct context, including setting the correct collector timestamp" in {
       actual.map { output =>
         val context = output.getOrElse(throw new IllegalStateException).head.context
-        Shared.context.timestamp mustEqual None
         context mustEqual Shared.context.copy(
           timestamp = DateTime
             .parse("2015-11-13T16:31:52.393Z")
-            .some
         ) // it should be set to the "processed" field by the adapter
       }
     }

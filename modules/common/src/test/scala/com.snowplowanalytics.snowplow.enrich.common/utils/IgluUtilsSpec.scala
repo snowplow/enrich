@@ -31,19 +31,10 @@ import com.snowplowanalytics.snowplow.badrows.FailureDetails
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.Failure
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
-import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
-import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 
 class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect {
   import IgluUtilsSpec._
 
-  val raw = RawEvent(
-    CollectorPayload.Api("vendor", "version"),
-    Map.empty[String, Option[String]],
-    None,
-    CollectorPayload.Source("source", "enc", None),
-    CollectorPayload.Context(None, None, None, None, Nil, None)
-  )
   val processor = Processor("unit tests SCE", "v42")
   val enriched = new EnrichedEvent()
 

@@ -141,7 +141,7 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers with CatsEf
     val api = CollectorPayload.Api("org.remoteEnricherTest", "v1")
     val cljSource = CollectorPayload.Source("clj-tomcat", "UTF-8", None)
     val context = CollectorPayload.Context(
-      DateTime.parse("2013-08-29T00:18:48.000+00:00").some,
+      DateTime.parse("2013-08-29T00:18:48.000+00:00"),
       "37.157.33.123".some,
       None,
       None,

@@ -69,7 +69,7 @@ object PayloadGen extends CatsEffect {
     part4 <- Gen.choose(0, 255)
   } yield s"$part1.$part2.$part3.$part4"
   val contextGen: Gen[CollectorPayload.Context] = for {
-    timestamp <- localDateGen.map(_.toDateTimeAtStartOfDay(DateTimeZone.UTC)).map(Option.apply)
+    timestamp <- localDateGen.map(_.toDateTimeAtStartOfDay(DateTimeZone.UTC))
     ip <- Gen.option(ipGen)
     userAgent <- userAgentGen.map(x => Some(x))
     userId <- Gen.option(Gen.uuid)

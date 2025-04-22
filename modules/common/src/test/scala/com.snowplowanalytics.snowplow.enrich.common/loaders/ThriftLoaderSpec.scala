@@ -35,7 +35,7 @@ class ThriftLoaderSpec extends Specification with ValidatedMatchers with ScalaCh
       val result = ThriftLoader.toCollectorPayload(Base64.decodeBase64(raw), ThriftLoaderSpec.Process)
 
       val context = CollectorPayload.Context(
-        timestamp = DateTime.parse("2014-01-16T00:49:58.278+00:00").some,
+        timestamp = DateTime.parse("2014-01-16T00:49:58.278+00:00"),
         ipAddress = "127.0.0.1".some,
         useragent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1650.63 Safari/537.36".some,
         refererUri = None,
@@ -69,7 +69,7 @@ class ThriftLoaderSpec extends Specification with ValidatedMatchers with ScalaCh
       val result = ThriftLoader.toCollectorPayload(Base64.decodeBase64(raw), ThriftLoaderSpec.Process)
 
       val context = CollectorPayload.Context(
-        timestamp = DateTime.parse("2014-01-28T19:22:20.040+00:00").some,
+        timestamp = DateTime.parse("2014-01-28T19:22:20.040+00:00"),
         ipAddress = "10.0.2.2".some,
         useragent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:26.0) Gecko/20100101 Firefox/26.0".some,
         refererUri = None,
@@ -138,7 +138,7 @@ class ThriftLoaderSpec extends Specification with ValidatedMatchers with ScalaCh
       val result = ThriftLoader.toCollectorPayload(Base64.decodeBase64(raw), ThriftLoaderSpec.Process)
 
       val context = CollectorPayload.Context(
-        timestamp = DateTime.parse("2014-01-28T20:31:56.846+00:00").some,
+        timestamp = DateTime.parse("2014-01-28T20:31:56.846+00:00"),
         ipAddress = "10.0.2.2".some,
         useragent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:26.0) Gecko/20100101 Firefox/26.0".some,
         refererUri = None,
@@ -202,7 +202,7 @@ class ThriftLoaderSpec extends Specification with ValidatedMatchers with ScalaCh
       val result = ThriftLoader.toCollectorPayload(Base64.decodeBase64(raw), ThriftLoaderSpec.Process)
 
       val context = CollectorPayload.Context(
-        timestamp = DateTime.parse("2014-01-28T19:04:14.469+00:00").some,
+        timestamp = DateTime.parse("2014-01-28T19:04:14.469+00:00"),
         ipAddress = "10.0.2.2".some,
         useragent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:26.0) Gecko/20100101 Firefox/26.0".some,
         refererUri = None,

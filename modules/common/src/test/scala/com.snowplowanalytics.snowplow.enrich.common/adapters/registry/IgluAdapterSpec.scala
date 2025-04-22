@@ -51,7 +51,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
     val cfSource = CollectorPayload.Source("cloudfront", "UTF-8", None)
     val cljSource = CollectorPayload.Source("clj-tomcat", "UTF-8", None)
     val context = CollectorPayload.Context(
-      DateTime.parse("2013-08-29T00:18:48.000+00:00").some,
+      DateTime.parse("2013-08-29T00:18:48.000+00:00"),
       "37.157.33.123".some,
       None,
       None,

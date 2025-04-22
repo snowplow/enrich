@@ -142,7 +142,7 @@ case class UrbanAirshipAdapter(schemas: UrbanAirshipSchemas) extends Adapter {
             ),
             contentType = payload.contentType,
             source = payload.source,
-            context = payload.context.copy(timestamp = Some(new DateTime(cts, DateTimeZone.UTC)))
+            context = payload.context.copy(timestamp = new DateTime(cts, DateTimeZone.UTC))
           )
         }
       case Left(e) =>

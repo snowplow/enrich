@@ -62,7 +62,7 @@ class CurrencyConversionEnrichmentSpec extends Specification with CatsEffect {
         Some(0.00),
         None,
         Some(17.99),
-        Some(coTstamp)
+        coTstamp
       )
     val expected: Result = Validated.Invalid(
       NonEmptyList.of(
@@ -92,7 +92,7 @@ class CurrencyConversionEnrichmentSpec extends Specification with CatsEffect {
         Some(0.00),
         Some("HUL"),
         Some(1.99),
-        Some(coTstamp)
+        coTstamp
       )
     val expected: Result = ef(
       FailureDetails.EnrichmentFailureMessage.InputData(
@@ -113,7 +113,7 @@ class CurrencyConversionEnrichmentSpec extends Specification with CatsEffect {
         Some(0.00),
         Some("GBP"),
         Some(2.99),
-        Some(coTstamp)
+        coTstamp
       )
     val wrongKey = "8A8A8A8A8A8A8A8A8A8A8A8AA8A8A8A8"
     val expected: Result = ef(
@@ -133,16 +133,9 @@ class CurrencyConversionEnrichmentSpec extends Specification with CatsEffect {
         None,
         None,
         None,
-        None
+        coTstamp
       )
-    val expected: Result =
-      ef(
-        FailureDetails.EnrichmentFailureMessage.InputData(
-          "collector_tstamp",
-          None,
-          "missing"
-        )
-      ).invalidNel
+    val expected: Result = (None, None, None, None).valid
     runEnrichment(input).map(_ must beEqualTo(expected))
   }
 
@@ -155,13 +148,9 @@ class CurrencyConversionEnrichmentSpec extends Specification with CatsEffect {
         None,
         Some("GBP"),
         None,
-        None
+        coTstamp
       )
-    val expected: Result =
-      ef(
-        FailureDetails.EnrichmentFailureMessage
-          .InputData("collector_tstamp", None, "missing")
-      ).invalidNel
+    val expected: Result = (None, None, None, None).valid
     runEnrichment(input).map(_ must beEqualTo(expected))
   }
 
@@ -174,7 +163,7 @@ class CurrencyConversionEnrichmentSpec extends Specification with CatsEffect {
         None,
         None,
         None,
-        Some(coTstamp)
+        coTstamp
       )
     val expected: Result = (Some(new BigDecimal("12.75")), None, None, None).valid
     runEnrichment(input).map(_ must beEqualTo(expected))
@@ -189,7 +178,7 @@ class CurrencyConversionEnrichmentSpec extends Specification with CatsEffect {
         Some(0.00),
         None,
         None,
-        Some(coTstamp)
+        coTstamp
       )
     val expected: Result = (None, Some(new BigDecimal("3.09")), Some(new BigDecimal("0.00")), None).valid
     runEnrichment(input).map(_ must beEqualTo(expected))
@@ -204,7 +193,7 @@ class CurrencyConversionEnrichmentSpec extends Specification with CatsEffect {
         None,
         Some("GBP"),
         Some(12.99),
-        Some(coTstamp)
+        coTstamp
       )
     val expected: Result = (None, None, None, Some(new BigDecimal("15.05"))).valid
     runEnrichment(input).map(_ must beEqualTo(expected))
@@ -219,7 +208,7 @@ class CurrencyConversionEnrichmentSpec extends Specification with CatsEffect {
         Some(0.00),
         None,
         None,
-        Some(coTstamp)
+        coTstamp
       )
     val expected: Result = (Some(new BigDecimal("12.75")), Some(new BigDecimal("3.09")), Some(new BigDecimal("0.00")), None).valid
     runEnrichment(input).map(_ must beEqualTo(expected))
@@ -234,7 +223,7 @@ class CurrencyConversionEnrichmentSpec extends Specification with CatsEffect {
         Some(0.00),
         Some("GBP"),
         Some(10.99),
-        Some(coTstamp)
+        coTstamp
       )
     val expected: Result =
       (None, None, None, Some(new BigDecimal("12.74"))).valid
@@ -250,7 +239,7 @@ class CurrencyConversionEnrichmentSpec extends Specification with CatsEffect {
         Some(0.00),
         None,
         Some(12.99),
-        Some(coTstamp)
+        coTstamp
       )
     val expected: Result = (None, None, None, None).valid
     runEnrichment(input).map(_ must beEqualTo(expected))
@@ -265,7 +254,7 @@ class CurrencyConversionEnrichmentSpec extends Specification with CatsEffect {
         Some(0.00),
         Some("EUR"),
         Some(12.99),
-        Some(coTstamp)
+        coTstamp
       )
     val expected: Result =
       (
@@ -286,7 +275,7 @@ class CurrencyConversionEnrichmentSpec extends Specification with CatsEffect {
         Some(0.00),
         None,
         Some(10.00),
-        Some(coTstamp)
+        coTstamp
       )
     val expected: Result = (Some(new BigDecimal("18.54")), Some(new BigDecimal("3.09")), Some(new BigDecimal("0.00")), None).valid
     runEnrichment(input).map(_ must beEqualTo(expected))
@@ -321,7 +310,7 @@ object CurrencyConversionEnrichmentSpec {
     trShipping: Option[Double],
     tiCurrency: Option[String],
     tiPrice: Option[Double],
-    collectorTstamp: Option[DateTime]
+    collectorTstamp: DateTime
   )
 
   def runEnrichment(

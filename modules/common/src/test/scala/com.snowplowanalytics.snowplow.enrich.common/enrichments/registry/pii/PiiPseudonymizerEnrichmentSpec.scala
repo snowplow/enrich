@@ -712,7 +712,7 @@ object PiiPseudonymizerEnrichmentSpec {
   def commonSetup(enrichmentReg: EnrichmentRegistry[IO], headers: List[String] = Nil): IO[List[Either[BadRow, EnrichedEvent]]] = {
     val context =
       CollectorPayload.Context(
-        Some(DateTime.parse("2017-07-14T03:39:39.000+00:00")),
+        DateTime.parse("2017-07-14T03:39:39.000+00:00"),
         Some("127.0.0.1"),
         None,
         None,

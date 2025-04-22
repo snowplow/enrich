@@ -29,6 +29,7 @@ import _root_.io.circe.literal._
 
 import org.apache.http.NameValuePair
 import org.apache.http.message.BasicNameValuePair
+import org.joda.time.DateTime
 
 import org.specs2.ScalaCheck
 import org.specs2.mutable.Specification
@@ -66,7 +67,7 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
           event_name = Some("page_view"),
           event_format = Some("jsonschema"),
           event_version = Some("1-0-0"),
-          derived_tstamp = Some(Instant.ofEpochMilli(0L))
+          derived_tstamp = Some(EnrichSpec.collectorTstamp)
         )
       SpecHelpers.createIgluClient(List(TestEnvironment.embeddedRegistry)).flatMap { igluClient =>
         Enrich
@@ -648,12 +649,14 @@ object EnrichSpec {
   val eventId: UUID = UUID.fromString("deadbeef-dead-beef-dead-beefdead")
   val processor = Processor("common-fs2-tests", "0.0.0")
   val vCollector = "ssc-test-0.0.0"
+  val collectorTstamp = Instant.parse("2024-01-28T19:04:14.469Z")
 
   val api: CollectorPayload.Api =
     CollectorPayload.Api("com.snowplowanalytics.snowplow", "tp2")
   val source: CollectorPayload.Source =
     CollectorPayload.Source(vCollector, "UTF-8", Some("collector.snplow.net"))
-  val context: CollectorPayload.Context = CollectorPayload.Context(None, Some("175.16.199.0"), None, None, List(), None)
+  val context: CollectorPayload.Context =
+    CollectorPayload.Context(new DateTime(collectorTstamp.toEpochMilli), Some("175.16.199.0"), None, None, List(), None)
   val querystring: List[NameValuePair] = List(
     new BasicNameValuePair("e", "pv"),
     new BasicNameValuePair("eid", eventId.toString)
@@ -684,7 +687,7 @@ object EnrichSpec {
   val minimalEvent = Event
     .minimal(
       EnrichSpec.eventId,
-      Instant.ofEpochMilli(0L),
+      collectorTstamp,
       vCollector,
       s"${processor.artifact}-${processor.version}"
     )
@@ -699,7 +702,7 @@ object EnrichSpec {
       event_name = Some("page_view"),
       event_format = Some("jsonschema"),
       event_version = Some("1-0-0"),
-      derived_tstamp = Some(Instant.ofEpochMilli(0L))
+      derived_tstamp = Some(collectorTstamp)
     )
 
   val featureFlags = FeatureFlags(acceptInvalid = false)

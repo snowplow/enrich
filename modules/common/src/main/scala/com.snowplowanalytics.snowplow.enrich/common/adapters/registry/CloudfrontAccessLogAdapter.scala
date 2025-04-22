@@ -155,7 +155,7 @@ case class CloudfrontAccessLogAdapter(schemas: CloudfrontAccessLogSchemas) exten
       case h :: t => NonEmptyList.of(h, t: _*).invalid // list to nonemptylist
     }
 
-    val validatedTstamp = toTimestamp(fields.head, fields(1)).map(Some(_)).toValidatedNel
+    val validatedTstamp = toTimestamp(fields.head, fields(1)).toValidatedNel
 
     (validatedTstamp, failures).mapN { (tstamp, _) =>
       val parameters = toUnstructEventParams(

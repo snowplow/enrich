@@ -49,17 +49,14 @@ object EventEnrichments {
    * @param Optional collectorTstamp
    * @return Validation boxing the result of making the timestamp Redshift-compatible
    */
-  def formatCollectorTstamp(collectorTstamp: Option[DateTime]): Either[AtomicError.ParseError, String] =
-    collectorTstamp match {
-      case None => AtomicError.ParseError("Field not set", "collector_tstamp", None).asLeft
-      case Some(t) =>
-        val formattedTimestamp = toTimestamp(t)
-        if (formattedTimestamp.startsWith("-") || t.getYear > 9999 || t.getYear < 0) {
-          val msg = s"Formatted as $formattedTimestamp is not Redshift-compatible"
-          AtomicError.ParseError(msg, "collector_tstamp", Option(t).map(_.toString)).asLeft
-        } else
-          formattedTimestamp.asRight
-    }
+  def formatCollectorTstamp(collectorTstamp: DateTime): Either[AtomicError.ParseError, String] = {
+    val formattedTimestamp = toTimestamp(collectorTstamp)
+    if (formattedTimestamp.startsWith("-") || collectorTstamp.getYear > 9999 || collectorTstamp.getYear < 0) {
+      val msg = s"Formatted as $formattedTimestamp is not Redshift-compatible"
+      AtomicError.ParseError(msg, "collector_tstamp", Option(collectorTstamp).map(_.toString)).asLeft
+    } else
+      formattedTimestamp.asRight
+  }
 
   /**
    * Calculate the derived timestamp

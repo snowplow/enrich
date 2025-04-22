@@ -400,7 +400,7 @@ object EnrichmentManager {
       }
     }
 
-  def setCollectorTstamp(event: EnrichedEvent, timestamp: Option[DateTime]): Either[AtomicError.ParseError, Unit] =
+  def setCollectorTstamp(event: EnrichedEvent, timestamp: DateTime): Either[AtomicError.ParseError, Unit] =
     EE.formatCollectorTstamp(timestamp).map { t =>
       event.collector_tstamp = t
       ().asRight
@@ -596,7 +596,7 @@ object EnrichmentManager {
     }
 
   def getCurrency[F[_]: Monad](
-    timestamp: Option[DateTime],
+    timestamp: DateTime,
     currencyConversion: Option[CurrencyConversionEnrichment[F]]
   ): EStateT[F, Unit] =
     EStateT.fromEitherF {

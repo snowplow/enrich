@@ -62,13 +62,12 @@ object CollectorPayloadGen {
       hostname = Some("example.acme")
       source = CollectorPayload.Source(name, encoding, hostname)
 
-      timestamp <- Gen.option(DateTime.now)
       ipAddress <- Gen.option(ipAddressGen)
       useragent <- Gen.option(userAgentGen)
       refererUri = None
       headers = Nil
       userId <- Gen.uuid.map(Some(_))
-      context = CollectorPayload.Context(timestamp, ipAddress, useragent, refererUri, headers, userId)
+      context = CollectorPayload.Context(DateTime.now, ipAddress, useragent, refererUri, headers, userId)
     } yield CollectorPayload(api, queryString, contentType, body, source, context)
 
   private def bodyGen(valid: Boolean, drop: Boolean): Gen[String] =

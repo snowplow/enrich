@@ -87,7 +87,7 @@ object Processing {
                                     }
         cpFormatViolations = bad.flatMap(_.toList)
         _ <- env.metrics.addRaw(cpFormatViolations.size + collectorPayloads.size)
-        collectorTstamp = collectorPayloads.headOption.flatMap(_.context.timestamp)
+        collectorTstamp = collectorPayloads.headOption.map(_.context.timestamp)
       } yield Parsed(
         collectorPayloads,
         cpFormatViolations,

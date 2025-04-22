@@ -35,7 +35,7 @@ class MarketoAdapterSpec extends Specification with DataTables with ValidatedMat
     val api = CollectorPayload.Api("com.marketo", "v1")
     val cljSource = CollectorPayload.Source("clj-tomcat", "UTF-8", None)
     val context = CollectorPayload.Context(
-      DateTime.parse("2018-01-01T00:00:00.000+00:00").some,
+      DateTime.parse("2018-01-01T00:00:00.000+00:00"),
       "37.157.33.123".some,
       None,
       None,

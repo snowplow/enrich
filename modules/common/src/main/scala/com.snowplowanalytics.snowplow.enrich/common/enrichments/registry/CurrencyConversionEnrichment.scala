@@ -162,60 +162,50 @@ final case class CurrencyConversionEnrichment[F[_]: Monad](
     trShipping: Option[Double],
     tiCurrency: Option[String],
     tiPrice: Option[Double],
-    collectorTstamp: Option[DateTime]
+    collectorTstamp: DateTime
   ): F[ValidatedNel[
     FailureDetails.EnrichmentFailure,
     (Option[BigDecimal], Option[BigDecimal], Option[BigDecimal], Option[BigDecimal])
-  ]] =
-    collectorTstamp match {
-      case Some(tstamp) =>
-        val zdt = tstamp.toGregorianCalendar().toZonedDateTime()
-        val trCu = trCurrency.map { c =>
-          Either
-            .catchNonFatal(CurrencyUnit.of(c))
-            .leftMap { e =>
-              val f = FailureDetails.EnrichmentFailureMessage.InputData(
-                "tr_currency",
-                trCurrency,
-                e.getMessage
-              )
-              FailureDetails.EnrichmentFailure(enrichmentInfo, f)
-            }
+  ]] = {
+    val zdt = collectorTstamp.toGregorianCalendar().toZonedDateTime()
+    val trCu = trCurrency.map { c =>
+      Either
+        .catchNonFatal(CurrencyUnit.of(c))
+        .leftMap { e =>
+          val f = FailureDetails.EnrichmentFailureMessage.InputData(
+            "tr_currency",
+            trCurrency,
+            e.getMessage
+          )
+          FailureDetails.EnrichmentFailure(enrichmentInfo, f)
         }
-        val tiCu = tiCurrency.map { c =>
-          Either
-            .catchNonFatal(CurrencyUnit.of(c))
-            .leftMap { e =>
-              val f = FailureDetails.EnrichmentFailureMessage.InputData(
-                "ti_currency",
-                tiCurrency,
-                e.getMessage
-              )
-              FailureDetails.EnrichmentFailure(enrichmentInfo, f)
-            }
-        }
-        (
-          performConversion(trCu, trTotal, zdt),
-          performConversion(trCu, trTax, zdt),
-          performConversion(trCu, trShipping, zdt),
-          performConversion(tiCu, tiPrice, zdt)
-        ).mapN((newCurrencyTr, newTrTax, newTrShipping, newCurrencyTi) =>
-          (
-            newCurrencyTr.toValidatedNel,
-            newTrTax.toValidatedNel,
-            newTrShipping.toValidatedNel,
-            newCurrencyTi.toValidatedNel
-          ).mapN((_, _, _, _))
-        )
-      // This should never happen
-      case None =>
-        val f = FailureDetails.EnrichmentFailureMessage.InputData(
-          "collector_tstamp",
-          None,
-          "missing"
-        )
-        Monad[F].pure(FailureDetails.EnrichmentFailure(enrichmentInfo, f).invalidNel)
     }
+    val tiCu = tiCurrency.map { c =>
+      Either
+        .catchNonFatal(CurrencyUnit.of(c))
+        .leftMap { e =>
+          val f = FailureDetails.EnrichmentFailureMessage.InputData(
+            "ti_currency",
+            tiCurrency,
+            e.getMessage
+          )
+          FailureDetails.EnrichmentFailure(enrichmentInfo, f)
+        }
+    }
+    (
+      performConversion(trCu, trTotal, zdt),
+      performConversion(trCu, trTax, zdt),
+      performConversion(trCu, trShipping, zdt),
+      performConversion(tiCu, tiPrice, zdt)
+    ).mapN((newCurrencyTr, newTrTax, newTrShipping, newCurrencyTi) =>
+      (
+        newCurrencyTr.toValidatedNel,
+        newTrTax.toValidatedNel,
+        newTrShipping.toValidatedNel,
+        newCurrencyTi.toValidatedNel
+      ).mapN((_, _, _, _))
+    )
+  }
 
   // The original error is either a Throwable or an OER error
   private def mkEnrichmentFailure(error: Either[Throwable, OerResponseError]): FailureDetails.EnrichmentFailure = {

@@ -97,7 +97,7 @@ object CollectorPayloadSpec {
     value <- Gen.identifier
   } yield s"$key: $value"
   val contextGen: Gen[CollectorPayload.Context] = for {
-    timestamp <- localDateGen.map(_.toDateTimeAtStartOfDay(DateTimeZone.UTC)).map(Option.apply)
+    timestamp <- localDateGen.map(_.toDateTimeAtStartOfDay(DateTimeZone.UTC))
     ip <- Gen.option(ipGen)
     userAgent <- Gen.option(Gen.identifier)
     headersN <- Gen.chooseNum(0, 8)

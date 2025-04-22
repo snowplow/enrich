@@ -41,7 +41,7 @@ object RawEvent {
       re.source.name,
       re.source.encoding,
       re.source.hostname,
-      re.context.timestamp,
+      Some(re.context.timestamp),
       re.context.ipAddress,
       re.context.useragent,
       re.context.refererUri,

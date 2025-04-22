@@ -173,7 +173,7 @@ object ThriftLoader extends Loader[Array[Byte]] {
       val source =
         CollectorPayload.Source(collectorPayload.collector, collectorPayload.encoding, hostname)
       val context = CollectorPayload.Context(
-        Some(new DateTime(collectorPayload.timestamp, DateTimeZone.UTC)),
+        new DateTime(collectorPayload.timestamp, DateTimeZone.UTC),
         ip,
         userAgent,
         refererUri,
@@ -224,7 +224,7 @@ object ThriftLoader extends Loader[Array[Byte]] {
     val ip = Option(IpAddressExtractor.extractIpAddress(headers, snowplowRawEvent.ipAddress)) // Required
 
     (querystring.toValidatedNel, networkUserId).mapN { (q, nuid) =>
-      val timestamp = Some(new DateTime(snowplowRawEvent.timestamp, DateTimeZone.UTC))
+      val timestamp = new DateTime(snowplowRawEvent.timestamp, DateTimeZone.UTC)
       val context = CollectorPayload.Context(timestamp, ip, userAgent, refererUri, headers, nuid)
       val source =
         CollectorPayload.Source(snowplowRawEvent.collector, snowplowRawEvent.encoding, hostname)

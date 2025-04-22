@@ -62,7 +62,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
     val source = CollectorPayload.Source("tsv", "UTF-8", None)
     val context =
       CollectorPayload.Context(
-        DateTime.parse("2013-10-07T23:35:30.000Z").some,
+        DateTime.parse("2013-10-07T23:35:30.000Z"),
         "255.255.255.255".some,
         singleEncodedUa.some,
         None,
@@ -572,7 +572,8 @@ object CloudfrontAccessLogAdapterSpec {
           .parseApi(adapter)
           .map { api =>
             val source = CollectorPayload.Source(CollectorName, CollectorEncoding, None)
-            val context = CollectorPayload.Context(None, None, None, None, Nil, None)
+            val collectorTstamp = DateTime.parse("2013-10-07T23:35:30.000Z")
+            val context = CollectorPayload.Context(collectorTstamp, None, None, None, Nil, None)
             CollectorPayload(api, Nil, None, Some(line), source, context).some
           }
           .leftMap(f =>

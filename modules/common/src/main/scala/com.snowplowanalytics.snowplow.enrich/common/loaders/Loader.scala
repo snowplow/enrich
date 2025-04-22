@@ -38,13 +38,6 @@ abstract class Loader[T] {
    */
   def toCollectorPayload(line: T, processor: Processor): ValidatedNel[BadRow.CPFormatViolation, CollectorPayload]
 
-  def toCollectorPayload(
-    line: T,
-    processor: Processor,
-    @annotation.unused tryBase64Decoding: Boolean
-  ): ValidatedNel[BadRow.CPFormatViolation, CollectorPayload] =
-    toCollectorPayload(line, processor)
-
   /**
    * Converts a querystring String into a non-empty list of NameValuePairs.
    * Returns a non-empty list of NameValuePairs on Success, or a Failure String.

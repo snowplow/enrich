@@ -107,7 +107,7 @@ object Processing {
         env.badRowProcessor,
         timestamp,
         Validated.Valid(collectorPayload),
-        EtlPipeline.FeatureFlags(env.validation.acceptInvalid, false),
+        EtlPipeline.FeatureFlags(env.validation.acceptInvalid),
         env.metrics.addInvalid(1),
         env.registryLookup,
         env.validation.atomicFieldsLimits,

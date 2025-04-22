@@ -134,7 +134,7 @@ object Enrich {
   ): F[Result[A]] =
     for {
       bytes <- Sync[F].delay(getPayload(row))
-      payload <- Sync[F].delay(ThriftLoader.toCollectorPayload(bytes, processor, featureFlags.tryBase64Decoding))
+      payload <- Sync[F].delay(ThriftLoader.toCollectorPayload(bytes, processor))
       etlTstamp <- Sync[F].realTime.map(time => new DateTime(time.toMillis))
       collectorTstamp = payload.toOption.flatMap(_.context.timestamp).map(_.getMillis)
       enriched <- EtlPipeline

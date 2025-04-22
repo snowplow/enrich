@@ -444,11 +444,7 @@ object io {
       deriveConfiguredDecoder[Experimental]
   }
 
-  case class FeatureFlags(
-    acceptInvalid: Boolean,
-    legacyEnrichmentOrder: Boolean,
-    tryBase64Decoding: Boolean
-  )
+  case class FeatureFlags(acceptInvalid: Boolean)
 
   object FeatureFlags {
     implicit val featureFlagsDecoder: Decoder[FeatureFlags] =
@@ -456,10 +452,7 @@ object io {
 
     // Currently the FS2 feature flags exactly match the common feature flags, but it might not always be like this.
     def toCommon(ff: FeatureFlags): CommonFeatureFlags =
-      CommonFeatureFlags(
-        acceptInvalid = ff.acceptInvalid,
-        legacyEnrichmentOrder = ff.legacyEnrichmentOrder
-      )
+      CommonFeatureFlags(acceptInvalid = ff.acceptInvalid)
   }
 
   case class GcpUserAgent(productName: String)

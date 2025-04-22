@@ -210,7 +210,7 @@ class EventGenEtlPipelineSpec extends Specification with CatsEffect {
       processor,
       dateTime,
       e.validNel,
-      EtlPipeline.FeatureFlags(acceptInvalid = false, legacyEnrichmentOrder = false),
+      EtlPipeline.FeatureFlags(acceptInvalid = false),
       IO.unit,
       SpecHelpers.registryLookup,
       AtomicFields.from(Map.empty),

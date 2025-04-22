@@ -105,8 +105,6 @@ class ParsedConfigsSpec extends Specification with CatsEffect {
           Some("1.0.0")
         ),
         io.FeatureFlags(
-          false,
-          false,
           false
         ),
         Some(

@@ -55,12 +55,6 @@ object ThriftLoader extends Loader[Array[Byte]] {
     NonEmptyList.of(details)
   }
 
-  override def toCollectorPayload(
-    bytes: Array[Byte],
-    processor: Processor
-  ): ValidatedNel[BadRow.CPFormatViolation, CollectorPayload] =
-    toCollectorPayload(bytes, processor, false)
-
   /**
    * Converts the source string into a [[CollectorPayload]] (always `Some`)
    * Checks the version of the raw event and calls the appropriate method.
@@ -68,34 +62,30 @@ object ThriftLoader extends Loader[Array[Byte]] {
    * should encode the serialized object with `snowplowRawEventBytes.map(_.toChar)`.
    * Reference: http://stackoverflow.com/questions/5250324/
    * @param processor Processing asset
-   * @param tryBase64Decoding Specifies whether the event should tried to be base64 decoded if Thrift serialization
-   * isn't successful in first try
    * @return either a set of validation errors or an Option-boxed CanonicalInput object, wrapped in
    * a ValidatedNel.
    */
   override def toCollectorPayload(
     bytes: Array[Byte],
-    processor: Processor,
-    tryBase64Decoding: Boolean
+    processor: Processor
   ): ValidatedNel[BadRow.CPFormatViolation, CollectorPayload] =
-    toCollectorPayloadImpl(bytes, processor, tryBase64Decoding, 0, bytes.length)
+    toCollectorPayloadImpl(bytes, processor, 0, bytes.length)
 
   def toCollectorPayload(
     buffer: ByteBuffer,
     processor: Processor
   ): ValidatedNel[BadRow.CPFormatViolation, CollectorPayload] =
     if (buffer.hasArray())
-      toCollectorPayloadImpl(buffer.array(), processor, false, buffer.arrayOffset() + buffer.position(), buffer.remaining())
+      toCollectorPayloadImpl(buffer.array(), processor, buffer.arrayOffset() + buffer.position(), buffer.remaining())
     else {
       val bytes = new Array[Byte](buffer.remaining())
       buffer.get(bytes)
-      toCollectorPayloadImpl(bytes, processor, false, 0, bytes.length)
+      toCollectorPayloadImpl(bytes, processor, 0, bytes.length)
     }
 
   private def toCollectorPayloadImpl(
     bytes: Array[Byte],
     processor: Processor,
-    tryBase64Decoding: Boolean,
     offset: Int,
     length: Int
   ): ValidatedNel[BadRow.CPFormatViolation, CollectorPayload] = {
@@ -108,15 +98,15 @@ object ThriftLoader extends Loader[Array[Byte]] {
 
     val collectorPayload =
       try {
-        val (schema, decodedIfNeeded, newOffset, newLength) = extractSchema(bytes, tryBase64Decoding, offset, length)
+        val schema = extractSchema(bytes, offset, length)
         if (schema.isSetSchema) {
           val payload = for {
             schemaKey <- SchemaKey.fromUri(schema.getSchema).leftMap(collectorPayloadViolation)
-            collectorPayload <- if (ExpectedSchema.matches(schemaKey)) convertSchema1(decodedIfNeeded, newOffset, newLength).toEither
+            collectorPayload <- if (ExpectedSchema.matches(schemaKey)) convertSchema1(bytes, offset, length).toEither
                                 else collectorPayloadViolation(schemaKey).asLeft
           } yield collectorPayload
           payload.toValidated
-        } else convertOldSchema(decodedIfNeeded, newOffset, newLength)
+        } else convertOldSchema(bytes, offset, length)
       } catch {
         case NonFatal(e) =>
           FailureDetails.CPFormatViolationMessage
@@ -131,25 +121,13 @@ object ThriftLoader extends Loader[Array[Byte]] {
 
   private def extractSchema(
     bytes: Array[Byte],
-    tryBase64Decoding: Boolean,
     offset: Int,
     length: Int
-  ): (SchemaSniffer, Array[Byte], Int, Int) =
-    try {
-      val schema = new SchemaSniffer()
-      thriftDeserializer.get.deserialize(schema, bytes, offset, length)
-      (schema, bytes, offset, length)
-    } catch {
-      case NonFatal(_) if tryBase64Decoding =>
-        val bytesToDecode =
-          if (offset === 0 && length === bytes.length) bytes
-          else
-            bytes.slice(offset, offset + length)
-        val base64Decoded = Base64.getDecoder.decode(bytesToDecode)
-        val schema = new SchemaSniffer()
-        thriftDeserializer.get.deserialize(schema, base64Decoded)
-        (schema, base64Decoded, 0, base64Decoded.size)
-    }
+  ): SchemaSniffer = {
+    val schema = new SchemaSniffer()
+    thriftDeserializer.get.deserialize(schema, bytes, offset, length)
+    schema
+  }
 
   /**
    * Converts the source string into a ValidatedMaybeCollectorPayload.

@@ -91,8 +91,6 @@ class ConfigFileSpec extends Specification with CatsEffect {
           },
           "featureFlags" : {
             "acceptInvalid": false,
-            "legacyEnrichmentOrder": false,
-            "tryBase64Decoding": false
           },
           "experimental": {
             "metadata": {
@@ -172,8 +170,6 @@ class ConfigFileSpec extends Specification with CatsEffect {
           },
           "featureFlags" : {
             "acceptInvalid": false,
-            "legacyEnrichmentOrder": false,
-            "tryBase64Decoding": false
           },
           "blobStorage": {
             "gcs": true,

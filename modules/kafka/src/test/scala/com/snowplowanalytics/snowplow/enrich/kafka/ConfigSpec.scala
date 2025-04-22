@@ -139,8 +139,6 @@ class ConfigSpec extends Specification with CatsEffect {
           Some("1.0.0")
         ),
         io.FeatureFlags(
-          false,
-          false,
           false
         ),
         Some(
@@ -251,8 +249,6 @@ class ConfigSpec extends Specification with CatsEffect {
           None
         ),
         io.FeatureFlags(
-          false,
-          false,
           false
         ),
         None,

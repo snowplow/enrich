@@ -14,5 +14,5 @@ package com.snowplowanalytics.snowplow.enrich.common
  * See https://github.com/snowplow/enrich/issues/517#issuecomment-1033910690
  */
 object AcceptInvalid {
-  val featureFlags = EtlPipeline.FeatureFlags(acceptInvalid = false, legacyEnrichmentOrder = false)
+  val featureFlags = EtlPipeline.FeatureFlags(acceptInvalid = false)
 }

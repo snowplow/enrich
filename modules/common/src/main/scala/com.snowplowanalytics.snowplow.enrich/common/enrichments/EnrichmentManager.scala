@@ -96,7 +96,6 @@ object EnrichmentManager {
                                  enriched,
                                  extractResult.contexts,
                                  extractResult.unstructEvent,
-                                 featureFlags.legacyEnrichmentOrder,
                                  maxJsonDepth
                                )
                                  .leftMap(NonEmptyList.one)
@@ -215,11 +214,10 @@ object EnrichmentManager {
     enriched: EnrichedEvent,
     inputContexts: List[SelfDescribingData[Json]],
     unstructEvent: Option[SelfDescribingData[Json]],
-    legacyOrder: Boolean,
     maxJsonDepth: Int
   ): OptionIorT[F, NonEmptyList[Failure], List[SelfDescribingData[Json]]] =
     OptionIorT {
-      accState(registry, raw, inputContexts, unstructEvent, legacyOrder, maxJsonDepth)
+      accState(registry, raw, inputContexts, unstructEvent, maxJsonDepth)
         .runS(Accumulation.Enriched(enriched, Nil, Nil))
         .map {
           case Accumulation.Enriched(_, failures, contexts) =>
@@ -324,7 +322,6 @@ object EnrichmentManager {
     raw: RawEvent,
     inputContexts: List[SelfDescribingData[Json]],
     unstructEvent: Option[SelfDescribingData[Json]],
-    legacyOrder: Boolean,
     maxJsonDepth: Int
   ): EStateT[F, Unit] = {
     val getCookieContexts = headerContexts[F, CookieExtractorEnrichment](
@@ -340,66 +337,35 @@ object EnrichmentManager {
     val sqlContexts = getSqlQueryContexts[F](inputContexts, unstructEvent, registry.sqlQuery)
     val apiContexts = getApiRequestContexts[F](inputContexts, unstructEvent, registry.apiRequest)
 
-    if (legacyOrder)
-      for {
-        // format: off
-        _       <- getCollectorVersionSet[F]                                          // The load fails if the collector version is not set
-        pageUri <- getPageUri[F](raw.context.refererUri)                              // Potentially update the page_url and set the page URL components
-        _       <- getDerivedTstamp[F]                                                // Calculate the derived timestamp
-        _       <- getIabContext[F](registry.iab)                                     // Fetch IAB enrichment context (before anonymizing the IP address)
-        _       <- getUaUtils[F](registry.userAgentUtils)                             // Parse the useragent using user-agent-utils
-        _       <- getUaParser[F](registry.uaParser)                                  // Create the ua_parser_context
-        _       <- getRefererUri[F](registry.refererParser)                           // Potentially set the referrer details and URL components
-        qsMap   <- extractQueryString[F](pageUri, raw.source.encoding)                // Parse the page URI's querystring
-        _       <- setCampaign[F](qsMap, registry.campaignAttribution)                // Marketing attribution
-        _       <- getCrossDomain[F](qsMap, registry.crossNavigation)                 // Cross-domain tracking
-        _       <- setEventFingerprint[F](raw.parameters, registry.eventFingerprint)  // This enrichment cannot fail
-        _       <- getCookieContexts                                                  // Execute cookie extractor enrichment
-        _       <- getHttpHeaderContexts                                              // Execute header extractor enrichment
-        _       <- getYauaaContext[F](registry.yauaa, raw.context.headers)            // Runs YAUAA enrichment (gets info thanks to user agent)
-        _       <- extractSchemaFields[F](unstructEvent)                              // Extract the event vendor/name/format/version
-        _       <- registry.javascriptScript.traverse(                                // Execute the JavaScript scripting enrichment
-                     getJsScript[F](_, raw.context.headers, maxJsonDepth)
-                   )
-        _       <- getCurrency[F](raw.context.timestamp, registry.currencyConversion) // Finalize the currency conversion
-        _       <- getWeatherContext[F](registry.weather)                             // Fetch weather context
-        _       <- geoLocation[F](registry.ipLookups)                                 // Execute IP lookup enrichment
-        _       <- sqlContexts                                                        // Derive some contexts with custom SQL Query enrichment
-        _       <- apiContexts                                                        // Derive some contexts with custom API Request enrichment
-        _       <- anonIp[F](registry.anonIp)                                         // Anonymize the IP
-        _       <- piiTransform[F](registry.piiPseudonymizer, raw.context.headers)    // Run PII pseudonymization
-        // format: on
-      } yield ()
-    else
-      for {
-        // format: off
-        _       <- getCollectorVersionSet[F]                                          // The load fails if the collector version is not set
-        pageUri <- getPageUri[F](raw.context.refererUri)                              // Potentially update the page_url and set the page URL components
-        _       <- getDerivedTstamp[F]                                                // Calculate the derived timestamp
-        _       <- getIabContext[F](registry.iab)                                     // Fetch IAB enrichment context (before anonymizing the IP address)
-        _       <- getUaUtils[F](registry.userAgentUtils)                             // Parse the useragent using user-agent-utils
-        _       <- getUaParser[F](registry.uaParser)                                  // Create the ua_parser_context
-        _       <- getCurrency[F](raw.context.timestamp, registry.currencyConversion) // Finalize the currency conversion
-        _       <- getRefererUri[F](registry.refererParser)                           // Potentially set the referrer details and URL components
-        qsMap   <- extractQueryString[F](pageUri, raw.source.encoding)                // Parse the page URI's querystring
-        _       <- setCampaign[F](qsMap, registry.campaignAttribution)                // Marketing attribution
-        _       <- getCrossDomain[F](qsMap, registry.crossNavigation)                 // Cross-domain tracking
-        _       <- setEventFingerprint[F](raw.parameters, registry.eventFingerprint)  // This enrichment cannot fail
-        _       <- getCookieContexts                                                  // Execute cookie extractor enrichment
-        _       <- getHttpHeaderContexts                                              // Execute header extractor enrichment
-        _       <- getWeatherContext[F](registry.weather)                             // Fetch weather context
-        _       <- getYauaaContext[F](registry.yauaa, raw.context.headers)            // Runs YAUAA enrichment (gets info thanks to user agent)
-        _       <- extractSchemaFields[F](unstructEvent)                              // Extract the event vendor/name/format/version
-        _       <- geoLocation[F](registry.ipLookups)                                 // Execute IP lookup enrichment
-        _       <- registry.javascriptScript.traverse(                                // Execute the JavaScript scripting enrichment
-                     getJsScript[F](_, raw.context.headers, maxJsonDepth)
-                   )
-        _       <- sqlContexts                                                        // Derive some contexts with custom SQL Query enrichment
-        _       <- apiContexts                                                        // Derive some contexts with custom API Request enrichment
-        _       <- anonIp[F](registry.anonIp)                                         // Anonymize the IP
-        _       <- piiTransform[F](registry.piiPseudonymizer, raw.context.headers)    // Run PII pseudonymization
-        // format: on
-      } yield ()
+    for {
+      // format: off
+      _       <- getCollectorVersionSet[F]                                          // The load fails if the collector version is not set
+      pageUri <- getPageUri[F](raw.context.refererUri)                              // Potentially update the page_url and set the page URL components
+      _       <- getDerivedTstamp[F]                                                // Calculate the derived timestamp
+      _       <- getIabContext[F](registry.iab)                                     // Fetch IAB enrichment context (before anonymizing the IP address)
+      _       <- getUaUtils[F](registry.userAgentUtils)                             // Parse the useragent using user-agent-utils
+      _       <- getUaParser[F](registry.uaParser)                                  // Create the ua_parser_context
+      _       <- getCurrency[F](raw.context.timestamp, registry.currencyConversion) // Finalize the currency conversion
+      _       <- getRefererUri[F](registry.refererParser)                           // Potentially set the referrer details and URL components
+      qsMap   <- extractQueryString[F](pageUri, raw.source.encoding)                // Parse the page URI's querystring
+      _       <- setCampaign[F](qsMap, registry.campaignAttribution)                // Marketing attribution
+      _       <- getCrossDomain[F](qsMap, registry.crossNavigation)                 // Cross-domain tracking
+      _       <- setEventFingerprint[F](raw.parameters, registry.eventFingerprint)  // This enrichment cannot fail
+      _       <- getCookieContexts                                                  // Execute cookie extractor enrichment
+      _       <- getHttpHeaderContexts                                              // Execute header extractor enrichment
+      _       <- getWeatherContext[F](registry.weather)                             // Fetch weather context
+      _       <- getYauaaContext[F](registry.yauaa, raw.context.headers)            // Runs YAUAA enrichment (gets info thanks to user agent)
+      _       <- extractSchemaFields[F](unstructEvent)                              // Extract the event vendor/name/format/version
+      _       <- geoLocation[F](registry.ipLookups)                                 // Execute IP lookup enrichment
+      _       <- registry.javascriptScript.traverse(                                // Execute the JavaScript scripting enrichment
+                   getJsScript[F](_, raw.context.headers, maxJsonDepth)
+                 )
+      _       <- sqlContexts                                                        // Derive some contexts with custom SQL Query enrichment
+      _       <- apiContexts                                                        // Derive some contexts with custom API Request enrichment
+      _       <- anonIp[F](registry.anonIp)                                         // Anonymize the IP
+      _       <- piiTransform[F](registry.piiPseudonymizer, raw.context.headers)    // Run PII pseudonymization
+      // format: on
+    } yield ()
 
   }
 

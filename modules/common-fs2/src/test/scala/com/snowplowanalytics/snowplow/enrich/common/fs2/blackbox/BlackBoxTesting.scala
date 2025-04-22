@@ -165,5 +165,5 @@ object BlackBoxTesting extends Specification with CatsEffect {
       resource <- Resource.eval(registry)
     } yield resource
 
-  private val featureFlags = FeatureFlags(acceptInvalid = false, legacyEnrichmentOrder = false, tryBase64Decoding = false)
+  private val featureFlags = FeatureFlags(acceptInvalid = false)
 }

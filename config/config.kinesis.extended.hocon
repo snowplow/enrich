@@ -393,15 +393,6 @@
     # More details: https://github.com/snowplow/enrich/issues/517#issuecomment-1033910690
     "acceptInvalid": false
 
-    # In early versions of enrich-kinesis and enrich-pubsub (pre-3.1.4), the Javascript enrichment
-    # incorrectly ran before the currency, weather, and IP Lookups enrichments. Set this flag to true
-    # to keep the erroneous behaviour of those previous versions. This flag will be removed in a
-    # future version.
-    # More details: https://github.com/snowplow/enrich/issues/619
-    "legacyEnrichmentOrder": false
-
-    # Try to base64 decode event if initial Thrift serialization fail
-    "tryBase64Decoding": false
   }
 
   # Optional. Configuration for experimental/preview features

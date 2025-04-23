@@ -11,22 +11,36 @@
 package com.snowplowanalytics.snowplow.enrich.streams.common
 
 import java.util.UUID
+import java.nio.file.{Files => NioFiles, Path => NioPath}
 
 import scala.concurrent.duration.FiniteDuration
+import scala.jdk.CollectionConverters._
+
+import com.typesafe.config.ConfigFactory
 
 import cats.Id
-import cats.syntax.either._
+import cats.data.EitherT
+import cats.implicits._
 
-import io.circe.Decoder
+import cats.effect.kernel.{Async, Sync}
+
+import fs2.io.file.Files
+import fs2.io.file.{Path => Fs2Path}
+
+import io.circe.{Decoder, Json}
 import io.circe.generic.extras.semiauto._
 import io.circe.generic.extras.Configuration
 import io.circe.config.syntax._
+import io.circe.syntax._
 
 import com.comcast.ip4s.Port
 
 import org.http4s.{ParseFailure, Uri}
 
 import com.snowplowanalytics.iglu.client.resolver.Resolver.ResolverConfig
+
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
+import com.snowplowanalytics.iglu.core.circe.implicits._
 
 import com.snowplowanalytics.snowplow.runtime.{AcceptedLicense, Metrics => CommonMetrics, Telemetry}
 import com.snowplowanalytics.snowplow.runtime.HttpClient.{Config => HttpClientConfig}
@@ -35,7 +49,7 @@ import com.snowplowanalytics.snowplow.runtime.HealthProbe.decoders._
 import com.snowplowanalytics.snowplow.enrich.common.adapters._
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
 
-case class Config[+Source, +Sink](
+case class Config[+Source, +Sink, +BlobClients](
   license: AcceptedLicense,
   input: Source,
   output: Config.Output[Sink],
@@ -46,12 +60,17 @@ case class Config[+Source, +Sink](
   validation: Config.Validation,
   telemetry: Telemetry.Config,
   metadata: Option[Config.Metadata],
+  blobClients: BlobClients,
   adaptersSchemas: AdaptersSchemas
 )
 
 object Config {
 
-  case class WithIglu[+Source, +Sink](main: Config[Source, Sink], iglu: ResolverConfig)
+  case class Full[+Source, +Sink, +BlobClients](
+    main: Config[Source, Sink, BlobClients],
+    iglu: ResolverConfig,
+    enrichments: Json
+  )
 
   case class SinkMetadata(
     maxRecordSize: Int,
@@ -112,7 +131,11 @@ object Config {
   implicit val http4sUriDecoder: Decoder[Uri] =
     Decoder[String].emap(s => Either.catchOnly[ParseFailure](Uri.unsafeFromString(s)).leftMap(_.toString))
 
-  implicit def decoder[Source: Decoder, Sink: Decoder: OptionalDecoder]: Decoder[Config[Source, Sink]] = {
+  implicit def decoder[
+    Source: Decoder,
+    Sink: Decoder: OptionalDecoder,
+    BlobClients: Decoder
+  ]: Decoder[Config[Source, Sink, BlobClients]] = {
     implicit val configuration = Configuration.default.withDiscriminator("type")
     implicit val licenseDecoder =
       AcceptedLicense.decoder(AcceptedLicense.DocumentationLink("https://docs.snowplow.io/limited-use-license-1.1/"))
@@ -196,6 +219,38 @@ object Config {
     implicit val adaptersSchemasDecoder: Decoder[AdaptersSchemas] =
       deriveConfiguredDecoder[AdaptersSchemas]
 
-    deriveConfiguredDecoder[Config[Source, Sink]]
+    deriveConfiguredDecoder[Config[Source, Sink, BlobClients]]
   }
+
+  /** Create the JSON that holds all the enrichments configs */
+  def mkEnrichmentsJson[F[_]: Async](dir: NioPath): EitherT[F, String, Json] =
+    for {
+      paths <- Files
+                 .forAsync[F]
+                 .list(Fs2Path.fromNioPath(dir))
+                 .compile
+                 .toList
+                 .attemptT
+                 .leftMap(e => s"Can't list enrichments config files in ${dir.toAbsolutePath.toString}: $e")
+      jsons <- paths.traverse { path =>
+                 readJsonFile(path.toNioPath)
+                   .leftMap(error => s"Problem while parsing config file $path: $error")
+               }
+      enrichmentsJson = SelfDescribingData(
+                          SchemaKey("com.snowplowanalytics.snowplow", "enrichments", "jsonschema", SchemaVer.Full(1, 0, 0)),
+                          Json.arr(jsons: _*)
+                        ).asJson
+    } yield enrichmentsJson
+
+  private def readJsonFile[F[_]: Sync](path: NioPath): EitherT[F, String, Json] =
+    for {
+      str <- EitherT(Sync[F].blocking {
+               Either
+                 .catchNonFatal(NioFiles.readAllLines(path).asScala.mkString("\n"))
+                 .leftMap(e => s"Error reading ${path.toAbsolutePath} file from filesystem: ${e.getMessage}")
+             })
+      config <- EitherT.fromEither[F](Either.catchNonFatal(ConfigFactory.parseString(str)).leftMap(_.getMessage))
+      resolved <- EitherT.fromEither[F](Either.catchNonFatal(config.resolve()).leftMap(_.getMessage))
+      json <- EitherT.fromEither[F](resolved.as[Json].leftMap(_.show))
+    } yield json
 }

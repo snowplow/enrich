@@ -1,0 +1,35 @@
+{
+  "license": {
+    "accept": true
+  }
+
+  "input": {
+    "appName": ${APP_NAME}
+    "streamName": ${STREAM_RAW}
+    "initialPosition": { type: "TRIM_HORIZON" }
+    "customEndpoint": ${LOCALSTACK_ENDPOINT}
+    "dynamodbCustomEndpoint": ${LOCALSTACK_ENDPOINT}
+    "cloudwatchCustomEndpoint": ${LOCALSTACK_ENDPOINT}
+  }
+
+  "output": {
+    "enriched": {
+      "streamName": ${STREAM_ENRICHED}
+      "customEndpoint": ${LOCALSTACK_ENDPOINT}
+    }
+
+    "failed": {
+      "streamName": ${STREAM_FAILED}
+      "customEndpoint": ${LOCALSTACK_ENDPOINT}
+    }
+
+    "bad": {
+      "streamName": ${STREAM_BAD}
+      "customEndpoint": ${LOCALSTACK_ENDPOINT}
+    }
+  }
+
+  "telemetry": {
+    "disable": true
+  }
+}

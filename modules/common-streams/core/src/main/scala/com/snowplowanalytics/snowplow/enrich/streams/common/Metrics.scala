@@ -25,6 +25,7 @@ trait Metrics[F[_]] {
   def addEnriched(count: Int): F[Unit]
   def addFailed(count: Int): F[Unit]
   def addBad(count: Int): F[Unit]
+  def addDropped(count: Int): F[Unit]
   def addInvalid(count: Int): F[Unit]
   def setLatency(latency: FiniteDuration): F[Unit]
   def setE2ELatency(latency: FiniteDuration): F[Unit]
@@ -42,6 +43,7 @@ object Metrics {
     enriched: Int,
     failed: Int,
     bad: Int,
+    dropped: Int,
     invalid: Option[Int], // optional because `validation.acceptInvalid` can be false
     latency: FiniteDuration,
     e2eLatency: Option[FiniteDuration]
@@ -53,6 +55,7 @@ object Metrics {
         KVMetric.CountFailed(failed),
         KVMetric.CountIncomplete(failed),
         KVMetric.CountBad(bad),
+        KVMetric.CountDropped(dropped),
         KVMetric.Latency(latency)
       ) ++ invalid.map(KVMetric.CountInvalid(_)) ++
         e2eLatency.map(KVMetric.E2ELatency(_)) ++
@@ -60,7 +63,7 @@ object Metrics {
   }
 
   private object State {
-    def empty: State = State(0, 0, 0, 0, None, Duration.Zero, None)
+    def empty: State = State(0, 0, 0, 0, 0, None, Duration.Zero, None)
   }
 
   private def impl[F[_]: Async](config: Config.Metrics, ref: Ref[F, State]): Metrics[F] =
@@ -73,6 +76,8 @@ object Metrics {
         ref.update(s => s.copy(failed = s.failed + count))
       def addBad(count: Int): F[Unit] =
         ref.update(s => s.copy(bad = s.bad + count))
+      def addDropped(count: Int): F[Unit] =
+        ref.update(s => s.copy(dropped = s.dropped + count))
       def addInvalid(count: Int): F[Unit] =
         ref.update(s => s.copy(invalid = s.invalid |+| Some(count)))
       def setLatency(latency: FiniteDuration): F[Unit] =
@@ -106,6 +111,12 @@ object Metrics {
 
     final case class CountBad(v: Int) extends CommonMetrics.KVMetric {
       val key = "bad"
+      val value = v.toString
+      val metricType = CommonMetrics.MetricType.Count
+    }
+
+    final case class CountDropped(v: Int) extends CommonMetrics.KVMetric {
+      val key = "dropped"
       val value = v.toString
       val metricType = CommonMetrics.MetricType.Count
     }

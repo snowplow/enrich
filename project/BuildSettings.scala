@@ -50,9 +50,21 @@ object BuildSettings {
     description := "Core library to build Enrich apps with common-streams"
   )
 
+  lazy val cloudUtilsStreamsProjectSettings = projectSettings ++ Seq(
+    name := "snowplow-enrich-cloud-utils",
+    moduleName := "snowplow-enrich-cloud-utils",
+    description := "Cloud utils interfaces"
+  )
+
   lazy val awsUtilsProjectSettings = projectSettings ++ Seq(
     name := "snowplow-enrich-aws-utils",
     moduleName := "snowplow-enrich-aws-utils",
+    description := "AWS specific utils"
+  )
+
+  lazy val awsUtilsStreamsProjectSettings = projectSettings ++ Seq(
+    name := "snowplow-enrich-aws-utils-streams",
+    moduleName := "snowplow-enrich-aws-utils-streams",
     description := "AWS specific utils"
   )
 
@@ -230,9 +242,23 @@ object BuildSettings {
     )
   }
 
+  lazy val cloudUtilsStreamsBuildSettings = {
+    // Project
+    cloudUtilsStreamsProjectSettings ++ buildSettings ++
+    // Tests
+    noParallelTestExecution ++ addExampleConfToTestCp
+  }
+
   lazy val awsUtilsBuildSettings = {
     // Project
     awsUtilsProjectSettings ++ buildSettings ++
+    // Tests
+    noParallelTestExecution ++ addExampleConfToTestCp
+  }
+
+  lazy val awsUtilsStreamsBuildSettings = {
+    // Project
+    awsUtilsStreamsProjectSettings ++ buildSettings ++
     // Tests
     noParallelTestExecution ++ addExampleConfToTestCp
   }

@@ -12,11 +12,16 @@ package com.snowplowanalytics.snowplow.enrich.streams.common
 
 import java.lang.reflect.Field
 
+import scala.concurrent.duration._
+
 import cats.implicits._
 
 import cats.effect.{Async, Resource, Sync}
 
 import org.http4s.client.Client
+
+import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import io.sentry.Sentry
 
@@ -29,10 +34,19 @@ import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.snowplow.sources.SourceAndAck
 import com.snowplowanalytics.snowplow.sinks.Sink
 import com.snowplowanalytics.snowplow.runtime.{AppHealth, AppInfo, HealthProbe}
+import com.snowplowanalytics.snowplow.runtime.HttpClient.{Config => HttpClientConfig}
 
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.ApiRequestConf
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.IpLookupExecutionContext
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.SqlExecutionContext
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient => CommonHttpClient}
+
+import com.snowplowanalytics.snowplow.enrich.cloudutils.core.BlobClient
+import com.snowplowanalytics.snowplow.enrich.cloudutils.core.HttpBlobClient
 
 /**
  * Resources and runtime-derived configuration needed for processing events
@@ -66,11 +80,14 @@ case class Environment[F[_]](
 
 object Environment {
 
-  def fromConfig[F[_]: Async, SourceConfig, SinkConfig](
-    config: Config.WithIglu[SourceConfig, SinkConfig],
+  private implicit def logger[F[_]: Sync] = Slf4jLogger.getLogger[F]
+
+  def fromConfig[F[_]: Async, SourceConfig, SinkConfig, BlobClientsConfig](
+    config: Config.Full[SourceConfig, SinkConfig, BlobClientsConfig],
     appInfo: AppInfo,
     toSource: SourceConfig => F[SourceAndAck[F]],
-    toSink: SinkConfig => Resource[F, Sink[F]]
+    toSink: SinkConfig => Resource[F, Sink[F]],
+    toBlobClients: BlobClientsConfig => List[BlobClient[F]]
   ): Resource[F, Environment[F]] =
     for {
       _ <- enableSentry[F](appInfo, config.main.monitoring.sentry)
@@ -93,13 +110,23 @@ object Environment {
       metrics <- Resource.eval(Metrics.build(config.main.monitoring.metrics))
       cpuParallelism = chooseCpuParallelism(config.main)
       adapterRegistry = new AdapterRegistry(Map.empty, config.main.adaptersSchemas)
-      enrichmentRegistry = EnrichmentRegistry[F]()
       resolver <- mkResolver[F](config.iglu)
       igluClient <- Resource.eval(IgluCirceClient.fromResolver(resolver, config.iglu.cacheSize, config.main.validation.maxJsonDepth))
       httpClient <- HttpClient.resource[F](
                       config.main.http.client
                     )
       registryLookup = Http4sRegistryLookup(httpClient)
+      enrichmentsConfs <- Resource.eval {
+                            EnrichmentRegistry
+                              .parse[F](config.enrichments, igluClient, false, registryLookup)
+                              .map(
+                                _.toEither.valueOr(errors =>
+                                  throw new IllegalArgumentException(s"Can't decode enrichments configs: [${errors.mkString_("], [")}]")
+                                )
+                              )
+                          }
+      blobClients = HttpBlobClient.wrapHttp4sClient(httpClient) :: toBlobClients(config.main.blobClients)
+      enrichmentRegistry <- mkEnrichmentRegistry(enrichmentsConfs, blobClients, config.main.http.client)
       getPartitionKey <- getPartitionKey(config.main.output.enriched.partitionKey)
       getAttributes <- getAttributes(config.main.output.enriched.attributes)
     } yield Environment(
@@ -182,6 +209,41 @@ object Environment {
             Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"[${wrongFields.mkString(", ")}] not valid attributes")))
         }
       }
+
+  def mkEnrichmentRegistry[F[_]: Async](
+    enrichmentsConfs: List[EnrichmentConf],
+    blobClients: List[BlobClient[F]],
+    httpClientConfig: HttpClientConfig
+  ): Resource[F, EnrichmentRegistry[F]] =
+    for {
+      _ <- Resource.eval(Logger[F].info(show"Enabled enrichments: ${enrichmentsConfs.map(_.schemaKey.name).mkString(", ")}"))
+      _ <- Resource.eval(Assets.downloadAll(enrichmentsConfs, blobClients))
+      apiEnrichmentClient <- enrichmentsConfs.collectFirst { case api: ApiRequestConf => api.api.timeout } match {
+                               case Some(timeout) =>
+                                 HttpClient.resource[F](httpClientConfig, timeout.millis).map(CommonHttpClient.fromHttp4sClient[F])
+                               case None =>
+                                 Resource.pure[F, CommonHttpClient[F]](CommonHttpClient.noop[F])
+                             }
+      ipLookupEC <- IpLookupExecutionContext.mk
+      sqlEC <- SqlExecutionContext.mk
+      maybeRegistry <- Resource.eval {
+                         EnrichmentRegistry
+                           .build(
+                             enrichmentsConfs,
+                             apiEnrichmentClient,
+                             ipLookupEC,
+                             sqlEC
+                           )
+                           .value
+                       }
+      registry <- maybeRegistry match {
+                    case Right(r) => Resource.pure[F, EnrichmentRegistry[F]](r)
+                    case Left(error) =>
+                      Resource.raiseError[F, EnrichmentRegistry[F], Throwable](
+                        new IllegalArgumentException(s"Can't build enrichments registry: $error")
+                      )
+                  }
+    } yield registry
 
   /**
    * See the description of `cpuParallelism` on the [[Environment]] class

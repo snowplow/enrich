@@ -175,6 +175,7 @@ object Dependencies {
     val specs2Mock         = "org.specs2"             %% "specs2-mock"                   % V.specs2            % Test
     val specs2CE           = "org.typelevel"          %% "cats-effect-testing-specs2"    % V.specs2CE          % Test
     val specs2CEIt         = "org.typelevel"          %% "cats-effect-testing-specs2"    % V.specs2CE          % IntegrationTest
+    val catsEffectTestkit  = "org.typelevel"          %% "cats-effect-testkit"           % V.catsEffect        % Test
     val specsDiff          = "com.softwaremill.diffx" %% "diffx-specs2"                  % V.specsDiff         % Test
     val eventGen           = "com.snowplowanalytics"  %% "snowplow-event-generator-core" % V.eventGen          % Test
     val parserCombinators  = "org.scala-lang.modules" %% "scala-parser-combinators"      % V.parserCombinators % Test
@@ -314,7 +315,18 @@ object Dependencies {
       igluClientHttp4s,
       runtime,
       sentry7,
-      streams
+      streams,
+      slf4j,
+      // Tests
+      specs2,
+      catsEffectTestkit,
+      http4sDsl,
+      http4sServer
+    )
+
+    val cloudUtilsStreamsDependencies = Seq(
+      fs2,
+      http4sClient
     )
 
     val awsUtilsDependencies = Seq(

@@ -74,6 +74,28 @@ jobs:
           AWS_ACCESS_KEY_ID: foo
           AWS_SECRET_ACCESS_KEY: bar
 
+  it-kinesis-streams:
+    if: ${{ github.event.repository.private == true }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: coursier/cache-action@v6
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
+        with:
+          java-version: 11
+          distribution: 'temurin'
+      - name: Install sbt
+        uses: sbt/setup-sbt@v1
+      - name: Publish asset
+        run: sbt "project kinesisStreamsDistroless; publishLocal"
+      - name: Run integration tests for enrich-kinesis
+        run: sbt "project kinesisStreamsDistroless;it:testOnly *EnrichKinesisSpec"
+        env:
+          AWS_ACCESS_KEY_ID: foo
+          AWS_SECRET_ACCESS_KEY: bar
+          AWS_REGION: eu-central-1
+
   it-drop-events:
     if: ${{ github.event.repository.private == true }}
     runs-on: ubuntu-latest
@@ -94,6 +116,28 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: foo
           AWS_SECRET_ACCESS_KEY: bar
+
+  it-drop-events-streams:
+    if: ${{ github.event.repository.private == true }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: coursier/cache-action@v6
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
+        with:
+          java-version: 11
+          distribution: 'temurin'
+      - name: Install sbt
+        uses: sbt/setup-sbt@v1
+      - name: Publish asset
+        run: sbt "project kinesisStreamsDistroless; publishLocal"
+      - name: Run integration tests for 'drop events' feature
+        run: sbt "project kinesisStreamsDistroless;it:testOnly *DropEventsSpec"
+        env:
+          AWS_ACCESS_KEY_ID: foo
+          AWS_SECRET_ACCESS_KEY: bar
+          AWS_REGION: eu-central-1
 
   it-kafka:
     if: ${{ github.event.repository.private == true }}

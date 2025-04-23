@@ -109,7 +109,7 @@ object Processing {
         env.enrichmentRegistry,
         env.igluClient,
         env.badRowProcessor,
-        new DateTime(etlTstamp),
+        new DateTime(etlTstamp.toEpochMilli),
         Validated.Valid(collectorPayload),
         EtlPipeline.FeatureFlags(env.validation.acceptInvalid),
         env.metrics.addInvalid(1),
@@ -121,30 +121,34 @@ object Processing {
 
     in.parEvalMap(env.cpuParallelism) { parsed =>
       Foldable[List]
-        .foldM(parsed.collectorPayloads, (List.empty[BadRow], List.empty[EnrichedEvent], List.empty[EnrichedEvent])) {
-          case ((lefts, boths, rights), payload) =>
+        .foldM(parsed.collectorPayloads, (List.empty[BadRow], List.empty[EnrichedEvent], List.empty[EnrichedEvent], 0)) {
+          case ((lefts, boths, rights, droppedCount), payload) =>
             enrichPayload(payload, parsed.etlTstamp).map { list =>
-              list.foldLeft((lefts, boths, rights)) {
-                case ((ls, bs, rs), i) =>
+              list.foldLeft((lefts, boths, rights, droppedCount)) {
+                case ((ls, bs, rs, dropped), i) =>
                   i match {
-                    case OptionIor.Left(b) => (b :: ls, bs, rs)
-                    case OptionIor.Right(c) => (ls, bs, c :: rs)
-                    case OptionIor.Both(b, c) => (b :: ls, c :: bs, rs)
-                    case OptionIor.None => (ls, bs, rs)
+                    case OptionIor.Left(b) => (b :: ls, bs, rs, dropped)
+                    case OptionIor.Right(c) => (ls, bs, c :: rs, dropped)
+                    case OptionIor.Both(b, c) => (b :: ls, c :: bs, rs, dropped)
+                    case OptionIor.None => (ls, bs, rs, dropped + 1)
                   }
               }
             }
         }
-        .map {
-          case (bad, failed, enriched) =>
-            Enriched(
-              enriched,
-              failed,
-              ListOfList.ofLists(bad, parsed.bad),
-              parsed.collectorTstamp,
-              parsed.etlTstamp,
-              parsed.token
-            )
+        .flatMap {
+          case (bad, failed, enriched, droppedCount) =>
+            val updateDroppedMetric = if (droppedCount > 0) env.metrics.addDropped(droppedCount) else Sync[F].unit
+            updateDroppedMetric
+              .as(
+                Enriched(
+                  enriched,
+                  failed,
+                  ListOfList.ofLists(bad, parsed.bad),
+                  parsed.collectorTstamp,
+                  parsed.etlTstamp,
+                  parsed.token
+                )
+              )
         }
     }
   }
@@ -231,8 +235,10 @@ object Processing {
     env: Environment[F]
   ): Pipe[F, Serialized, Serialized] =
     _.evalTap {
-      case Serialized(enriched, _, _, _, _) =>
+      case Serialized(enriched, _, _, _, _) if enriched.nonEmpty =>
         env.enrichedSink.sink(ListOfList.ofLists(enriched)) >> env.metrics.addEnriched(enriched.size)
+      case _ =>
+        Sync[F].unit
     }
 
   private def setE2ELatencyMetric[F[_]: Async](
@@ -254,19 +260,23 @@ object Processing {
     env: Environment[F]
   ): Pipe[F, Serialized, Serialized] =
     _.evalTap {
-      case Serialized(_, failed, _, _, _) =>
+      case Serialized(_, failed, _, _, _) if failed.nonEmpty =>
         env.failedSink match {
           case Some(sink) => sink.sink(ListOfList.ofLists(failed)) >> env.metrics.addFailed(failed.size)
           case _ => Sync[F].unit
         }
+      case _ =>
+        Sync[F].unit
     }
 
   private def sinkBad[F[_]: Async](
     env: Environment[F]
   ): Pipe[F, Serialized, Serialized] =
     _.evalTap {
-      case Serialized(_, _, bad, _, _) =>
+      case Serialized(_, _, bad, _, _) if bad.nonEmpty =>
         env.badSink.sink(bad) >> env.metrics.addBad(bad.asIterable.size)
+      case _ =>
+        Sync[F].unit
     }
 
   private def emitToken[F[_]]: Pipe[F, Serialized, Unique.Token] =

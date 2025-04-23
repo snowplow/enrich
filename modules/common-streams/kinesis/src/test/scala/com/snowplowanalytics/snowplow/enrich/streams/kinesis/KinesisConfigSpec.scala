@@ -64,16 +64,16 @@ class KinesisConfigSpec extends Specification with CatsEffect {
       )
     )
 
-  private def assert(resource: String, expectedResult: Either[ExitCode, Config[KinesisSourceConfig, KinesisSinkConfig]]) = {
+  private def assert(resource: String, expectedResult: Either[ExitCode, Config[KinesisSourceConfig, KinesisSinkConfig, EmptyConfig]]) = {
     val path = Paths.get(getClass.getResource(resource).toURI)
-    ConfigParser.configFromFile[IO, Config[KinesisSourceConfig, KinesisSinkConfig]](path).value.map { result =>
+    ConfigParser.configFromFile[IO, Config[KinesisSourceConfig, KinesisSinkConfig, EmptyConfig]](path).value.map { result =>
       result must beEqualTo(expectedResult)
     }
   }
 }
 
 object KinesisConfigSpec {
-  private val minimalConfig = Config[KinesisSourceConfig, KinesisSinkConfig](
+  private val minimalConfig = Config[KinesisSourceConfig, KinesisSinkConfig, EmptyConfig](
     license = AcceptedLicense(),
     input = KinesisSourceConfig(
       appName = "snowplow-enrich",
@@ -142,10 +142,11 @@ object KinesisConfigSpec {
       moduleVersion = None
     ),
     metadata = None,
+    blobClients = EmptyConfig(),
     adaptersSchemas = adaptersSchemas
   )
 
-  private val referenceConfig = Config[KinesisSourceConfig, KinesisSinkConfig](
+  private val referenceConfig = Config[KinesisSourceConfig, KinesisSinkConfig, EmptyConfig](
     license = AcceptedLicense(),
     input = KinesisSourceConfig(
       appName = "snowplow-enrich",
@@ -248,6 +249,7 @@ object KinesisConfigSpec {
         maxBodySize = 150000
       )
     ),
+    blobClients = EmptyConfig(),
     adaptersSchemas = adaptersSchemas
   )
 }

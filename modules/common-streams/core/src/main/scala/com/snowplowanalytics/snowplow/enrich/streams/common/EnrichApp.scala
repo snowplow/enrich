@@ -27,7 +27,9 @@ import com.snowplowanalytics.snowplow.sources.SourceAndAck
 import com.snowplowanalytics.snowplow.sinks.Sink
 import com.snowplowanalytics.snowplow.runtime.AppInfo
 
-abstract class EnrichApp[SourceConfig: Decoder, SinkConfig: Decoder: OptionalDecoder](
+import com.snowplowanalytics.snowplow.enrich.cloudutils.core.BlobClient
+
+abstract class EnrichApp[SourceConfig: Decoder, SinkConfig: Decoder: OptionalDecoder, BlobClientsConfig: Decoder](
   info: AppInfo
 ) extends CommandIOApp(name = EnrichApp.helpCommand(info), header = info.dockerAlias, version = info.version) {
 
@@ -41,11 +43,13 @@ abstract class EnrichApp[SourceConfig: Decoder, SinkConfig: Decoder: OptionalDec
 
   type SinkProvider = SinkConfig => Resource[IO, Sink[IO]]
   type SourceProvider = SourceConfig => IO[SourceAndAck[IO]]
+  type BlobClientsProvider = BlobClientsConfig => List[BlobClient[IO]]
 
-  def source: SourceProvider
-  def sink: SinkProvider
+  def toSource: SourceProvider
+  def toSink: SinkProvider
+  def toBlobClients: BlobClientsProvider
 
-  final def main: Opts[IO[ExitCode]] = Run.fromCli(info, source, sink)
+  final def main: Opts[IO[ExitCode]] = Run.fromCli(info, toSource, toSink, toBlobClients)
 }
 
 object EnrichApp {

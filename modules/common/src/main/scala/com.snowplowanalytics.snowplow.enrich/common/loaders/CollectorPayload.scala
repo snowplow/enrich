@@ -99,7 +99,7 @@ final case class CollectorPayload(
    * Used for tests and debugging
    */
   def toRaw: Array[Byte] =
-    CollectorPayload.serializer.serialize(toThrift)
+    CollectorPayload.serializer.get.serialize(toThrift)
 }
 
 object CollectorPayload {
@@ -182,5 +182,6 @@ object CollectorPayload {
       path.startsWith("/i?")
 
   /** Thrift serializer, used for tests and debugging with `toThrift` */
-  private[loaders] lazy val serializer = new TSerializer()
+  private[loaders] lazy val serializer: ThreadLocal[TSerializer] =
+    ThreadLocal.withInitial(() => new TSerializer)
 }

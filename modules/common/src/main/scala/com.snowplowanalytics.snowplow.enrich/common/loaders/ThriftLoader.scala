@@ -23,7 +23,8 @@ import cats.implicits._
 
 import org.joda.time.{DateTime, DateTimeZone}
 
-import org.apache.thrift.TDeserializer
+import org.apache.thrift.protocol.TBinaryProtocol
+import org.apache.thrift.transport.TByteBuffer
 
 import com.snowplowanalytics.snowplow.CollectorPayload.thrift.model1.{CollectorPayload => CollectorPayload1}
 import com.snowplowanalytics.snowplow.SchemaSniffer.thrift.model1.SchemaSniffer
@@ -36,8 +37,6 @@ import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, ParseError =
 
 /** Loader for Thrift SnowplowRawEvent objects. */
 object ThriftLoader extends Loader[Array[Byte]] {
-  private val thriftDeserializer: ThreadLocal[TDeserializer] =
-    ThreadLocal.withInitial(() => new TDeserializer)
 
   private[loaders] val ExpectedSchema =
     SchemaCriterion("com.snowplowanalytics.snowplow", "CollectorPayload", "thrift", 1, 0)
@@ -69,44 +68,35 @@ object ThriftLoader extends Loader[Array[Byte]] {
     bytes: Array[Byte],
     processor: Processor
   ): ValidatedNel[BadRow.CPFormatViolation, CollectorPayload] =
-    toCollectorPayloadImpl(bytes, processor, 0, bytes.length)
+    toCollectorPayload(ByteBuffer.wrap(bytes), processor)
 
   def toCollectorPayload(
     buffer: ByteBuffer,
     processor: Processor
-  ): ValidatedNel[BadRow.CPFormatViolation, CollectorPayload] =
-    if (buffer.hasArray())
-      toCollectorPayloadImpl(buffer.array(), processor, buffer.arrayOffset() + buffer.position(), buffer.remaining())
-    else {
-      val bytes = new Array[Byte](buffer.remaining())
-      buffer.get(bytes)
-      toCollectorPayloadImpl(bytes, processor, 0, bytes.length)
-    }
-
-  private def toCollectorPayloadImpl(
-    bytes: Array[Byte],
-    processor: Processor,
-    offset: Int,
-    length: Int
   ): ValidatedNel[BadRow.CPFormatViolation, CollectorPayload] = {
-    def createViolation(message: FailureDetails.CPFormatViolationMessage) =
+    buffer.mark()
+
+    def createViolation(message: FailureDetails.CPFormatViolationMessage) = {
+      buffer.reset()
       BadRow.CPFormatViolation(
         processor,
         Failure.CPFormatViolation(Instant.now(), "thrift", message),
-        Payload.RawPayload(toBase64String(bytes, offset, length))
+        Payload.RawPayload(toBase64String(buffer))
       )
+    }
 
     val collectorPayload =
       try {
-        val schema = extractSchema(bytes, offset, length)
+        val schema = extractSchema(buffer)
+        buffer.reset()
         if (schema.isSetSchema) {
           val payload = for {
             schemaKey <- SchemaKey.fromUri(schema.getSchema).leftMap(collectorPayloadViolation)
-            collectorPayload <- if (ExpectedSchema.matches(schemaKey)) convertSchema1(bytes, offset, length).toEither
+            collectorPayload <- if (ExpectedSchema.matches(schemaKey)) convertSchema1(buffer).toEither
                                 else collectorPayloadViolation(schemaKey).asLeft
           } yield collectorPayload
           payload.toValidated
-        } else convertOldSchema(bytes, offset, length)
+        } else convertOldSchema(buffer)
       } catch {
         case NonFatal(e) =>
           FailureDetails.CPFormatViolationMessage
@@ -120,12 +110,12 @@ object ThriftLoader extends Loader[Array[Byte]] {
   }
 
   private def extractSchema(
-    bytes: Array[Byte],
-    offset: Int,
-    length: Int
+    buffer: ByteBuffer
   ): SchemaSniffer = {
     val schema = new SchemaSniffer()
-    thriftDeserializer.get.deserialize(schema, bytes, offset, length)
+    val transport = new TByteBuffer(buffer)
+    val protocol = new TBinaryProtocol(transport)
+    schema.read(protocol)
     schema
   }
 
@@ -139,12 +129,12 @@ object ThriftLoader extends Loader[Array[Byte]] {
    * a ValidatedNel.
    */
   private def convertSchema1(
-    input: Array[Byte],
-    offset: Int,
-    length: Int
+    input: ByteBuffer
   ): ValidatedNel[FailureDetails.CPFormatViolationMessage, CollectorPayload] = {
     val collectorPayload = new CollectorPayload1
-    thriftDeserializer.get.deserialize(collectorPayload, input, offset, length)
+    val transport = new TByteBuffer(input)
+    val protocol = new TBinaryProtocol(transport)
+    collectorPayload.read(protocol)
 
     val querystring = parseQuerystring(
       Option(collectorPayload.querystring),
@@ -201,12 +191,12 @@ object ThriftLoader extends Loader[Array[Byte]] {
    * a ValidatedNel.
    */
   private def convertOldSchema(
-    input: Array[Byte],
-    offset: Int,
-    length: Int
+    input: ByteBuffer
   ): ValidatedNel[FailureDetails.CPFormatViolationMessage, CollectorPayload] = {
     val snowplowRawEvent = new SnowplowRawEvent()
-    thriftDeserializer.get.deserialize(snowplowRawEvent, input, offset, length)
+    val transport = new TByteBuffer(input)
+    val protocol = new TBinaryProtocol(transport)
+    snowplowRawEvent.read(protocol)
 
     val querystring = parseQuerystring(
       Option(snowplowRawEvent.payload.data),
@@ -239,12 +229,8 @@ object ThriftLoader extends Loader[Array[Byte]] {
       .leftMap(_ => CPFormatViolationMessage.InputData("networkUserId", Some(str), "not valid UUID"))
 
   private def toBase64String(
-    bytes: Array[Byte],
-    offset: Int,
-    length: Int
-  ): String = {
-    val bb = ByteBuffer.wrap(bytes, offset, length)
+    bb: ByteBuffer
+  ): String =
     StandardCharsets.UTF_8.decode(Base64.getEncoder.encode(bb)).toString
-  }
 
 }

@@ -10,6 +10,8 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments
 
+import java.time.Instant
+
 import org.slf4j.LoggerFactory
 
 import cats.Monad
@@ -34,7 +36,8 @@ object AtomicFieldsLengthValidator {
     acceptInvalid: Boolean,
     invalidCount: F[Unit],
     atomicFields: AtomicFields,
-    emitIncomplete: Boolean
+    emitIncomplete: Boolean,
+    etlTstamp: Instant
   ): IorT[F, Failure.SchemaViolation, Unit] =
     IorT {
       atomicFields.value
@@ -43,7 +46,7 @@ object AtomicFieldsLengthValidator {
         case Invalid(errors) if acceptInvalid =>
           handleAcceptableErrors(invalidCount, event, errors) *> Monad[F].pure(Ior.Right(()))
         case Invalid(errors) =>
-          Monad[F].pure(Ior.Both(AtomicFields.errorsToSchemaViolation(errors), ()))
+          Monad[F].pure(Ior.Both(AtomicFields.errorsToSchemaViolation(errors, etlTstamp), ()))
         case Valid(()) =>
           Monad[F].pure(Ior.Right(()))
       }

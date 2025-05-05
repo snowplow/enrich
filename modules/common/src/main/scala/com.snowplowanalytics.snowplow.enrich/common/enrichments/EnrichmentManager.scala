@@ -96,7 +96,8 @@ object EnrichmentManager {
                                  enriched,
                                  extractResult.contexts,
                                  extractResult.unstructEvent,
-                                 maxJsonDepth
+                                 maxJsonDepth,
+                                 Instant.ofEpochMilli(etlTstamp.getMillis)
                                )
                                  .leftMap(NonEmptyList.one)
         validContexts <- validateEnriched(
@@ -107,7 +108,8 @@ object EnrichmentManager {
                            featureFlags.acceptInvalid,
                            invalidCount,
                            atomicFields,
-                           emitIncomplete
+                           emitIncomplete,
+                           Instant.ofEpochMilli(etlTstamp.getMillis)
                          )
                            .leftMap(NonEmptyList.one)
                            .toOptionIorT
@@ -128,7 +130,7 @@ object EnrichmentManager {
                        fe,
                        EnrichedEvent.toPartiallyEnrichedEvent(enrichedEvent),
                        RawEvent.toRawEvent(raw),
-                       Instant.now(),
+                       Instant.ofEpochMilli(etlTstamp.getMillis),
                        processor
                      )
                    }
@@ -151,7 +153,7 @@ object EnrichmentManager {
     fe: NonEmptyList[NonEmptyList[Failure]],
     pe: Payload.PartiallyEnrichedEvent,
     re: Payload.RawEvent,
-    timestamp: Instant,
+    etlTstamp: Instant,
     processor: Processor
   ): BadRow = {
     val firstList = fe.head
@@ -160,14 +162,14 @@ object EnrichmentManager {
         val sv = firstList.tail.collect { case f: Failure.SchemaViolation => f }
         BadRow.SchemaViolations(
           processor,
-          BadRowFailure.SchemaViolations(timestamp, NonEmptyList(h, sv).map(_.schemaViolation)),
+          BadRowFailure.SchemaViolations(etlTstamp, NonEmptyList(h, sv).map(_.schemaViolation)),
           Payload.EnrichmentPayload(pe, re)
         )
       case h: Failure.EnrichmentFailure =>
         val ef = firstList.tail.collect { case f: Failure.EnrichmentFailure => f }
         BadRow.EnrichmentFailures(
           processor,
-          BadRowFailure.EnrichmentFailures(timestamp, NonEmptyList(h, ef).map(_.enrichmentFailure)),
+          BadRowFailure.EnrichmentFailures(etlTstamp, NonEmptyList(h, ef).map(_.enrichmentFailure)),
           Payload.EnrichmentPayload(pe, re)
         )
     }
@@ -197,9 +199,10 @@ object EnrichmentManager {
     for {
       _ <- setupEnrichedEvent[F](raw, enrichedEvent, etlTstamp, processor)
              .leftMap(NonEmptyList.one)
-      extract <- IgluUtils
-                   .extractAndValidateInputJsons(enrichedEvent, client, registryLookup, maxJsonDepth)
-                   .leftMap { l: NonEmptyList[Failure] => l }
+      extract <-
+        IgluUtils
+          .extractAndValidateInputJsons(enrichedEvent, client, registryLookup, maxJsonDepth, Instant.ofEpochMilli(etlTstamp.getMillis))
+          .leftMap { l: NonEmptyList[Failure] => l }
     } yield extract
 
   /**
@@ -214,7 +217,8 @@ object EnrichmentManager {
     enriched: EnrichedEvent,
     inputContexts: List[SelfDescribingData[Json]],
     unstructEvent: Option[SelfDescribingData[Json]],
-    maxJsonDepth: Int
+    maxJsonDepth: Int,
+    etlTstamp: Instant
   ): OptionIorT[F, NonEmptyList[Failure], List[SelfDescribingData[Json]]] =
     OptionIorT {
       accState(registry, raw, inputContexts, unstructEvent, maxJsonDepth)
@@ -224,7 +228,7 @@ object EnrichmentManager {
             failures.toNel match {
               case Some(nel) =>
                 OptionIor.Both(
-                  nel.map(f => Failure.EnrichmentFailure(f)),
+                  nel.map(f => Failure.EnrichmentFailure(f, etlTstamp)),
                   contexts
                 )
               case None =>
@@ -242,12 +246,13 @@ object EnrichmentManager {
     acceptInvalid: Boolean,
     invalidCount: F[Unit],
     atomicFields: AtomicFields,
-    emitIncomplete: Boolean
+    emitIncomplete: Boolean,
+    etlTstamp: Instant
   ): IorT[F, NonEmptyList[Failure], List[SelfDescribingData[Json]]] =
     for {
-      validContexts <- IgluUtils.validateEnrichmentsContexts[F](client, enrichmentsContexts, registryLookup)
+      validContexts <- IgluUtils.validateEnrichmentsContexts[F](client, enrichmentsContexts, registryLookup, etlTstamp)
       _ <- AtomicFieldsLengthValidator
-             .validate[F](enriched, acceptInvalid, invalidCount, atomicFields, emitIncomplete)
+             .validate[F](enriched, acceptInvalid, invalidCount, atomicFields, emitIncomplete, etlTstamp)
              .leftMap { v: Failure => NonEmptyList.one(v) }
     } yield validContexts
 
@@ -395,7 +400,7 @@ object EnrichmentManager {
         val transformed = Transform.transform(raw, e)
 
         (collectorTstamp |+| transformed).void.toIor
-          .leftMap(AtomicFields.errorsToSchemaViolation)
+          .leftMap(errors => AtomicFields.errorsToSchemaViolation(errors, Instant.ofEpochMilli(etlTstamp.getMillis)))
           .putRight(())
       }
     }

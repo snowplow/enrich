@@ -28,12 +28,16 @@ object LoaderSpec {
 
   val loader = new Loader[String] {
     // Make our trait whole
-    override def toCollectorPayload(line: String, processor: Processor): ValidatedNel[BadRow.CPFormatViolation, CollectorPayload] =
+    override def toCollectorPayload(
+      line: String,
+      processor: Processor,
+      etlTstamp: Instant
+    ): ValidatedNel[BadRow.CPFormatViolation, CollectorPayload] =
       BadRow
         .CPFormatViolation(
           processor,
           Failure.CPFormatViolation(
-            Instant.now(),
+            etlTstamp,
             "test",
             FailureDetails.CPFormatViolationMessage.Fallback("FAIL")
           ),

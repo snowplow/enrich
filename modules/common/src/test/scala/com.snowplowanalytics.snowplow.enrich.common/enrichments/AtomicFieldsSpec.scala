@@ -25,6 +25,8 @@ import com.snowplowanalytics.snowplow.enrich.common.utils.AtomicError
 
 import org.specs2.mutable.Specification
 
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
+
 class AtomicFieldsSpec extends Specification {
 
   "errorsToSchemaViolation" should {
@@ -55,7 +57,7 @@ class AtomicFieldsSpec extends Specification {
         error4.field := Json.Null
       )
 
-      val result = AtomicFields.errorsToSchemaViolation(NonEmptyList(error1, List(error2, error3, error4)))
+      val result = AtomicFields.errorsToSchemaViolation(NonEmptyList(error1, List(error2, error3, error4)), SpecHelpers.etlTstamp)
       result.schemaViolation must beEqualTo(schemaViolation)
       result.source must beEqualTo(source)
       result.data must beEqualTo(data)

@@ -35,6 +35,8 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Metadata => M
 
 import Metadata.{Aggregates, EntitiesAndCount, MetadataEvent, MetadataReporter}
 
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
+
 class MetadataSpec extends Specification with CatsEffect {
   case class Report(
     periodStart: Instant,
@@ -177,8 +179,8 @@ class MetadataSpec extends Specification with CatsEffect {
         .mkObservedEvent(
           UUID.randomUUID(),
           UUID.randomUUID(),
-          Instant.now(),
-          Instant.now(),
+          SpecHelpers.etlTstamp,
+          SpecHelpers.etlTstamp,
           MetadataEvent(
             SchemaKey("com.snowplowanalytics.snowplow", "whatever", "jsonschema", SchemaVer.Full(1, 0, 2)),
             None,
@@ -197,8 +199,8 @@ class MetadataSpec extends Specification with CatsEffect {
         .mkObservedEvent(
           UUID.randomUUID(),
           UUID.randomUUID(),
-          Instant.now(),
-          Instant.now(),
+          SpecHelpers.etlTstamp,
+          SpecHelpers.etlTstamp,
           MetadataEvent(
             SchemaKey("com.snowplowanalytics.snowplow", "whatever", "jsonschema", SchemaVer.Full(1, 0, 2)),
             None,

@@ -31,7 +31,7 @@ import com.snowplowanalytics.iglu.core.circe.implicits.schemaKeyCirceJsonEncoder
  * Failure entities will be attached to incomplete events as derived contexts.
  */
 sealed trait Failure {
-  def timestamp: Instant
+  def etlTstamp: Instant
   def toSDJ(processor: Processor): SelfDescribingData[Json]
 }
 
@@ -43,10 +43,10 @@ object Failure {
     schemaViolation: FailureDetails.SchemaViolation,
     source: String,
     data: Json,
-    timestamp: Instant = Instant.now()
+    etlTstamp: Instant
   ) extends Failure {
     def toSDJ(processor: Processor): SelfDescribingData[Json] = {
-      val feJson = fromSchemaViolation(this, timestamp, processor)
+      val feJson = fromSchemaViolation(this, etlTstamp, processor)
       SelfDescribingData(failureSchemaKey, feJson.asJson)
     }
 
@@ -54,10 +54,10 @@ object Failure {
 
   case class EnrichmentFailure(
     enrichmentFailure: FailureDetails.EnrichmentFailure,
-    timestamp: Instant = Instant.now()
+    etlTstamp: Instant
   ) extends Failure {
     def toSDJ(processor: Processor): SelfDescribingData[Json] = {
-      val feJson = fromEnrichmentFailure(this, timestamp, processor)
+      val feJson = fromEnrichmentFailure(this, etlTstamp, processor)
       SelfDescribingData(failureSchemaKey, feJson.asJson)
     }
   }
@@ -78,7 +78,7 @@ object Failure {
 
   def fromEnrichmentFailure(
     ef: EnrichmentFailure,
-    timestamp: Instant,
+    etlTimestamp: Instant,
     processor: Processor
   ): FailureContext = {
     val failureType = s"EnrichmentError: ${ef.enrichmentFailure.enrichment.map(_.identifier).getOrElse("")}"
@@ -120,7 +120,7 @@ object Failure {
       errors = errors,
       schema = schemaKey,
       data = data,
-      timestamp = timestamp,
+      timestamp = etlTimestamp,
       componentName = processor.artifact,
       componentVersion = processor.version
     )
@@ -128,7 +128,7 @@ object Failure {
 
   def fromSchemaViolation(
     v: SchemaViolation,
-    timestamp: Instant,
+    etlTimestamp: Instant,
     processor: Processor
   ): FailureContext = {
     val (failureType, errors, schema, data) = v.schemaViolation match {
@@ -192,7 +192,7 @@ object Failure {
       errors = errors,
       schema = schema,
       data = data,
-      timestamp = timestamp,
+      timestamp = etlTimestamp,
       componentName = processor.artifact,
       componentVersion = processor.version
     )

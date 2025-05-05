@@ -2489,13 +2489,15 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
     val sv = Failure.SchemaViolation(
       schemaViolation = FailureDetails.SchemaViolation.NotJson("testField", "testValue".some, "testError"),
       source = "testSource",
-      data = Json.obj("testKey" := "testValue")
+      data = Json.obj("testKey" := "testValue"),
+      etlTstamp = etlTstamp
     )
     val ef = Failure.EnrichmentFailure(
       FailureDetails.EnrichmentFailure(
         None,
         FailureDetails.EnrichmentFailureMessage.Simple("testError")
-      )
+      ),
+      etlTstamp
     )
     val emailSentSDJ = SelfDescribingData.parse[Json](jparse(emailSent).toOption.get).toOption.get
     "set derived contexts correctly if enrichment result is OptionIor.Left" >> {

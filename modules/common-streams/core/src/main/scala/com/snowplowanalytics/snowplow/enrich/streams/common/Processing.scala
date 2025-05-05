@@ -56,6 +56,7 @@ object Processing {
     collectorPayloads: List[CollectorPayload],
     bad: List[BadRow],
     collectorTstamp: Option[DateTime],
+    etlTstamp: Instant,
     token: Unique.Token
   )
 
@@ -64,6 +65,7 @@ object Processing {
     failed: List[EnrichedEvent],
     bad: ListOfList[BadRow],
     collectorTstamp: Option[DateTime],
+    etlTstamp: Instant,
     token: Unique.Token
   )
 
@@ -80,9 +82,10 @@ object Processing {
   ): Pipe[F, TokenedEvents, Parsed] =
     _.parEvalMap(env.cpuParallelism) { input =>
       for {
+        etlTstamp <- Sync[F].realTimeInstant
         (bad, collectorPayloads) <- Foldable[Chunk].traverseSeparateUnordered(input.events) { buffer =>
                                       Sync[F].delay {
-                                        ThriftLoader.toCollectorPayload(buffer, env.badRowProcessor).toEither
+                                        ThriftLoader.toCollectorPayload(buffer, env.badRowProcessor, etlTstamp).toEither
                                       }
                                     }
         cpFormatViolations = bad.flatMap(_.toList)
@@ -92,6 +95,7 @@ object Processing {
         collectorPayloads,
         cpFormatViolations,
         collectorTstamp,
+        etlTstamp,
         input.ack
       )
     }
@@ -99,13 +103,13 @@ object Processing {
   private def enrich[F[_]: Async](
     env: Environment[F]
   ): Pipe[F, Parsed, Enriched] = { in =>
-    def enrichPayload(collectorPayload: CollectorPayload, timestamp: DateTime): F[List[OptionIor[BadRow, EnrichedEvent]]] =
+    def enrichPayload(collectorPayload: CollectorPayload, etlTstamp: Instant): F[List[OptionIor[BadRow, EnrichedEvent]]] =
       EtlPipeline.processEvents[F](
         env.adapterRegistry,
         env.enrichmentRegistry,
         env.igluClient,
         env.badRowProcessor,
-        timestamp,
+        new DateTime(etlTstamp),
         Validated.Valid(collectorPayload),
         EtlPipeline.FeatureFlags(env.validation.acceptInvalid),
         env.metrics.addInvalid(1),
@@ -116,30 +120,32 @@ object Processing {
       )
 
     in.parEvalMap(env.cpuParallelism) { parsed =>
-      for {
-        etlTstamp <- Sync[F].realTime.map(time => new DateTime(time.toMillis))
-        (bad, failed, enriched) <-
-          Foldable[List].foldM(parsed.collectorPayloads, (List.empty[BadRow], List.empty[EnrichedEvent], List.empty[EnrichedEvent])) {
-            case ((lefts, boths, rights), payload) =>
-              enrichPayload(payload, etlTstamp).map { list =>
-                list.foldLeft((lefts, boths, rights)) {
-                  case ((ls, bs, rs), i) =>
-                    i match {
-                      case OptionIor.Left(b) => (b :: ls, bs, rs)
-                      case OptionIor.Right(c) => (ls, bs, c :: rs)
-                      case OptionIor.Both(b, c) => (b :: ls, c :: bs, rs)
-                      case OptionIor.None => (ls, bs, rs)
-                    }
-                }
+      Foldable[List]
+        .foldM(parsed.collectorPayloads, (List.empty[BadRow], List.empty[EnrichedEvent], List.empty[EnrichedEvent])) {
+          case ((lefts, boths, rights), payload) =>
+            enrichPayload(payload, parsed.etlTstamp).map { list =>
+              list.foldLeft((lefts, boths, rights)) {
+                case ((ls, bs, rs), i) =>
+                  i match {
+                    case OptionIor.Left(b) => (b :: ls, bs, rs)
+                    case OptionIor.Right(c) => (ls, bs, c :: rs)
+                    case OptionIor.Both(b, c) => (b :: ls, c :: bs, rs)
+                    case OptionIor.None => (ls, bs, rs)
+                  }
               }
-          }
-      } yield Enriched(
-        enriched,
-        failed,
-        ListOfList.ofLists(bad, parsed.bad),
-        parsed.collectorTstamp,
-        parsed.token
-      )
+            }
+        }
+        .map {
+          case (bad, failed, enriched) =>
+            Enriched(
+              enriched,
+              failed,
+              ListOfList.ofLists(bad, parsed.bad),
+              parsed.collectorTstamp,
+              parsed.etlTstamp,
+              parsed.token
+            )
+        }
     }
   }
 
@@ -150,7 +156,7 @@ object Processing {
       Sync[F].delay {
         val (sizeViolations, good) = enriched.enriched.foldLeft((List.empty[Sinkable], List.empty[Sinkable])) {
           case ((ls, rs), e) =>
-            serializeEnriched(e, env.getPartitionKey, env.getAttributes, env.sinkMaxSize, env.badRowProcessor) match {
+            serializeEnriched(e, env.getPartitionKey, env.getAttributes, env.sinkMaxSize, env.badRowProcessor, enriched.etlTstamp) match {
               case Left(sv) => (sv :: ls, rs)
               case Right(e) => (ls, e :: rs)
             }
@@ -159,7 +165,7 @@ object Processing {
           serializeFailed(failed, env.getPartitionKey, env.getAttributes, env.sinkMaxSize)
         }.flatten
         val bad = enriched.bad.mapUnordered { br =>
-          serializeBad(br, env.sinkMaxSize, env.badRowProcessor)
+          serializeBad(br, env.sinkMaxSize, env.badRowProcessor, enriched.etlTstamp)
         }
         Serialized(
           good,
@@ -177,14 +183,15 @@ object Processing {
     getPartitionKey: EnrichedEvent => Option[String],
     getAttributes: EnrichedEvent => Map[String, String],
     maxRecordSize: Int,
-    processor: BadRowProcessor
+    processor: BadRowProcessor,
+    etlTstamp: Instant
   ): Either[Sinkable, Sinkable] = {
     val tsv = ConversionUtils.tabSeparatedEnrichedEvent(enriched)
     val bytes = tsv.getBytes(UTF_8)
     val size = bytes.length
     if (size > maxRecordSize) {
       val error = s"Enriched event exceeds the maximum allowed size of $maxRecordSize bytes"
-      val sv = mkSizeViolation(tsv, maxRecordSize, processor, error)
+      val sv = mkSizeViolation(tsv, maxRecordSize, processor, error, etlTstamp)
       Left(sv)
     } else
       Right(Sinkable(bytes, getPartitionKey(enriched), getAttributes(enriched)))
@@ -207,14 +214,15 @@ object Processing {
   private def serializeBad(
     badRow: BadRow,
     maxRecordSize: Int,
-    processor: BadRowProcessor
+    processor: BadRowProcessor,
+    etlTstamp: Instant
   ): Sinkable = {
     val asStr = badRow.compact
     val bytes = asStr.getBytes(UTF_8)
     val size = bytes.size
     if (size > maxRecordSize) {
       val error = s"Event failed enrichment and resulting bad row exceeds the maximum allowed size of $maxRecordSize bytes"
-      mkSizeViolation(asStr, maxRecordSize, processor, error)
+      mkSizeViolation(asStr, maxRecordSize, processor, error, etlTstamp)
     } else
       Sinkable(bytes, None, Map.empty)
   }
@@ -268,12 +276,13 @@ object Processing {
     payload: String,
     maxRecordSize: Int,
     processor: BadRowProcessor,
-    error: String
+    error: String,
+    etlTstamp: Instant
   ): Sinkable = {
     val bytes = BadRow
       .SizeViolation(
         processor,
-        BadRowFailure.SizeViolation(Instant.now(), maxRecordSize, payload.length, error),
+        BadRowFailure.SizeViolation(etlTstamp, maxRecordSize, payload.length, error),
         BadRowPayload.RawPayload(payload.take(maxRecordSize * 8 / 10))
       )
       .compact

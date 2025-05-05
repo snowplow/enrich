@@ -10,6 +10,8 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common
 
+import java.time.Instant
+
 import cats.data.{Validated, ValidatedNel}
 import cats.effect.kernel.Sync
 import cats.implicits._
@@ -65,7 +67,7 @@ object EtlPipeline {
     input match {
       case Validated.Valid(payload) =>
         adapterRegistry
-          .toRawEvents(payload, client, processor, registryLookup, maxJsonDepth)
+          .toRawEvents(payload, client, processor, registryLookup, maxJsonDepth, Instant.ofEpochMilli(etlTstamp.getMillis))
           .flatMap {
             case Validated.Valid(rawEvents) =>
               rawEvents.toList.traverse { event =>

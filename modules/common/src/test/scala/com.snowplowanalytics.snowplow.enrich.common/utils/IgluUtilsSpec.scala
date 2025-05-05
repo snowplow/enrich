@@ -128,7 +128,12 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
   "extractAndValidateUnstructEvent" should {
     "return None if unstruct_event field is empty" >> {
       IgluUtils
-        .extractAndValidateUnstructEvent(new EnrichedEvent, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .extractAndValidateUnstructEvent(new EnrichedEvent,
+                                         SpecHelpers.client,
+                                         SpecHelpers.registryLookup,
+                                         SpecHelpers.DefaultMaxJsonDepth,
+                                         SpecHelpers.etlTstamp
+        )
         .value
         .map {
           case Ior.Right(None) => ok
@@ -141,7 +146,12 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       input.setUnstruct_event(notJson)
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .extractAndValidateUnstructEvent(input,
+                                         SpecHelpers.client,
+                                         SpecHelpers.registryLookup,
+                                         SpecHelpers.DefaultMaxJsonDepth,
+                                         SpecHelpers.etlTstamp
+        )
         .value
         .map {
           case Ior.Both(
@@ -162,7 +172,12 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       input.setUnstruct_event(notIglu)
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .extractAndValidateUnstructEvent(input,
+                                         SpecHelpers.client,
+                                         SpecHelpers.registryLookup,
+                                         SpecHelpers.DefaultMaxJsonDepth,
+                                         SpecHelpers.etlTstamp
+        )
         .value
         .map {
           case Ior.Both(
@@ -180,7 +195,12 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       input.setUnstruct_event(noSchema)
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .extractAndValidateUnstructEvent(input,
+                                         SpecHelpers.client,
+                                         SpecHelpers.registryLookup,
+                                         SpecHelpers.DefaultMaxJsonDepth,
+                                         SpecHelpers.etlTstamp
+        )
         .value
         .map {
           case Ior.Both(
@@ -202,7 +222,12 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       input.setUnstruct_event(ue)
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .extractAndValidateUnstructEvent(input,
+                                         SpecHelpers.client,
+                                         SpecHelpers.registryLookup,
+                                         SpecHelpers.DefaultMaxJsonDepth,
+                                         SpecHelpers.etlTstamp
+        )
         .value
         .map {
           case Ior.Both(NonEmptyList(
@@ -223,7 +248,12 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       input.setUnstruct_event(ue)
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .extractAndValidateUnstructEvent(input,
+                                         SpecHelpers.client,
+                                         SpecHelpers.registryLookup,
+                                         SpecHelpers.DefaultMaxJsonDepth,
+                                         SpecHelpers.etlTstamp
+        )
         .value
         .map {
           case Ior.Both(NonEmptyList(Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError),
@@ -246,7 +276,12 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       input.setUnstruct_event(buildUnstruct(invalidEmailSent))
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .extractAndValidateUnstructEvent(input,
+                                         SpecHelpers.client,
+                                         SpecHelpers.registryLookup,
+                                         SpecHelpers.DefaultMaxJsonDepth,
+                                         SpecHelpers.etlTstamp
+        )
         .value
         .map {
           case Ior.Both(
@@ -267,7 +302,12 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       input.setUnstruct_event(buildUnstruct(noSchema))
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .extractAndValidateUnstructEvent(input,
+                                         SpecHelpers.client,
+                                         SpecHelpers.registryLookup,
+                                         SpecHelpers.DefaultMaxJsonDepth,
+                                         SpecHelpers.etlTstamp
+        )
         .value
         .map {
           case Ior.Both(
@@ -287,7 +327,12 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       input.setUnstruct_event(buildUnstruct(emailSent1))
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .extractAndValidateUnstructEvent(input,
+                                         SpecHelpers.client,
+                                         SpecHelpers.registryLookup,
+                                         SpecHelpers.DefaultMaxJsonDepth,
+                                         SpecHelpers.etlTstamp
+        )
         .value
         .map {
           case Ior.Right(Some(IgluUtils.SdjExtractResult(sdj, None))) if sdj.schema == emailSentSchema => ok
@@ -309,7 +354,12 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       val expectedValidationInfo = IgluUtils.ValidationInfo(supersedingExampleSchema100, supersedingExampleSchema101.version)
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input1, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .extractAndValidateUnstructEvent(input1,
+                                         SpecHelpers.client,
+                                         SpecHelpers.registryLookup,
+                                         SpecHelpers.DefaultMaxJsonDepth,
+                                         SpecHelpers.etlTstamp
+        )
         .value
         .map {
           case Ior.Right(Some(IgluUtils.SdjExtractResult(sdj, Some(`expectedValidationInfo`))))
@@ -324,7 +374,12 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
 
       // input2 wouldn't be validated with 1-0-0. It would be validated with 1-0-1 only.
       IgluUtils
-        .extractAndValidateUnstructEvent(input2, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .extractAndValidateUnstructEvent(input2,
+                                         SpecHelpers.client,
+                                         SpecHelpers.registryLookup,
+                                         SpecHelpers.DefaultMaxJsonDepth,
+                                         SpecHelpers.etlTstamp
+        )
         .value
         .map {
           case Ior.Right(Some(IgluUtils.SdjExtractResult(sdj, Some(`expectedValidationInfo`))))
@@ -345,7 +400,12 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       input.setUnstruct_event(buildUnstruct(deepJson))
 
       IgluUtils
-        .extractAndValidateUnstructEvent(input, igluScalaClient, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .extractAndValidateUnstructEvent(input,
+                                         igluScalaClient,
+                                         SpecHelpers.registryLookup,
+                                         SpecHelpers.DefaultMaxJsonDepth,
+                                         SpecHelpers.etlTstamp
+        )
         .value
         .map {
           case Ior.Both(
@@ -364,7 +424,12 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
   "extractAndValidateInputContexts" should {
     "return Nil if contexts field is empty" >> {
       IgluUtils
-        .extractAndValidateInputContexts(new EnrichedEvent, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .extractAndValidateInputContexts(new EnrichedEvent,
+                                         SpecHelpers.client,
+                                         SpecHelpers.registryLookup,
+                                         SpecHelpers.DefaultMaxJsonDepth,
+                                         SpecHelpers.etlTstamp
+        )
         .value
         .map {
           case Ior.Right(Nil) => ok
@@ -377,7 +442,12 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       input.setContexts(notJson)
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .extractAndValidateInputContexts(input,
+                                         SpecHelpers.client,
+                                         SpecHelpers.registryLookup,
+                                         SpecHelpers.DefaultMaxJsonDepth,
+                                         SpecHelpers.etlTstamp
+        )
         .value
         .map {
           case Ior.Both(
@@ -397,7 +467,12 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       input.setContexts(notIglu)
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .extractAndValidateInputContexts(input,
+                                         SpecHelpers.client,
+                                         SpecHelpers.registryLookup,
+                                         SpecHelpers.DefaultMaxJsonDepth,
+                                         SpecHelpers.etlTstamp
+        )
         .value
         .map {
           case Ior.Both(
@@ -415,7 +490,12 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       input.setContexts(noSchema)
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .extractAndValidateInputContexts(input,
+                                         SpecHelpers.client,
+                                         SpecHelpers.registryLookup,
+                                         SpecHelpers.DefaultMaxJsonDepth,
+                                         SpecHelpers.etlTstamp
+        )
         .value
         .map {
           case Ior.Both(NonEmptyList(
@@ -437,7 +517,12 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       input.setContexts(notArrayContexts)
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .extractAndValidateInputContexts(input,
+                                         SpecHelpers.client,
+                                         SpecHelpers.registryLookup,
+                                         SpecHelpers.DefaultMaxJsonDepth,
+                                         SpecHelpers.etlTstamp
+        )
         .value
         .map {
           case Ior.Both(
@@ -458,7 +543,12 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       input.setContexts(buildInputContexts(List(invalidEmailSent)))
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .extractAndValidateInputContexts(input,
+                                         SpecHelpers.client,
+                                         SpecHelpers.registryLookup,
+                                         SpecHelpers.DefaultMaxJsonDepth,
+                                         SpecHelpers.etlTstamp
+        )
         .value
         .map {
           case Ior.Both(
@@ -479,7 +569,12 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       input.setContexts(buildInputContexts(List(noSchema)))
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .extractAndValidateInputContexts(input,
+                                         SpecHelpers.client,
+                                         SpecHelpers.registryLookup,
+                                         SpecHelpers.DefaultMaxJsonDepth,
+                                         SpecHelpers.etlTstamp
+        )
         .value
         .map {
           case Ior.Both(
@@ -501,7 +596,12 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       input.setContexts(buildInputContexts(List(invalidEmailSent, noSchema)))
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .extractAndValidateInputContexts(input,
+                                         SpecHelpers.client,
+                                         SpecHelpers.registryLookup,
+                                         SpecHelpers.DefaultMaxJsonDepth,
+                                         SpecHelpers.etlTstamp
+        )
         .value
         .map {
           case Ior.Both(NonEmptyList(
@@ -531,7 +631,12 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       input.setContexts(buildInputContexts(List(emailSent1, noSchema)))
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .extractAndValidateInputContexts(input,
+                                         SpecHelpers.client,
+                                         SpecHelpers.registryLookup,
+                                         SpecHelpers.DefaultMaxJsonDepth,
+                                         SpecHelpers.etlTstamp
+        )
         .value
         .map {
           case Ior.Both(NonEmptyList(
@@ -550,7 +655,12 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       input.setContexts(buildInputContexts(List(emailSent1, emailSent2)))
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .extractAndValidateInputContexts(input,
+                                         SpecHelpers.client,
+                                         SpecHelpers.registryLookup,
+                                         SpecHelpers.DefaultMaxJsonDepth,
+                                         SpecHelpers.etlTstamp
+        )
         .value
         .map {
           case Ior.Right(sdjs) if sdjs.size == 2 && sdjs.forall(i => i.sdj.schema == emailSentSchema && i.validationInfo.isEmpty) =>
@@ -565,7 +675,12 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       input.setContexts(buildInputContexts(List(clientSession)))
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .extractAndValidateInputContexts(input,
+                                         SpecHelpers.client,
+                                         SpecHelpers.registryLookup,
+                                         SpecHelpers.DefaultMaxJsonDepth,
+                                         SpecHelpers.etlTstamp
+        )
         .value
         .map {
           case Ior.Right(sdjs) if sdjs.size == 1 && sdjs.forall(_.sdj.schema == clientSessionSchema) =>
@@ -580,7 +695,12 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       input.setContexts(buildInputContexts(List(supersedingExample1, supersedingExample2)))
 
       IgluUtils
-        .extractAndValidateInputContexts(input, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .extractAndValidateInputContexts(input,
+                                         SpecHelpers.client,
+                                         SpecHelpers.registryLookup,
+                                         SpecHelpers.DefaultMaxJsonDepth,
+                                         SpecHelpers.etlTstamp
+        )
         .value
         .map {
           case Ior.Right(sdjs) if sdjs.size == 2 && sdjs.forall(_.sdj.schema == supersedingExampleSchema101) =>
@@ -597,7 +717,12 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       input.setContexts(buildInputContexts(List(deepJson)))
 
       IgluUtils
-        .extractAndValidateInputContexts(input, igluScalaClient, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .extractAndValidateInputContexts(input,
+                                         igluScalaClient,
+                                         SpecHelpers.registryLookup,
+                                         SpecHelpers.DefaultMaxJsonDepth,
+                                         SpecHelpers.etlTstamp
+        )
         .value
         .map {
           case Ior.Both(
@@ -621,7 +746,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       )
 
       IgluUtils
-        .validateEnrichmentsContexts(SpecHelpers.client, contexts, SpecHelpers.registryLookup)
+        .validateEnrichmentsContexts(SpecHelpers.client, contexts, SpecHelpers.registryLookup, SpecHelpers.etlTstamp)
         .value
         .map {
           case Ior.Both(
@@ -648,7 +773,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       )
 
       IgluUtils
-        .validateEnrichmentsContexts(SpecHelpers.client, contexts, SpecHelpers.registryLookup)
+        .validateEnrichmentsContexts(SpecHelpers.client, contexts, SpecHelpers.registryLookup, SpecHelpers.etlTstamp)
         .value
         .map {
           case Ior.Both(NonEmptyList(
@@ -680,7 +805,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       )
 
       IgluUtils
-        .validateEnrichmentsContexts(SpecHelpers.client, contexts, SpecHelpers.registryLookup)
+        .validateEnrichmentsContexts(SpecHelpers.client, contexts, SpecHelpers.registryLookup, SpecHelpers.etlTstamp)
         .value
         .map {
           case Ior.Both(NonEmptyList(
@@ -705,7 +830,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       )
 
       IgluUtils
-        .validateEnrichmentsContexts(SpecHelpers.client, contexts, SpecHelpers.registryLookup)
+        .validateEnrichmentsContexts(SpecHelpers.client, contexts, SpecHelpers.registryLookup, SpecHelpers.etlTstamp)
         .value
         .map {
           case Ior.Right(List(sdj1, sdj2)) if sdj1.schema == emailSentSchema && sdj2.schema == emailSentSchema => ok
@@ -724,7 +849,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
           input,
           SpecHelpers.client,
           SpecHelpers.registryLookup,
-          SpecHelpers.DefaultMaxJsonDepth
+          SpecHelpers.DefaultMaxJsonDepth,
+          SpecHelpers.etlTstamp
         )
         .value
         .map {
@@ -749,7 +875,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
           input,
           SpecHelpers.client,
           SpecHelpers.registryLookup,
-          SpecHelpers.DefaultMaxJsonDepth
+          SpecHelpers.DefaultMaxJsonDepth,
+          SpecHelpers.etlTstamp
         )
         .value
         .map {
@@ -775,7 +902,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
           input,
           SpecHelpers.client,
           SpecHelpers.registryLookup,
-          SpecHelpers.DefaultMaxJsonDepth
+          SpecHelpers.DefaultMaxJsonDepth,
+          SpecHelpers.etlTstamp
         )
         .value
         .map {
@@ -801,7 +929,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
           input,
           SpecHelpers.client,
           SpecHelpers.registryLookup,
-          SpecHelpers.DefaultMaxJsonDepth
+          SpecHelpers.DefaultMaxJsonDepth,
+          SpecHelpers.etlTstamp
         )
         .value
         .map {
@@ -828,7 +957,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
           input,
           SpecHelpers.client,
           SpecHelpers.registryLookup,
-          SpecHelpers.DefaultMaxJsonDepth
+          SpecHelpers.DefaultMaxJsonDepth,
+          SpecHelpers.etlTstamp
         )
         .value
         .map {
@@ -861,7 +991,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
           input,
           SpecHelpers.client,
           SpecHelpers.registryLookup,
-          SpecHelpers.DefaultMaxJsonDepth
+          SpecHelpers.DefaultMaxJsonDepth,
+          SpecHelpers.etlTstamp
         )
         .value
         .map {
@@ -899,7 +1030,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
           input,
           SpecHelpers.client,
           SpecHelpers.registryLookup,
-          SpecHelpers.DefaultMaxJsonDepth
+          SpecHelpers.DefaultMaxJsonDepth,
+          SpecHelpers.etlTstamp
         )
         .value
         .map {

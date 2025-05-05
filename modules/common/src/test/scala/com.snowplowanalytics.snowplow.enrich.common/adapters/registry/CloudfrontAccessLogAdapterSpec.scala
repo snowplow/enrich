@@ -108,7 +108,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
           |}""".stripMargin.replaceAll("[\n\r]", "")
 
     loader
-      .toCollectorPayload(input, processor)
+      .toCollectorPayload(input, processor, etlTstamp)
       .traverse(
         _.traverse(
           adapterWithDefaultSchemas.toRawEvents(_, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
@@ -162,7 +162,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
           |}""".stripMargin.replaceAll("[\n\r]", "")
 
     loader
-      .toCollectorPayload(input, processor)
+      .toCollectorPayload(input, processor, etlTstamp)
       .traverse(
         _.traverse(
           adapterWithDefaultSchemas.toRawEvents(_, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
@@ -219,7 +219,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
           |}""".stripMargin.replaceAll("[\n\r]", "")
 
     loader
-      .toCollectorPayload(input, processor)
+      .toCollectorPayload(input, processor, etlTstamp)
       .traverse(
         _.traverse(
           adapterWithDefaultSchemas.toRawEvents(_, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
@@ -277,7 +277,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
           |}""".stripMargin.replaceAll("[\n\r]", "")
 
     loader
-      .toCollectorPayload(input, processor)
+      .toCollectorPayload(input, processor, etlTstamp)
       .traverse(
         _.traverse(
           adapterWithDefaultSchemas.toRawEvents(_, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
@@ -339,7 +339,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
           |}""".stripMargin.replaceAll("[\n\r]", "")
 
     loader
-      .toCollectorPayload(input, processor)
+      .toCollectorPayload(input, processor, etlTstamp)
       .traverse(
         _.traverse(
           adapterWithDefaultSchemas.toRawEvents(_, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
@@ -402,7 +402,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
           |}""".stripMargin.replaceAll("[\n\r]", "")
 
     loader
-      .toCollectorPayload(input, processor)
+      .toCollectorPayload(input, processor, etlTstamp)
       .traverse(
         _.traverse(
           adapterWithDefaultSchemas.toRawEvents(_, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
@@ -467,7 +467,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
           |}""".stripMargin.replaceAll("[\n\r]", "")
 
     loader
-      .toCollectorPayload(input, processor)
+      .toCollectorPayload(input, processor, etlTstamp)
       .traverse(
         _.traverse(
           adapterWithDefaultSchemas.toRawEvents(_, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
@@ -563,7 +563,11 @@ object CloudfrontAccessLogAdapterSpec {
      * @return either a set of validation errors or an Option-boxed CanonicalInput object, wrapped in
      *         a ValidatedNel.
      */
-    def toCollectorPayload(line: String, processor: Processor): ValidatedNel[BadRow.CPFormatViolation, Option[CollectorPayload]] =
+    def toCollectorPayload(
+      line: String,
+      processor: Processor,
+      etlTstamp: Instant
+    ): ValidatedNel[BadRow.CPFormatViolation, Option[CollectorPayload]] =
       // Throw away the first two lines of Cloudfront web distribution access logs
       if (line.startsWith("#Version:") || line.startsWith("#Fields:"))
         None.valid
@@ -579,7 +583,7 @@ object CloudfrontAccessLogAdapterSpec {
           .leftMap(f =>
             BadRow.CPFormatViolation(
               processor,
-              Failure.CPFormatViolation(Instant.now(), CollectorName, f),
+              Failure.CPFormatViolation(etlTstamp, CollectorName, f),
               BadrowPayload.RawPayload(line)
             )
           )

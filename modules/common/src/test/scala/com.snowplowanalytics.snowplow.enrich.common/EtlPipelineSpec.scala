@@ -85,7 +85,7 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
       client <- igluClient
       thriftBytesMalformedQS = EtlPipelineSpec.buildThriftBytesMalformedQS()
       collectorPayload = ThriftLoader
-                           .toCollectorPayload(thriftBytesMalformedQS, processor)
+                           .toCollectorPayload(thriftBytesMalformedQS, processor, etlTstamp)
                            .toOption
                            .get
       output <- EtlPipeline
@@ -111,7 +111,7 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
   def e3 =
     for {
       client <- igluClient
-      invalidCollectorPayload = ThriftLoader.toCollectorPayload(Array(1.toByte), processor)
+      invalidCollectorPayload = ThriftLoader.toCollectorPayload(Array(1.toByte), processor, etlTstamp)
       output <- EtlPipeline
                   .processEvents[IO](
                     adapterRegistry,

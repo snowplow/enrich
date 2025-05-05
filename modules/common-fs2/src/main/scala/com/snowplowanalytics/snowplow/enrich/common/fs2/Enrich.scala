@@ -103,7 +103,7 @@ object Enrich {
       _.parEvalMap(env.streamsSettings.concurrency.sink) { chunk =>
         for {
           begin <- Sync[F].realTime
-          _ <- sinkChunk(chunk, env)
+          _ <- sinkChunk(chunk, env, Instant.ofEpochMilli(begin.toMillis))
           end <- Sync[F].realTime
           _ <- Logger[F].debug(s"Chunk of size ${chunk.size} sunk in ${end - begin}")
         } yield chunk.map(_.original)
@@ -134,8 +134,8 @@ object Enrich {
   ): F[Result[A]] =
     for {
       bytes <- Sync[F].delay(getPayload(row))
-      payload <- Sync[F].delay(ThriftLoader.toCollectorPayload(bytes, processor))
-      etlTstamp <- Sync[F].realTime.map(time => new DateTime(time.toMillis))
+      etlTstamp <- Sync[F].realTimeInstant
+      payload <- Sync[F].delay(ThriftLoader.toCollectorPayload(bytes, processor, etlTstamp))
       collectorTstamp = payload.toOption.map(_.context.timestamp.getMillis)
       enriched <- EtlPipeline
                     .processEvents[F](
@@ -143,7 +143,7 @@ object Enrich {
                       enrichRegistry,
                       igluClient,
                       processor,
-                      etlTstamp,
+                      new DateTime(etlTstamp.toEpochMilli),
                       payload,
                       FeatureFlags.toCommon(featureFlags),
                       invalidCount,
@@ -194,7 +194,8 @@ object Enrich {
 
   def sinkChunk[F[_]: Parallel: Sync, A](
     chunk: List[Result[A]],
-    env: Environment[F, A]
+    env: Environment[F, A],
+    etlTstamp: Instant
   ): F[Unit] = {
     val (bad, enriched, incomplete, droppedCount) =
       chunk
@@ -211,16 +212,16 @@ object Enrich {
         }
 
     val (moreBad, good) = enriched.map { e =>
-      serializeEnriched(e, env.processor, env.streamsSettings.maxRecordSize)
+      serializeEnriched(e, env.processor, env.streamsSettings.maxRecordSize, etlTstamp)
         .map(bytes => (e, AttributedData(bytes, env.goodPartitionKey(e), env.goodAttributes(e))))
     }.separate
 
     val (incompleteTooBig, incompleteBytes) = incomplete.map { e =>
-      serializeEnriched(e, env.processor, env.streamsSettings.maxRecordSize)
+      serializeEnriched(e, env.processor, env.streamsSettings.maxRecordSize, etlTstamp)
         .map(bytes => AttributedData(bytes, env.goodPartitionKey(e), env.goodAttributes(e)))
     }.separate
 
-    val allBad = (bad ++ moreBad).map(badRowResize(env, _))
+    val allBad = (bad ++ moreBad).map(badRowResize(env, _, etlTstamp))
 
     List(
       sinkGood(
@@ -232,7 +233,8 @@ object Enrich {
         env.piiPartitionKey,
         env.piiAttributes,
         env.processor,
-        env.streamsSettings.maxRecordSize
+        env.streamsSettings.maxRecordSize,
+        etlTstamp
       ) *> env.metrics.enrichLatency(chunk.headOption.flatMap(_.collectorTstamp)),
       sinkBad(allBad, env.sinkBad, env.metrics.badCount),
       if (incompleteTooBig.nonEmpty) Logger[F].warn(s"${incompleteTooBig.size} incomplete events discarded because they are too big")
@@ -251,7 +253,8 @@ object Enrich {
     piiPartitionKey: EnrichedEvent => String,
     piiAttributes: EnrichedEvent => Map[String, String],
     processor: Processor,
-    maxRecordSize: Int
+    maxRecordSize: Int,
+    etlTstamp: Instant
   ): F[Unit] = {
     val enriched = good.map(_._1)
     val serialized = good.map(_._2)
@@ -260,7 +263,8 @@ object Enrich {
                                                                                piiPartitionKey,
                                                                                piiAttributes,
                                                                                processor,
-                                                                               maxRecordSize
+                                                                               maxRecordSize,
+                                                                               etlTstamp
     )
   }
 
@@ -277,14 +281,15 @@ object Enrich {
     partitionKey: EnrichedEvent => String,
     attributes: EnrichedEvent => Map[String, String],
     processor: Processor,
-    maxRecordSize: Int
+    maxRecordSize: Int,
+    etlTstamp: Instant
   ): F[Unit] =
     maybeSink match {
       case Some(sink) =>
         val (bad, serialized) =
           enriched
             .flatMap(ConversionUtils.getPiiEvent(processor, _))
-            .map(e => serializeEnriched(e, processor, maxRecordSize).map(AttributedData(_, partitionKey(e), attributes(e))))
+            .map(e => serializeEnriched(e, processor, maxRecordSize, etlTstamp).map(AttributedData(_, partitionKey(e), attributes(e))))
             .separate
         val logging =
           if (bad.nonEmpty)
@@ -309,7 +314,8 @@ object Enrich {
   def serializeEnriched(
     enriched: EnrichedEvent,
     processor: Processor,
-    maxRecordSize: Int
+    maxRecordSize: Int,
+    etlTstamp: Instant
   ): Either[BadRow, Array[Byte]] = {
     val asStr = ConversionUtils.tabSeparatedEnrichedEvent(enriched)
     val asBytes = asStr.getBytes(UTF_8)
@@ -319,7 +325,7 @@ object Enrich {
       val br = BadRow
         .SizeViolation(
           processor,
-          Failure.SizeViolation(Instant.now(), maxRecordSize, size, msg),
+          Failure.SizeViolation(etlTstamp, maxRecordSize, size, msg),
           BadRowPayload.RawPayload(asStr.take(maxRecordSize * 8 / 10))
         )
       Left(br)
@@ -330,7 +336,11 @@ object Enrich {
    * Check if plain bad row (such as `enrichment_failure`) exceeds the `MaxRecordSize`
    * If it does - turn into size violation with trimmed
    */
-  def badRowResize[F[_], A](env: Environment[F, A], badRow: BadRow): Array[Byte] = {
+  def badRowResize[F[_], A](
+    env: Environment[F, A],
+    badRow: BadRow,
+    etlTstamp: Instant
+  ): Array[Byte] = {
     val asStr = badRow.compact
     val originalBytes = asStr.getBytes(UTF_8)
     val size = originalBytes.size
@@ -340,7 +350,7 @@ object Enrich {
       BadRow
         .SizeViolation(
           env.processor,
-          Failure.SizeViolation(Instant.now(), maxRecordSize, size, msg),
+          Failure.SizeViolation(etlTstamp, maxRecordSize, size, msg),
           BadRowPayload.RawPayload(asStr.take(maxRecordSize / 10))
         )
         .compact

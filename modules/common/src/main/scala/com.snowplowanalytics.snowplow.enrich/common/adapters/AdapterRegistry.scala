@@ -93,7 +93,8 @@ class AdapterRegistry[F[_]: Clock: Monad](
     client: IgluCirceClient[F],
     processor: Processor,
     registryLookup: RegistryLookup[F],
-    maxJsonDepth: Int
+    maxJsonDepth: Int,
+    etlTstamp: Instant
   ): F[Validated[BadRow, NonEmptyList[RawEvent]]] =
     (adapters.get((payload.api.vendor, payload.api.version)) match {
       case Some(adapter) =>
@@ -110,24 +111,25 @@ class AdapterRegistry[F[_]: Clock: Monad](
             )
             Monad[F].pure(f.invalidNel[NonEmptyList[RawEvent]])
         }
-    }).map(_.leftMap(enrichFailure(_, payload, payload.api.vendor, payload.api.version, processor)))
+    }).map(_.leftMap(enrichFailure(_, payload, payload.api.vendor, payload.api.version, processor, etlTstamp)))
 
   private def enrichFailure(
     fs: NonEmptyList[FailureDetails.AdapterFailureOrTrackerProtocolViolation],
     cp: CollectorPayload,
     vendor: String,
     vendorVersion: String,
-    processor: Processor
+    processor: Processor,
+    etlTstamp: Instant
   ): BadRow = {
     val payload = cp.toBadRowPayload
     if (vendorVersion == "tp2" && (vendor == Vendor.Snowplow || vendor == Vendor.Redirect)) {
       val tpViolations = fs.asInstanceOf[NonEmptyList[FailureDetails.TrackerProtocolViolation]]
       val failure =
-        Failure.TrackerProtocolViolations(Instant.now(), vendor, vendorVersion, tpViolations)
+        Failure.TrackerProtocolViolations(etlTstamp, vendor, vendorVersion, tpViolations)
       BadRow.TrackerProtocolViolations(processor, failure, payload)
     } else {
       val adapterFailures = fs.asInstanceOf[NonEmptyList[FailureDetails.AdapterFailure]]
-      val failure = Failure.AdapterFailures(Instant.now(), vendor, vendorVersion, adapterFailures)
+      val failure = Failure.AdapterFailures(etlTstamp, vendor, vendorVersion, adapterFailures)
       BadRow.AdapterFailures(processor, failure, payload)
     }
   }

@@ -12,6 +12,7 @@ package com.snowplowanalytics.snowplow.enrich.common.loaders
 
 import java.net.URI
 import java.nio.charset.Charset
+import java.time.Instant
 
 import scala.collection.JavaConverters._
 
@@ -36,7 +37,11 @@ abstract class Loader[T] {
    * @param processor processing asset (e.g. Spark enrich)
    * @return a CanonicalInput object, Option-boxed, or None if no input was extractable.
    */
-  def toCollectorPayload(line: T, processor: Processor): ValidatedNel[BadRow.CPFormatViolation, CollectorPayload]
+  def toCollectorPayload(
+    line: T,
+    processor: Processor,
+    etlTstamp: Instant
+  ): ValidatedNel[BadRow.CPFormatViolation, CollectorPayload]
 
   /**
    * Converts a querystring String into a non-empty list of NameValuePairs.

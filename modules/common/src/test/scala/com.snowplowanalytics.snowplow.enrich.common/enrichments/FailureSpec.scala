@@ -10,8 +10,6 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments
 
-import java.time.Instant
-
 import scala.collection.immutable.SortedMap
 
 import cats.effect.testing.specs2.CatsEffect
@@ -45,7 +43,6 @@ import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 
 class FailureSpec extends Specification with ValidatedMatchers with CatsEffect with ScalaCheck {
 
-  val timestamp = Instant.now()
   val processor = Processor("unit tests SCE", "v42")
   val schemaKey = SchemaKey("com.snowplowanalytics", "test", "jsonschema", SchemaVer.Full(1, 0, 0))
   val schemaCriterion = SchemaCriterion.apply("com.snowplowanalytics", "test", "jsonschema", 1)
@@ -69,7 +66,7 @@ class FailureSpec extends Specification with ValidatedMatchers with CatsEffect w
       errors = errors,
       schema = schema,
       data = data,
-      timestamp = timestamp,
+      timestamp = SpecHelpers.etlTstamp,
       componentName = processor.artifact,
       componentVersion = processor.version
     )
@@ -99,9 +96,10 @@ class FailureSpec extends Specification with ValidatedMatchers with CatsEffect w
             value = "testValue".some,
             expectation = "testExpectation"
           )
-        )
+        ),
+        etlTstamp = SpecHelpers.etlTstamp
       )
-      val result = Failure.fromEnrichmentFailure(ef, timestamp, processor)
+      val result = Failure.fromEnrichmentFailure(ef, SpecHelpers.etlTstamp, processor)
       val expected = Failure.FailureContext(
         failureType = "EnrichmentError: enrichmentId",
         errors = List(
@@ -112,7 +110,7 @@ class FailureSpec extends Specification with ValidatedMatchers with CatsEffect w
         ),
         schema = schemaKey.some,
         data = Json.obj("testField" := "testValue").some,
-        timestamp = timestamp,
+        timestamp = SpecHelpers.etlTstamp,
         componentName = processor.artifact,
         componentVersion = processor.version
       )
@@ -129,15 +127,16 @@ class FailureSpec extends Specification with ValidatedMatchers with CatsEffect w
             )
             .some,
           message = FailureDetails.EnrichmentFailureMessage.Simple(error = "testError")
-        )
+        ),
+        etlTstamp = SpecHelpers.etlTstamp
       )
-      val result = Failure.fromEnrichmentFailure(ef, timestamp, processor)
+      val result = Failure.fromEnrichmentFailure(ef, SpecHelpers.etlTstamp, processor)
       val expected = Failure.FailureContext(
         failureType = "EnrichmentError: enrichmentId",
         errors = List(Json.obj("message" := "testError")),
         schema = schemaKey.some,
         data = None,
-        timestamp = timestamp,
+        timestamp = SpecHelpers.etlTstamp,
         componentName = processor.artifact,
         componentVersion = processor.version
       )
@@ -154,9 +153,10 @@ class FailureSpec extends Specification with ValidatedMatchers with CatsEffect w
           error = "testError"
         ),
         source = "testSource",
-        data = "testData".asJson
+        data = "testData".asJson,
+        etlTstamp = SpecHelpers.etlTstamp
       )
-      val fe = Failure.fromSchemaViolation(sv, timestamp, processor)
+      val fe = Failure.fromSchemaViolation(sv, SpecHelpers.etlTstamp, processor)
       val expected = Failure.FailureContext(
         failureType = "NotJSON",
         errors = List(
@@ -167,7 +167,7 @@ class FailureSpec extends Specification with ValidatedMatchers with CatsEffect w
         ),
         schema = None,
         data = Json.obj("testSource" := "testData").some,
-        timestamp = timestamp,
+        timestamp = SpecHelpers.etlTstamp,
         componentName = processor.artifact,
         componentVersion = processor.version
       )
@@ -181,9 +181,10 @@ class FailureSpec extends Specification with ValidatedMatchers with CatsEffect w
           error = ParseError.InvalidSchema
         ),
         source = "testSource",
-        data = "testData".asJson
+        data = "testData".asJson,
+        etlTstamp = SpecHelpers.etlTstamp
       )
-      val fe = Failure.fromSchemaViolation(sv, timestamp, processor)
+      val fe = Failure.fromSchemaViolation(sv, SpecHelpers.etlTstamp, processor)
       val expected = Failure.FailureContext(
         failureType = "NotIglu",
         errors = List(
@@ -194,7 +195,7 @@ class FailureSpec extends Specification with ValidatedMatchers with CatsEffect w
         ),
         schema = None,
         data = "testData".asJson.some,
-        timestamp = timestamp,
+        timestamp = SpecHelpers.etlTstamp,
         componentName = processor.artifact,
         componentVersion = processor.version
       )
@@ -208,9 +209,10 @@ class FailureSpec extends Specification with ValidatedMatchers with CatsEffect w
           schemaCriterion = schemaCriterion
         ),
         source = "testSource",
-        data = "testData".asJson
+        data = "testData".asJson,
+        etlTstamp = SpecHelpers.etlTstamp
       )
-      val fe = Failure.fromSchemaViolation(sv, timestamp, processor)
+      val fe = Failure.fromSchemaViolation(sv, SpecHelpers.etlTstamp, processor)
       val expected = Failure.FailureContext(
         failureType = "CriterionMismatch",
         errors = List(
@@ -222,7 +224,7 @@ class FailureSpec extends Specification with ValidatedMatchers with CatsEffect w
         ),
         schema = schemaKey.some,
         data = "testData".asJson.some,
-        timestamp = timestamp,
+        timestamp = SpecHelpers.etlTstamp,
         componentName = processor.artifact,
         componentVersion = processor.version
       )
@@ -238,20 +240,21 @@ class FailureSpec extends Specification with ValidatedMatchers with CatsEffect w
               "repo1" -> LookupHistory(
                 errors = Set.empty,
                 attempts = 1,
-                lastAttempt = timestamp
+                lastAttempt = SpecHelpers.etlTstamp
               ),
               "repo2" -> LookupHistory(
                 errors = Set.empty,
                 attempts = 2,
-                lastAttempt = timestamp
+                lastAttempt = SpecHelpers.etlTstamp
               )
             )
           )
         ),
         source = "testSource",
-        data = "testData".asJson
+        data = "testData".asJson,
+        etlTstamp = SpecHelpers.etlTstamp
       )
-      val fe = Failure.fromSchemaViolation(sv, timestamp, processor)
+      val fe = Failure.fromSchemaViolation(sv, SpecHelpers.etlTstamp, processor)
       val expected = Failure.FailureContext(
         failureType = "ResolutionError",
         errors = List(
@@ -259,14 +262,14 @@ class FailureSpec extends Specification with ValidatedMatchers with CatsEffect w
             "message" := "Resolution error: schema iglu:com.snowplowanalytics/test/jsonschema/1-0-0 not found",
             "source" := "testSource",
             "lookupHistory" := Json.arr(
-              Json.obj("repository" := "repo1", "errors" := List.empty[String], "attempts" := 1, "lastAttempt" := timestamp),
-              Json.obj("repository" := "repo2", "errors" := List.empty[String], "attempts" := 2, "lastAttempt" := timestamp)
+              Json.obj("repository" := "repo1", "errors" := List.empty[String], "attempts" := 1, "lastAttempt" := SpecHelpers.etlTstamp),
+              Json.obj("repository" := "repo2", "errors" := List.empty[String], "attempts" := 2, "lastAttempt" := SpecHelpers.etlTstamp)
             )
           )
         ),
         schema = schemaKey.some,
         data = "testData".asJson.some,
-        timestamp = timestamp,
+        timestamp = SpecHelpers.etlTstamp,
         componentName = processor.artifact,
         componentVersion = processor.version
       )
@@ -294,14 +297,15 @@ class FailureSpec extends Specification with ValidatedMatchers with CatsEffect w
             )
           ),
           source = source,
-          data = "testData".asJson
+          data = "testData".asJson,
+          etlTstamp = SpecHelpers.etlTstamp
         )
       }
 
       val svWithAtomicSchema = createSv(AtomicFields.atomicSchema)
       val svWithOrdinarySchema = createSv(schemaKey)
-      val feWithAtomicSchema = Failure.fromSchemaViolation(svWithAtomicSchema, timestamp, processor)
-      val feWithOrdinarySchema = Failure.fromSchemaViolation(svWithOrdinarySchema, timestamp, processor)
+      val feWithAtomicSchema = Failure.fromSchemaViolation(svWithAtomicSchema, SpecHelpers.etlTstamp, processor)
+      val feWithOrdinarySchema = Failure.fromSchemaViolation(svWithOrdinarySchema, SpecHelpers.etlTstamp, processor)
       val expectedWithAtomicSchema = Failure.FailureContext(
         failureType = "ValidationError",
         errors = List(
@@ -320,7 +324,7 @@ class FailureSpec extends Specification with ValidatedMatchers with CatsEffect w
         ),
         schema = AtomicFields.atomicSchema.some,
         data = "testData".asJson.some,
-        timestamp = timestamp,
+        timestamp = SpecHelpers.etlTstamp,
         componentName = processor.artifact,
         componentVersion = processor.version
       )
@@ -342,7 +346,7 @@ class FailureSpec extends Specification with ValidatedMatchers with CatsEffect w
         ),
         schema = schemaKey.some,
         data = "testData".asJson.some,
-        timestamp = timestamp,
+        timestamp = SpecHelpers.etlTstamp,
         componentName = processor.artifact,
         componentVersion = processor.version
       )
@@ -366,9 +370,10 @@ class FailureSpec extends Specification with ValidatedMatchers with CatsEffect w
           )
         ),
         source = "testSource",
-        data = "testData".asJson
+        data = "testData".asJson,
+        etlTstamp = SpecHelpers.etlTstamp
       )
-      val fe = Failure.fromSchemaViolation(sv, timestamp, processor)
+      val fe = Failure.fromSchemaViolation(sv, SpecHelpers.etlTstamp, processor)
       val expected = Failure.FailureContext(
         failureType = "ValidationError",
         errors = List(
@@ -385,7 +390,7 @@ class FailureSpec extends Specification with ValidatedMatchers with CatsEffect w
         ),
         schema = schemaKey.some,
         data = "testData".asJson.some,
-        timestamp = timestamp,
+        timestamp = SpecHelpers.etlTstamp,
         componentName = processor.artifact,
         componentVersion = processor.version
       )

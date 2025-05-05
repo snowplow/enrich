@@ -59,7 +59,7 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
     "enrich a minimal page_view CollectorPayload event without any enrichments enabled" in {
       val expected = minimalEvent
         .copy(
-          etl_tstamp = Some(Instant.ofEpochMilli(SpecHelpers.StaticTime)),
+          etl_tstamp = Some(SpecHelpers.etlTstamp),
           v_etl = MiscEnrichments.etlVersion(EnrichSpec.processor),
           user_ipaddress = Some("175.16.199.0"),
           event = Some("page_view"),
@@ -414,7 +414,11 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
     "emit a bad row to the bad sink" in {
       TestEnvironment.make(Stream.empty).use { test =>
         val failure = Failure
-          .AdapterFailures(Instant.now, "vendor", "1-0-0", NonEmptyList.one(FailureDetails.AdapterFailure.NotJson("field", None, "error")))
+          .AdapterFailures(SpecHelpers.etlTstamp,
+                           "vendor",
+                           "1-0-0",
+                           NonEmptyList.one(FailureDetails.AdapterFailure.NotJson("field", None, "error"))
+          )
         val badRow = BadRow.AdapterFailures(EnrichSpec.processor, failure, EnrichSpec.collectorPayload.toBadRowPayload)
 
         for {
@@ -436,7 +440,7 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
     "serialize a bad event to the bad output" in {
       implicit val cpGen = PayloadGen.getPageViewArbitrary
       prop { (collectorPayload: CollectorPayload) =>
-        val failure = Failure.AdapterFailures(Instant.now,
+        val failure = Failure.AdapterFailures(SpecHelpers.etlTstamp,
                                               "vendor",
                                               "1-0-0",
                                               NonEmptyList.one(FailureDetails.AdapterFailure.NotJson("field", None, "error"))
@@ -642,7 +646,7 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
   def sinkOne(
     environment: Environment[IO, Array[Byte]],
     event: OptionIor[BadRow, EnrichedEvent]
-  ): IO[Unit] = Enrich.sinkChunk(List(Enrich.Result(Array.emptyByteArray, List(event), None)), environment)
+  ): IO[Unit] = Enrich.sinkChunk(List(Enrich.Result(Array.emptyByteArray, List(event), None)), environment, SpecHelpers.etlTstamp)
 }
 
 object EnrichSpec {
@@ -667,7 +671,7 @@ object EnrichSpec {
   def normalize(payload: String): Validated[BadRow, Event] =
     Event
       .parse(payload)
-      .map(_.copy(etl_tstamp = Some(Instant.ofEpochMilli(SpecHelpers.StaticTime)))) match {
+      .map(_.copy(etl_tstamp = Some(SpecHelpers.etlTstamp))) match {
       case Validated.Valid(event) =>
         Validated.Valid(event)
       case Validated.Invalid(error) =>
@@ -694,7 +698,7 @@ object EnrichSpec {
 
   val Expected = minimalEvent
     .copy(
-      etl_tstamp = Some(Instant.ofEpochMilli(SpecHelpers.StaticTime)),
+      etl_tstamp = Some(SpecHelpers.etlTstamp),
       v_etl = MiscEnrichments.etlVersion(EnrichSpec.processor),
       user_ipaddress = Some("175.16.199.0"),
       event = Some("page_view"),

@@ -10,6 +10,8 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments
 
+import java.time.Instant
+
 import cats.data.NonEmptyList
 
 import io.circe.syntax._
@@ -137,7 +139,7 @@ object AtomicFields {
     AtomicFields(withLimits)
   }
 
-  def errorsToSchemaViolation(errors: NonEmptyList[AtomicError]): Failure.SchemaViolation = {
+  def errorsToSchemaViolation(errors: NonEmptyList[AtomicError], etlTstamp: Instant): Failure.SchemaViolation = {
     val clientError = ValidationError(ValidatorError.InvalidData(errors.map(_.toValidatorReport)), None)
 
     val failureData = errors.toList.map(e => e.field := e.value).toMap.asJson
@@ -149,7 +151,8 @@ object AtomicFields {
       ),
       // Source atomic field and actual value of the field should be already on the ValidatorReport list
       source = AtomicError.source,
-      data = failureData
+      data = failureData,
+      etlTstamp = etlTstamp
     )
   }
 }

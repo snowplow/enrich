@@ -42,7 +42,6 @@ import org.joda.time.DateTime
 import org.specs2.mutable.Specification
 import org.specs2.specification.core.{Fragment, Fragments}
 
-import java.time.Instant
 import scala.util.{Random, Try}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
@@ -262,12 +261,12 @@ class EventGenEtlPipelineSpec extends Specification with CatsEffect {
   }
 
   val GeneratorTest: Fragments = Stream
-    .repeatEval(IO.delay(runGen(GenSdkEvent.genPair(1, 10, Instant.now), rng)))
+    .repeatEval(IO.delay(runGen(GenSdkEvent.genPair(1, 10, SpecHelpers.etlTstamp), rng)))
     .take(50)
     .flatMap {
       case (payload, events) =>
         Stream
-          .emit(ThriftLoader.toCollectorPayload(payload.toRaw, process))
+          .emit(ThriftLoader.toCollectorPayload(payload.toRaw, process, SpecHelpers.etlTstamp))
           .covary[IO]
           .through(rethrowBadRows)
           .evalMap(processEvents)

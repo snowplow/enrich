@@ -12,6 +12,7 @@ package com.snowplowanalytics.snowplow.enrich.common
 
 import java.util.concurrent.Executors
 import java.nio.file.NoSuchFileException
+import java.time.Instant
 
 import scala.concurrent.ExecutionContext
 
@@ -47,7 +48,7 @@ import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, JsonUtils
 
 object SpecHelpers extends CatsEffect {
 
-  val StaticTime = 1599750938180L
+  val etlTstamp = Instant.ofEpochMilli(1599750938180L)
 
   val DefaultMaxJsonDepth = 40
 

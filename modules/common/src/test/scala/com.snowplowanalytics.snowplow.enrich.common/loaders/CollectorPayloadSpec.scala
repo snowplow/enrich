@@ -26,6 +26,8 @@ import org.specs2.matcher.{DataTables, ValidatedMatchers}
 
 import com.snowplowanalytics.snowplow.badrows.Processor
 
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
+
 class CollectorPayloadSpec extends Specification with DataTables with ScalaCheck with ValidatedMatchers {
 
   // TODO: let's abstract this up to a CollectorApi.parse test
@@ -50,7 +52,7 @@ class CollectorPayloadSpec extends Specification with DataTables with ScalaCheck
     "be isomorphic to ThriftLoader.toCollectorPayload" >> {
       prop { payload: CollectorPayload =>
         val bytes = CollectorPayloadSpec.thriftSerializer.serialize(payload.toThrift)
-        val result = ThriftLoader.toCollectorPayload(bytes, Processor("test", "0.0.1"))
+        val result = ThriftLoader.toCollectorPayload(bytes, Processor("test", "0.0.1"), SpecHelpers.etlTstamp)
         result must beValid(payload)
       }
     }

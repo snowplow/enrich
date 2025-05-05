@@ -66,13 +66,15 @@ object ThriftLoader extends Loader[Array[Byte]] {
    */
   override def toCollectorPayload(
     bytes: Array[Byte],
-    processor: Processor
+    processor: Processor,
+    etlTstamp: Instant
   ): ValidatedNel[BadRow.CPFormatViolation, CollectorPayload] =
-    toCollectorPayload(ByteBuffer.wrap(bytes), processor)
+    toCollectorPayload(ByteBuffer.wrap(bytes), processor, etlTstamp)
 
   def toCollectorPayload(
     buffer: ByteBuffer,
-    processor: Processor
+    processor: Processor,
+    etlTstamp: Instant
   ): ValidatedNel[BadRow.CPFormatViolation, CollectorPayload] = {
     buffer.mark()
 
@@ -80,7 +82,7 @@ object ThriftLoader extends Loader[Array[Byte]] {
       buffer.reset()
       BadRow.CPFormatViolation(
         processor,
-        Failure.CPFormatViolation(Instant.now(), "thrift", message),
+        Failure.CPFormatViolation(etlTstamp, "thrift", message),
         Payload.RawPayload(toBase64String(buffer))
       )
     }

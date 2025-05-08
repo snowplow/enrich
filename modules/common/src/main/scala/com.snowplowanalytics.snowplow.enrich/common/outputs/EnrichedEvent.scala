@@ -13,6 +13,7 @@ package com.snowplowanalytics.snowplow.enrich.common.outputs
 import java.lang.{Integer => JInteger}
 import java.lang.{Float => JFloat}
 import java.lang.{Byte => JByte}
+import java.lang.{Boolean => JBoolean}
 import java.math.{BigDecimal => JBigDecimal}
 
 import scala.beans.BeanProperty
@@ -246,10 +247,17 @@ class EnrichedEvent extends Serializable {
   // Fields modified in PII enrichemnt (JSON String)
   @BeanProperty var pii: String = _
 
+  // Specifies whether derived contexts only from JS enrichment should be used
+  // and all the other derived contexts should be ignored
+  private[enrich] var use_derived_contexts_from_js_enrichment_only: JBoolean = _
+
   // This method can be called from JS enrichment script to drop an event.
   // Raised exception will be caught by JS enrichment and event will be dropped.
   def drop(): Unit =
     throw new JavascriptRejectionException
+
+  def eraseDerived_contexts(): Unit =
+    use_derived_contexts_from_js_enrichment_only = true
 }
 
 object EnrichedEvent {

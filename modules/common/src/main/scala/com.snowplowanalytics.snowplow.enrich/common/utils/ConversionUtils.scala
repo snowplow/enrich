@@ -555,7 +555,7 @@ object ConversionUtils {
 
   val EnrichedFields: List[Field] =
     classOf[EnrichedEvent].getDeclaredFields
-      .filterNot(_.getName.equals("pii"))
+      .filterNot(f => f.getName.equals("pii") || f.getName.equals("use_derived_contexts_from_js_enrichment_only"))
       .map { field => field.setAccessible(true); field }
       .toList
 

@@ -74,7 +74,7 @@ object JavascriptScriptEnrichment extends ParseableEnrichment {
     /**
      * Successful result from the JS enrichment script
      */
-    case class Success(l: List[SelfDescribingData[Json]]) extends Result
+    case class Success(l: List[SelfDescribingData[Json]], useDerivedContextsFromJsEnrichmentOnly: Boolean) extends Result
 
     /**
      * Event is dropped in JS enrichment script
@@ -129,6 +129,10 @@ final case class JavascriptScriptEnrichment(
   ): Result =
     (for {
       _ <- invocable.leftMap(createFailure)
+      // It is possible it is set to true by previous JS enrichment script.
+      // We don't want it to have an effect on the result of current JS enrichment
+      // script therefore setting it to false before running the script.
+      _ = event.use_derived_contexts_from_js_enrichment_only = false
       contexts <- Either
                     .catchNonFatal(engine.invokeFunction("getJavascriptContexts", event, headers.asJava).asInstanceOf[String])
                     .leftMap {
@@ -139,7 +143,7 @@ final case class JavascriptScriptEnrichment(
                 .extractJson(contexts, maxJsonDepth)
                 .leftMap(err => createFailure(s"Could not parse output JSON of Javascript function. Error: [$err]"))
       l <- parseContexts(json).leftMap(createFailure)
-    } yield Result.Success(l)).merge
+    } yield Result.Success(l, event.use_derived_contexts_from_js_enrichment_only)).merge
 
   private def parseContexts(json: Json): Either[String, List[SelfDescribingData[Json]]] =
     json.asArray match {

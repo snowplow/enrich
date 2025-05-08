@@ -40,7 +40,8 @@ class JavascriptScriptEnrichmentSpec extends Specification {
   Javascript enrichment should be able to update the fields without return statement $e11
   Javascript enrichment should be able to utilize the passed parameters              $e12
   Javascript enrichment should be able to utilize the headers                        $e13
-  Javascript enrichment should drop event when dropped method is called             $e14
+  Javascript enrichment should drop event when dropped method is called              $e14
+  Javascript enrichment should be able to set 'erase derived contexts' flag to true  $e15
   """
 
   val schemaKey =
@@ -80,7 +81,7 @@ class JavascriptScriptEnrichmentSpec extends Specification {
         } ];
       }"""
     JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(appId), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beLike {
-      case Result.Success(List(sdj)) if sdj.data.noSpaces.contains(appId) => ok
+      case Result.Success(List(sdj), false) if sdj.data.noSpaces.contains(appId) => ok
     }
   }
 
@@ -115,7 +116,7 @@ class JavascriptScriptEnrichmentSpec extends Specification {
         return [ ];
       }"""
     JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beLike {
-      case Result.Success(_) => ok
+      case Result.Success(_, false) => ok
     }
   }
 
@@ -140,7 +141,7 @@ class JavascriptScriptEnrichmentSpec extends Specification {
         json"""{"hello":"world"}"""
       )
     JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beLike {
-      case Result.Success(List(c1, c2)) if c1 == context1 && c2 == context2 => ok
+      case Result.Success(List(c1, c2), false) if c1 == context1 && c2 == context2 => ok
     }
   }
 
@@ -151,7 +152,7 @@ class JavascriptScriptEnrichmentSpec extends Specification {
       }"""
 
     JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beEqualTo(
-      Result.Success(Nil)
+      Result.Success(Nil, false)
     )
   }
 
@@ -162,7 +163,7 @@ class JavascriptScriptEnrichmentSpec extends Specification {
       }"""
 
     JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beEqualTo(
-      Result.Success(Nil)
+      Result.Success(Nil, false)
     )
   }
 
@@ -220,6 +221,17 @@ class JavascriptScriptEnrichmentSpec extends Specification {
     JavascriptScriptEnrichment(schemaKey, function).process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beEqualTo(
       Result.Dropped
     )
+  }
+
+  def e15 = {
+    val function = s"""
+      function process(event) {
+        event.eraseDerived_contexts()
+      }"""
+    val enriched = buildEnriched()
+    (JavascriptScriptEnrichment(schemaKey, function).process(enriched, List.empty, SpecHelpers.DefaultMaxJsonDepth) must beEqualTo(
+      Result.Success(List.empty, useDerivedContextsFromJsEnrichmentOnly = true)
+    )) and ((enriched.use_derived_contexts_from_js_enrichment_only: Boolean) must beTrue)
   }
 
   def buildEnriched(appId: String = "my super app"): EnrichedEvent = {

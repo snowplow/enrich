@@ -312,8 +312,9 @@ object EnrichmentManager {
       EStateT {
         case Accumulation.Enriched(event, errors, contexts) =>
           f(event, contexts) match {
-            case JavascriptScriptEnrichment.Result.Success(c) =>
-              Applicative[F].pure((Accumulation.Enriched(event, errors, c ::: contexts), ()))
+            case JavascriptScriptEnrichment.Result.Success(c, useDerivedContextsFromJsEnrichmentOnly) =>
+              val resultContexts = if (useDerivedContextsFromJsEnrichmentOnly) c else c ::: contexts
+              Applicative[F].pure((Accumulation.Enriched(event, errors, resultContexts), ()))
             case JavascriptScriptEnrichment.Result.Failure(e) =>
               Applicative[F].pure((Accumulation.Enriched(event, e :: errors, contexts), ()))
             case JavascriptScriptEnrichment.Result.Dropped => Applicative[F].pure((Accumulation.Dropped, ()))
@@ -815,7 +816,11 @@ object EnrichmentManager {
     EStateT.fromJsEnrichmentResult {
       case (event, derivedContexts) =>
         ME.formatContexts(derivedContexts).foreach(c => event.derived_contexts = c)
-        javascriptScript.process(event, headers, maxJsonDepth)
+        val result = javascriptScript.process(event, headers, maxJsonDepth)
+        // It is set above to make it accessible from JS enrichment.
+        // Final value will be set later. For now, it should be set to null.
+        event.derived_contexts = null
+        result
     }
 
   def headerContexts[F[_]: Applicative, A](

@@ -2674,6 +2674,151 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       )
     }
   }
+
+  "eraseDerived_contexts" should {
+    val defaultParameters = Map(
+      "e" -> "pp",
+      "tv" -> "js-0.13.1",
+      "p" -> "web"
+    ).toOpt
+
+    def commonEraseDerivedContextsTest(
+      matcher: OptionIor[BadRow, EnrichedEvent] => MatchResult[Any],
+      scripts: List[String],
+      parameters: Map[String, Option[String]] = defaultParameters,
+      emitIncomplete: Boolean = false,
+      collectorName: String = source.name
+    ) = {
+      val jsEnrichList = scripts.map { script =>
+        val config =
+          json"""{
+        "parameters": {
+          "script": ${ConversionUtils.encodeBase64Url(script)}
+        }
+      }"""
+        val schemaKey = SchemaKey(
+          "com.snowplowanalytics.snowplow",
+          "javascript_script_config",
+          "jsonschema",
+          SchemaVer.Full(1, 0, 0)
+        )
+        val jsEnrichConf =
+          JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
+        JavascriptScriptEnrichment(jsEnrichConf.schemaKey, jsEnrichConf.rawFunction)
+      }
+      val enrichmentReg = EnrichmentRegistry[IO](
+        javascriptScript = jsEnrichList,
+        httpHeaderExtractor = Some(HttpHeaderExtractorEnrichment(".*"))
+      )
+
+      val headerContext = context.copy(headers = List("X-Tract-Me: moo"))
+      val rawEvent = RawEvent(api, parameters, None, source.copy(name = collectorName), headerContext)
+      EnrichmentManager
+        .enrichEvent[IO](
+          enrichmentReg,
+          client,
+          processor,
+          timestamp,
+          rawEvent,
+          AcceptInvalid.featureFlags,
+          IO.unit,
+          SpecHelpers.registryLookup,
+          atomicFieldLimits,
+          emitIncomplete,
+          SpecHelpers.DefaultMaxJsonDepth
+        )
+        .value
+        .map(matcher)
+    }
+
+    "not have any effect if it isn't called in JS enrichment script" >> {
+      commonEraseDerivedContextsTest(
+        scripts = List("""
+          function process(event) {
+            return [{"schema":"iglu:com.snowplowanalytics.snowplow/consent_withdrawn/jsonschema/1-0-0","data":{"all": false}}]
+          }"""),
+        matcher = {
+          case OptionIor.Right(enriched) =>
+            enriched.derived_contexts must beEqualTo(
+              """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/consent_withdrawn/jsonschema/1-0-0","data":{"all":false}},{"schema":"iglu:org.ietf/http_header/jsonschema/1-0-0","data":{"name":"X-Tract-Me","value":"moo"}}]}"""
+            )
+          case _ => ko
+        }
+      )
+    }
+
+    "erase existing derived contexts and only JS enrichment result should be returned as derived context" >> {
+      commonEraseDerivedContextsTest(
+        scripts = List("""
+          function process(event) {
+            event.eraseDerived_contexts();
+            return [{"schema":"iglu:com.snowplowanalytics.snowplow/consent_withdrawn/jsonschema/1-0-0","data":{"all": false}}]
+          }"""),
+        matcher = {
+          case OptionIor.Right(enriched) =>
+            enriched.derived_contexts must beEqualTo(
+              """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/consent_withdrawn/jsonschema/1-0-0","data":{"all":false}}]}"""
+            )
+          case _ => ko
+        }
+      )
+    }
+
+    "erase existing derived contexts and derived contexts should be empty if JS enrichment script result is empty" >> {
+      commonEraseDerivedContextsTest(
+        scripts = List("""
+          function process(event) {
+            event.eraseDerived_contexts();
+            return []
+          }"""),
+        matcher = {
+          case OptionIor.Right(enriched) =>
+            enriched.derived_contexts must beNull
+          case _ => ko
+        }
+      )
+    }
+
+    "erase existing derived contexts with multiple JS enrichments" >> {
+      commonEraseDerivedContextsTest(
+        scripts = List(
+          """
+          function process(event) {
+            return [{"schema":"iglu:com.snowplowanalytics.snowplow/application_background/jsonschema/1-0-0","data":{"backgroundIndex": 1}}]
+          }""",
+          """
+          function process(event) {
+            event.eraseDerived_contexts();
+            return [{"schema":"iglu:com.snowplowanalytics.snowplow/application_background/jsonschema/1-0-0","data":{"backgroundIndex": 2}}]
+          }""",
+          """
+          function process(event) {
+            return [{"schema":"iglu:com.snowplowanalytics.snowplow/application_background/jsonschema/1-0-0","data":{"backgroundIndex": 3}}]
+          }""",
+          """
+          function process(event) {
+            event.eraseDerived_contexts();
+            return [{"schema":"iglu:com.snowplowanalytics.snowplow/application_background/jsonschema/1-0-0","data":{"backgroundIndex": 4}}]
+          }""",
+          """
+          function process(event) {
+            return [{"schema":"iglu:com.snowplowanalytics.snowplow/application_background/jsonschema/1-0-0","data":{"backgroundIndex": 5}}]
+          }""",
+          """
+          function process(event) {
+            return [{"schema":"iglu:com.snowplowanalytics.snowplow/application_background/jsonschema/1-0-0","data":{"backgroundIndex": 6}}]
+          }"""
+        ),
+        matcher = {
+          case OptionIor.Right(enriched) =>
+            enriched.derived_contexts must beEqualTo(
+              """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/application_background/jsonschema/1-0-0","data":{"backgroundIndex":6}},{"schema":"iglu:com.snowplowanalytics.snowplow/application_background/jsonschema/1-0-0","data":{"backgroundIndex":5}},{"schema":"iglu:com.snowplowanalytics.snowplow/application_background/jsonschema/1-0-0","data":{"backgroundIndex":4}}]}"""
+            )
+          case _ => ko
+        }
+      )
+    }
+  }
 }
 
 object EnrichmentManagerSpec {

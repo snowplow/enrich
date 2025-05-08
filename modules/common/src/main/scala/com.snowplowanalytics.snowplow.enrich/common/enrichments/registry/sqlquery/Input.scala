@@ -181,6 +181,7 @@ object Input {
     "java.lang.Byte" -> BytePlaceholder,
     "java.lang.Float" -> FloatPlaceholder,
     "java.math.BigDecimal" -> BigDecimalPlaceholder,
+    "java.lang.Boolean" -> BooleanPlaceholder,
     // Just in case
     "String" -> StringPlaceholder,
     "scala.Int" -> IntPlaceholder,

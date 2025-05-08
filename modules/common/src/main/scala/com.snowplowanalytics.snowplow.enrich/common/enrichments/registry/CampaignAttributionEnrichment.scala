@@ -19,7 +19,6 @@ import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey}
 
 import com.snowplowanalytics.snowplow.enrich.common.QueryStringParameters
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.CampaignAttributionConf
-import com.snowplowanalytics.snowplow.enrich.common.utils.MapTransformer.SourceMap
 import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
 
 /** Companion object. Lets us create a CampaignAttributionEnrichment from a Json */
@@ -117,7 +116,7 @@ final case class CampaignAttributionEnrichment(
    * @param sourceMap Map of key-value pairs in URI querystring
    * @return Option boxing the value of the campaign parameter
    */
-  private def getFirstParameter(parameterList: List[String], sourceMap: SourceMap): Option[String] =
+  private def getFirstParameter(parameterList: List[String], sourceMap: Map[String, String]): Option[String] =
     parameterList.find(sourceMap.contains).map(sourceMap(_))
 
   /**

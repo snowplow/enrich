@@ -51,6 +51,7 @@ object Dependencies {
     val sprayJson        = "1.3.6"
     val netty            = "4.1.118.Final"
     val protobuf         = "4.28.3"
+    val nashorn          = "15.6"
 
     val refererParser    = "2.1.0"
     val maxmindIplookups = "0.8.1"
@@ -131,6 +132,7 @@ object Dependencies {
     val log4jToSlf4j     = "org.apache.logging.log4j"   % "log4j-to-slf4j"                 % V.log4jToSlf4j
     val log4j            = "org.apache.logging.log4j"   % "log4j-core"                     % V.log4j
     val guava            = "com.google.guava"           %  "guava"                         % V.guava
+    val nashorn          = "org.openjdk.nashorn"        % "nashorn-core"                   % V.nashorn
 
     val circeCore        = "io.circe"                   %% "circe-core"                    % V.circe
     val circeGeneric     = "io.circe"                   %% "circe-generic"                 % V.circe
@@ -197,6 +199,7 @@ object Dependencies {
     val fs2AwsKinesis    = ("io.laserdisc"                    %% "fs2-aws-kinesis"                       % V.fs2Aws)
                            .exclude("com.amazonaws", "amazon-kinesis-producer")
                            .exclude("software.amazon.kinesis", "amazon-kinesis-client")
+                           .exclude("org.scala-lang.modules", "scala-xml_2.12")
     val fs2              = "co.fs2"                           %% "fs2-core"                              % V.fs2
     val fs2Io            = "co.fs2"                           %% "fs2-io"                                % V.fs2
     val fs2Kafka         = "com.github.fd4s"                  %% "fs2-kafka"                             % V.fs2Kafka
@@ -271,7 +274,8 @@ object Dependencies {
       specs2Mock,
       specs2CE,
       circeLiteral % Test,
-      parserCombinators
+      parserCombinators,
+      nashorn
     )
 
     val commonFs2Dependencies = Seq(

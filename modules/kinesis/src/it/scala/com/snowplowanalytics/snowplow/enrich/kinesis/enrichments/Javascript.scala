@@ -22,7 +22,11 @@ case object Javascript extends Enrichment {
     const generator = javax.crypto.KeyGenerator.getInstance("AES")
     generator.init(new java.security.SecureRandom())
     const key = generator.generateKey()
-    cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, key, new javax.crypto.spec.IvParameterSpec(key.getEncoded()))
+
+    const iv = java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 16)
+    new java.security.SecureRandom().nextBytes(iv)
+
+    cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, key, new javax.crypto.spec.IvParameterSpec(iv))
 
     function process(event){
       var appId = event.getApp_id()

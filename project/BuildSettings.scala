@@ -20,7 +20,6 @@ import com.typesafe.sbt.packager.docker.DockerPlugin.autoImport._
 import com.typesafe.sbt.packager.linux.LinuxPlugin.autoImport._
 import com.typesafe.sbt.packager.universal.UniversalPlugin.autoImport._
 import org.scalafmt.sbt.ScalafmtPlugin.autoImport._
-import scoverage.ScoverageKeys._
 
 object BuildSettings {
 
@@ -136,7 +135,7 @@ object BuildSettings {
   )
 
   lazy val compilerSettings = Seq(
-    javacOptions := Seq("-source", "11", "-target", "11")
+    javacOptions := Seq("-source", "21", "-target", "21")
   )
 
   lazy val resolverSettings = Seq(
@@ -181,14 +180,6 @@ object BuildSettings {
 
   // TESTS
 
-  lazy val scoverageSettings = Seq(
-    coverageMinimumStmtTotal := 50,
-    coverageFailOnMinimum := false,
-    (Test / test) := {
-      (coverageReport dependsOn (Test / test)).value
-    }
-  )
-
   lazy val noParallelTestExecution = Seq(Test / parallelExecution := false)
 
   /** Add example config for integration tests. */
@@ -213,7 +204,7 @@ object BuildSettings {
     // Build and publish
     publishSettings ++
     // Tests
-    scoverageSettings ++ noParallelTestExecution ++ Seq(
+    noParallelTestExecution ++ Seq(
       Test / fork := true,
       Test / javaOptions := Seq("-Dnashorn.args=--language=es6")
     )
@@ -223,7 +214,7 @@ object BuildSettings {
     // Project
     commonFs2ProjectSettings ++ buildSettings ++
     // Tests
-    scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp ++ Seq(
+    noParallelTestExecution ++ addExampleConfToTestCp ++ Seq(
       Test / fork := true,
       Test / javaOptions := Seq("-Dnashorn.args=--language=es6")
     )
@@ -233,7 +224,7 @@ object BuildSettings {
     // Project
     commonStreamsProjectSettings ++ buildSettings ++
     // Tests
-    scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp ++ Seq(
+    noParallelTestExecution ++ addExampleConfToTestCp ++ Seq(
       Test / fork := true,
       Test / javaOptions := Seq("-Dnashorn.args=--language=es6")
     )
@@ -243,21 +234,21 @@ object BuildSettings {
     // Project
     awsUtilsProjectSettings ++ buildSettings ++
     // Tests
-    scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp
+    noParallelTestExecution ++ addExampleConfToTestCp
   }
 
   lazy val gcpUtilsBuildSettings = {
     // Project
     gcpUtilsProjectSettings ++ buildSettings ++
     // Tests
-    scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp
+    noParallelTestExecution ++ addExampleConfToTestCp
   }
 
   lazy val azureUtilsBuildSettings = {
     // Project
     azureUtilsProjectSettings ++ buildSettings ++
     // Tests
-    scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp
+    noParallelTestExecution ++ addExampleConfToTestCp
   }
 
   lazy val pubsubBuildSettings = {
@@ -267,7 +258,7 @@ object BuildSettings {
     dockerSettingsFocal ++
       Seq(Docker / packageName := "snowplow-enrich-pubsub") ++
     // Tests
-    scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp
+    noParallelTestExecution ++ addExampleConfToTestCp
   }
 
   lazy val pubsubDistrolessBuildSettings = pubsubBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
@@ -279,7 +270,7 @@ object BuildSettings {
     dockerSettingsFocal ++
       Seq(Docker / packageName := "snowplow-enrich-kinesis") ++
     // Tests
-    scoverageSettings ++ noParallelTestExecution ++ Seq(Test / fork := true) ++ addExampleConfToTestCp
+    noParallelTestExecution ++ Seq(Test / fork := true) ++ addExampleConfToTestCp
   }
 
   lazy val kinesisDistrolessBuildSettings = kinesisBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
@@ -292,7 +283,7 @@ object BuildSettings {
       Seq(Docker / packageName := "snowplow-enrich-kinesis") ++
       Seq(Docker / version := s"${version.value}-next") ++
     // Tests
-    scoverageSettings ++ noParallelTestExecution ++ Seq(Test / fork := true) ++ Seq(
+    noParallelTestExecution ++ Seq(Test / fork := true) ++ Seq(
       Test / unmanagedClasspath += {
         baseDirectory.value.getParentFile.getParentFile.getParentFile / "config"
       }
@@ -308,7 +299,7 @@ object BuildSettings {
     dockerSettingsFocal ++
       Seq(Docker / packageName := "snowplow-enrich-kafka") ++
     // Tests
-    scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp
+    noParallelTestExecution ++ addExampleConfToTestCp
   }
 
   lazy val kafkaDistrolessBuildSettings = kafkaBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
@@ -320,7 +311,7 @@ object BuildSettings {
       dockerSettingsFocal ++
       Seq(Docker / packageName := "snowplow-enrich-nsq") ++
       // Tests
-      scoverageSettings ++ noParallelTestExecution ++ addExampleConfToTestCp
+      noParallelTestExecution ++ addExampleConfToTestCp
   }
 
   lazy val nsqDistrolessBuildSettings = nsqBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless

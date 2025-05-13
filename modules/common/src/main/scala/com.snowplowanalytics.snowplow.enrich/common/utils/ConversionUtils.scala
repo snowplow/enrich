@@ -130,6 +130,12 @@ object ConversionUtils {
   // 1. If passed in null or "", return Success(None)
   // 2. If passed in a non-empty string but result == "", then return a Failure, because we have failed to decode something meaningful
   def decodeBase64Url(str: String): Either[String, String] =
+    Option(str) match {
+      case Some(nonNullStr) => decodeBase64UrlNonNull(nonNullStr)
+      case None => Left("Could not base64 decode: null")
+    }
+
+  private def decodeBase64UrlNonNull(str: String): Either[String, String] =
     Either
       .catchNonFatal {
         val decodedBytes = UrlSafeBase64.decode(str)

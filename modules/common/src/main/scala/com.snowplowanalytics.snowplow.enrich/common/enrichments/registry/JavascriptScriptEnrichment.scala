@@ -93,8 +93,8 @@ final case class JavascriptScriptEnrichment(
   private val enrichmentInfo =
     FailureDetails.EnrichmentInformation(schemaKey, "Javascript enrichment").some
 
-  private val engine = new ScriptEngineManager(null)
-    .getEngineByMimeType("text/javascript")
+  private val engine = new ScriptEngineManager()
+    .getEngineByName("nashorn")
     .asInstanceOf[ScriptEngine with Invocable with Compilable]
 
   private val stringified = rawFunction + s"""

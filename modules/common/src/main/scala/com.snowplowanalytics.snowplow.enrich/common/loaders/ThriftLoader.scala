@@ -24,7 +24,7 @@ import cats.implicits._
 import org.joda.time.{DateTime, DateTimeZone}
 
 import org.apache.thrift.protocol.TBinaryProtocol
-import org.apache.thrift.transport.TByteBuffer
+import org.apache.thrift.transport.{TByteBuffer, TTransportException}
 
 import com.snowplowanalytics.snowplow.CollectorPayload.thrift.model1.{CollectorPayload => CollectorPayload1}
 import com.snowplowanalytics.snowplow.SchemaSniffer.thrift.model1.SchemaSniffer
@@ -100,6 +100,10 @@ object ThriftLoader extends Loader[Array[Byte]] {
           payload.toValidated
         } else convertOldSchema(buffer)
       } catch {
+        case tte: TTransportException if tte.getType === TTransportException.END_OF_FILE =>
+          FailureDetails.CPFormatViolationMessage
+            .Fallback(s"error deserializing raw event: Reached end of bytes when parsing as thrift format")
+            .invalidNel
         case NonFatal(e) =>
           FailureDetails.CPFormatViolationMessage
             .Fallback(s"error deserializing raw event: ${e.getMessage}")

@@ -33,7 +33,6 @@ import com.snowplowanalytics.snowplow.runtime.{AppHealth, AppInfo, HealthProbe}
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
 
 /**
  * Resources and runtime-derived configuration needed for processing events
@@ -154,7 +153,7 @@ object Environment {
         .rethrow
     }
 
-  private val enrichedFieldsMap: Map[String, Field] = ConversionUtils.EnrichedFields.map(f => f.getName -> f).toMap
+  private val enrichedFieldsMap: Map[String, Field] = EnrichedEvent.atomicFields.map(f => f.getName -> f).toMap
 
   private def getPartitionKey[F[_]: Sync](partitionKey: Option[String]): Resource[F, EnrichedEvent => Option[String]] =
     partitionKey.fold[Resource[F, EnrichedEvent => Option[String]]](Resource.pure(_ => None)) { key =>

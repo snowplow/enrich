@@ -12,6 +12,7 @@ package com.snowplowanalytics.snowplow.enrich.common
 
 package enrichments.registry
 
+import io.circe.Json
 import io.circe.literal._
 
 import org.specs2.Specification
@@ -42,6 +43,10 @@ class JavascriptScriptEnrichmentSpec extends Specification {
   Javascript enrichment should be able to utilize the headers                        $e13
   Javascript enrichment should drop event when dropped method is called              $e14
   Javascript enrichment should be able to set 'erase derived contexts' flag to true  $e15
+  Javascript enrichment should be able to manipulate unstruct_event                  $e16
+  Javascript enrichment should be able to manipulate context                         $e17
+  Javascript enrichment should fail if the unstruct_event is set to invalid json     $e18
+  Javascript enrichment should fail if the contexts field is set to invalid json     $e19
   """
 
   val schemaKey =
@@ -232,6 +237,110 @@ class JavascriptScriptEnrichmentSpec extends Specification {
     (JavascriptScriptEnrichment(schemaKey, function).process(enriched, List.empty, SpecHelpers.DefaultMaxJsonDepth) must beEqualTo(
       Result.Success(List.empty, useDerivedContextsFromJsEnrichmentOnly = true)
     )) and ((enriched.use_derived_contexts_from_js_enrichment_only: Boolean) must beTrue)
+  }
+
+  def e16 = {
+    val enriched = buildEnriched()
+
+    val clientSession = SelfDescribingData[Json](
+      SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/client_session/jsonschema/1-0-1").toOption.get,
+      json"""{
+        "userId": "some-fancy-user-session-id",
+        "sessionId": "42c8a55b-c0c2-4749-b9ac-09bb0d17d000",
+        "sessionIndex": 1,
+        "previousSessionId": null,
+        "storageMechanism": "COOKIE_1"
+      }"""
+    )
+    enriched.unstruct_event = Some(clientSession)
+
+    val function =
+      s"""
+      function process(event) {
+        const ue = JSON.parse(event.getUnstruct_event())
+        ue.data.schema = "iglu:modifiedvendor/modifiedname/jsonschema/1-0-0"
+        ue.data.data.userId = "some-modified-user-id"
+        event.setUnstruct_event(JSON.stringify(ue))
+        return []
+      }"""
+
+    val expectedSchemaKey = SchemaKey.fromUri("iglu:modifiedvendor/modifiedname/jsonschema/1-0-0").toOption.get
+
+    JavascriptScriptEnrichment(schemaKey, function).process(enriched, List.empty, SpecHelpers.DefaultMaxJsonDepth)
+    enriched.unstruct_event must beSome.like {
+      case sdj: SelfDescribingData[Json] =>
+        List(
+          sdj.schema must beEqualTo(expectedSchemaKey),
+          sdj.data.hcursor.get[String]("userId") must beRight("some-modified-user-id")
+        ).reduce(_ and _)
+    }
+  }
+
+  def e17 = {
+    val enriched = buildEnriched()
+
+    val clientSession = SelfDescribingData[Json](
+      SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/client_session/jsonschema/1-0-1").toOption.get,
+      json"""{
+        "userId": "some-fancy-user-session-id",
+        "sessionId": "42c8a55b-c0c2-4749-b9ac-09bb0d17d000",
+        "sessionIndex": 1,
+        "previousSessionId": null,
+        "storageMechanism": "COOKIE_1"
+      }"""
+    )
+    enriched.contexts = List(clientSession)
+
+    val function =
+      s"""
+      function process(event) {
+        const co = JSON.parse(event.getContexts())
+        co.data[0].schema = "iglu:modifiedvendor/modifiedname/jsonschema/1-0-0"
+        co.data[0].data.userId = "some-modified-user-id"
+        event.setContexts(JSON.stringify(co))
+        return []
+      }"""
+
+    val expectedSchemaKey = SchemaKey.fromUri("iglu:modifiedvendor/modifiedname/jsonschema/1-0-0").toOption.get
+
+    JavascriptScriptEnrichment(schemaKey, function).process(enriched, List.empty, SpecHelpers.DefaultMaxJsonDepth)
+    enriched.contexts.lift(0) must beSome.like {
+      case sdj: SelfDescribingData[Json] =>
+        List(
+          sdj.schema must beEqualTo(expectedSchemaKey),
+          sdj.data.hcursor.get[String]("userId") must beRight("some-modified-user-id")
+        ).reduce(_ and _)
+    }
+  }
+
+  def e18 = {
+    val enriched = buildEnriched()
+    val function =
+      s"""
+      function process(event) {
+        const ue = {foo: "bar"}
+        event.setUnstruct_event(JSON.stringify(ue))
+        return []
+      }"""
+
+    JavascriptScriptEnrichment(schemaKey, function).process(enriched, List.empty, SpecHelpers.DefaultMaxJsonDepth) must beLike {
+      failureContains("invalid unstruct_event json")
+    }
+  }
+
+  def e19 = {
+    val enriched = buildEnriched()
+    val function =
+      s"""
+      function process(event) {
+        const co = {foo: "bar"}
+        event.setContexts(JSON.stringify(co))
+        return []
+      }"""
+
+    JavascriptScriptEnrichment(schemaKey, function).process(enriched, List.empty, SpecHelpers.DefaultMaxJsonDepth) must beLike {
+      failureContains("invalid contexts json")
+    }
   }
 
   def buildEnriched(appId: String = "my super app"): EnrichedEvent = {

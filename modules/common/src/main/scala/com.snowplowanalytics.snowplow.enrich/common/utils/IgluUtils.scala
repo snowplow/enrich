@@ -31,8 +31,6 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.Failure
 
 import com.snowplowanalytics.snowplow.badrows._
 
-import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-
 /**
  * Contain the functions to validate:
  *  - An unstructured event,
@@ -44,7 +42,7 @@ object IgluUtils {
   /**
    * Extract unstructured event (if any) and input contexts (if any) from input event
    * and validate them against their schema
-   * @param enriched Contain the input Jsons
+   * @param inputs Contain the input Jsons
    * @param client Iglu client used to validate the SDJs
    * @param raw Raw input event, used only to put in the bad row in case of problem
    * @param processor Meta data to put in the bad row
@@ -52,15 +50,15 @@ object IgluUtils {
    *         while everything that is valid is in the Right part.
    */
   def extractAndValidateInputJsons[F[_]: Monad: Clock](
-    enriched: EnrichedEvent,
+    inputs: EventExtractInput,
     client: IgluCirceClient[F],
     registryLookup: RegistryLookup[F],
     maxJsonDepth: Int,
     etlTstamp: Instant
   ): IorT[F, NonEmptyList[Failure.SchemaViolation], EventExtractResult] =
     for {
-      contexts <- extractAndValidateInputContexts(enriched, client, registryLookup, maxJsonDepth, etlTstamp)
-      unstruct <- extractAndValidateUnstructEvent(enriched, client, registryLookup, maxJsonDepth, etlTstamp)
+      contexts <- extractAndValidateInputContexts(inputs, client, registryLookup, maxJsonDepth, etlTstamp)
+      unstruct <- extractAndValidateUnstructEvent(inputs, client, registryLookup, maxJsonDepth, etlTstamp)
     } yield {
       val validationInfoContexts = (contexts.flatMap(_.validationInfo) ::: unstruct.flatMap(_.validationInfo).toList).distinct
         .map(_.toSdj)
@@ -72,7 +70,7 @@ object IgluUtils {
 
   /**
    * Extract unstructured event from event and validate against its schema
-   *  @param enriched Snowplow event from which to extract unstructured event (in String)
+   *  @param inputs Self-describing JSONs as the original strings
    *  @param client Iglu client used for SDJ validation
    *  @param field Name of the field containing the unstructured event, to put in the bad row
    *               in case of failure
@@ -80,7 +78,7 @@ object IgluUtils {
    *  @return Valid unstructured event if the input event has one
    */
   private[common] def extractAndValidateUnstructEvent[F[_]: Monad: Clock](
-    enriched: EnrichedEvent,
+    inputs: EventExtractInput,
     client: IgluCirceClient[F],
     registryLookup: RegistryLookup[F],
     maxJsonDepth: Int,
@@ -88,7 +86,7 @@ object IgluUtils {
     field: String = "unstruct",
     criterion: SchemaCriterion = SchemaCriterion("com.snowplowanalytics.snowplow", "unstruct_event", "jsonschema", 1, 0)
   ): IorT[F, NonEmptyList[Failure.SchemaViolation], Option[SdjExtractResult]] =
-    Option(enriched.unstruct_event) match {
+    inputs.unstructEvent match {
       case Some(rawUnstructEvent) =>
         val iorT = for {
           // Validate input Json string and extract unstructured event
@@ -105,7 +103,7 @@ object IgluUtils {
 
   /**
    * Extract list of custom contexts from event and validate each against its schema
-   *  @param enriched Snowplow enriched event from which to extract custom contexts (in String)
+   *  @param inputs Raw strings extracted from the tracker payload
    *  @param client Iglu client used for SDJ validation
    *  @param field Name of the field containing the contexts, to put in the bad row
    *               in case of failure
@@ -113,7 +111,7 @@ object IgluUtils {
    *  @return All valid contexts are in the Right while all errors are in the Left
    */
   private[common] def extractAndValidateInputContexts[F[_]: Monad: Clock](
-    enriched: EnrichedEvent,
+    inputs: EventExtractInput,
     client: IgluCirceClient[F],
     registryLookup: RegistryLookup[F],
     maxJsonDepth: Int,
@@ -121,7 +119,7 @@ object IgluUtils {
     field: String = "contexts",
     criterion: SchemaCriterion = SchemaCriterion("com.snowplowanalytics.snowplow", "contexts", "jsonschema", 1, 0)
   ): IorT[F, NonEmptyList[Failure.SchemaViolation], List[SdjExtractResult]] =
-    Option(enriched.contexts) match {
+    inputs.contexts match {
       case Some(rawContexts) =>
         val iorT = for {
           // Validate input Json string and extract contexts
@@ -329,6 +327,16 @@ object IgluUtils {
   }
 
   case class SdjExtractResult(sdj: SelfDescribingData[Json], validationInfo: Option[ValidationInfo])
+
+  /**
+   * The inputs for the `extractAndAvalidateInputContexts` function
+   *  @param unstructEvent The raw string extracted from the tracker payload, i.e. ue_pr or ue_px tracker field
+   *  @param contexts The raw string extracted from the tracker payload, i.e. co or cx tracker field
+   */
+  case class EventExtractInput(
+    unstructEvent: Option[String],
+    contexts: Option[String]
+  )
 
   case class EventExtractResult(
     contexts: List[SelfDescribingData[Json]],

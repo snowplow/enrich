@@ -154,7 +154,7 @@ class InputSpec extends Specification with ValidatedMatchers {
     event.setUser_id("chuwy")
     event.setTrue_tstamp("20")
 
-    val placeholderMap = Input.buildPlaceholderMap(List(input1, input2), event, Nil, Nil, None)
+    val placeholderMap = Input.buildPlaceholderMap(List(input1, input2), event, Nil)
     placeholderMap must beRight(
       Some(
         IntMap(
@@ -167,26 +167,28 @@ class InputSpec extends Specification with ValidatedMatchers {
 
   def e2 = {
     import ContextCase._
-    val event = new EnrichedEvent
+    val event = new EnrichedEvent {
+      unstruct_event = Some(unstructEvent)
+      contexts = List(cookieContext, overriderContext)
+    }
     val placeholderMap = Input.buildPlaceholderMap(
       List(ccInput, derInput, unstructInput, overrideHumidityInput),
       event,
-      derivedContexts = List(derivedContext1),
-      customContexts = List(cookieContext, overriderContext),
-      unstructEvent = Some(unstructEvent)
+      derivedContexts = List(derivedContext1)
     )
     placeholderMap must beRight(None)
   }
 
   def e8 = {
     import ContextCase._
-    val event = new EnrichedEvent
+    val event = new EnrichedEvent {
+      unstruct_event = Some(unstructEvent)
+      contexts = List(cookieContextWithoutNull, overriderContext)
+    }
     val placeholderMap = Input.buildPlaceholderMap(
       List(ccInput, derInput, unstructInput, overrideHumidityInput),
       event,
-      derivedContexts = List(derivedContext1),
-      customContexts = List(cookieContextWithoutNull, overriderContext),
-      unstructEvent = Some(unstructEvent)
+      derivedContexts = List(derivedContext1)
     )
 
     placeholderMap must beRight(
@@ -215,16 +217,16 @@ class InputSpec extends Specification with ValidatedMatchers {
       "$.latitude"
     )
     val pojoLatitudeInput = Input.Pojo(1, "geo_latitude")
-    val event = new EnrichedEvent
+    val event = new EnrichedEvent {
+      contexts = List(overriderContext)
+    }
     event.setGeo_latitude(42.0f)
 
     // In API Enrichment this colliding wrong
     val templateContext = Input.buildPlaceholderMap(
       List(pojoLatitudeInput, jsonLatitudeInput),
       event,
-      derivedContexts = Nil,
-      customContexts = List(overriderContext),
-      unstructEvent = None
+      derivedContexts = Nil
     )
     templateContext must beRight(Some(IntMap(1 -> Input.DoublePlaceholder.Value(43.1))))
   }
@@ -260,33 +262,31 @@ class InputSpec extends Specification with ValidatedMatchers {
 
     val templateContext = Input.buildPlaceholderMap(
       List(invalidJsonPathInput, pojoInput, invalidJsonFieldInput),
-      null,
-      derivedContexts = Nil,
-      customContexts = Nil,
-      unstructEvent = None
+      new EnrichedEvent,
+      derivedContexts = Nil
     )
     templateContext must beLeft.like {
-      case errors => errors.toList must have length 3
+      case errors => errors.toList must have length 2
     }
   }
 
   def e5 = {
     val event = new EnrichedEvent
     val pojoInput = Input.Pojo(1, "app_id")
-    val templateContext = pojoInput.pull(event, Nil, Nil, None)
+    val templateContext = pojoInput.pull(event, Nil)
     templateContext must beValid((1, None))
   }
 
   def e6 = {
     val event = new EnrichedEvent
     val pojoInput = Input.Pojo(1, "unknown_property")
-    val templateContext = pojoInput.pull(event, Nil, Nil, None)
+    val templateContext = pojoInput.pull(event, Nil)
     templateContext must beInvalid
   }
 
   def e9 = {
     val event = new EnrichedEvent
-    val placeholderMap = Input.buildPlaceholderMap(List(), event, Nil, Nil, None)
+    val placeholderMap = Input.buildPlaceholderMap(List(), event, Nil)
     placeholderMap must beRight(Some(IntMap.empty[Input.PlaceholderMap]))
   }
 
@@ -324,15 +324,15 @@ class InputSpec extends Specification with ValidatedMatchers {
     event.setBr_viewwidth(800)
     event.setGeo_longitude(32.3f)
 
-    val appid = Input.Pojo(3, "app_id").pull(event, Nil, Nil, None) must beValid(
+    val appid = Input.Pojo(3, "app_id").pull(event, Nil) must beValid(
       (3, Some(Input.StringPlaceholder.Value("enrichment-test")))
     )
     val viewwidth = Input
       .Pojo(1, "br_viewwidth")
-      .pull(event, Nil, Nil, None) must beValid((1, Some(Input.IntPlaceholder.Value(800))))
+      .pull(event, Nil) must beValid((1, Some(Input.IntPlaceholder.Value(800))))
     val longitude = Input
       .Pojo(1, "geo_longitude")
-      .pull(event, Nil, Nil, None) must beValid((1, Some(Input.FloatPlaceholder.Value(32.3f))))
+      .pull(event, Nil) must beValid((1, Some(Input.FloatPlaceholder.Value(32.3f))))
 
     appid.and(viewwidth).and(longitude)
   }

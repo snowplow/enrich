@@ -14,16 +14,14 @@ import com.fasterxml.jackson.databind.{ObjectMapper, SerializationFeature}
 import com.jayway.jsonpath.spi.json.JacksonJsonNodeJsonProvider
 import com.jayway.jsonpath.{Configuration, Option => JOption}
 
+import java.nio.charset.StandardCharsets
+
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
 package object pii {
   type DigestFunction = Array[Byte] => String
   type ModifiedFields = List[ModifiedField]
-  type ApplyStrategyFn = (String, PiiStrategy) => (String, ModifiedFields)
-  type MutatorFn = (EnrichedEvent, PiiStrategy, ApplyStrategyFn) => ModifiedFields
-
-  val JsonMutators = Mutators.JsonMutators
-  val ScalarMutators = Mutators.ScalarMutators
+  type MutatorFn = (EnrichedEvent, PiiStrategy) => ModifiedFields
 
   // Configuration for JsonPath, SerializationFeature.FAIL_ON_EMPTY_BEANS is required otherwise an
   // invalid path causes an exception
@@ -45,6 +43,20 @@ package object pii {
 package pii {
 
   /**
+   * Mutators parsed from the enrichment config
+   *  @param pojo A list of Mutators which describes how this enrichment should run on atomic fields
+   *  @param unstruct A list of Mutators which describe how this enrichment should run on unstruct events
+   *  @param contexts ...and for context entities
+   *  @param derivedContexts ...and for derived contexts
+   */
+  case class PiiMutators(
+    pojo: List[MutatorFn],
+    unstruct: List[PiiPseudonymizerEnrichment.JsonFieldLocator],
+    contexts: List[PiiPseudonymizerEnrichment.JsonFieldLocator],
+    derivedContexts: List[PiiPseudonymizerEnrichment.JsonFieldLocator]
+  )
+
+  /**
    * PiiStrategy trait. This corresponds to a strategy to apply to a single field. Currently only
    * String input is supported.
    */
@@ -63,16 +75,9 @@ package pii {
     hashFunction: DigestFunction,
     salt: String
   ) extends PiiStrategy {
-    val TextEncoding = "UTF-8"
     override def scramble(clearText: String): String = hash(clearText + salt)
-    def hash(text: String): String = hashFunction(text.getBytes(TextEncoding))
+    def hash(text: String): String = hashFunction(text.getBytes(StandardCharsets.UTF_8))
   }
-
-  /**
-   * The mutator class encapsulates the mutator function and the field name where the mutator will
-   * be applied.
-   */
-  private[pii] final case class Mutator(fieldName: String, muatatorFn: MutatorFn)
 
   /**
    * Parent class for classes that serialize the values that were modified during the PII enrichment
@@ -94,30 +99,6 @@ package pii {
     jsonPath: String,
     schema: String
   ) extends ModifiedField
-
-  /**
-   * PiiField trait. This corresponds to a configuration top-level field (i.e. either a scalar or a
-   * JSON field) along with a function to apply that strategy to the EnrichedEvent POJO (A scalar
-   * field is represented in config py "pojo")
-   */
-  trait PiiField {
-
-    /**
-     * The POJO mutator for this field
-     * @return fieldMutator
-     */
-    def fieldMutator: Mutator
-
-    /**
-     * Gets an enriched event from the enrichment manager and modifies it according to the specified
-     * strategy.
-     * @param event The enriched event
-     */
-    def transform(event: EnrichedEvent, strategy: PiiStrategy): ModifiedFields =
-      fieldMutator.muatatorFn(event, strategy, applyStrategy)
-
-    protected def applyStrategy(fieldValue: String, strategy: PiiStrategy): (String, ModifiedFields)
-  }
 
   /**
    * The modified field trait represents an item that is transformed in either the JSON or a scalar

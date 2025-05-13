@@ -25,10 +25,11 @@ import cats.effect.kernel.Ref
 import cats.effect.testing.specs2.CatsEffect
 
 import io.circe.parser.parse
+import io.circe.literal._
 
 import org.http4s.Uri
 
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{Metadata => MetadataConfig}
@@ -59,10 +60,16 @@ class MetadataSpec extends Specification with CatsEffect {
 
     "report observed events and entities" in {
       val event = MetadataSpec.enriched
-      event.contexts = """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[
-             {"schema":"iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-0","data":{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}},
-             {"schema":"iglu:org.w3/PerformanceTiming/jsonschema/1-0-0","data":{"navigationStart":1581931694397,"unloadEventStart":1581931696046,"unloadEventEnd":1581931694764,"redirectStart":0,"redirectEnd":0,"fetchStart":1581931694397,"domainLookupStart":1581931694440,"domainLookupEnd":1581931694513,"connectStart":1581931694513,"connectEnd":1581931694665,"secureConnectionStart":1581931694572,"requestStart":1581931694665,"responseStart":1581931694750,"responseEnd":1581931694750,"domLoading":1581931694762,"domInteractive":1581931695963,"domContentLoadedEventStart":1581931696039,"domContentLoadedEventEnd":1581931696039,"domComplete":0,"loadEventStart":0,"loadEventEnd":0}}
-           ]}"""
+      event.contexts = List(
+        SelfDescribingData(
+          SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-0").toOption.get,
+          json"""{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}"""
+        ),
+        SelfDescribingData(
+          SchemaKey.fromUri("iglu:org.w3/PerformanceTiming/jsonschema/1-0-0").toOption.get,
+          json"""{"navigationStart":1581931694397,"unloadEventStart":1581931696046,"unloadEventEnd":1581931694764,"redirectStart":0,"redirectEnd":0,"fetchStart":1581931694397,"domainLookupStart":1581931694440,"domainLookupEnd":1581931694513,"connectStart":1581931694513,"connectEnd":1581931694665,"secureConnectionStart":1581931694572,"requestStart":1581931694665,"responseStart":1581931694750,"responseEnd":1581931694750,"domLoading":1581931694762,"domInteractive":1581931695963,"domContentLoadedEventStart":1581931696039,"domContentLoadedEventEnd":1581931696039,"domComplete":0,"loadEventStart":0,"loadEventEnd":0}"""
+        )
+      )
 
       val config = MetadataConfig(
         Uri.unsafeFromString("https://localhost:443"),
@@ -94,11 +101,20 @@ class MetadataSpec extends Specification with CatsEffect {
 
     "get entities in event's contexts and find scenarioId if present" in {
       val event = new EnrichedEvent()
-      event.contexts = """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[
-             {"schema":"iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-0","data":{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}},
-             {"schema":"iglu:org.w3/PerformanceTiming/jsonschema/1-0-0","data":{"navigationStart":1581931694397,"unloadEventStart":1581931696046,"unloadEventEnd":1581931694764,"redirectStart":0,"redirectEnd":0,"fetchStart":1581931694397,"domainLookupStart":1581931694440,"domainLookupEnd":1581931694513,"connectStart":1581931694513,"connectEnd":1581931694665,"secureConnectionStart":1581931694572,"requestStart":1581931694665,"responseStart":1581931694750,"responseEnd":1581931694750,"domLoading":1581931694762,"domInteractive":1581931695963,"domContentLoadedEventStart":1581931696039,"domContentLoadedEventEnd":1581931696039,"domComplete":0,"loadEventStart":0,"loadEventEnd":0}},
-             {"schema": "iglu:com.snowplowanalytics.snowplow/event_specification/jsonschema/1-0-0", "data": {"id": "scenario_id"}}
-           ]}"""
+      event.contexts = List(
+        SelfDescribingData(
+          SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-0").toOption.get,
+          json"""{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}"""
+        ),
+        SelfDescribingData(
+          SchemaKey.fromUri("iglu:org.w3/PerformanceTiming/jsonschema/1-0-0").toOption.get,
+          json"""{"navigationStart":1581931694397,"unloadEventStart":1581931696046,"unloadEventEnd":1581931694764,"redirectStart":0,"redirectEnd":0,"fetchStart":1581931694397,"domainLookupStart":1581931694440,"domainLookupEnd":1581931694513,"connectStart":1581931694513,"connectEnd":1581931694665,"secureConnectionStart":1581931694572,"requestStart":1581931694665,"responseStart":1581931694750,"responseEnd":1581931694750,"domLoading":1581931694762,"domInteractive":1581931695963,"domContentLoadedEventStart":1581931696039,"domContentLoadedEventEnd":1581931696039,"domComplete":0,"loadEventStart":0,"loadEventEnd":0}"""
+        ),
+        SelfDescribingData(SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/event_specification/jsonschema/1-0-0").toOption.get,
+                           json"""{"id": "scenario_id"}"""
+        )
+      )
+
       val expectedEntitites =
         Seq(
           SchemaKey("com.snowplowanalytics.snowplow", "web_page", "jsonschema", SchemaVer.Full(1, 0, 0)),
@@ -135,15 +151,28 @@ class MetadataSpec extends Specification with CatsEffect {
 
       "add new entity to metadata event that already has an entity" in {
         val enriched = MetadataSpec.enriched
-        enriched.contexts =
-          """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-0","data":{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}},{"schema":"iglu:org.w3/PerformanceTiming/jsonschema/1-0-0","data":{"navigationStart":1581931694397,"unloadEventStart":1581931696046,"unloadEventEnd":1581931694764,"redirectStart":0,"redirectEnd":0,"fetchStart":1581931694397,"domainLookupStart":1581931694440,"domainLookupEnd":1581931694513,"connectStart":1581931694513,"connectEnd":1581931694665,"secureConnectionStart":1581931694572,"requestStart":1581931694665,"responseStart":1581931694750,"responseEnd":1581931694750,"domLoading":1581931694762,"domInteractive":1581931695963,"domContentLoadedEventStart":1581931696039,"domContentLoadedEventEnd":1581931696039,"domComplete":0,"loadEventStart":0,"loadEventEnd":0}}]}"""
+        enriched.contexts = List(
+          SelfDescribingData(
+            SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-0").toOption.get,
+            json"""{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}"""
+          ),
+          SelfDescribingData(
+            SchemaKey.fromUri("iglu:org.w3/PerformanceTiming/jsonschema/1-0-0").toOption.get,
+            json"""{"navigationStart":1581931694397,"unloadEventStart":1581931696046,"unloadEventEnd":1581931694764,"redirectStart":0,"redirectEnd":0,"fetchStart":1581931694397,"domainLookupStart":1581931694440,"domainLookupEnd":1581931694513,"connectStart":1581931694513,"connectEnd":1581931694665,"secureConnectionStart":1581931694572,"requestStart":1581931694665,"responseStart":1581931694750,"responseEnd":1581931694750,"domLoading":1581931694762,"domInteractive":1581931695963,"domContentLoadedEventStart":1581931696039,"domContentLoadedEventEnd":1581931696039,"domComplete":0,"loadEventStart":0,"loadEventEnd":0}"""
+          )
+        )
+
         val entities = Set(
           SchemaKey("com.snowplowanalytics.snowplow", "web_page", "jsonschema", SchemaVer.Full(1, 0, 0)),
           SchemaKey("org.w3", "PerformanceTiming", "jsonschema", SchemaVer.Full(1, 0, 0))
         )
         val enrichedBis = MetadataSpec.enriched
-        enrichedBis.contexts =
-          """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-1","data":{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}}]}"""
+        enrichedBis.contexts = List(
+          SelfDescribingData(
+            SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-1").toOption.get,
+            json"""{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}"""
+          )
+        )
         val entityBis = SchemaKey("com.snowplowanalytics.snowplow", "web_page", "jsonschema", SchemaVer.Full(1, 0, 1))
         val previous = Map(MetadataEvent(enriched, None) -> EntitiesAndCount(entities, 1))
         Metadata.recalculate(previous, List(enrichedBis)) should containTheSameElementsAs(
@@ -153,19 +182,35 @@ class MetadataSpec extends Specification with CatsEffect {
 
       "add several entities from several events to an existing metadata event" in {
         val enriched = MetadataSpec.enriched
-        enriched.contexts =
-          """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-0","data":{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}},{"schema":"iglu:org.w3/PerformanceTiming/jsonschema/1-0-0","data":{"navigationStart":1581931694397,"unloadEventStart":1581931696046,"unloadEventEnd":1581931694764,"redirectStart":0,"redirectEnd":0,"fetchStart":1581931694397,"domainLookupStart":1581931694440,"domainLookupEnd":1581931694513,"connectStart":1581931694513,"connectEnd":1581931694665,"secureConnectionStart":1581931694572,"requestStart":1581931694665,"responseStart":1581931694750,"responseEnd":1581931694750,"domLoading":1581931694762,"domInteractive":1581931695963,"domContentLoadedEventStart":1581931696039,"domContentLoadedEventEnd":1581931696039,"domComplete":0,"loadEventStart":0,"loadEventEnd":0}}]}"""
+        enriched.contexts = List(
+          SelfDescribingData(
+            SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-0").toOption.get,
+            json"""{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}"""
+          ),
+          SelfDescribingData(
+            SchemaKey.fromUri("iglu:org.w3/PerformanceTiming/jsonschema/1-0-0").toOption.get,
+            json"""{"navigationStart":1581931694397,"unloadEventStart":1581931696046,"unloadEventEnd":1581931694764,"redirectStart":0,"redirectEnd":0,"fetchStart":1581931694397,"domainLookupStart":1581931694440,"domainLookupEnd":1581931694513,"connectStart":1581931694513,"connectEnd":1581931694665,"secureConnectionStart":1581931694572,"requestStart":1581931694665,"responseStart":1581931694750,"responseEnd":1581931694750,"domLoading":1581931694762,"domInteractive":1581931695963,"domContentLoadedEventStart":1581931696039,"domContentLoadedEventEnd":1581931696039,"domComplete":0,"loadEventStart":0,"loadEventEnd":0}"""
+          )
+        )
         val entities = Set(
           SchemaKey("com.snowplowanalytics.snowplow", "web_page", "jsonschema", SchemaVer.Full(1, 0, 0)),
           SchemaKey("org.w3", "PerformanceTiming", "jsonschema", SchemaVer.Full(1, 0, 0))
         )
         val enrichedBis = MetadataSpec.enriched
-        enrichedBis.contexts =
-          """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-1","data":{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}}]}"""
+        enrichedBis.contexts = List(
+          SelfDescribingData(
+            SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-1").toOption.get,
+            json"""{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}"""
+          )
+        )
         val entityBis = SchemaKey("com.snowplowanalytics.snowplow", "web_page", "jsonschema", SchemaVer.Full(1, 0, 1))
         val enrichedTer = MetadataSpec.enriched
-        enrichedTer.contexts =
-          """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-2","data":{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}}]}"""
+        enrichedTer.contexts = List(
+          SelfDescribingData(
+            SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/web_page/jsonschema/1-0-2").toOption.get,
+            json"""{"id":"39a9934a-ddd3-4581-a4ea-d0ba20e63b92"}"""
+          )
+        )
         val entityTer = SchemaKey("com.snowplowanalytics.snowplow", "web_page", "jsonschema", SchemaVer.Full(1, 0, 2))
         val previous = Map(MetadataEvent(enriched, None) -> EntitiesAndCount(entities, 1))
         Metadata.recalculate(previous, List(enrichedBis, enrichedTer)) should containTheSameElementsAs(

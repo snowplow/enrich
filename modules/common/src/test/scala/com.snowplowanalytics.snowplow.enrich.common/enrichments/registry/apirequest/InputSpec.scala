@@ -139,19 +139,19 @@ class InputSpec extends Specification with ValidatedMatchers with CatsEffect {
     val event = new EnrichedEvent
     event.setUser_id("chuwy")
     event.setTrue_tstamp("20")
-    val templateContext = Input.buildTemplateContext(List(input1, input2), event, Nil, Nil, None)
+    val templateContext = Input.buildTemplateContext(List(input1, input2), event, Nil)
     templateContext must beValid(Some(Map("user" -> "chuwy", "time" -> "20")))
   }
 
   def e2 = {
     import ContextCase._
     val event = new EnrichedEvent
+    event.unstruct_event = Some(unstructEvent)
+    event.contexts = List(cookieContext, overriderContext)
     val templateContext = Input.buildTemplateContext(
       List(ccInput, derInput, unstructInput, overrideHumidityInput),
       event,
-      derivedContexts = List(derivedContext1),
-      customContexts = List(cookieContext, overriderContext),
-      unstructEvent = Some(unstructEvent)
+      derivedContexts = List(derivedContext1)
     )
     templateContext must beValid(
       Some(
@@ -176,13 +176,12 @@ class InputSpec extends Specification with ValidatedMatchers with CatsEffect {
     val pojoLatitudeInput = Input.Pojo("latitude", "geo_latitude")
     val event = new EnrichedEvent
     event.setGeo_latitude(42.0f)
+    event.contexts = List(ContextCase.overriderContext)
 
     val templateContext = Input.buildTemplateContext(
       List(pojoLatitudeInput, jsonLatitudeInput),
       event,
-      derivedContexts = Nil,
-      customContexts = List(ContextCase.overriderContext),
-      unstructEvent = None
+      derivedContexts = Nil
     )
 
     templateContext must beValid(Some(Map("latitude" -> "43.1")))
@@ -217,20 +216,18 @@ class InputSpec extends Specification with ValidatedMatchers with CatsEffect {
 
     val templateContext = Input.buildTemplateContext(
       List(invalidJsonPathInput, pojoInput, invalidJsonFieldInput),
-      null,
-      derivedContexts = Nil,
-      customContexts = Nil, // This should have been an error?
-      unstructEvent = None
+      new EnrichedEvent,
+      derivedContexts = Nil
     )
     templateContext must beInvalid.like {
-      case errors => errors.toList must have length 3
+      case errors => errors.toList must have length 2
     }
   }
 
   def e5 = {
     val event = new EnrichedEvent
     val pojoInput = Input.Pojo("someKey", "app_id")
-    val templateContext: ValidatedNel[String, Option[Any]] = pojoInput.pull(event, Nil, Nil, None)
+    val templateContext: ValidatedNel[String, Option[Any]] = pojoInput.pull(event, Nil)
     templateContext must beValid.like {
       case map => map must beNone
     }
@@ -239,7 +236,7 @@ class InputSpec extends Specification with ValidatedMatchers with CatsEffect {
   def e6 = {
     val event = new EnrichedEvent
     val pojoInput = Input.Pojo("someKey", "unknown_property")
-    val templateContext: ValidatedNel[String, Option[Any]] = pojoInput.pull(event, Nil, Nil, None)
+    val templateContext: ValidatedNel[String, Option[Any]] = pojoInput.pull(event, Nil)
     templateContext must beInvalid
   }
 
@@ -261,7 +258,7 @@ class InputSpec extends Specification with ValidatedMatchers with CatsEffect {
         event = new EnrichedEvent
         _ = event.setUser_id("chuwy")
         // time in true_tstamp won't be found
-        request <- enrichment.lookup(event, Nil, Nil, None)
+        request <- enrichment.lookup(event, Nil)
       } yield request must beValid.like {
         case response => response must be(Nil)
       }
@@ -282,7 +279,11 @@ class InputSpec extends Specification with ValidatedMatchers with CatsEffect {
         json"""{ "somekey": "somevalue" }"""
       )
 
-    input.pull(new EnrichedEvent, Nil, List(obj), None) must beValid.like {
+    val e = new EnrichedEvent {
+      contexts = List(obj)
+    }
+
+    input.pull(e, Nil) must beValid.like {
       case Some(context) =>
         context must beEqualTo(Map("permissive" -> "somevalue"))
       case None =>

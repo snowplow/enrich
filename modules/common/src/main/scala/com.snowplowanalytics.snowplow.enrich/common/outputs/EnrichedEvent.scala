@@ -15,11 +15,18 @@ import java.lang.{Float => JFloat}
 import java.lang.{Byte => JByte}
 import java.lang.{Boolean => JBoolean}
 import java.math.{BigDecimal => JBigDecimal}
+import java.lang.reflect.Field
+
+import io.circe.{Decoder, Json}
+import io.circe.parser._
 
 import scala.beans.BeanProperty
 
+import com.snowplowanalytics.iglu.core.{SchemaKey, SelfDescribingData}
+import com.snowplowanalytics.iglu.core.circe.implicits._
 import com.snowplowanalytics.snowplow.badrows.Payload.PartiallyEnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.JavascriptScriptEnrichment.JavascriptRejectionException
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.MiscEnrichments
 
 /**
  * The canonical output format for enriched events.
@@ -37,6 +44,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.Javascr
  */
 // TODO: make the EnrichedEvent Avro-format, not Redshift-specific
 class EnrichedEvent extends Serializable {
+  import EnrichedEvent._
 
   // The application (site, game, app etc) enriched event belongs to, and the tracker platform
   @BeanProperty var app_id: String = _
@@ -114,18 +122,12 @@ class EnrichedEvent extends Serializable {
   @BeanProperty var mkt_content: String = _
   @BeanProperty var mkt_campaign: String = _
 
-  // Custom Contexts
-  @BeanProperty var contexts: String = _
-
   // Structured Event
   @BeanProperty var se_category: String = _
   @BeanProperty var se_action: String = _
   @BeanProperty var se_label: String = _
   @BeanProperty var se_property: String = _
   @BeanProperty var se_value: JBigDecimal = _
-
-  // Unstructured Event
-  @BeanProperty var unstruct_event: String = _
 
   // Ecommerce transaction (from querystring)
   @BeanProperty var tr_orderid: String = _
@@ -223,9 +225,6 @@ class EnrichedEvent extends Serializable {
   @BeanProperty var refr_domain_userid: String = _
   @BeanProperty var refr_dvce_tstamp: String = _
 
-  // Derived contexts
-  @BeanProperty var derived_contexts: String = _
-
   // Session ID
   @BeanProperty var domain_sessionid: String = _
 
@@ -244,12 +243,60 @@ class EnrichedEvent extends Serializable {
   // True timestamp
   @BeanProperty var true_tstamp: String = _
 
-  // Fields modified in PII enrichemnt (JSON String)
-  @BeanProperty var pii: String = _
+  // The following fields are not @BeanProperty because we have customized getters/setters below
+  private[enrich] var unstruct_event: Option[SelfDescribingData[Json]] = None
+  private[enrich] var contexts: List[SelfDescribingData[Json]] = Nil
+  private[enrich] var derived_contexts: List[SelfDescribingData[Json]] = Nil
+  private[enrich] var pii: Option[SelfDescribingData[Json]] = None
 
   // Specifies whether derived contexts only from JS enrichment should be used
   // and all the other derived contexts should be ignored
   private[enrich] var use_derived_contexts_from_js_enrichment_only: JBoolean = _
+
+  // The following Getters/Setters are for use in the Javascript enrichment only
+
+  def getContexts(): String =
+    MiscEnrichments.formatContexts(this.contexts).orNull
+
+  def getUnstruct_event(): String =
+    MiscEnrichments.formatUnstructEvent(this.unstruct_event).orNull
+
+  def getDerived_contexts(): String =
+    MiscEnrichments.formatContexts(this.derived_contexts).orNull
+
+  def getPii(): String =
+    MiscEnrichments.formatUnstructEvent(this.pii).orNull
+
+  def setContexts(strOrNull: String): Unit =
+    this.contexts = Option(strOrNull)
+      .map { str =>
+        decode[SelfDescribingData[List[SelfDescribingData[Json]]]](str) match {
+          case Right(sdj) => sdj.data
+          case Left(e) => throw new IllegalArgumentException("invalid contexts json", e)
+        }
+      }
+      .getOrElse(Nil)
+
+  def setUnstruct_event(strOrNull: String): Unit =
+    this.unstruct_event = Option(strOrNull).map { str =>
+      decode[SelfDescribingData[SelfDescribingData[Json]]](str) match {
+        case Right(sdj) => sdj.data
+        case Left(e) => throw new IllegalArgumentException("invalid unstruct_event json", e)
+      }
+    }
+
+  def setPii(strOrNull: String): Unit =
+    this.pii = Option(strOrNull).map { str =>
+      decode[SelfDescribingData[SelfDescribingData[Json]]](str) match {
+        case Right(sdj) => sdj.data
+        case Left(e) => throw new IllegalArgumentException("invalid pii json", e)
+      }
+    }
+
+  // Not supported in JS enrichment
+  def setDerived_contexts(strOrNull: String): Unit = {
+    val _ = strOrNull
+  }
 
   // This method can be called from JS enrichment script to drop an event.
   // Raised exception will be caught by JS enrichment and event will be dropped.
@@ -258,9 +305,33 @@ class EnrichedEvent extends Serializable {
 
   def eraseDerived_contexts(): Unit =
     use_derived_contexts_from_js_enrichment_only = true
+
 }
 
 object EnrichedEvent {
+
+  private[enrich] val atomicFields: List[Field] =
+    classOf[EnrichedEvent].getDeclaredFields
+      .filterNot(f =>
+        Set("pii", "contexts", "unstruct_event", "derived_contexts", "use_derived_contexts_from_js_enrichment_only").contains(f.getName)
+      )
+      .map { f =>
+        f.setAccessible(true)
+        f
+      }
+      .toList
+
+  private implicit def unstructEventDecoder: Decoder[SelfDescribingData[SelfDescribingData[Json]]] =
+    for {
+      key <- Decoder[SchemaKey].at("schema")
+      sdj <- Decoder[SelfDescribingData[Json]].at("data")
+    } yield SelfDescribingData(key, sdj)
+
+  private implicit def contextsDecoder: Decoder[SelfDescribingData[List[SelfDescribingData[Json]]]] =
+    for {
+      key <- Decoder[SchemaKey].at("schema")
+      sdj <- Decoder[List[SelfDescribingData[Json]]].at("data")
+    } yield SelfDescribingData(key, sdj)
 
   def toPartiallyEnrichedEvent(enrichedEvent: EnrichedEvent): PartiallyEnrichedEvent =
     PartiallyEnrichedEvent(
@@ -316,13 +387,13 @@ object EnrichedEvent {
       mkt_term = Option(enrichedEvent.mkt_term),
       mkt_content = Option(enrichedEvent.mkt_content),
       mkt_campaign = Option(enrichedEvent.mkt_campaign),
-      contexts = Option(enrichedEvent.contexts),
+      contexts = Option(enrichedEvent.getContexts()),
       se_category = Option(enrichedEvent.se_category),
       se_action = Option(enrichedEvent.se_action),
       se_label = Option(enrichedEvent.se_label),
       se_property = Option(enrichedEvent.se_property),
       se_value = Option(enrichedEvent.se_value).map(_.toString),
-      unstruct_event = Option(enrichedEvent.unstruct_event),
+      unstruct_event = Option(enrichedEvent.getUnstruct_event()),
       tr_orderid = Option(enrichedEvent.tr_orderid),
       tr_affiliation = Option(enrichedEvent.tr_affiliation),
       tr_total = Option(enrichedEvent.tr_total).map(_.toString),
@@ -386,7 +457,7 @@ object EnrichedEvent {
       dvce_sent_tstamp = Option(enrichedEvent.dvce_sent_tstamp),
       refr_domain_userid = Option(enrichedEvent.refr_domain_userid),
       refr_dvce_tstamp = Option(enrichedEvent.refr_dvce_tstamp),
-      derived_contexts = Option(enrichedEvent.derived_contexts),
+      derived_contexts = Option(enrichedEvent.getDerived_contexts()),
       domain_sessionid = Option(enrichedEvent.domain_sessionid),
       derived_tstamp = Option(enrichedEvent.derived_tstamp),
       event_vendor = Option(enrichedEvent.event_vendor),

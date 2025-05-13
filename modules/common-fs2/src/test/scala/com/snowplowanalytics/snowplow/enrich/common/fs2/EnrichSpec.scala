@@ -35,7 +35,7 @@ import org.specs2.ScalaCheck
 import org.specs2.mutable.Specification
 import org.specs2.scalacheck.Parameters
 
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 import com.snowplowanalytics.snowplow.badrows.{BadRow, Failure, FailureDetails, Processor, Payload => BadRowPayload}
@@ -382,7 +382,12 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
         ee.event_id = "some_id"
         ee.app_id = "test_app"
         ee.platform = "web"
-        ee.pii = "e30="
+        ee.pii = Some(
+          SelfDescribingData(
+            SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/pii_transformation/jsonschema/1-0-0").toOption.get,
+            json"""{"pii": "pii"}"""
+          )
+        )
 
         for {
           _ <- sinkGood(environment, ee)
@@ -506,7 +511,12 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
 
     "serialize a pii event to the pii output" in {
       val ee = new EnrichedEvent()
-      ee.pii = "eyJ4IjoieSJ9Cg=="
+      ee.pii = Some(
+        SelfDescribingData(
+          SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/pii_transformation/jsonschema/1-0-0").toOption.get,
+          json"""{"pii": "pii"}"""
+        )
+      )
       ee.event_id = "some_id"
 
       TestEnvironment.make(Stream.empty).use { test =>
@@ -525,7 +535,12 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
 
     "not generate a bad row for an over-sized pii event" in {
       val ee = new EnrichedEvent()
-      ee.pii = "x" * 10000000
+      ee.pii = Some(
+        SelfDescribingData(
+          SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/pii_transformation/jsonschema/1-0-0").toOption.get,
+          json"""{"pii": ${"x" * 10000000}}"""
+        )
+      )
       ee.event_id = "some_id"
 
       TestEnvironment.make(Stream.empty).use { test =>

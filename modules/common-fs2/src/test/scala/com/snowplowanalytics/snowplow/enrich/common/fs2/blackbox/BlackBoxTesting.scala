@@ -120,8 +120,14 @@ object BlackBoxTesting extends Specification with CatsEffect {
   private def checkEnriched(enriched: EnrichedEvent, expectedFields: Map[String, String]) = {
     val asMap = getMap(enriched)
     val r = expectedFields.map {
-      case (k, v) if k == "unstruct_event" || k == "contexts" || k == "derived_contexts" =>
-        compareJsons(asMap.getOrElse(k, ""), v) must beTrue
+      case ("unstruct_event", v) =>
+        compareJsons(Option(enriched.getUnstruct_event()).getOrElse(""), v) must beTrue
+      case ("contexts", v) =>
+        compareJsons(Option(enriched.getContexts()).getOrElse(""), v) must beTrue
+      case ("derived_contexts", v) =>
+        compareJsons(Option(enriched.getDerived_contexts()).getOrElse(""), v) must beTrue
+      case ("pii", v) =>
+        compareJsons(Option(enriched.getPii()).getOrElse(""), v) must beTrue
       case (k, v) =>
         asMap.get(k) must beSome(v)
     }

@@ -83,11 +83,6 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
     val cache = Cache(3000, 60)
     val config = ApiRequestConf(SCHEMA_KEY, inputs, api, List(output), cache, ignoreOnError = false)
 
-    val fakeEnrichedEvent = new EnrichedEvent {
-      app_id = "some-fancy-app-id"
-      user_id = "some-fancy-user-id"
-    }
-
     val clientSession: SelfDescribingData[Json] = SelfDescribingData[Json](
       SchemaKey(
         "com.snowplowanalytics.snowplow",
@@ -105,6 +100,12 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
         }
       }"""
     )
+
+    val fakeEnrichedEvent = new EnrichedEvent {
+      app_id = "some-fancy-app-id"
+      user_id = "some-fancy-user-id"
+      contexts = List(clientSession)
+    }
 
     val configuration = json"""{
       "vendor": "com.snowplowanalytics.snowplow.enrichments",
@@ -170,9 +171,7 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
       enrichment <- config.enrichment[IO](mockHttpClient)
       enrichedContextResult <- enrichment.lookup(
                                  event = fakeEnrichedEvent,
-                                 derivedContexts = List.empty,
-                                 customContexts = List(clientSession),
-                                 unstructEvent = None
+                                 derivedContexts = List.empty
                                )
     } yield {
       val validResult = enrichedContextResult must beValid(List(user))
@@ -318,11 +317,6 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
     val cache = Cache(size = 3000, ttl = 60)
     val config = ApiRequestConf(SCHEMA_KEY, inputs, api, List(output), cache, ignoreOnError = false)
 
-    val fakeEnrichedEvent = new EnrichedEvent {
-      app_id = "some-fancy-app-id"
-      user_id = "some-fancy-user-id"
-    }
-
     val clientSession: SelfDescribingData[Json] = SelfDescribingData(
       SchemaKey(
         "com.snowplowanalytics.snowplow",
@@ -340,6 +334,12 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
         }
       }"""
     )
+
+    val fakeEnrichedEvent = new EnrichedEvent {
+      app_id = "some-fancy-app-id"
+      user_id = "some-fancy-user-id"
+      contexts = List(clientSession)
+    }
 
     val configuration = parse(
       """{
@@ -408,9 +408,7 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
       enrichment <- config.enrichment[IO](mockHttpClient)
       enrichedContextResult <- enrichment.lookup(
                                  event = fakeEnrichedEvent,
-                                 derivedContexts = List.empty,
-                                 customContexts = List(clientSession),
-                                 unstructEvent = None
+                                 derivedContexts = List.empty
                                )
     } yield {
       val validResult = enrichedContextResult must beValid(List(user))
@@ -449,7 +447,7 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
 
     for {
       enrichment <- config.enrichment[IO](mockHttpClient)
-      enrichedContextResult <- enrichment.lookup(new EnrichedEvent, Nil, Nil, None)
+      enrichedContextResult <- enrichment.lookup(new EnrichedEvent, Nil)
     } yield enrichedContextResult must beValid(List(expectedDerivation))
   }
 
@@ -478,7 +476,7 @@ class ApiRequestEnrichmentSpec extends Specification with ValidatedMatchers with
 
     for {
       enrichment <- config.enrichment[IO](mockHttpClient)
-      result <- enrichment.lookup(new EnrichedEvent, Nil, Nil, None)
+      result <- enrichment.lookup(new EnrichedEvent, Nil)
     } yield result
   }
 }

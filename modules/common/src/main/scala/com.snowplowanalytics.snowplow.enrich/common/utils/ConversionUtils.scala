@@ -11,7 +11,6 @@
 package com.snowplowanalytics.snowplow.enrich.common.utils
 
 import java.lang.{Byte => JByte, Integer => JInteger}
-import java.lang.reflect.Field
 import java.math.{BigDecimal => JBigDecimal}
 import java.net.{InetAddress, URI, URLDecoder, URLEncoder}
 import java.nio.charset.Charset
@@ -39,7 +38,6 @@ import org.apache.http.client.utils.URLEncodedUtils
 import org.joda.time.{DateTime, DateTimeZone}
 import org.joda.time.format.DateTimeFormat
 
-import com.snowplowanalytics.iglu.core.circe.implicits._
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 
 import com.snowplowanalytics.snowplow.badrows.{FailureDetails, Processor}
@@ -520,11 +518,10 @@ object ConversionUtils {
 
   /** Creates a PII event from the pii field of an existing event. */
   def getPiiEvent(processor: Processor, originalEvent: EnrichedEvent): Option[EnrichedEvent] =
-    Option(originalEvent.pii)
-      .filter(_.nonEmpty)
+    originalEvent.pii
       .map { pii =>
         val piiEvent = new EnrichedEvent
-        piiEvent.unstruct_event = pii
+        piiEvent.unstruct_event = Some(pii)
         piiEvent.app_id = originalEvent.app_id
         piiEvent.platform = "srv"
         piiEvent.etl_tstamp = originalEvent.etl_tstamp
@@ -538,34 +535,168 @@ object ConversionUtils {
         piiEvent.event_name = "pii_transformation"
         piiEvent.event_version = "1-0-0"
         piiEvent.v_etl = MiscEnrichments.etlVersion(processor)
-        piiEvent.contexts = getContextParentEvent(originalEvent.event_id).noSpaces
+        piiEvent.contexts = getContextParentEvent(originalEvent.event_id)
         piiEvent
       }
 
-  private def getContextParentEvent(eventId: String): Json =
-    SelfDescribingData(
-      SchemaKey("com.snowplowanalytics.snowplow", "contexts", "jsonschema", SchemaVer.Full(1, 0, 0)),
-      Json.arr(
-        SelfDescribingData(
-          SchemaKey("com.snowplowanalytics.snowplow", "parent_event", "jsonschema", SchemaVer.Full(1, 0, 0)),
-          Json.obj("parentEventId" -> Json.fromString(eventId))
-        ).normalize
+  private def getContextParentEvent(eventId: String): List[SelfDescribingData[Json]] =
+    List(
+      SelfDescribingData(
+        SchemaKey("com.snowplowanalytics.snowplow", "parent_event", "jsonschema", SchemaVer.Full(1, 0, 0)),
+        Json.obj("parentEventId" -> Json.fromString(eventId))
       )
-    ).normalize
-
-  val EnrichedFields: List[Field] =
-    classOf[EnrichedEvent].getDeclaredFields
-      .filterNot(f => f.getName.equals("pii") || f.getName.equals("use_derived_contexts_from_js_enrichment_only"))
-      .map { field => field.setAccessible(true); field }
-      .toList
+    )
 
   /** Format an EnrichedEvent as a TSV. */
-  def tabSeparatedEnrichedEvent(enrichedEvent: EnrichedEvent): String =
-    EnrichedFields
-      .map { field =>
-        Option(field.get(enrichedEvent)).getOrElse("")
-      }
-      .mkString("\t")
+  def tabSeparatedEnrichedEvent(e: EnrichedEvent): String =
+    Array[String](
+      forTsv(e.app_id),
+      forTsv(e.platform),
+      forTsv(e.etl_tstamp),
+      forTsv(e.collector_tstamp),
+      forTsv(e.dvce_created_tstamp),
+      forTsv(e.event),
+      forTsv(e.event_id),
+      forTsv(e.txn_id),
+      forTsv(e.name_tracker),
+      forTsv(e.v_tracker),
+      forTsv(e.v_collector),
+      forTsv(e.v_etl),
+      forTsv(e.user_id),
+      forTsv(e.user_ipaddress),
+      forTsv(e.user_fingerprint),
+      forTsv(e.domain_userid),
+      forTsv(e.domain_sessionidx),
+      forTsv(e.network_userid),
+      forTsv(e.geo_country),
+      forTsv(e.geo_region),
+      forTsv(e.geo_city),
+      forTsv(e.geo_zipcode),
+      forTsv(e.geo_latitude),
+      forTsv(e.geo_longitude),
+      forTsv(e.geo_region_name),
+      forTsv(e.ip_isp),
+      forTsv(e.ip_organization),
+      forTsv(e.ip_domain),
+      forTsv(e.ip_netspeed),
+      forTsv(e.page_url),
+      forTsv(e.page_title),
+      forTsv(e.page_referrer),
+      forTsv(e.page_urlscheme),
+      forTsv(e.page_urlhost),
+      forTsv(e.page_urlport),
+      forTsv(e.page_urlpath),
+      forTsv(e.page_urlquery),
+      forTsv(e.page_urlfragment),
+      forTsv(e.refr_urlscheme),
+      forTsv(e.refr_urlhost),
+      forTsv(e.refr_urlport),
+      forTsv(e.refr_urlpath),
+      forTsv(e.refr_urlquery),
+      forTsv(e.refr_urlfragment),
+      forTsv(e.refr_medium),
+      forTsv(e.refr_source),
+      forTsv(e.refr_term),
+      forTsv(e.mkt_medium),
+      forTsv(e.mkt_source),
+      forTsv(e.mkt_term),
+      forTsv(e.mkt_content),
+      forTsv(e.mkt_campaign),
+      forTsv(e.getContexts()),
+      forTsv(e.se_category),
+      forTsv(e.se_action),
+      forTsv(e.se_label),
+      forTsv(e.se_property),
+      forTsv(e.se_value),
+      forTsv(e.getUnstruct_event()),
+      forTsv(e.tr_orderid),
+      forTsv(e.tr_affiliation),
+      forTsv(e.tr_total),
+      forTsv(e.tr_tax),
+      forTsv(e.tr_shipping),
+      forTsv(e.tr_city),
+      forTsv(e.tr_state),
+      forTsv(e.tr_country),
+      forTsv(e.ti_orderid),
+      forTsv(e.ti_sku),
+      forTsv(e.ti_name),
+      forTsv(e.ti_category),
+      forTsv(e.ti_price),
+      forTsv(e.ti_quantity),
+      forTsv(e.pp_xoffset_min),
+      forTsv(e.pp_xoffset_max),
+      forTsv(e.pp_yoffset_min),
+      forTsv(e.pp_yoffset_max),
+      forTsv(e.useragent),
+      forTsv(e.br_name),
+      forTsv(e.br_family),
+      forTsv(e.br_version),
+      forTsv(e.br_type),
+      forTsv(e.br_renderengine),
+      forTsv(e.br_lang),
+      forTsv(e.br_features_pdf),
+      forTsv(e.br_features_flash),
+      forTsv(e.br_features_java),
+      forTsv(e.br_features_director),
+      forTsv(e.br_features_quicktime),
+      forTsv(e.br_features_realplayer),
+      forTsv(e.br_features_windowsmedia),
+      forTsv(e.br_features_gears),
+      forTsv(e.br_features_silverlight),
+      forTsv(e.br_cookies),
+      forTsv(e.br_colordepth),
+      forTsv(e.br_viewwidth),
+      forTsv(e.br_viewheight),
+      forTsv(e.os_name),
+      forTsv(e.os_family),
+      forTsv(e.os_manufacturer),
+      forTsv(e.os_timezone),
+      forTsv(e.dvce_type),
+      forTsv(e.dvce_ismobile),
+      forTsv(e.dvce_screenwidth),
+      forTsv(e.dvce_screenheight),
+      forTsv(e.doc_charset),
+      forTsv(e.doc_width),
+      forTsv(e.doc_height),
+      forTsv(e.tr_currency),
+      forTsv(e.tr_total_base),
+      forTsv(e.tr_tax_base),
+      forTsv(e.tr_shipping_base),
+      forTsv(e.ti_currency),
+      forTsv(e.ti_price_base),
+      forTsv(e.base_currency),
+      forTsv(e.geo_timezone),
+      forTsv(e.mkt_clickid),
+      forTsv(e.mkt_network),
+      forTsv(e.etl_tags),
+      forTsv(e.dvce_sent_tstamp),
+      forTsv(e.refr_domain_userid),
+      forTsv(e.refr_dvce_tstamp),
+      forTsv(e.getDerived_contexts()),
+      forTsv(e.domain_sessionid),
+      forTsv(e.derived_tstamp),
+      forTsv(e.event_vendor),
+      forTsv(e.event_name),
+      forTsv(e.event_format),
+      forTsv(e.event_version),
+      forTsv(e.event_fingerprint),
+      forTsv(e.true_tstamp)
+    ).mkString("\t")
+
+  private def forTsv(v: String): String =
+    if (v != null) v else ""
+
+  private def forTsv(v: java.lang.Integer): String =
+    if (v != null) v.toString else ""
+
+  private def forTsv(v: java.lang.Byte): String =
+    if (v != null) v.toString else ""
+
+  private def forTsv(v: java.lang.Float): String =
+    if (v != null) v.toString else ""
+
+  private def forTsv(v: java.math.BigDecimal): String =
+    if (v != null) v.toString else ""
 
   def cleanStackTrace(t: Throwable): String = {
     val sw = new StringWriter

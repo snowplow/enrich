@@ -47,9 +47,7 @@ sealed trait Input extends Product with Serializable {
    */
   def pull(
     event: EnrichedEvent,
-    derived: List[SelfDescribingData[JSON]],
-    custom: List[SelfDescribingData[JSON]],
-    unstruct: Option[SelfDescribingData[JSON]]
+    derived: List[SelfDescribingData[JSON]]
   ): Input.TemplateContext =
     this match {
       case pojoInput: Input.Pojo =>
@@ -64,9 +62,9 @@ sealed trait Input extends Product with Serializable {
         val validatedJson = jsonInput.field match {
           case "derived_contexts" =>
             Input.getBySchemaCriterion(derived, jsonInput.criterion).validNel
-          case "contexts" => Input.getBySchemaCriterion(custom, jsonInput.criterion).validNel
+          case "contexts" => Input.getBySchemaCriterion(event.contexts, jsonInput.criterion).validNel
           case "unstruct_event" =>
-            Input.getBySchemaCriterion(unstruct.toList, jsonInput.criterion).validNel
+            Input.getBySchemaCriterion(event.unstruct_event.toList, jsonInput.criterion).validNel
           case other =>
             s"Error: wrong field [$other] passed to Input.getFromJson. Should be one of: derived_contexts, contexts, unstruct_event".invalidNel
         }
@@ -161,19 +159,15 @@ object Input {
    * @param inputs input-configurations with for keys and instructions how to get values
    * @param event current enriching event
    * @param derivedContexts list of contexts derived on enrichment process
-   * @param customContexts list of custom contexts shredded out of event
-   * @param unstructEvent optional unstruct event object
    * @return final template context
    */
   def buildTemplateContext(
     inputs: List[Input],
     event: EnrichedEvent,
-    derivedContexts: List[SelfDescribingData[JSON]],
-    customContexts: List[SelfDescribingData[JSON]],
-    unstructEvent: Option[SelfDescribingData[JSON]]
+    derivedContexts: List[SelfDescribingData[JSON]]
   ): TemplateContext =
     inputs
-      .traverse(_.pull(event, derivedContexts, customContexts, unstructEvent))
+      .traverse(_.pull(event, derivedContexts))
       .map { filledInputs =>
         filledInputs.sequence // Swap List[Option[Map[K, V]]] with Option[List[Map[K, V]]]
           .map(_.foldLeft(List.empty[(String, String)]) { (acc, e) =>

@@ -418,19 +418,15 @@ class EnrichmentConfigsSpec extends Specification with ValidatedMatchers with Da
               .asInstanceOf[PiiStrategyPseudonymize]
               .hashFunction("1234".getBytes("UTF-8"))
               must_== "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4") and
-            (piiRes.fieldList.size must_== 2) and
-            (piiRes.fieldList(0) must haveClass[PiiScalar]) and
-            (piiRes.fieldList(0).asInstanceOf[PiiScalar].fieldMutator must_== ScalarMutators
+            (piiRes.mutators.pojo.size must_== 1) and
+            (piiRes.mutators.unstruct.size must_== 0) and
+            (piiRes.mutators.contexts.size must_== 1) and
+            (piiRes.mutators.derivedContexts.size must_== 0) and
+            (piiRes.mutators.pojo(0) must_== ScalarMutators.byFieldName
               .get("user_id")
               .get) and
-            (piiRes.fieldList(1).asInstanceOf[PiiJson].fieldMutator must_== JsonMutators
-              .get("contexts")
-              .get) and
-            (piiRes
-              .fieldList(1)
-              .asInstanceOf[PiiJson]
-              .schemaCriterion must_== SchemaCriterion("com.acme", "email_sent", "jsonschema", 1)) and
-            (piiRes.fieldList(1).asInstanceOf[PiiJson].jsonPath must_== "$.emailAddress")
+            (piiRes.mutators.contexts(0).schemaCriterion must_== SchemaCriterion("com.acme", "email_sent", "jsonschema", 1)) and
+            (piiRes.mutators.contexts(0).jsonPath must_== "$.emailAddress")
       }
     }
   }

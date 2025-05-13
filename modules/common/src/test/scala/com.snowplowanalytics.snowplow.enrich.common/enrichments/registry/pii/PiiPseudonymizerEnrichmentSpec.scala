@@ -17,8 +17,8 @@ import cats.effect.IO
 
 import cats.effect.testing.specs2.CatsEffect
 
+import io.circe.Json
 import io.circe.literal._
-import io.circe.parser._
 
 import org.joda.time.DateTime
 
@@ -52,6 +52,7 @@ import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
 class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatchers with CatsEffect {
 
   import PiiPseudonymizerEnrichmentSpec._
+  import PiiPseudonymizerEnrichment.JsonFieldLocator
 
   def is = s2"""
   Hashing configured scalar fields in POJO should work                                                        $e1
@@ -72,47 +73,30 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
                         ipLookups = Some(ipLookup),
                         campaignAttribution = campaignAttributionEnrichment.some,
                         piiPseudonymizer = PiiPseudonymizerEnrichment(
-                          List(
-                            PiiScalar(fieldMutator = ScalarMutators("user_id")),
-                            PiiScalar(
-                              fieldMutator = ScalarMutators("user_ipaddress")
+                          PiiMutators(
+                            pojo = List(
+                              ScalarMutators.byFieldName("user_id"),
+                              ScalarMutators.byFieldName("user_ipaddress"),
+                              ScalarMutators.byFieldName("user_fingerprint"),
+                              ScalarMutators.byFieldName("domain_userid"),
+                              ScalarMutators.byFieldName("network_userid"),
+                              ScalarMutators.byFieldName("ip_organization"),
+                              ScalarMutators.byFieldName("ip_domain"),
+                              ScalarMutators.byFieldName("tr_orderid"),
+                              ScalarMutators.byFieldName("ti_orderid"),
+                              ScalarMutators.byFieldName("mkt_term"),
+                              ScalarMutators.byFieldName("mkt_clickid"),
+                              ScalarMutators.byFieldName("mkt_content"),
+                              ScalarMutators.byFieldName("se_category"),
+                              ScalarMutators.byFieldName("se_action"),
+                              ScalarMutators.byFieldName("se_label"),
+                              ScalarMutators.byFieldName("se_property"),
+                              ScalarMutators.byFieldName("refr_domain_userid"),
+                              ScalarMutators.byFieldName("domain_sessionid")
                             ),
-                            PiiScalar(
-                              fieldMutator = ScalarMutators("user_fingerprint")
-                            ),
-                            PiiScalar(
-                              fieldMutator = ScalarMutators("domain_userid")
-                            ),
-                            PiiScalar(
-                              fieldMutator = ScalarMutators("network_userid")
-                            ),
-                            PiiScalar(
-                              fieldMutator = ScalarMutators("ip_organization")
-                            ),
-                            PiiScalar(
-                              fieldMutator = ScalarMutators("ip_domain")
-                            ),
-                            PiiScalar(
-                              fieldMutator = ScalarMutators("tr_orderid")
-                            ),
-                            PiiScalar(
-                              fieldMutator = ScalarMutators("ti_orderid")
-                            ),
-                            PiiScalar(
-                              fieldMutator = ScalarMutators("mkt_term")
-                            ),
-                            PiiScalar(
-                              fieldMutator = ScalarMutators("mkt_clickid")
-                            ),
-                            PiiScalar(
-                              fieldMutator = ScalarMutators("mkt_content")
-                            ),
-                            PiiScalar(fieldMutator = ScalarMutators("se_category")),
-                            PiiScalar(fieldMutator = ScalarMutators("se_action")),
-                            PiiScalar(fieldMutator = ScalarMutators("se_label")),
-                            PiiScalar(fieldMutator = ScalarMutators("se_property")),
-                            PiiScalar(fieldMutator = ScalarMutators("refr_domain_userid")),
-                            PiiScalar(fieldMutator = ScalarMutators("domain_sessionid"))
+                            unstruct = Nil,
+                            contexts = Nil,
+                            derivedContexts = Nil
                           ),
                           false,
                           PiiStrategyPseudonymize(
@@ -187,42 +171,41 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
       enrichmentReg = EnrichmentRegistry[IO](
                         ipLookups = Some(ipLookup),
                         piiPseudonymizer = PiiPseudonymizerEnrichment(
-                          List(
-                            PiiJson(
-                              fieldMutator = JsonMutators("contexts"),
-                              schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0),
-                              jsonPath = "$.emailAddress"
+                          PiiMutators(
+                            pojo = Nil,
+                            unstruct = List(
+                              JsonFieldLocator(
+                                schemaCriterion = SchemaCriterion("com.mailgun", "message_clicked", "jsonschema", 1, 0, 0),
+                                jsonPath = "$.ip"
+                              )
                             ),
-                            PiiJson(
-                              fieldMutator = JsonMutators("contexts"),
-                              schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 1, 0),
-                              jsonPath = "$.data.emailAddress2"
+                            contexts = List(
+                              JsonFieldLocator(
+                                schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0),
+                                jsonPath = "$.emailAddress"
+                              ),
+                              JsonFieldLocator(
+                                schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 1, 0),
+                                jsonPath = "$.data.emailAddress2"
+                              ),
+                              JsonFieldLocator(
+                                schemaCriterion = SchemaCriterion("com.test", "array", "jsonschema", 1, 0, 0),
+                                jsonPath = "$.field"
+                              ),
+                              JsonFieldLocator(
+                                schemaCriterion = SchemaCriterion("com.test", "array", "jsonschema", 1, 0, 0),
+                                jsonPath = "$.field2"
+                              ),
+                              JsonFieldLocator(
+                                schemaCriterion = SchemaCriterion("com.test", "array", "jsonschema", 1, 0, 0),
+                                jsonPath = "$.field3.a"
+                              ),
+                              JsonFieldLocator(
+                                schemaCriterion = SchemaCriterion("com.test", "array", "jsonschema", 1, 0, 0),
+                                jsonPath = "$.field4"
+                              )
                             ),
-                            PiiJson(
-                              fieldMutator = JsonMutators("contexts"),
-                              schemaCriterion = SchemaCriterion("com.test", "array", "jsonschema", 1, 0, 0),
-                              jsonPath = "$.field"
-                            ),
-                            PiiJson(
-                              fieldMutator = JsonMutators("contexts"),
-                              schemaCriterion = SchemaCriterion("com.test", "array", "jsonschema", 1, 0, 0),
-                              jsonPath = "$.field2"
-                            ),
-                            PiiJson(
-                              fieldMutator = JsonMutators("contexts"),
-                              schemaCriterion = SchemaCriterion("com.test", "array", "jsonschema", 1, 0, 0),
-                              jsonPath = "$.field3.a"
-                            ),
-                            PiiJson(
-                              fieldMutator = JsonMutators("unstruct_event"),
-                              schemaCriterion = SchemaCriterion("com.mailgun", "message_clicked", "jsonschema", 1, 0, 0),
-                              jsonPath = "$.ip"
-                            ),
-                            PiiJson(
-                              fieldMutator = JsonMutators("contexts"),
-                              schemaCriterion = SchemaCriterion("com.test", "array", "jsonschema", 1, 0, 0),
-                              jsonPath = "$.field4"
-                            )
+                            derivedContexts = Nil
                           ),
                           false,
                           PiiStrategyPseudonymize(
@@ -250,72 +233,57 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
       val size = output.size must_== 1
       val validOut = output.head must beRight.like {
         case enrichedEvent =>
-          val contextJ = parse(enrichedEvent.contexts).toOption.get.hcursor
-          val contextJFirstElement = contextJ.downField("data").downArray
-          val contextJSecondElement = contextJFirstElement.right
-          val contextJThirdElement = contextJSecondElement.right
-          val unstructEventJ = parse(enrichedEvent.unstruct_event).toOption.get.hcursor
-            .downField("data")
-            .downField("data")
-          val first = (contextJFirstElement
-            .downField("data")
-            .get[String]("emailAddress") must beRight(
-            "72f323d5359eabefc69836369e4cabc6257c43ab6419b05dfb2211d0e44284c6"
-          )) and
-            (contextJFirstElement.downField("data").get[String]("emailAddress2") must beRight(
-              "bob@acme.com"
-            )) and
-            (contextJSecondElement.downField("data").get[String]("emailAddress") must beRight(
-              "tim@acme.com"
-            )) and
-            (contextJSecondElement.downField("data").get[String]("emailAddress2") must beRight(
-              "tom@acme.com"
-            ))
+          val testFirstContext = enrichedEvent.contexts.lift(0) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("emailAddress") must beRight(
+                  "72f323d5359eabefc69836369e4cabc6257c43ab6419b05dfb2211d0e44284c6"
+                )),
+                (sdj.data.hcursor.get[String]("emailAddress2") must beRight("bob@acme.com"))
+              ).reduce(_ and _)
+          }
 
-          // The following three tests are for the case that the context schema allows the fields
-          // data and schema and in addition the schema field matches the configured schema. There
-          // should be no replacement there (unless that is specified in jsonpath)
-          val second = (contextJSecondElement
-            .downField("data")
-            .downField("data")
-            .get[String]("emailAddress") must beRight("jim@acme.com")) and
-            (contextJSecondElement
-              .downField("data")
-              .downField("data")
-              .get[String]("emailAddress2") must beRight(
-              "1c6660411341411d5431669699149283d10e070224be4339d52bbc4b007e78c5"
-            )) and
-            (contextJSecondElement.downField("data").get[String]("schema") must beRight(
-              "iglu:com.acme/email_sent/jsonschema/1-0-0"
-            )) and
-            (unstructEventJ.get[String]("ip") must beRight(
-              "269c433d0cc00395e3bc5fe7f06c5ad822096a38bec2d8a005367b52c0dfb428"
-            )) and
-            (unstructEventJ.get[String]("myVar2") must beRight("awesome"))
+          val testSecondContext = enrichedEvent.contexts.lift(1) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("emailAddress") must beRight("tim@acme.com")),
+                (sdj.data.hcursor.get[String]("emailAddress2") must beRight("tom@acme.com")),
+                (sdj.data.hcursor.get[Json]("data") must beRight.like {
+                  case json: Json =>
+                    List(
+                      (json.hcursor.get[String]("emailAddress") must beRight("jim@acme.com")),
+                      (json.hcursor.get[String]("emailAddress2") must beRight(
+                        "1c6660411341411d5431669699149283d10e070224be4339d52bbc4b007e78c5"
+                      ))
+                    ).reduce(_ and _)
+                }),
+                (sdj.data.hcursor.get[String]("schema") must beRight("iglu:com.acme/email_sent/jsonschema/1-0-0"))
+              ).reduce(_ and _)
+          }
 
-          val third = (contextJThirdElement
-            .downField("data")
-            .get[List[String]]("field") must
-            beRight(
-              List[String]("b62f3a2475ac957009088f9b8ab77ceb7b4ed7c5a6fd920daa204a1953334acb",
-                           "8ad32723b7435cbf535025e519cc94dbf1568e17ced2aeb4b9e7941f6346d7d0"
-              )
-            )) and
-            (contextJThirdElement
-              .downField("data")
-              .downField("field2")
-              .focus must beSome.like { case json => json.isNull }) and
-            (contextJThirdElement
-              .downField("data")
-              .downField("field3")
-              .focus must beSome.like { case json => json.isNull })
+          val testUnstructEvent = enrichedEvent.unstruct_event must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("ip") must beRight("269c433d0cc00395e3bc5fe7f06c5ad822096a38bec2d8a005367b52c0dfb428")),
+                (sdj.data.hcursor.get[String]("myVar2") must beRight("awesome"))
+              ).reduce(_ and _)
+          }
 
-          // Test that empty string in Pii field gets hashed
-          val fourth = contextJThirdElement
-            .downField("data")
-            .get[String]("field4") must beRight("7a3477dad66e666bd203b834c54b6dfe8b546bdbc5283462ad14052abfb06600")
+          val testThirdContext = enrichedEvent.contexts.lift(2) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[List[String]]("field") must beRight(
+                  List[String]("b62f3a2475ac957009088f9b8ab77ceb7b4ed7c5a6fd920daa204a1953334acb",
+                               "8ad32723b7435cbf535025e519cc94dbf1568e17ced2aeb4b9e7941f6346d7d0"
+                  )
+                )),
+                (sdj.data.hcursor.downField("field2").focus must beSome.like { case json => json.isNull }),
+                (sdj.data.hcursor.downField("field3").focus must beSome.like { case json => json.isNull }),
+                (sdj.data.hcursor.get[String]("field4") must beRight("7a3477dad66e666bd203b834c54b6dfe8b546bdbc5283462ad14052abfb06600"))
+              ).reduce(_ and _)
+          }
 
-          first and second and third and fourth
+          testFirstContext and testSecondContext and testThirdContext and testUnstructEvent
       }
       size and validOut
     }
@@ -327,12 +295,16 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
       enrichmentReg = EnrichmentRegistry[IO](
                         ipLookups = Some(ipLookup),
                         piiPseudonymizer = PiiPseudonymizerEnrichment(
-                          List(
-                            PiiJson(
-                              fieldMutator = JsonMutators("contexts"),
-                              schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1),
-                              jsonPath = "$.field.that.does.not.exist.in.this.instance"
-                            )
+                          PiiMutators(
+                            pojo = Nil,
+                            unstruct = Nil,
+                            contexts = List(
+                              JsonFieldLocator(
+                                schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1),
+                                jsonPath = "$.field.that.does.not.exist.in.this.instance"
+                              )
+                            ),
+                            derivedContexts = Nil
                           ),
                           false,
                           PiiStrategyPseudonymize(
@@ -360,13 +332,22 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
       val size = output.size must_== 1
       val validOut = output.head must beRight.like {
         case enrichedEvent =>
-          val contextJ = parse(enrichedEvent.contexts).toOption.get.hcursor.downField("data")
-          val firstElem = contextJ.downArray.downField("data")
-          val secondElem = contextJ.downArray.right.downField("data")
-          (firstElem.get[String]("emailAddress") must beRight("jim@acme.com")) and
-            (firstElem.get[String]("emailAddress2") must beRight("bob@acme.com")) and
-            (secondElem.get[String]("emailAddress") must beRight("tim@acme.com")) and
-            (secondElem.get[String]("emailAddress2") must beRight("tom@acme.com"))
+          val testFirstContext = enrichedEvent.contexts.lift(0) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("emailAddress") must beRight("jim@acme.com")),
+                (sdj.data.hcursor.get[String]("emailAddress2") must beRight("bob@acme.com"))
+              ).reduce(_ and _)
+          }
+          val testSecondContext = enrichedEvent.contexts.lift(1) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("emailAddress") must beRight("tim@acme.com")),
+                (sdj.data.hcursor.get[String]("emailAddress2") must beRight("tom@acme.com"))
+              ).reduce(_ and _)
+          }
+
+          testFirstContext and testSecondContext
       }
       size and validOut
     }
@@ -378,13 +359,17 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
       enrichmentReg = EnrichmentRegistry[IO](
                         ipLookups = Some(ipLookup),
                         piiPseudonymizer = PiiPseudonymizerEnrichment(
-                          List(
-                            PiiJson(
-                              fieldMutator = JsonMutators("contexts"),
-                              schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0),
-                              // Last case throws an exeption if misconfigured
-                              jsonPath = "$.['emailAddress', 'emailAddress2', 'emailAddressNonExistent']"
-                            )
+                          PiiMutators(
+                            pojo = Nil,
+                            unstruct = Nil,
+                            contexts = List(
+                              JsonFieldLocator(
+                                schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0),
+                                // Last case throws an exeption if misconfigured
+                                jsonPath = "$.['emailAddress', 'emailAddress2', 'emailAddressNonExistent']"
+                              )
+                            ),
+                            derivedContexts = Nil
                           ),
                           false,
                           PiiStrategyPseudonymize(
@@ -412,17 +397,26 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
       val size = output.size must_== 1
       val validOut = output.head must beRight.like {
         case enrichedEvent =>
-          val contextJ = parse(enrichedEvent.contexts).toOption.get.hcursor.downField("data")
-          val firstElem = contextJ.downArray.downField("data")
-          val secondElem = contextJ.downArray.right.downField("data")
-          (firstElem.get[String]("emailAddress") must beRight(
-            "72f323d5359eabefc69836369e4cabc6257c43ab6419b05dfb2211d0e44284c6"
-          )) and
-            (firstElem.get[String]("emailAddress2") must beRight(
-              "1c6660411341411d5431669699149283d10e070224be4339d52bbc4b007e78c5"
-            )) and
-            (secondElem.get[String]("emailAddress") must beRight("tim@acme.com")) and
-            (secondElem.get[String]("emailAddress2") must beRight("tom@acme.com"))
+          val testFirstContext = enrichedEvent.contexts.lift(0) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("emailAddress") must beRight(
+                  "72f323d5359eabefc69836369e4cabc6257c43ab6419b05dfb2211d0e44284c6"
+                )),
+                (sdj.data.hcursor.get[String]("emailAddress2") must beRight(
+                  "1c6660411341411d5431669699149283d10e070224be4339d52bbc4b007e78c5"
+                ))
+              ).reduce(_ and _)
+          }
+          val testSecondContext = enrichedEvent.contexts.lift(1) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("emailAddress") must beRight("tim@acme.com")),
+                (sdj.data.hcursor.get[String]("emailAddress2") must beRight("tom@acme.com"))
+              ).reduce(_ and _)
+          }
+
+          testFirstContext and testSecondContext
       }
       size and validOut
     }
@@ -434,12 +428,16 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
       enrichmentReg = EnrichmentRegistry[IO](
                         ipLookups = Some(ipLookup),
                         piiPseudonymizer = PiiPseudonymizerEnrichment(
-                          List(
-                            PiiJson(
-                              fieldMutator = JsonMutators.get("contexts").get,
-                              schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1.some, None, 0.some),
-                              jsonPath = "$.emailAddress"
-                            )
+                          PiiMutators(
+                            pojo = Nil,
+                            unstruct = Nil,
+                            contexts = List(
+                              JsonFieldLocator(
+                                schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1.some, None, 0.some),
+                                jsonPath = "$.emailAddress"
+                              )
+                            ),
+                            derivedContexts = Nil
                           ),
                           false,
                           PiiStrategyPseudonymize(
@@ -467,17 +465,26 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
       val size = output.size must_== 1
       val validOut = output.head must beRight.like {
         case enrichedEvent =>
-          val contextJ = parse(enrichedEvent.contexts).toOption.get.hcursor.downField("data")
-          val firstElem = contextJ.downArray.downField("data")
-          val secondElem = contextJ.downArray.right.downField("data")
-          (firstElem.get[String]("emailAddress") must beRight(
-            "72f323d5359eabefc69836369e4cabc6257c43ab6419b05dfb2211d0e44284c6"
-          )) and
-            (firstElem.get[String]("emailAddress2") must beRight("bob@acme.com")) and
-            (secondElem.get[String]("emailAddress") must beRight(
-              "09e4160b10703767dcb28d834c1905a182af0f828d6d3512dd07d466c283c840"
-            )) and
-            (secondElem.get[String]("emailAddress2") must beRight("tom@acme.com"))
+          val testFirstContext = enrichedEvent.contexts.lift(0) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("emailAddress") must beRight(
+                  "72f323d5359eabefc69836369e4cabc6257c43ab6419b05dfb2211d0e44284c6"
+                )),
+                (sdj.data.hcursor.get[String]("emailAddress2") must beRight("bob@acme.com"))
+              ).reduce(_ and _)
+          }
+          val testSecondContext = enrichedEvent.contexts.lift(1) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("emailAddress") must beRight(
+                  "09e4160b10703767dcb28d834c1905a182af0f828d6d3512dd07d466c283c840"
+                )),
+                (sdj.data.hcursor.get[String]("emailAddress2") must beRight("tom@acme.com"))
+              ).reduce(_ and _)
+          }
+
+          testFirstContext and testSecondContext
       }
       size and validOut
     }
@@ -489,12 +496,16 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
       enrichmentReg = EnrichmentRegistry[IO](
                         ipLookups = Some(ipLookup),
                         piiPseudonymizer = PiiPseudonymizerEnrichment(
-                          List(
-                            PiiJson(
-                              fieldMutator = JsonMutators.get("contexts").get,
-                              schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1),
-                              jsonPath = "$.someInt"
-                            )
+                          PiiMutators(
+                            pojo = Nil,
+                            unstruct = Nil,
+                            contexts = List(
+                              JsonFieldLocator(
+                                schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1),
+                                jsonPath = "$.someInt"
+                              )
+                            ),
+                            derivedContexts = Nil
                           ),
                           false,
                           PiiStrategyPseudonymize(
@@ -522,14 +533,22 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
       val size = output.size must_== 1
       val validOut = output.head must beRight.like {
         case enrichedEvent =>
-          val contextJ = parse(enrichedEvent.contexts).toOption.get.hcursor.downField("data")
-          val firstElem = contextJ.downArray.downField("data")
-          val secondElem = contextJ.downArray.right.downField("data")
-          (firstElem.get[String]("emailAddress") must beRight("jim@acme.com")) and
-            (firstElem.get[String]("emailAddress2") must beRight("bob@acme.com")) and
-            (secondElem.get[String]("emailAddress") must beRight("tim@acme.com")) and
-            (secondElem.get[String]("emailAddress2") must beRight("tom@acme.com")) and
-            (secondElem.get[Int]("someInt") must beRight(1))
+          val testFirstContext = enrichedEvent.contexts.lift(0) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("emailAddress") must beRight("jim@acme.com")),
+                (sdj.data.hcursor.get[String]("emailAddress2") must beRight("bob@acme.com"))
+              ).reduce(_ and _)
+          }
+          val testSecondContext = enrichedEvent.contexts.lift(1) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("emailAddress") must beRight("tim@acme.com")),
+                (sdj.data.hcursor.get[String]("emailAddress2") must beRight("tom@acme.com"))
+              ).reduce(_ and _)
+          }
+
+          testFirstContext and testSecondContext
       }
       size and validOut
     }
@@ -541,26 +560,30 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
       enrichmentReg = EnrichmentRegistry[IO](
                         ipLookups = Some(ipLookup),
                         piiPseudonymizer = PiiPseudonymizerEnrichment(
-                          List(
-                            PiiScalar(fieldMutator = ScalarMutators("user_id")),
-                            PiiScalar(fieldMutator = ScalarMutators("user_ipaddress")),
-                            PiiScalar(fieldMutator = ScalarMutators("ip_domain")),
-                            PiiScalar(fieldMutator = ScalarMutators("user_fingerprint")),
-                            PiiJson(
-                              fieldMutator = JsonMutators("contexts"),
-                              schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0),
-                              jsonPath = "$.emailAddress"
+                          PiiMutators(
+                            pojo = List(
+                              ScalarMutators.byFieldName("user_id"),
+                              ScalarMutators.byFieldName("user_ipaddress"),
+                              ScalarMutators.byFieldName("ip_domain"),
+                              ScalarMutators.byFieldName("user_fingerprint")
                             ),
-                            PiiJson(
-                              fieldMutator = JsonMutators("contexts"),
-                              schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 1, 0),
-                              jsonPath = "$.data.emailAddress2"
+                            unstruct = List(
+                              JsonFieldLocator(
+                                schemaCriterion = SchemaCriterion("com.mailgun", "message_clicked", "jsonschema", 1, 0, 0),
+                                jsonPath = "$.ip"
+                              )
                             ),
-                            PiiJson(
-                              fieldMutator = JsonMutators("unstruct_event"),
-                              schemaCriterion = SchemaCriterion("com.mailgun", "message_clicked", "jsonschema", 1, 0, 0),
-                              jsonPath = "$.ip"
-                            )
+                            contexts = List(
+                              JsonFieldLocator(
+                                schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0),
+                                jsonPath = "$.emailAddress"
+                              ),
+                              JsonFieldLocator(
+                                schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 1, 0),
+                                jsonPath = "$.data.emailAddress2"
+                              )
+                            ),
+                            derivedContexts = Nil
                           ),
                           true,
                           PiiStrategyPseudonymize(
@@ -580,35 +603,98 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
     expected.geo_city = null
     expected.etl_tstamp = "1970-01-18 08:40:00.000"
     expected.collector_tstamp = "2017-07-14 03:39:39.000"
-    expected.pii =
-      """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.snowplowanalytics.snowplow/pii_transformation/jsonschema/1-0-0","data":{"pii":{"pojo":[{"fieldName":"user_fingerprint","originalValue":"its_you_again!","modifiedValue":"27abac60dff12792c6088b8d00ce7f25c86b396b8c3740480cd18e21068ecff4"},{"fieldName":"user_ipaddress","originalValue":"70.46.123.145","modifiedValue":"dd9720903c89ae891ed5c74bb7a9f2f90f6487927ac99afe73b096ad0287f3f5"},{"fieldName":"user_id","originalValue":"john@acme.com","modifiedValue":"7d8a4beae5bc9d314600667d2f410918f9af265017a6ade99f60a9c8f3aac6e9"}],"json":[{"fieldName":"unstruct_event","originalValue":"50.56.129.169","modifiedValue":"269c433d0cc00395e3bc5fe7f06c5ad822096a38bec2d8a005367b52c0dfb428","jsonPath":"$.ip","schema":"iglu:com.mailgun/message_clicked/jsonschema/1-0-0"},{"fieldName":"contexts","originalValue":"bob@acme.com","modifiedValue":"1c6660411341411d5431669699149283d10e070224be4339d52bbc4b007e78c5","jsonPath":"$.data.emailAddress2","schema":"iglu:com.acme/email_sent/jsonschema/1-1-0"},{"fieldName":"contexts","originalValue":"jim@acme.com","modifiedValue":"72f323d5359eabefc69836369e4cabc6257c43ab6419b05dfb2211d0e44284c6","jsonPath":"$.emailAddress","schema":"iglu:com.acme/email_sent/jsonschema/1-0-0"}]},"strategy":{"pseudonymize":{"hashFunction":"SHA-256"}}}}}"""
+    expected.pii = Some(
+      SelfDescribingData(
+        SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/pii_transformation/jsonschema/1-0-0").toOption.get,
+        json"""{
+        "pii":{
+          "pojo":[
+            {
+              "fieldName":"user_fingerprint",
+              "originalValue":"its_you_again!",
+              "modifiedValue":"27abac60dff12792c6088b8d00ce7f25c86b396b8c3740480cd18e21068ecff4"
+            },
+            {
+              "fieldName":"user_ipaddress",
+              "originalValue":"70.46.123.145",
+              "modifiedValue":"dd9720903c89ae891ed5c74bb7a9f2f90f6487927ac99afe73b096ad0287f3f5"
+            },
+            {
+              "fieldName":"user_id",
+              "originalValue":"john@acme.com",
+              "modifiedValue":"7d8a4beae5bc9d314600667d2f410918f9af265017a6ade99f60a9c8f3aac6e9"
+            }
+          ],
+          "json":[
+            {
+              "fieldName":"contexts",
+              "originalValue":"bob@acme.com",
+              "modifiedValue":"1c6660411341411d5431669699149283d10e070224be4339d52bbc4b007e78c5",
+              "jsonPath":"$$.data.emailAddress2",
+              "schema":"iglu:com.acme/email_sent/jsonschema/1-1-0"
+            },
+            {
+              "fieldName":"contexts",
+              "originalValue":"jim@acme.com",
+              "modifiedValue":"72f323d5359eabefc69836369e4cabc6257c43ab6419b05dfb2211d0e44284c6",
+              "jsonPath":"$$.emailAddress",
+              "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0"
+            },
+            {
+              "fieldName":"unstruct_event",
+              "originalValue":"50.56.129.169",
+              "modifiedValue":"269c433d0cc00395e3bc5fe7f06c5ad822096a38bec2d8a005367b52c0dfb428",
+              "jsonPath":"$$.ip",
+              "schema":"iglu:com.mailgun/message_clicked/jsonschema/1-0-0"
+            }
+          ]
+        },
+        "strategy":{
+          "pseudonymize":{
+            "hashFunction":"SHA-256"
+          }
+        }
+      }"""
+      )
+    )
 
     actual.map { output =>
       val size = output.size must_== 1
       val validOut = output.head must beRight.like {
         case enrichedEvent =>
-          val contextJ = parse(enrichedEvent.contexts).toOption.get.hcursor.downField("data")
-          val firstElem = contextJ.downArray.downField("data")
-          val secondElem = contextJ.downArray.right.downField("data")
-          val unstructEventJ =
-            parse(enrichedEvent.unstruct_event).toOption.get.hcursor.downField("data")
+          val testAtomicFields = List(
+            (enrichedEvent.pii must_== expected.pii), // This is the important test, the rest just verify that nothing has changed.
+            (enrichedEvent.app_id must_== expected.app_id),
+            (enrichedEvent.ip_domain must_== expected.ip_domain),
+            (enrichedEvent.geo_city must_== expected.geo_city),
+            (enrichedEvent.etl_tstamp must_== expected.etl_tstamp),
+            (enrichedEvent.collector_tstamp must_== expected.collector_tstamp)
+          ).reduce(_ and _)
 
-          (enrichedEvent.pii must_== expected.pii) and // This is the important test, the rest just verify that nothing has changed.
-            (enrichedEvent.app_id must_== expected.app_id) and
-            (enrichedEvent.ip_domain must_== expected.ip_domain) and
-            (enrichedEvent.geo_city must_== expected.geo_city) and
-            (enrichedEvent.etl_tstamp must_== expected.etl_tstamp) and
-            (enrichedEvent.collector_tstamp must_== expected.collector_tstamp) and
-            (firstElem.get[String]("emailAddress2") must beRight("bob@acme.com")) and
-            (secondElem.get[String]("emailAddress") must beRight("tim@acme.com")) and
-            (secondElem.get[String]("emailAddress2") must beRight("tom@acme.com")) and
-            (secondElem
-              .downField("data")
-              .get[String]("emailAddress") must beRight("jim@acme.com")) and
-            (secondElem.get[String]("schema") must beRight(
-              "iglu:com.acme/email_sent/jsonschema/1-0-0"
-            )) and
-            (unstructEventJ.downField("data").get[String]("myVar2") must beRight("awesome"))
+          val testFirstContext = enrichedEvent.contexts.lift(0) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              sdj.data.hcursor.get[String]("emailAddress2") must beRight("bob@acme.com")
+          }
+
+          val testSecondContext = enrichedEvent.contexts.lift(1) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("emailAddress") must beRight("tim@acme.com")),
+                (sdj.data.hcursor.get[String]("emailAddress2") must beRight("tom@acme.com")),
+                (sdj.data.hcursor.get[Json]("data") must beRight.like {
+                  case json: Json =>
+                    json.hcursor.get[String]("emailAddress") must beRight("jim@acme.com")
+                }),
+                (sdj.data.hcursor.get[String]("schema") must beRight("iglu:com.acme/email_sent/jsonschema/1-0-0"))
+              ).reduce(_ and _)
+          }
+
+          val testUnstructEvent = enrichedEvent.unstruct_event must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              sdj.data.hcursor.get[String]("myVar2") must beRight("awesome")
+          }
+
+          testAtomicFields and testFirstContext and testSecondContext and testUnstructEvent
       }
       size and validOut
     }
@@ -620,12 +706,16 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
       enrichmentReg = EnrichmentRegistry[IO](
                         ipLookups = Some(ipLookup),
                         piiPseudonymizer = PiiPseudonymizerEnrichment(
-                          List(
-                            PiiJson(
-                              fieldMutator = JsonMutators("contexts"),
-                              schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0, 0),
-                              jsonPath = "$.['emailAddress', 'nonExistentEmailAddress']"
-                            )
+                          PiiMutators(
+                            pojo = Nil,
+                            unstruct = Nil,
+                            contexts = List(
+                              JsonFieldLocator(
+                                schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0, 0),
+                                jsonPath = "$.['emailAddress', 'nonExistentEmailAddress']"
+                              )
+                            ),
+                            derivedContexts = Nil
                           ),
                           true,
                           PiiStrategyPseudonymize(
@@ -643,15 +733,16 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
       val size = output.size must_== 1
       val validOut = output.head must beRight.like {
         case enrichedEvent =>
-          val context = parse(enrichedEvent.contexts).toOption.get.hcursor.downField("data").downArray
-          val data = context.downField("data")
-
-          val one =
-            data.get[String]("emailAddress") must beRight("72f323d5359eabefc69836369e4cabc6257c43ab6419b05dfb2211d0e44284c6")
-          val two = data.get[String]("emailAddress2") must beRight("bob@acme.com")
-          val three = data.downField("nonExistentEmailAddress").focus must beNone
-
-          one and two and three
+          enrichedEvent.contexts.lift(0) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("emailAddress") must beRight(
+                  "72f323d5359eabefc69836369e4cabc6257c43ab6419b05dfb2211d0e44284c6"
+                )),
+                (sdj.data.hcursor.get[String]("emailAddress2") must beRight("bob@acme.com")),
+                (sdj.data.hcursor.downField("nonExistantEmailAddress").focus must beNone)
+              ).reduce(_ and _)
+          }
       }
       size and validOut
     }

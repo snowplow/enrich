@@ -128,7 +128,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
   "extractAndValidateUnstructEvent" should {
     "return None if unstruct_event field is empty" >> {
       IgluUtils
-        .extractAndValidateUnstructEvent(new EnrichedEvent,
+        .extractAndValidateUnstructEvent(IgluUtils.EventExtractInput(None, None),
                                          SpecHelpers.client,
                                          SpecHelpers.registryLookup,
                                          SpecHelpers.DefaultMaxJsonDepth,
@@ -142,8 +142,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return a FailureDetails.SchemaViolation.NotJson if unstruct_event does not contain a properly formatted JSON string" >> {
-      val input = new EnrichedEvent
-      input.setUnstruct_event(notJson)
+      val input = IgluUtils.EventExtractInput(unstructEvent = Some(notJson), contexts = None)
 
       IgluUtils
         .extractAndValidateUnstructEvent(input,
@@ -168,8 +167,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
 
     "return a FailureDetails.SchemaViolation.NotIglu if unstruct_event contains a properly formatted JSON string that is not self-describing" >> {
       val json = notIglu.toJson
-      val input = new EnrichedEvent
-      input.setUnstruct_event(notIglu)
+      val input = IgluUtils.EventExtractInput(unstructEvent = Some(notIglu), contexts = None)
 
       IgluUtils
         .extractAndValidateUnstructEvent(input,
@@ -191,8 +189,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
 
     "return a FailureDetails.SchemaViolation.CriterionMismatch if unstruct_event contains a self-describing JSON but not with the expected schema for unstructured events" >> {
       val json = noSchemaData.toJson
-      val input = new EnrichedEvent
-      input.setUnstruct_event(noSchema)
+      val input = IgluUtils.EventExtractInput(unstructEvent = Some(noSchema), contexts = None)
 
       IgluUtils
         .extractAndValidateUnstructEvent(input,
@@ -216,10 +213,9 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return a FailureDetails.SchemaViolation.NotJson if the JSON in .data is not a JSON" >> {
-      val input = new EnrichedEvent
       val ue = buildUnstruct(notJson)
       val ueJson = ue.asJson
-      input.setUnstruct_event(ue)
+      val input = IgluUtils.EventExtractInput(unstructEvent = Some(ue), contexts = None)
 
       IgluUtils
         .extractAndValidateUnstructEvent(input,
@@ -242,10 +238,9 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return a FailureDetails.SchemaViolation.IgluError containing a ValidationError if the JSON in .data is not self-describing" >> {
-      val input = new EnrichedEvent
       val ue = buildUnstruct(notIglu)
       val ueJson = notIglu.toJson
-      input.setUnstruct_event(ue)
+      val input = IgluUtils.EventExtractInput(unstructEvent = Some(ue), contexts = None)
 
       IgluUtils
         .extractAndValidateUnstructEvent(input,
@@ -271,9 +266,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return a FailureDetails.SchemaViolation.IgluError containing a ValidationError if the JSON in .data is not a valid SDJ" >> {
-      val input = new EnrichedEvent
       val json = invalidEmailSentData.toJson
-      input.setUnstruct_event(buildUnstruct(invalidEmailSent))
+      val input = IgluUtils.EventExtractInput(unstructEvent = Some(buildUnstruct(invalidEmailSent)), contexts = None)
 
       IgluUtils
         .extractAndValidateUnstructEvent(input,
@@ -297,9 +291,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return a FailureDetails.SchemaViolation.IgluError containing a ResolutionError if the schema of the SDJ in .data can't be resolved" >> {
-      val input = new EnrichedEvent
       val json = noSchemaData.toJson
-      input.setUnstruct_event(buildUnstruct(noSchema))
+      val input = IgluUtils.EventExtractInput(unstructEvent = Some(buildUnstruct(noSchema)), contexts = None)
 
       IgluUtils
         .extractAndValidateUnstructEvent(input,
@@ -323,8 +316,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return the extracted unstructured event if .data is a valid SDJ" >> {
-      val input = new EnrichedEvent
-      input.setUnstruct_event(buildUnstruct(emailSent1))
+      val input = IgluUtils.EventExtractInput(unstructEvent = Some(buildUnstruct(emailSent1)), contexts = None)
 
       IgluUtils
         .extractAndValidateUnstructEvent(input,
@@ -345,11 +337,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return the extracted unstructured event when schema is superseded by another schema" >> {
-      val input1 = new EnrichedEvent
-      input1.setUnstruct_event(buildUnstruct(supersedingExample1))
-
-      val input2 = new EnrichedEvent
-      input2.setUnstruct_event(buildUnstruct(supersedingExample2))
+      val input1 = IgluUtils.EventExtractInput(unstructEvent = Some(buildUnstruct(supersedingExample1)), contexts = None)
+      val input2 = IgluUtils.EventExtractInput(unstructEvent = Some(buildUnstruct(supersedingExample2)), contexts = None)
 
       val expectedValidationInfo = IgluUtils.ValidationInfo(supersedingExampleSchema100, supersedingExampleSchema101.version)
 
@@ -395,9 +384,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
 
     "return a FailureDetails.SchemaViolation.IgluError containing a ValidationError if the JSON in .data exceeds the max allowed JSON depth" >> {
       val igluScalaClient = SpecHelpers.client(5)
-      val input = new EnrichedEvent
+      val input = IgluUtils.EventExtractInput(unstructEvent = Some(buildUnstruct(deepJson)), contexts = None)
       val json = deepJson.toJson
-      input.setUnstruct_event(buildUnstruct(deepJson))
 
       IgluUtils
         .extractAndValidateUnstructEvent(input,
@@ -424,7 +412,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
   "extractAndValidateInputContexts" should {
     "return Nil if contexts field is empty" >> {
       IgluUtils
-        .extractAndValidateInputContexts(new EnrichedEvent,
+        .extractAndValidateInputContexts(IgluUtils.EventExtractInput(None, None),
                                          SpecHelpers.client,
                                          SpecHelpers.registryLookup,
                                          SpecHelpers.DefaultMaxJsonDepth,
@@ -438,8 +426,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return a FailureDetails.SchemaViolation.NotJson if .contexts does not contain a properly formatted JSON string" >> {
-      val input = new EnrichedEvent
-      input.setContexts(notJson)
+      val input = IgluUtils.EventExtractInput(unstructEvent = None, contexts = Some(notJson))
 
       IgluUtils
         .extractAndValidateInputContexts(input,
@@ -462,9 +449,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return a FailureDetails.SchemaViolation.NotIglu if .contexts contains a properly formatted JSON string that is not self-describing" >> {
-      val input = new EnrichedEvent
+      val input = IgluUtils.EventExtractInput(unstructEvent = None, contexts = Some(notIglu))
       val json = notIglu.toJson
-      input.setContexts(notIglu)
 
       IgluUtils
         .extractAndValidateInputContexts(input,
@@ -485,9 +471,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return a FailureDetails.SchemaViolation.CriterionMismatch if .contexts contains a self-describing JSON but not with the right schema" >> {
-      val input = new EnrichedEvent
+      val input = IgluUtils.EventExtractInput(unstructEvent = None, contexts = Some(noSchema))
       val json = noSchemaData.toJson
-      input.setContexts(noSchema)
 
       IgluUtils
         .extractAndValidateInputContexts(input,
@@ -510,11 +495,10 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return a FailureDetails.SchemaViolation.IgluError containing a ValidationError if .data does not contain an array of JSON objects" >> {
-      val input = new EnrichedEvent
       val notArrayContexts =
         s"""{"schema": "${inputContextsSchema.toSchemaUri}", "data": ${emailSent1}}"""
+      val input = IgluUtils.EventExtractInput(unstructEvent = None, contexts = Some(notArrayContexts))
       val json = emailSent1.toJson
-      input.setContexts(notArrayContexts)
 
       IgluUtils
         .extractAndValidateInputContexts(input,
@@ -538,9 +522,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return a FailureDetails.SchemaViolation.IgluError containing a ValidationError if .data contains one invalid context" >> {
-      val input = new EnrichedEvent
+      val input = IgluUtils.EventExtractInput(unstructEvent = None, contexts = Some(buildInputContexts(List(invalidEmailSent))))
       val json = invalidEmailSentData.toJson
-      input.setContexts(buildInputContexts(List(invalidEmailSent)))
 
       IgluUtils
         .extractAndValidateInputContexts(input,
@@ -564,9 +547,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return a FailureDetails.SchemaViolation.IgluError containing a ResolutionError if .data contains one context whose schema can't be resolved" >> {
-      val input = new EnrichedEvent
+      val input = IgluUtils.EventExtractInput(unstructEvent = None, contexts = Some(buildInputContexts(List(noSchema))))
       val json = noSchemaData.toJson
-      input.setContexts(buildInputContexts(List(noSchema)))
 
       IgluUtils
         .extractAndValidateInputContexts(input,
@@ -590,10 +572,9 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return 2 expected failures for 2 invalid contexts" >> {
-      val input = new EnrichedEvent
       val invalidEmailSentJson = invalidEmailSentData.toJson
       val noSchemaJson = noSchemaData.toJson
-      input.setContexts(buildInputContexts(List(invalidEmailSent, noSchema)))
+      val input = IgluUtils.EventExtractInput(unstructEvent = None, contexts = Some(buildInputContexts(List(invalidEmailSent, noSchema))))
 
       IgluUtils
         .extractAndValidateInputContexts(input,
@@ -626,9 +607,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return an expected failure and an expected SDJ if one context is invalid and one is valid" >> {
-      val input = new EnrichedEvent
       val noSchemaJson = noSchemaData.toJson
-      input.setContexts(buildInputContexts(List(emailSent1, noSchema)))
+      val input = IgluUtils.EventExtractInput(unstructEvent = None, contexts = Some(buildInputContexts(List(emailSent1, noSchema))))
 
       IgluUtils
         .extractAndValidateInputContexts(input,
@@ -651,8 +631,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return the extracted SDJs for 2 valid input contexts" >> {
-      val input = new EnrichedEvent
-      input.setContexts(buildInputContexts(List(emailSent1, emailSent2)))
+      val input = IgluUtils.EventExtractInput(unstructEvent = None, contexts = Some(buildInputContexts(List(emailSent1, emailSent2))))
 
       IgluUtils
         .extractAndValidateInputContexts(input,
@@ -671,8 +650,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return the extracted SDJ for an input that has a required property set to null if the schema explicitly allows it" >> {
-      val input = new EnrichedEvent
-      input.setContexts(buildInputContexts(List(clientSession)))
+      val input = IgluUtils.EventExtractInput(unstructEvent = None, contexts = Some(buildInputContexts(List(clientSession))))
 
       IgluUtils
         .extractAndValidateInputContexts(input,
@@ -691,8 +669,9 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return the extracted context when schema is superseded by another schema" >> {
-      val input = new EnrichedEvent
-      input.setContexts(buildInputContexts(List(supersedingExample1, supersedingExample2)))
+      val input = IgluUtils.EventExtractInput(unstructEvent = None,
+                                              contexts = Some(buildInputContexts(List(supersedingExample1, supersedingExample2)))
+      )
 
       IgluUtils
         .extractAndValidateInputContexts(input,
@@ -712,9 +691,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
 
     "return a FailureDetails.SchemaViolation.IgluError containing a ValidationError if .data contains context that exceeds the max allowed JSON depth" >> {
       val igluScalaClient = SpecHelpers.client(5)
-      val input = new EnrichedEvent
       val json = s"[$deepJson]".toJson
-      input.setContexts(buildInputContexts(List(deepJson)))
+      val input = IgluUtils.EventExtractInput(unstructEvent = None, contexts = Some(buildInputContexts(List(deepJson))))
 
       IgluUtils
         .extractAndValidateInputContexts(input,
@@ -841,8 +819,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
 
   "extractAndValidateInputJsons" should {
     "return one SchemaViolation if the input event contains an invalid unstructured event" >> {
-      val input = new EnrichedEvent
-      input.setUnstruct_event(buildUnstruct(invalidEmailSent))
+      val input = IgluUtils.EventExtractInput(unstructEvent = Some(buildUnstruct(invalidEmailSent)), contexts = None)
 
       IgluUtils
         .extractAndValidateInputJsons(
@@ -867,8 +844,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return one SchemaViolation if the input event contains one invalid context" >> {
-      val input = new EnrichedEvent
-      input.setContexts(buildInputContexts(List(invalidEmailSent)))
+      val input = IgluUtils.EventExtractInput(unstructEvent = None, contexts = Some(buildInputContexts(List(invalidEmailSent))))
 
       IgluUtils
         .extractAndValidateInputJsons(
@@ -893,9 +869,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return two SchemaViolation if the input event contains an invalid unstructured event and one invalid context" >> {
-      val input = new EnrichedEvent
-      input.setUnstruct_event(invalidEmailSent)
-      input.setContexts(buildInputContexts(List(invalidEmailSent)))
+      val input =
+        IgluUtils.EventExtractInput(unstructEvent = Some(invalidEmailSent), contexts = Some(buildInputContexts(List(invalidEmailSent))))
 
       IgluUtils
         .extractAndValidateInputJsons(
@@ -920,9 +895,10 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return the extracted unstructured event and the extracted input contexts if they are all valid" >> {
-      val input = new EnrichedEvent
-      input.setUnstruct_event(buildUnstruct(emailSent1))
-      input.setContexts(buildInputContexts(List(emailSent1, emailSent2)))
+      val input =
+        IgluUtils.EventExtractInput(unstructEvent = Some(buildUnstruct(emailSent1)),
+                                    contexts = Some(buildInputContexts(List(emailSent1, emailSent2)))
+        )
 
       IgluUtils
         .extractAndValidateInputJsons(
@@ -947,10 +923,10 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return the SchemaViolation of the invalid context in the Left and the extracted unstructured event in the Right" >> {
-      val input = new EnrichedEvent
       val invalidEmailSentJson = invalidEmailSentData.toJson
-      input.setUnstruct_event(buildUnstruct(emailSent1))
-      input.setContexts(buildInputContexts(List(invalidEmailSent)))
+      val input = IgluUtils.EventExtractInput(unstructEvent = Some(buildUnstruct(emailSent1)),
+                                              contexts = Some(buildInputContexts(List(invalidEmailSent)))
+      )
 
       IgluUtils
         .extractAndValidateInputJsons(
@@ -981,10 +957,10 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return the SchemaViolation of the invalid unstructured event in the Left and the valid context in the Right" >> {
-      val input = new EnrichedEvent
       val invalidEmailSentJson = invalidEmailSentData.toJson
-      input.setUnstruct_event(buildUnstruct(invalidEmailSent))
-      input.setContexts(buildInputContexts(List(emailSent1)))
+      val input = IgluUtils.EventExtractInput(unstructEvent = Some(buildUnstruct(invalidEmailSent)),
+                                              contexts = Some(buildInputContexts(List(emailSent1)))
+      )
 
       IgluUtils
         .extractAndValidateInputJsons(
@@ -1015,9 +991,9 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     }
 
     "return the extracted unstructured event and the extracted input contexts when schema is superseded by another schema" >> {
-      val input = new EnrichedEvent
-      input.setUnstruct_event(buildUnstruct(supersedingExample1))
-      input.setContexts(buildInputContexts(List(supersedingExample1, supersedingExample2)))
+      val input = IgluUtils.EventExtractInput(unstructEvent = Some(buildUnstruct(supersedingExample1)),
+                                              contexts = Some(buildInputContexts(List(supersedingExample1, supersedingExample2)))
+      )
 
       val expectedValidationInfoContext =
         """ {

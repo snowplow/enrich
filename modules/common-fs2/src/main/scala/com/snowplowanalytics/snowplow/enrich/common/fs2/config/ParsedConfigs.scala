@@ -35,7 +35,6 @@ import com.snowplowanalytics.iglu.client.resolver.registries.JavaNetRegistryLook
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
-import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.{Parsed, ValidationResult}
@@ -61,7 +60,7 @@ object ParsedConfigs {
   private final val EnrichmentsKey: SchemaKey =
     SchemaKey("com.snowplowanalytics.snowplow", "enrichments", "jsonschema", SchemaVer.Full(1, 0, 0))
 
-  final val enrichedFieldsMap: Map[String, Field] = ConversionUtils.EnrichedFields.map(f => f.getName -> f).toMap
+  final val enrichedFieldsMap: Map[String, Field] = EnrichedEvent.atomicFields.map(f => f.getName -> f).toMap
 
   /** Decode base64-encoded configs, passed via CLI. Read files, validate and parse */
   def parse[F[_]: Async](config: CliConfig): Parsed[F, ParsedConfigs] =

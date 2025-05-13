@@ -313,7 +313,7 @@ class ApiRequestEnrichmentIntegrationTest extends Specification with ValidatedMa
           e.setUser_id("snowplower")
           e
         }
-        context <- enrichment.lookup(event, Nil, Nil, None)
+        context <- enrichment.lookup(event, Nil)
       } yield context must beValid.like {
         case context =>
           context must contain(IntegrationTests.correctResultContext) and (context must have size 1)
@@ -330,26 +330,22 @@ class ApiRequestEnrichmentIntegrationTest extends Specification with ValidatedMa
           val e = new EnrichedEvent
           e.setApp_id("lookup test")
           e.setUser_id("snowplower")
+          e.unstruct_event = Some(IntegrationTests.unstructEvent)
+          e.contexts = List(IntegrationTests.customContexts)
           e
         }
         // Fill cache
         _ <- enrichment.lookup(
                event,
-               List(IntegrationTests.weatherContext),
-               List(IntegrationTests.customContexts),
-               Some(IntegrationTests.unstructEvent)
+               List(IntegrationTests.weatherContext)
              )
         _ <- enrichment.lookup(
                event,
-               List(IntegrationTests.weatherContext),
-               List(IntegrationTests.customContexts),
-               Some(IntegrationTests.unstructEvent)
+               List(IntegrationTests.weatherContext)
              )
         context <- enrichment.lookup(
                      event,
-                     List(IntegrationTests.weatherContext),
-                     List(IntegrationTests.customContexts),
-                     Some(IntegrationTests.unstructEvent)
+                     List(IntegrationTests.weatherContext)
                    )
       } yield context must beValid.like {
         case contexts =>
@@ -371,7 +367,7 @@ class ApiRequestEnrichmentIntegrationTest extends Specification with ValidatedMa
           e.setUser_ipaddress("127.0.0.1")
           e
         }
-        context <- enrichment.lookup(event, Nil, Nil, None)
+        context <- enrichment.lookup(event, Nil)
       } yield context must beValid.like {
         case contexts =>
           (contexts must have size 1) and (contexts must contain(IntegrationTests.correctResultContext4)) and

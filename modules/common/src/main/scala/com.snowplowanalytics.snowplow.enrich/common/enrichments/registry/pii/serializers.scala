@@ -30,28 +30,24 @@ object serializers {
       )
   }
 
+  // Encodes the derived context, output of this enrichment
   implicit val piiModifiedFieldsEncoder: Encoder[PiiModifiedFields] =
     new Encoder[PiiModifiedFields] {
-      val PiiTransformationSchema =
-        "iglu:com.snowplowanalytics.snowplow/pii_transformation/jsonschema/1-0-0"
       final def apply(a: PiiModifiedFields): Json =
         Json.obj(
-          "schema" := PiiTransformationSchema,
-          "data" := Json.obj(
-            "pii" :=
-              a.modifiedFields
-                .foldLeft(Map.empty[String, List[ModifiedField]]) {
-                  case (m, mf) =>
-                    mf match {
-                      case s: ScalarModifiedField =>
-                        m + ("pojo" -> (s :: m.getOrElse("pojo", List.empty[ModifiedField])))
-                      case j: JsonModifiedField =>
-                        m + ("json" -> (j :: m.getOrElse("json", List.empty[ModifiedField])))
-                    }
-                }
-                .asJson,
-            "strategy" := a.strategy.asJson
-          )
+          "pii" :=
+            a.modifiedFields
+              .foldLeft(Map.empty[String, List[ModifiedField]]) {
+                case (m, mf) =>
+                  mf match {
+                    case s: ScalarModifiedField =>
+                      m + ("pojo" -> (s :: m.getOrElse("pojo", List.empty[ModifiedField])))
+                    case j: JsonModifiedField =>
+                      m + ("json" -> (j :: m.getOrElse("json", List.empty[ModifiedField])))
+                  }
+              }
+              .asJson,
+          "strategy" := a.strategy.asJson
         )
     }
 

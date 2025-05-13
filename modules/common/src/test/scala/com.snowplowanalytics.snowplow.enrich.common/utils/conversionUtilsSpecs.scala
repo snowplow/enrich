@@ -13,9 +13,11 @@ package com.snowplowanalytics.snowplow.enrich.common.utils
 import java.net.{Inet6Address, InetAddress, URI}
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
+import java.util.UUID
 
 import cats.syntax.either._
 import cats.syntax.option._
+import io.circe.literal._
 
 import org.scalacheck.Gen
 import org.scalacheck.Arbitrary._
@@ -25,7 +27,7 @@ import org.specs2.mutable.{Specification => MSpecification}
 import org.specs2.matcher.DataTables
 
 import com.snowplowanalytics.snowplow.badrows._
-
+import com.snowplowanalytics.iglu.core.{SchemaKey, SelfDescribingData}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
 class StringToUriSpec extends MSpecification with DataTables {
@@ -504,15 +506,19 @@ class GetPiiEventSpec extends MSpecification {
       ConversionUtils.getPiiEvent(processor, event) shouldEqual None
     }
     "return a new event if the pii field is present" in {
+      val piiEvent = SelfDescribingData(
+        SchemaKey.fromUri("iglu:myvendor/myschema/jsonschema/1-0-0").toOption.get,
+        json"""{"key": "value"}"""
+      )
       val event = {
         val e = new EnrichedEvent
-        e.pii = "pii"
+        e.pii = Some(piiEvent)
         e.event_id = "id"
         e
       }
       val processor = Processor("sce-test-suite", "1.0.0")
       val Some(e) = ConversionUtils.getPiiEvent(processor, event)
-      e.unstruct_event shouldEqual "pii"
+      e.unstruct_event should beSome(piiEvent)
       e.platform shouldEqual "srv"
       e.event shouldEqual "pii_transformation"
       e.event_vendor shouldEqual "com.snowplowanalytics.snowplow"
@@ -521,7 +527,10 @@ class GetPiiEventSpec extends MSpecification {
       e.event_version shouldEqual "1-0-0"
       e.v_etl shouldEqual "sce-test-suite-1.0.0"
       e.contexts must contain(
-        """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/parent_event/jsonschema/1-0-0","data":{"parentEventId":"id"}"""
+        SelfDescribingData(
+          SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/parent_event/jsonschema/1-0-0").toOption.get,
+          json"""{"parentEventId":"id"}"""
+        )
       )
     }
   }
@@ -530,22 +539,257 @@ class GetPiiEventSpec extends MSpecification {
 class TabSeparatedEnrichedEventSpec extends MSpecification {
 
   "make a tabSeparatedEnrichedEvent function available" >> {
-    "which tsv format an enriched event" >> {
+    "which serializes 131 tab-separated empty fields for an empty event" >> {
+      val e = new EnrichedEvent
+      val result = ConversionUtils.tabSeparatedEnrichedEvent(e)
+      result must beEqualTo("\t" * 130)
+    }
+
+    "which serializes all simple fields in correct position" >> {
+      testStringField(0, _.app_id = _)
+      testStringField(1, _.platform = _)
+      testStringField(2, _.etl_tstamp = _)
+      testStringField(3, _.collector_tstamp = _)
+      testStringField(4, _.dvce_created_tstamp = _)
+      testStringField(5, _.event = _)
+      testStringField(6, _.event_id = _)
+      testIntField(7, _.txn_id = _)
+      testStringField(8, _.name_tracker = _)
+      testStringField(9, _.v_tracker = _)
+      testStringField(10, _.v_collector = _)
+      testStringField(11, _.v_etl = _)
+      testStringField(12, _.user_id = _)
+      testStringField(13, _.user_ipaddress = _)
+      testStringField(14, _.user_fingerprint = _)
+      testStringField(15, _.domain_userid = _)
+      testIntField(16, _.domain_sessionidx = _)
+      testStringField(17, _.network_userid = _)
+      testStringField(18, _.geo_country = _)
+      testStringField(19, _.geo_region = _)
+      testStringField(20, _.geo_city = _)
+      testStringField(21, _.geo_zipcode = _)
+      testFloatField(22, _.geo_latitude = _)
+      testFloatField(23, _.geo_longitude = _)
+      testStringField(24, _.geo_region_name = _)
+      testStringField(25, _.ip_isp = _)
+      testStringField(26, _.ip_organization = _)
+      testStringField(27, _.ip_domain = _)
+      testStringField(28, _.ip_netspeed = _)
+      testStringField(29, _.page_url = _)
+      testStringField(30, _.page_title = _)
+      testStringField(31, _.page_referrer = _)
+      testStringField(32, _.page_urlscheme = _)
+      testStringField(33, _.page_urlhost = _)
+      testIntField(34, _.page_urlport = _)
+      testStringField(35, _.page_urlpath = _)
+      testStringField(36, _.page_urlquery = _)
+      testStringField(37, _.page_urlfragment = _)
+      testStringField(38, _.refr_urlscheme = _)
+      testStringField(39, _.refr_urlhost = _)
+      testIntField(40, _.refr_urlport = _)
+      testStringField(41, _.refr_urlpath = _)
+      testStringField(42, _.refr_urlquery = _)
+      testStringField(43, _.refr_urlfragment = _)
+      testStringField(44, _.refr_medium = _)
+      testStringField(45, _.refr_source = _)
+      testStringField(46, _.refr_term = _)
+      testStringField(47, _.mkt_medium = _)
+      testStringField(48, _.mkt_source = _)
+      testStringField(49, _.mkt_term = _)
+      testStringField(50, _.mkt_content = _)
+      testStringField(51, _.mkt_campaign = _)
+      // 52: contexts tested separately
+      testStringField(53, _.se_category = _)
+      testStringField(54, _.se_action = _)
+      testStringField(55, _.se_label = _)
+      testStringField(56, _.se_property = _)
+      testDecimalField(57, _.se_value = _)
+      // 58: unstruct_event tested separately
+      testStringField(59, _.tr_orderid = _)
+      testStringField(60, _.tr_affiliation = _)
+      testDecimalField(61, _.tr_total = _)
+      testDecimalField(62, _.tr_tax = _)
+      testDecimalField(63, _.tr_shipping = _)
+      testStringField(64, _.tr_city = _)
+      testStringField(65, _.tr_state = _)
+      testStringField(66, _.tr_country = _)
+      testStringField(67, _.ti_orderid = _)
+      testStringField(68, _.ti_sku = _)
+      testStringField(69, _.ti_name = _)
+      testStringField(70, _.ti_category = _)
+      testDecimalField(71, _.ti_price = _)
+      testIntField(72, _.ti_quantity = _)
+      testIntField(73, _.pp_xoffset_min = _)
+      testIntField(74, _.pp_xoffset_max = _)
+      testIntField(75, _.pp_yoffset_min = _)
+      testIntField(76, _.pp_yoffset_max = _)
+      testStringField(77, _.useragent = _)
+      testStringField(78, _.br_name = _)
+      testStringField(79, _.br_family = _)
+      testStringField(80, _.br_version = _)
+      testStringField(81, _.br_type = _)
+      testStringField(82, _.br_renderengine = _)
+      testStringField(83, _.br_lang = _)
+      testByteField(84, _.br_features_pdf = _)
+      testByteField(85, _.br_features_flash = _)
+      testByteField(86, _.br_features_java = _)
+      testByteField(87, _.br_features_director = _)
+      testByteField(88, _.br_features_quicktime = _)
+      testByteField(89, _.br_features_realplayer = _)
+      testByteField(90, _.br_features_windowsmedia = _)
+      testByteField(91, _.br_features_gears = _)
+      testByteField(92, _.br_features_silverlight = _)
+      testByteField(93, _.br_cookies = _)
+      testStringField(94, _.br_colordepth = _)
+      testIntField(95, _.br_viewwidth = _)
+      testIntField(96, _.br_viewheight = _)
+      testStringField(97, _.os_name = _)
+      testStringField(98, _.os_family = _)
+      testStringField(99, _.os_manufacturer = _)
+      testStringField(100, _.os_timezone = _)
+      testStringField(101, _.dvce_type = _)
+      testByteField(102, _.dvce_ismobile = _)
+      testIntField(103, _.dvce_screenwidth = _)
+      testIntField(104, _.dvce_screenheight = _)
+      testStringField(105, _.doc_charset = _)
+      testIntField(106, _.doc_width = _)
+      testIntField(107, _.doc_height = _)
+      testStringField(108, _.tr_currency = _)
+      testDecimalField(109, _.tr_total_base = _)
+      testDecimalField(110, _.tr_tax_base = _)
+      testDecimalField(111, _.tr_shipping_base = _)
+      testStringField(112, _.ti_currency = _)
+      testDecimalField(113, _.ti_price_base = _)
+      testStringField(114, _.base_currency = _)
+      testStringField(115, _.geo_timezone = _)
+      testStringField(116, _.mkt_clickid = _)
+      testStringField(117, _.mkt_network = _)
+      testStringField(118, _.etl_tags = _)
+      testStringField(119, _.dvce_sent_tstamp = _)
+      testStringField(120, _.refr_domain_userid = _)
+      testStringField(121, _.refr_dvce_tstamp = _)
+      // 122: derived_contexts tested separately
+      testStringField(123, _.domain_sessionid = _)
+      testStringField(124, _.derived_tstamp = _)
+      testStringField(125, _.event_vendor = _)
+      testStringField(126, _.event_name = _)
+      testStringField(127, _.event_format = _)
+      testStringField(128, _.event_version = _)
+      testStringField(129, _.event_fingerprint = _)
+      testStringField(130, _.true_tstamp = _)
+    }
+
+    "which serializes ustruct event in position 58" >> {
       val event = {
         val e = new EnrichedEvent
-        e.platform = "web"
+        e.unstruct_event = Some(
+          SelfDescribingData(
+            SchemaKey.fromUri("iglu:myvendor/myschema/jsonschema/1-0-0").toOption.get,
+            json"""{"foo":"bar"}"""
+          )
+        )
         e
       }
-      ConversionUtils.tabSeparatedEnrichedEvent(event) must contain("web")
+      val expected =
+        """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:myvendor/myschema/jsonschema/1-0-0","data":{"foo":"bar"}}}"""
+
+      val result = ConversionUtils.tabSeparatedEnrichedEvent(event).split("\t", -1)
+      result must haveLength(131)
+      result.lift(58) must beSome(expected)
     }
+
+    "which serializes contexts in position 52" >> {
+      val event = {
+        val e = new EnrichedEvent
+        e.contexts = List(
+          SelfDescribingData(
+            SchemaKey.fromUri("iglu:myvendor/myschema/jsonschema/1-0-0").toOption.get,
+            json"""{"foo":"bar"}"""
+          )
+        )
+        e
+      }
+      val expected =
+        """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[{"schema":"iglu:myvendor/myschema/jsonschema/1-0-0","data":{"foo":"bar"}}]}"""
+
+      val result = ConversionUtils.tabSeparatedEnrichedEvent(event).split("\t", -1)
+      result must haveLength(131)
+      result.lift(52) must beSome(expected)
+    }
+
+    "which serializes derived_contexts in position 122" >> {
+      val event = {
+        val e = new EnrichedEvent
+        e.derived_contexts = List(
+          SelfDescribingData(
+            SchemaKey.fromUri("iglu:myvendor/myschema/jsonschema/1-0-0").toOption.get,
+            json"""{"foo":"bar"}"""
+          )
+        )
+        e
+      }
+      val expected =
+        """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[{"schema":"iglu:myvendor/myschema/jsonschema/1-0-0","data":{"foo":"bar"}}]}"""
+
+      val result = ConversionUtils.tabSeparatedEnrichedEvent(event).split("\t", -1)
+      result must haveLength(131)
+      result.lift(122) must beSome(expected)
+    }
+
     "which filter the pii field" in {
       val event = {
         val e = new EnrichedEvent
         e.platform = "web"
-        e.pii = "pii"
+        e.pii = Some(
+          SelfDescribingData(
+            SchemaKey.fromUri("iglu:pii/pii/jsonschema/1-0-0").toOption.get,
+            json"""{"pii":"pii"}"""
+          )
+        )
         e
       }
       ConversionUtils.tabSeparatedEnrichedEvent(event) must not(contain("pii"))
     }
+  }
+
+  def testStringField(index: Int, setter: (EnrichedEvent, String) => Unit) = {
+    val e = new EnrichedEvent
+    val expected = UUID.randomUUID.toString
+    setter(e, expected)
+    val result = ConversionUtils.tabSeparatedEnrichedEvent(e).split("\t", -1)
+    result must haveLength(131)
+    result.lift(index) must beSome(expected)
+  }
+
+  def testIntField(index: Int, setter: (EnrichedEvent, java.lang.Integer) => Unit) = {
+    val e = new EnrichedEvent
+    setter(e, Int.box(42))
+    val result = ConversionUtils.tabSeparatedEnrichedEvent(e).split("\t", -1)
+    result must haveLength(131)
+    result.lift(index) must beSome("42")
+  }
+
+  def testFloatField(index: Int, setter: (EnrichedEvent, java.lang.Float) => Unit) = {
+    val e = new EnrichedEvent
+    setter(e, Float.box(42.1f))
+    val result = ConversionUtils.tabSeparatedEnrichedEvent(e).split("\t", -1)
+    result must haveLength(131)
+    result.lift(index) must beSome("42.1")
+  }
+
+  def testDecimalField(index: Int, setter: (EnrichedEvent, java.math.BigDecimal) => Unit) = {
+    val e = new EnrichedEvent
+    setter(e, BigDecimal("42.1").bigDecimal)
+    val result = ConversionUtils.tabSeparatedEnrichedEvent(e).split("\t", -1)
+    result must haveLength(131)
+    result.lift(index) must beSome("42.1")
+  }
+
+  def testByteField(index: Int, setter: (EnrichedEvent, java.lang.Byte) => Unit) = {
+    val e = new EnrichedEvent
+    setter(e, Byte.box(1.toByte))
+    val result = ConversionUtils.tabSeparatedEnrichedEvent(e).split("\t", -1)
+    result must haveLength(131)
+    result.lift(index) must beSome("1")
   }
 }

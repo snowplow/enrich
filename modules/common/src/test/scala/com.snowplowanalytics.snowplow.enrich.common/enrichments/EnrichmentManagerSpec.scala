@@ -38,8 +38,7 @@ import com.snowplowanalytics.snowplow.enrich.common.QueryStringParameters
 import com.snowplowanalytics.snowplow.enrich.common.loaders._
 import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii.{
-  JsonMutators,
-  PiiJson,
+  PiiMutators,
   PiiPseudonymizerEnrichment,
   PiiStrategyPseudonymize
 }
@@ -60,6 +59,114 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
   import EnrichmentManagerSpec._
 
   "enrichEvent" should {
+
+    "set all atomic fields from tracker payload fields" >> {
+
+      val tests: List[(String, String, EnrichedEvent => MatchResult[Any])] = List(
+        ("e", "pp", _.event must beEqualTo("page_ping")),
+        ("ip", "192.168.0.1", _.user_ipaddress must beEqualTo("192.168.0.1")),
+        ("aid", "myapp", _.app_id must beEqualTo("myapp")),
+        ("p", "web", _.platform must beEqualTo("web")),
+        ("tid", "42", _.txn_id must beEqualTo(42)),
+        ("uid", "myuser", _.user_id must beEqualTo("myuser")),
+        ("duid", "myduid", _.domain_userid must beEqualTo("myduid")),
+        ("nuid", "mynuid", _.network_userid must beEqualTo("mynuid")),
+        ("ua", "myua", _.useragent must beEqualTo("myua")),
+        ("fp", "myfp", _.user_fingerprint must beEqualTo("myfp")),
+        ("vid", "42", _.domain_sessionidx must beEqualTo(42)),
+        ("sid", "6e6e6d0f-f191-4249-8ac8-469db39332a3", _.domain_sessionid must beEqualTo("6e6e6d0f-f191-4249-8ac8-469db39332a3")),
+        ("dtm", "1735693323000", _.dvce_created_tstamp must beEqualTo("2025-01-01 01:02:03.000")),
+        ("ttm", "1735693323000", _.true_tstamp must beEqualTo("2025-01-01 01:02:03.000")),
+        ("stm", "1735693323000", _.dvce_sent_tstamp must beEqualTo("2025-01-01 01:02:03.000")),
+        ("tna", "mytna", _.name_tracker must beEqualTo("mytna")),
+        ("tv", "mytv", _.v_tracker must beEqualTo("mytv")),
+        ("cv", "mycv", _.v_collector must beEqualTo("mycv")),
+        ("lang", "mylang", _.br_lang must beEqualTo("mylang")),
+        ("f_pdf", "1", _.br_features_pdf must beEqualTo(1)),
+        ("f_fla", "1", _.br_features_flash must beEqualTo(1)),
+        ("f_java", "1", _.br_features_java must beEqualTo(1)),
+        ("f_dir", "1", _.br_features_director must beEqualTo(1)),
+        ("f_qt", "1", _.br_features_quicktime must beEqualTo(1)),
+        ("f_realp", "1", _.br_features_realplayer must beEqualTo(1)),
+        ("f_wma", "1", _.br_features_windowsmedia must beEqualTo(1)),
+        ("f_gears", "1", _.br_features_gears must beEqualTo(1)),
+        ("f_ag", "1", _.br_features_silverlight must beEqualTo(1)),
+        ("cookie", "1", _.br_cookies must beEqualTo(1)),
+        ("res", "42x420", e => (e.dvce_screenwidth must beEqualTo(42)) and (e.dvce_screenheight must beEqualTo(420))),
+        ("cd", "mycd", _.br_colordepth must beEqualTo("mycd")),
+        ("tz", "mytz", _.os_timezone must beEqualTo("mytz")),
+        ("refr", "myrefr", _.page_referrer must beEqualTo("myrefr")),
+        ("url", "myurl", _.page_url must beEqualTo("myurl")),
+        ("page", "mypage", _.page_title must beEqualTo("mypage")),
+        ("cs", "mycs", _.doc_charset must beEqualTo("mycs")),
+        ("ds", "42x420", e => (e.doc_width must beEqualTo(42)) and (e.doc_height must beEqualTo(420))),
+        ("vp", "42x420", e => (e.br_viewwidth must beEqualTo(42)) and (e.br_viewheight must beEqualTo(420))),
+        ("eid", "a741bd4c-2365-4c35-92fa-00fe62d71b8d", _.event_id must beEqualTo("a741bd4c-2365-4c35-92fa-00fe62d71b8d")),
+        ("ev_ca", "myval", _.se_category must beEqualTo("myval")),
+        ("ev_ac", "myval", _.se_action must beEqualTo("myval")),
+        ("ev_la", "myval", _.se_label must beEqualTo("myval")),
+        ("ev_pr", "myval", _.se_property must beEqualTo("myval")),
+        ("ev_va", "42", _.se_value.toString must beEqualTo("42")),
+        ("se_ca", "myval", _.se_category must beEqualTo("myval")),
+        ("se_ac", "myval", _.se_action must beEqualTo("myval")),
+        ("se_la", "myval", _.se_label must beEqualTo("myval")),
+        ("se_pr", "myval", _.se_property must beEqualTo("myval")),
+        ("se_va", "42", _.se_value.toString must beEqualTo("42")),
+        ("tr_id", "myval", _.tr_orderid must beEqualTo("myval")),
+        ("tr_af", "myval", _.tr_affiliation must beEqualTo("myval")),
+        ("tr_tt", "42", _.tr_total.toString must beEqualTo("42")),
+        ("tr_tx", "42", _.tr_tax.toString must beEqualTo("42")),
+        ("tr_sh", "42", _.tr_shipping.toString must beEqualTo("42")),
+        ("tr_ci", "mycity", _.tr_city must beEqualTo("mycity")),
+        ("tr_st", "mystate", _.tr_state must beEqualTo("mystate")),
+        ("tr_co", "myhome", _.tr_country must beEqualTo("myhome")),
+        ("ti_id", "myorder", _.ti_orderid must beEqualTo("myorder")),
+        ("ti_sk", "mysku", _.ti_sku must beEqualTo("mysku")),
+        ("ti_na", "myname", _.ti_name must beEqualTo("myname")),
+        ("ti_nm", "myname2", _.ti_name must beEqualTo("myname2")),
+        ("ti_ca", "mycat", _.ti_category must beEqualTo("mycat")),
+        ("ti_pr", "42", _.ti_price.toString must beEqualTo("42")),
+        ("ti_qu", "42", _.ti_quantity must beEqualTo(42)),
+        ("pp_mix", "42", _.pp_xoffset_min must beEqualTo(42)),
+        ("pp_max", "42", _.pp_xoffset_max must beEqualTo(42)),
+        ("pp_miy", "42", _.pp_yoffset_min must beEqualTo(42)),
+        ("pp_may", "42", _.pp_yoffset_max must beEqualTo(42)),
+        ("tr_cu", "XYZ", _.tr_currency must beEqualTo("XYZ")),
+        ("ti_cu", "XYZ", _.ti_currency must beEqualTo("XYZ")),
+        ("tnuid", "mytnuid", _.network_userid must beEqualTo("mytnuid"))
+      )
+
+      tests.traverse {
+        case (rawKey, rawValue, checkFn) =>
+          val parameters = Map(
+            "e" -> "pp",
+            "tv" -> "js-0.13.1",
+            "p" -> "web",
+            rawKey -> rawValue
+          ).toOpt
+          val rawEvent = RawEvent(api, parameters, None, source, context)
+          val enriched = EnrichmentManager.enrichEvent[IO](
+            enrichmentReg,
+            client,
+            processor,
+            timestamp,
+            rawEvent,
+            AcceptInvalid.featureFlags,
+            IO.unit,
+            SpecHelpers.registryLookup,
+            atomicFieldLimits,
+            emitIncomplete,
+            SpecHelpers.DefaultMaxJsonDepth
+          )
+          enriched.value map { result =>
+            result must beLike {
+              case OptionIor.Right(e: EnrichedEvent) =>
+                checkFn(e)
+            }
+          }
+      }
+    }
+
     "return a SchemaViolations bad row if the input event contains an invalid context" >> {
       val parameters = Map(
         "e" -> "pp",
@@ -423,12 +530,16 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       val rawEvent = RawEvent(api, parameters, None, source, context)
       val enrichmentReg = EnrichmentRegistry[IO](
         piiPseudonymizer = PiiPseudonymizerEnrichment(
-          List(
-            PiiJson(
-              fieldMutator = JsonMutators("unstruct_event"),
-              schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0, 0),
-              jsonPath = "$.emailAddress3"
-            )
+          PiiMutators(
+            pojo = Nil,
+            unstruct = List(
+              PiiPseudonymizerEnrichment.JsonFieldLocator(
+                schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0, 0),
+                jsonPath = "$.emailAddress3"
+              )
+            ),
+            contexts = Nil,
+            derivedContexts = Nil
           ),
           false,
           PiiStrategyPseudonymize(
@@ -495,12 +606,16 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       val rawEvent = RawEvent(api, parameters, None, source, context)
       val enrichmentReg = EnrichmentRegistry[IO](
         piiPseudonymizer = PiiPseudonymizerEnrichment(
-          List(
-            PiiJson(
-              fieldMutator = JsonMutators("unstruct_event"),
-              schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0, 0),
-              jsonPath = "$.emailAddress3"
-            )
+          PiiMutators(
+            pojo = Nil,
+            unstruct = List(
+              PiiPseudonymizerEnrichment.JsonFieldLocator(
+                schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0, 0),
+                jsonPath = "$.emailAddress3"
+              )
+            ),
+            contexts = Nil,
+            derivedContexts = Nil
           ),
           false,
           PiiStrategyPseudonymize(
@@ -567,12 +682,16 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       val rawEvent = RawEvent(api, parameters, None, source, context)
       val enrichmentReg = EnrichmentRegistry[IO](
         piiPseudonymizer = PiiPseudonymizerEnrichment(
-          List(
-            PiiJson(
-              fieldMutator = JsonMutators("unstruct_event"),
-              schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0, 0),
-              jsonPath = "$.emailAddress3"
-            )
+          PiiMutators(
+            pojo = Nil,
+            unstruct = List(
+              PiiPseudonymizerEnrichment.JsonFieldLocator(
+                schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0, 0),
+                jsonPath = "$.emailAddress3"
+              )
+            ),
+            contexts = Nil,
+            derivedContexts = Nil
           ),
           false,
           PiiStrategyPseudonymize(
@@ -639,12 +758,16 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       val rawEvent = RawEvent(api, parameters, None, source, context)
       val enrichmentReg = EnrichmentRegistry[IO](
         piiPseudonymizer = PiiPseudonymizerEnrichment(
-          List(
-            PiiJson(
-              fieldMutator = JsonMutators("contexts"),
-              schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0, 0),
-              jsonPath = "$.emailAddress3"
-            )
+          PiiMutators(
+            pojo = Nil,
+            unstruct = Nil,
+            contexts = List(
+              PiiPseudonymizerEnrichment.JsonFieldLocator(
+                schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0, 0),
+                jsonPath = "$.emailAddress3"
+              )
+            ),
+            derivedContexts = Nil
           ),
           false,
           PiiStrategyPseudonymize(
@@ -712,17 +835,21 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       val rawEvent = RawEvent(api, parameters, None, source, context)
       val enrichmentReg = EnrichmentRegistry[IO](
         piiPseudonymizer = PiiPseudonymizerEnrichment(
-          List(
-            PiiJson(
-              fieldMutator = JsonMutators("contexts"),
-              schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0, 0),
-              jsonPath = "$.emailAddress3"
+          PiiMutators(
+            pojo = Nil,
+            unstruct = List(
+              PiiPseudonymizerEnrichment.JsonFieldLocator(
+                schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0, 0),
+                jsonPath = "$.emailAddress3"
+              )
             ),
-            PiiJson(
-              fieldMutator = JsonMutators("unstruct_event"),
-              schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0, 0),
-              jsonPath = "$.emailAddress3"
-            )
+            contexts = List(
+              PiiPseudonymizerEnrichment.JsonFieldLocator(
+                schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0, 0),
+                jsonPath = "$.emailAddress3"
+              )
+            ),
+            derivedContexts = Nil
           ),
           false,
           PiiStrategyPseudonymize(
@@ -891,7 +1018,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       enriched.value.map {
         case OptionIor.Right(enriched) =>
           enriched.useragent must_== qs_ua
-          enriched.derived_contexts must contain("\"agentName\":\"Firefox\"")
+          enriched.getDerived_contexts() must contain("\"agentName\":\"Firefox\"")
         case other => ko(s"[$other] is not an enriched event")
       }
     }
@@ -977,7 +1104,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       enriched.value.map {
         case OptionIor.Right(enriched) =>
           enriched.useragent must_== qs_ua
-          enriched.derived_contexts must contain("\"agentName\":\"%1$S\"")
+          enriched.getDerived_contexts() must contain("\"agentName\":\"%1$S\"")
         case other => ko(s"[$other] is not an enriched event")
       }
     }
@@ -1300,10 +1427,10 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       val rawEvent = RawEvent(api, parameters, None, source, context)
       def expectedDerivedContexts(enriched: EnrichedEvent): Boolean = {
         val emailSentSDJ = SelfDescribingData.parse[Json](jparse(emailSent).toOption.get).toOption.get
-        SpecHelpers.listContexts(enriched.derived_contexts) match {
+        enriched.derived_contexts match {
           case List(SelfDescribingData(Failure.`failureSchemaKey`, feJson), `emailSentSDJ`)
-              if feJson.field("failureType") == "ValidationError".asJson &&
-                feJson.field("errors") == Json.arr(
+              if feJson.field("failureType") === "ValidationError".asJson &&
+                feJson.field("errors") === Json.arr(
                   Json.obj(
                     "message" := "$.unallowedAdditionalField: is not defined in the schema and the schema does not allow additional properties",
                     "source" := "unstruct",
@@ -1312,8 +1439,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
                     "targets" := List("unallowedAdditionalField")
                   )
                 ) &&
-                feJson.field("schema") == emailSentSchema.asJson &&
-                feJson.field("data") == jparse(invalidUeData).toOption.get =>
+                feJson.field("schema") === emailSentSchema.asJson &&
+                feJson.field("data") === jparse(invalidUeData).toOption.get =>
             true
           case _ => false
         }
@@ -1335,8 +1462,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
 
       enriched.value.map {
         case OptionIor.Both(_: BadRow.SchemaViolations, enriched)
-            if Option(enriched.unstruct_event).isEmpty &&
-              SpecHelpers.listContextsSchemas(enriched.contexts) == List(clientSessionSchema) &&
+            if enriched.unstruct_event.isEmpty &&
+              enriched.contexts.map(_.schema) === List(clientSessionSchema) &&
               expectedDerivedContexts(enriched) =>
           ok
         case other => ko(s"[$other] is not a SchemaViolations bad row and an enriched event without the unstructured event")
@@ -1392,10 +1519,10 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       val rawEvent = RawEvent(api, parameters, None, source, context)
       def expectedDerivedContexts(enriched: EnrichedEvent): Boolean = {
         val emailSentSDJ = SelfDescribingData.parse[Json](jparse(emailSent).toOption.get).toOption.get
-        SpecHelpers.listContexts(enriched.derived_contexts) match {
+        enriched.derived_contexts match {
           case List(SelfDescribingData(Failure.`failureSchemaKey`, feJson), `emailSentSDJ`)
-              if feJson.field("failureType") == "ValidationError".asJson &&
-                feJson.field("errors") == Json.arr(
+              if feJson.field("failureType") === "ValidationError".asJson &&
+                feJson.field("errors") === Json.arr(
                   Json.obj(
                     "message" := "$.emailAddress: is missing but it is required",
                     "source" := "contexts",
@@ -1411,8 +1538,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
                     "targets" := List("foo")
                   )
                 ) &&
-                feJson.field("schema") == emailSentSchema.asJson &&
-                feJson.field("data") == jparse(invalidContextData).toOption.get =>
+                feJson.field("schema") === emailSentSchema.asJson &&
+                feJson.field("data") === jparse(invalidContextData).toOption.get =>
             true
           case _ => false
         }
@@ -1433,8 +1560,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       )
       enriched.value.map {
         case OptionIor.Both(_: BadRow.SchemaViolations, enriched)
-            if Option(enriched.contexts).isEmpty &&
-              SpecHelpers.getUnstructSchema(enriched.unstruct_event) == clientSessionSchema &&
+            if enriched.contexts.isEmpty &&
+              enriched.unstruct_event.map(_.schema) === Some(clientSessionSchema) &&
               expectedDerivedContexts(enriched) =>
           ok
         case other => ko(s"[$other] is not a SchemaViolations bad row and an enriched event with no input contexts")
@@ -1495,10 +1622,10 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       val rawEvent = RawEvent(api, parameters, None, source, context)
       def expectedDerivedContexts(enriched: EnrichedEvent): Boolean = {
         val emailSentSDJ = SelfDescribingData.parse[Json](jparse(emailSent).toOption.get).toOption.get
-        SpecHelpers.listContexts(enriched.derived_contexts) match {
+        enriched.derived_contexts match {
           case List(SelfDescribingData(Failure.`failureSchemaKey`, feJson), `emailSentSDJ`)
-              if feJson.field("failureType") == "ValidationError".asJson &&
-                feJson.field("errors") == Json.arr(
+              if feJson.field("failureType") === "ValidationError".asJson &&
+                feJson.field("errors") === Json.arr(
                   Json.obj(
                     "message" := "$.emailAddress: is missing but it is required",
                     "source" := "contexts",
@@ -1514,8 +1641,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
                     "targets" := List("foo")
                   )
                 ) &&
-                feJson.field("schema") == emailSentSchema.asJson &&
-                feJson.field("data") == jparse(invalidContextData).toOption.get =>
+                feJson.field("schema") === emailSentSchema.asJson &&
+                feJson.field("data") === jparse(invalidContextData).toOption.get =>
             true
           case _ => false
         }
@@ -1536,8 +1663,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       )
       enriched.value.map {
         case OptionIor.Both(_: BadRow.SchemaViolations, enriched)
-            if SpecHelpers.getUnstructSchema(enriched.unstruct_event) == clientSessionSchema &&
-              SpecHelpers.listContextsSchemas(enriched.contexts) == List(clientSessionSchema) &&
+            if enriched.unstruct_event.map(_.schema) === Some(clientSessionSchema) &&
+              enriched.contexts.map(_.schema) === List(clientSessionSchema) &&
               expectedDerivedContexts(enriched) =>
           ok
         case other => ko(s"[$other] is not a SchemaViolations bad row and an enriched event with 1 input context")
@@ -1577,19 +1704,19 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
       def expectedDerivedContexts(enriched: EnrichedEvent): Boolean =
-        SpecHelpers.listContexts(enriched.derived_contexts) match {
+        enriched.derived_contexts match {
           case List(
                 SelfDescribingData(Failure.`failureSchemaKey`, feJson),
                 SelfDescribingData(SchemaKey("nl.basjes", "yauaa_context", "jsonschema", _), _)
               )
-              if feJson.field("failureType") == "EnrichmentError: Javascript enrichment".asJson &&
-                feJson.field("errors") == Json.arr(
+              if feJson.field("failureType") === "EnrichmentError: Javascript enrichment".asJson &&
+                feJson.field("errors") === Json.arr(
                   Json.obj(
                     "message" := "Error during execution of JavaScript function: [Javascript exception in <eval> at line number 3 at column number 10]"
                   )
                 ) &&
-                feJson.field("schema") == JavascriptScriptEnrichment.supportedSchema.copy(addition = 0.some).asString.asJson &&
-                feJson.field("data") == Json.Null =>
+                feJson.field("schema") === JavascriptScriptEnrichment.supportedSchema.copy(addition = 0.some).asString.asJson &&
+                feJson.field("data") === Json.Null =>
             true
           case _ => false
         }
@@ -1609,7 +1736,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       )
       enriched.value.map {
         case OptionIor.Both(_: BadRow.EnrichmentFailures, enriched)
-            if SpecHelpers.getUnstructSchema(enriched.unstruct_event) == clientSessionSchema &&
+            if enriched.unstruct_event.map(_.schema) === Some(clientSessionSchema) &&
               expectedDerivedContexts(enriched) =>
           ok
         case other => ko(s"[$other] is not an EnrichmentFailures bad row and an enriched event")
@@ -1649,13 +1776,13 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
       def expectedDerivedContexts(enriched: EnrichedEvent): Boolean =
-        SpecHelpers.listContexts(enriched.derived_contexts) match {
+        enriched.derived_contexts match {
           case List(
                 SelfDescribingData(Failure.`failureSchemaKey`, validationError),
                 SelfDescribingData(Failure.`failureSchemaKey`, enrichmentError)
               )
-              if validationError.field("failureType") == "ValidationError".asJson &&
-                validationError.field("errors") == Json.arr(
+              if validationError.field("failureType") === "ValidationError".asJson &&
+                validationError.field("errors") === Json.arr(
                   Json.obj(
                     "message" := "Cannot be converted to java.math.BigDecimal. Error : Character f is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark.",
                     "source" := AtomicError.source,
@@ -1664,16 +1791,16 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
                     "targets" := Json.arr()
                   )
                 ) &&
-                validationError.field("schema") == AtomicFields.atomicSchema.asJson &&
-                validationError.field("data") == Json.obj("tr_tt" := "foo") &&
-                enrichmentError.field("failureType") == "EnrichmentError: Javascript enrichment".asJson &&
-                enrichmentError.field("errors") == Json.arr(
+                validationError.field("schema") === AtomicFields.atomicSchema.asJson &&
+                validationError.field("data") === Json.obj("tr_tt" := "foo") &&
+                enrichmentError.field("failureType") === "EnrichmentError: Javascript enrichment".asJson &&
+                enrichmentError.field("errors") === Json.arr(
                   Json.obj(
                     "message" := "Error during execution of JavaScript function: [Javascript exception in <eval> at line number 3 at column number 10]"
                   )
                 ) &&
-                enrichmentError.field("schema") == JavascriptScriptEnrichment.supportedSchema.copy(addition = 0.some).asString.asJson &&
-                enrichmentError.field("data") == Json.Null =>
+                enrichmentError.field("schema") === JavascriptScriptEnrichment.supportedSchema.copy(addition = 0.some).asString.asJson &&
+                enrichmentError.field("data") === Json.Null =>
             true
           case _ => false
         }
@@ -1743,13 +1870,13 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       ).toOpt
       val rawEvent = RawEvent(api, parameters, None, source, context)
       def expectedDerivedContexts(enriched: EnrichedEvent): Boolean =
-        SpecHelpers.listContexts(enriched.derived_contexts) match {
+        enriched.derived_contexts match {
           case List(
                 SelfDescribingData(Failure.`failureSchemaKey`, feJson),
                 SelfDescribingData(SchemaKey("nl.basjes", "yauaa_context", "jsonschema", _), _)
               )
-              if feJson.field("failureType") == "ValidationError".asJson &&
-                feJson.field("errors") == Json.arr(
+              if feJson.field("failureType") === "ValidationError".asJson &&
+                feJson.field("errors") === Json.arr(
                   Json.obj(
                     "message" := "$.emailAddress: is missing but it is required",
                     "source" := "derived_contexts",
@@ -1765,8 +1892,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
                     "targets" := List("foo")
                   )
                 ) &&
-                feJson.field("schema") == emailSentSchema.asJson &&
-                feJson.field("data") == jparse(invalidContextData).toOption.get =>
+                feJson.field("schema") === emailSentSchema.asJson &&
+                feJson.field("data") === jparse(invalidContextData).toOption.get =>
             true
           case _ => false
         }
@@ -1786,7 +1913,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       )
       enriched.value.map {
         case OptionIor.Both(_: BadRow.SchemaViolations, enriched)
-            if SpecHelpers.getUnstructSchema(enriched.unstruct_event) == clientSessionSchema &&
+            if enriched.unstruct_event.map(_.schema) === Some(clientSessionSchema) &&
               expectedDerivedContexts(enriched) =>
           ok
         case other => ko(s"[$other] is not a SchemaViolations bad row and an enriched event without the faulty enrichment context")
@@ -1854,7 +1981,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         SpecHelpers.DefaultMaxJsonDepth
       )
       def expectedDerivedContexts(enriched: EnrichedEvent): Boolean =
-        SpecHelpers.listContextsSchemas(enriched.derived_contexts).count(_ == Failure.failureSchemaKey) == 2
+        enriched.derived_contexts.count(_.schema === Failure.failureSchemaKey) === 2
 
       def expectedBadRow(badRow: BadRow): Boolean =
         badRow match {
@@ -1872,7 +1999,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
 
       enriched.value.map {
         case OptionIor.Both(badRow, enriched)
-            if Option(enriched.unstruct_event).isEmpty &&
+            if enriched.unstruct_event.isEmpty &&
               expectedDerivedContexts(enriched) &&
               expectedBadRow(badRow) =>
           ok
@@ -2504,7 +2631,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       val enriched = new EnrichedEvent()
       val enrichmentResult = OptionIor.Left(NonEmptyList.of(NonEmptyList.of(sv, ef), NonEmptyList.of(sv, ef)))
       EnrichmentManager.setDerivedContexts(enriched, enrichmentResult, processor)
-      val schemas = SpecHelpers.listContextsSchemas(enriched.derived_contexts)
+      val schemas = enriched.derived_contexts.map(_.schema)
       schemas.size must beEqualTo(4)
       forall(schemas)(s => s must beEqualTo(Failure.failureSchemaKey))
     }
@@ -2512,7 +2639,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       val enriched = new EnrichedEvent()
       val enrichmentResult = OptionIor.Right(List(emailSentSDJ, emailSentSDJ))
       EnrichmentManager.setDerivedContexts(enriched, enrichmentResult, processor)
-      val schemas = SpecHelpers.listContextsSchemas(enriched.derived_contexts)
+      val schemas = enriched.derived_contexts.map(_.schema)
       schemas.size must beEqualTo(2)
       forall(schemas)(s => s must beEqualTo(emailSentSchema))
     }
@@ -2523,10 +2650,10 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         List(emailSentSDJ, emailSentSDJ)
       )
       EnrichmentManager.setDerivedContexts(enriched, enrichmentResult, processor)
-      val schemas = SpecHelpers.listContextsSchemas(enriched.derived_contexts)
+      val schemas = enriched.derived_contexts.map(_.schema)
       schemas.size must beEqualTo(6)
-      schemas.count(_ == Failure.failureSchemaKey) must beEqualTo(4)
-      schemas.count(_ == emailSentSchema) must beEqualTo(2)
+      schemas.count(_ === Failure.failureSchemaKey) must beEqualTo(4)
+      schemas.count(_ === emailSentSchema) must beEqualTo(2)
     }
   }
 
@@ -2740,7 +2867,16 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         matcher = {
           case OptionIor.Right(enriched) =>
             enriched.derived_contexts must beEqualTo(
-              """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/consent_withdrawn/jsonschema/1-0-0","data":{"all":false}},{"schema":"iglu:org.ietf/http_header/jsonschema/1-0-0","data":{"name":"X-Tract-Me","value":"moo"}}]}"""
+              List(
+                SelfDescribingData(
+                  SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/consent_withdrawn/jsonschema/1-0-0").toOption.get,
+                  json"""{"all":false}"""
+                ),
+                SelfDescribingData(
+                  SchemaKey.fromUri("iglu:org.ietf/http_header/jsonschema/1-0-0").toOption.get,
+                  json"""{"name":"X-Tract-Me","value":"moo"}"""
+                )
+              )
             )
           case _ => ko
         }
@@ -2757,7 +2893,12 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         matcher = {
           case OptionIor.Right(enriched) =>
             enriched.derived_contexts must beEqualTo(
-              """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/consent_withdrawn/jsonschema/1-0-0","data":{"all":false}}]}"""
+              List(
+                SelfDescribingData(
+                  SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/consent_withdrawn/jsonschema/1-0-0").toOption.get,
+                  json"""{"all":false}"""
+                )
+              )
             )
           case _ => ko
         }
@@ -2773,7 +2914,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           }"""),
         matcher = {
           case OptionIor.Right(enriched) =>
-            enriched.derived_contexts must beNull
+            enriched.derived_contexts must beEmpty
           case _ => ko
         }
       )
@@ -2812,7 +2953,20 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         matcher = {
           case OptionIor.Right(enriched) =>
             enriched.derived_contexts must beEqualTo(
-              """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/application_background/jsonschema/1-0-0","data":{"backgroundIndex":6}},{"schema":"iglu:com.snowplowanalytics.snowplow/application_background/jsonschema/1-0-0","data":{"backgroundIndex":5}},{"schema":"iglu:com.snowplowanalytics.snowplow/application_background/jsonschema/1-0-0","data":{"backgroundIndex":4}}]}"""
+              List(
+                SelfDescribingData(
+                  SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/application_background/jsonschema/1-0-0").toOption.get,
+                  json"""{"backgroundIndex":6}"""
+                ),
+                SelfDescribingData(
+                  SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/application_background/jsonschema/1-0-0").toOption.get,
+                  json"""{"backgroundIndex":5}"""
+                ),
+                SelfDescribingData(
+                  SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/application_background/jsonschema/1-0-0").toOption.get,
+                  json"""{"backgroundIndex":4}"""
+                )
+              )
             )
           case _ => ko
         }

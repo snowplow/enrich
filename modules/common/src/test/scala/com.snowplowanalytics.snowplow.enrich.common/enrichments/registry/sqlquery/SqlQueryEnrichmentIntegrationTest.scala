@@ -101,7 +101,7 @@ class SqlQueryEnrichmentIntegrationTest extends Specification with ValidatedMatc
 
     for {
       enrichment <- SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[IO](SpecHelpers.blockingEC)).toOption.get
-      contexts <- enrichment.lookup(new EnrichedEvent, Nil, Nil, None)
+      contexts <- enrichment.lookup(new EnrichedEvent, Nil)
     } yield contexts must beValid.like {
       case List(json) => json must beEqualTo(expected)
     }
@@ -204,13 +204,10 @@ class SqlQueryEnrichmentIntegrationTest extends Specification with ValidatedMatc
       }"""
     ).toOption.get
 
-    val event1 = new EnrichedEvent
-    event1.setGeo_city("Krasnoyarsk")
     val weatherContext1 = SelfDescribingData(
       SchemaKey("org.openweathermap", "weather", "jsonschema", SchemaVer.Full(1, 0, 0)),
       json"""{"main":{"humidity":78.0,"pressure":1010.0,"temp":260.91,"temp_min":260.15,"temp_max":261.15},"wind":{"speed":2.0,"deg":250.0,"var_end":270,"var_beg":200},"clouds":{"all":75},"weather":[{"main":"Snow","description":"light snow","id":600,"icon":"13d"},{"main":"Mist","description":"mist","id":701,"icon":"50d"}],"dt":"2016-01-07T10:10:34.000Z"}"""
     )
-    event1.setUser_id("alice")
     val geoContext1 = SelfDescribingData[Json](
       SchemaKey(
         "com.snowplowanalytics.snowplow",
@@ -229,14 +226,17 @@ class SqlQueryEnrichmentIntegrationTest extends Specification with ValidatedMatc
       ),
       json""" {"applicationName": "ue_test_krsk"} """
     )
+    val event1 = new EnrichedEvent {
+      unstruct_event = Some(ue1)
+      contexts = List(geoContext1)
+    }
+    event1.setUser_id("alice")
+    event1.setGeo_city("Krasnoyarsk")
 
-    val event2 = new EnrichedEvent
-    event2.setGeo_city("London")
     val weatherContext2 = SelfDescribingData(
       SchemaKey("org.openweathermap", "weather", "jsonschema", SchemaVer.Full(1, 0, 0)),
       json"""{"main":{"humidity":78.0,"pressure":1010.0,"temp":260.91,"temp_min":260.15,"temp_max":261.15},"wind":{"speed":2.0,"deg":250.0,"var_end":270,"var_beg":200},"clouds":{"all":75},"weather":[{"main":"Snow","description":"light snow","id":600,"icon":"13d"},{"main":"Mist","description":"mist","id":701,"icon":"50d"}],"dt":"2016-01-08T10:00:34.000Z"}"""
     )
-    event2.setUser_id("bob")
     val geoContext2 = SelfDescribingData[Json](
       SchemaKey(
         "com.snowplowanalytics.snowplow",
@@ -255,14 +255,17 @@ class SqlQueryEnrichmentIntegrationTest extends Specification with ValidatedMatc
       ),
       json""" {"applicationName": "ue_test_london"} """
     )
+    val event2 = new EnrichedEvent {
+      unstruct_event = Some(ue2)
+      contexts = List(geoContext2)
+    }
+    event2.setGeo_city("London")
+    event2.setUser_id("bob")
 
-    val event3 = new EnrichedEvent
-    event3.setGeo_city("New York")
     val weatherContext3 = SelfDescribingData(
       SchemaKey("org.openweathermap", "weather", "jsonschema", SchemaVer.Full(1, 0, 0)),
       json"""{"main":{"humidity":78.0,"pressure":1010.0,"temp":260.91,"temp_min":260.15,"temp_max":261.15},"wind":{"speed":2.0,"deg":250.0,"var_end":270,"var_beg":200},"clouds":{"all":75},"weather":[{"main":"Snow","description":"light snow","id":600,"icon":"13d"},{"main":"Mist","description":"mist","id":701,"icon":"50d"}],"dt":"2016-02-07T10:10:00.000Z"}"""
     )
-    event3.setUser_id("eve")
     val geoContext3 = SelfDescribingData[Json](
       SchemaKey(
         "com.snowplowanalytics.snowplow",
@@ -281,14 +284,17 @@ class SqlQueryEnrichmentIntegrationTest extends Specification with ValidatedMatc
       ),
       json""" {"applicationName": "ue_test_ny"} """
     )
+    val event3 = new EnrichedEvent {
+      unstruct_event = Some(ue3)
+      contexts = List(geoContext3)
+    }
+    event3.setGeo_city("New York")
+    event3.setUser_id("eve")
 
-    val event4 = new EnrichedEvent
-    event4.setGeo_city("London")
     val weatherContext4 = SelfDescribingData(
       SchemaKey("org.openweathermap", "weather", "jsonschema", SchemaVer.Full(1, 0, 0)),
       json"""{"main":{"humidity":78.0,"pressure":1010.0,"temp":260.91,"temp_min":260.15,"temp_max":261.15},"wind":{"speed":2.0,"deg":250.0,"var_end":270,"var_beg":200},"clouds":{"all":75},"weather":[{"main":"Snow","description":"light snow","id":600,"icon":"13d"},{"main":"Mist","description":"mist","id":701,"icon":"50d"}],"dt":"2016-01-08T10:00:34.000Z"}"""
     )
-    event4.setUser_id("eve") // This should be ignored because of clientSession4
     val clientSession4 = SelfDescribingData[Json](
       SchemaKey(
         "com.snowplowanalytics.snowplow",
@@ -316,6 +322,12 @@ class SqlQueryEnrichmentIntegrationTest extends Specification with ValidatedMatc
       ),
       json""" {"applicationName": "ue_test_london"} """
     )
+    val event4 = new EnrichedEvent {
+      unstruct_event = Some(ue4)
+      contexts = List(geoContext4, clientSession4)
+    }
+    event4.setGeo_city("London")
+    event4.setUser_id("eve") // This should be ignored because of clientSession4
 
     val expected1 =
       SelfDescribingData(
@@ -343,13 +355,13 @@ class SqlQueryEnrichmentIntegrationTest extends Specification with ValidatedMatc
 
     for {
       enrichment <- SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[IO](SpecHelpers.blockingEC)).toOption.get
-      actual1 <- enrichment.lookup(event1, List(weatherContext1), List(geoContext1), Some(ue1))
+      actual1 <- enrichment.lookup(event1, List(weatherContext1))
       res1 = actual1 must beValid(List(expected1))
-      actual2 <- enrichment.lookup(event2, List(weatherContext2), List(geoContext2), Some(ue2))
+      actual2 <- enrichment.lookup(event2, List(weatherContext2))
       res2 = actual2 must beValid(List(expected2))
-      actual3 <- enrichment.lookup(event3, List(weatherContext3), List(geoContext3), Some(ue3))
+      actual3 <- enrichment.lookup(event3, List(weatherContext3))
       res3 = actual3 must beValid(List(expected3))
-      actual4 <- enrichment.lookup(event4, List(weatherContext4), List(geoContext4, clientSession4), Some(ue4))
+      actual4 <- enrichment.lookup(event4, List(weatherContext4))
       res4 = actual4 must beValid(List(expected4))
     } yield res1 and res2 and res3 and res4
   }
@@ -404,7 +416,7 @@ class SqlQueryEnrichmentIntegrationTest extends Specification with ValidatedMatc
 
     for {
       enrichment <- SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[IO](SpecHelpers.blockingEC)).toOption.get
-      contexts <- enrichment.lookup(event, Nil, Nil, None)
+      contexts <- enrichment.lookup(event, Nil)
     } yield contexts must beValid(Nil)
   }
 
@@ -465,7 +477,7 @@ class SqlQueryEnrichmentIntegrationTest extends Specification with ValidatedMatc
 
     for {
       enrichment <- SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[IO](SpecHelpers.blockingEC)).toOption.get
-      contexts <- enrichment.lookup(event, Nil, Nil, None)
+      contexts <- enrichment.lookup(event, Nil)
     } yield contexts.toEither
   }
 }

@@ -10,19 +10,28 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments
 
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 
 import org.specs2.Specification
 import org.specs2.matcher.DataTables
 
-import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import io.circe.Json
+import io.circe.literal._
 
-import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
 class SchemaEnrichmentSpec extends Specification with DataTables {
 
-  val signupFormSubmitted =
-    """{"schema":"iglu:com.snowplowanalytics.snowplow-website/signup_form_submitted/jsonschema/1-0-0","data":{"name":"Χαριτίνη NEW Unicode test","email":"alex+test@snowplowanalytics.com","company":"SP","eventsPerMonth":"< 1 million","serviceType":"unsure"}}"""
+  val signupFormSubmitted = SelfDescribingData(
+    SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow-website/signup_form_submitted/jsonschema/1-0-0").toOption.get,
+    json"""{
+      "name":"Χαριτίνη NEW Unicode test",
+      "email":"alex+test@snowplowanalytics.com",
+      "company":"SP",
+      "eventsPerMonth":"< 1 million",
+      "serviceType":"unsure"
+    }"""
+  )
 
   def is = s2"""
   extracting SchemaKeys from valid events should work $e1
@@ -30,46 +39,44 @@ class SchemaEnrichmentSpec extends Specification with DataTables {
   """
 
   def e1 =
-    "SPEC NAME" || "EVENT" | "UNSTRUCT EVENT" | "EXPECTED SCHEMA" |
-      "page view" !! event("page_view") ! None ! SchemaKey(
+    "SPEC NAME" || "EVENT" | "EXPECTED SCHEMA" |
+      "page view" !! event("page_view") ! SchemaKey(
         "com.snowplowanalytics.snowplow",
         "page_view",
         "jsonschema",
         SchemaVer.Full(1, 0, 0)
       ) |
-      "ping ping" !! event("page_ping") ! None ! SchemaKey(
+      "ping ping" !! event("page_ping") ! SchemaKey(
         "com.snowplowanalytics.snowplow",
         "page_ping",
         "jsonschema",
         SchemaVer.Full(1, 0, 0)
       ) |
-      "transaction" !! event("transaction") ! None ! SchemaKey(
+      "transaction" !! event("transaction") ! SchemaKey(
         "com.snowplowanalytics.snowplow",
         "transaction",
         "jsonschema",
         SchemaVer.Full(1, 0, 0)
       ) |
-      "transaction item" !! event("transaction_item") ! None ! SchemaKey(
+      "transaction item" !! event("transaction_item") ! SchemaKey(
         "com.snowplowanalytics.snowplow",
         "transaction_item",
         "jsonschema",
         SchemaVer.Full(1, 0, 0)
       ) |
-      "struct event" !! event("struct") ! None ! SchemaKey(
+      "struct event" !! event("struct") ! SchemaKey(
         "com.google.analytics",
         "event",
         "jsonschema",
         SchemaVer.Full(1, 0, 0)
       ) |
-      "unstruct event" !! unstructEvent(signupFormSubmitted) ! Some(
-        SpecHelpers.jsonStringToSDJ(signupFormSubmitted).right.get
-      ) ! SchemaKey(
+      "unstruct event" !! unstructEvent(signupFormSubmitted) ! SchemaKey(
         "com.snowplowanalytics.snowplow-website",
         "signup_form_submitted",
         "jsonschema",
         SchemaVer.Full(1, 0, 0)
-      ) |> { (_, event, unstruct, expected) =>
-      val schema = SchemaEnrichment.extractSchema(event, unstruct)
+      ) |> { (_, event, expected) =>
+      val schema = SchemaEnrichment.extractSchema(event)
       schema must beRight(Some(expected))
     }
 
@@ -77,7 +84,7 @@ class SchemaEnrichmentSpec extends Specification with DataTables {
     "SPEC NAME" || "EVENT" |
       "unknown event" !! event("unknown") |
       "missing event" !! event(null) |> { (_, event) =>
-      SchemaEnrichment.extractSchema(event, None) must beLeft
+      SchemaEnrichment.extractSchema(event) must beLeft
     }
 
   def event(eventType: String) = {
@@ -86,10 +93,10 @@ class SchemaEnrichmentSpec extends Specification with DataTables {
     event
   }
 
-  def unstructEvent(unstruct: String) = {
+  def unstructEvent(unstruct: SelfDescribingData[Json]) = {
     val event: EnrichedEvent = new EnrichedEvent()
     event.setEvent("unstruct")
-    event.setUnstruct_event(unstruct)
+    event.unstruct_event = Some(unstruct)
     event
   }
 }

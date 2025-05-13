@@ -61,7 +61,7 @@ class CollectorPayloadSpec extends Specification with DataTables with ScalaCheck
 
 object CollectorPayloadSpec {
 
-  val thriftSerializer = new TSerializer()
+  def thriftSerializer = new TSerializer()
 
   val apiGen = Gen.oneOf(
     CollectorPayload.Api("com.snowplowanalytics.snowplow", "tp1"),

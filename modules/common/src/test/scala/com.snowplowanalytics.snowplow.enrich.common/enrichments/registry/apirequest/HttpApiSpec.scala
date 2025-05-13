@@ -66,7 +66,7 @@ class HttpApiSpec extends Specification with ValidatedMatchers with Mockito with
                         ignoreOnError = false
                       ).enrichment[IO](http)
         event = new EnrichedEvent
-        request <- enrichment.lookup(event, Nil, Nil, None)
+        request <- enrichment.lookup(event, Nil)
       } yield request must beInvalid
     }
   }

@@ -13,9 +13,9 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii
 import cats.effect.IO
 import cats.effect.testing.specs2.CatsEffect
 import cats.syntax.option._
-import com.snowplowanalytics.iglu.core.SchemaCriterion
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SelfDescribingData}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
-import io.circe.parser.parse
+import io.circe.Json
 import org.apache.commons.codec.digest.DigestUtils
 import org.specs2.Specification
 import org.specs2.matcher.ValidatedMatchers
@@ -217,72 +217,54 @@ class AnonymousOnlySpec extends Specification with ValidatedMatchers with CatsEf
       val size = output.size must_== 1
       val validOut = output.head must beRight.like {
         case enrichedEvent =>
-          val contextJ = parse(enrichedEvent.contexts).toOption.get.hcursor
-          val contextJFirstElement = contextJ.downField("data").downArray
-          val contextJSecondElement = contextJFirstElement.right
-          val contextJThirdElement = contextJSecondElement.right
-          val unstructEventJ = parse(enrichedEvent.unstruct_event).toOption.get.hcursor
-            .downField("data")
-            .downField("data")
-          val first = (contextJFirstElement
-            .downField("data")
-            .get[String]("emailAddress") must beRight(
-            "72f323d5359eabefc69836369e4cabc6257c43ab6419b05dfb2211d0e44284c6"
-          )) and
-            (contextJFirstElement.downField("data").get[String]("emailAddress2") must beRight(
-              "bob@acme.com"
-            )) and
-            (contextJSecondElement.downField("data").get[String]("emailAddress") must beRight(
-              "tim@acme.com"
-            )) and
-            (contextJSecondElement.downField("data").get[String]("emailAddress2") must beRight(
-              "tom@acme.com"
-            ))
+          val testFirstContext = enrichedEvent.contexts.lift(0) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("emailAddress") must beRight(
+                  "72f323d5359eabefc69836369e4cabc6257c43ab6419b05dfb2211d0e44284c6"
+                )),
+                (sdj.data.hcursor.get[String]("emailAddress2") must beRight("bob@acme.com"))
+              ).reduce(_ and _)
+          }
 
-          // The following three tests are for the case that the context schema allows the fields
-          // data and schema and in addition the schema field matches the configured schema. There
-          // should be no replacement there (unless that is specified in jsonpath)
-          val second = (contextJSecondElement
-            .downField("data")
-            .downField("data")
-            .get[String]("emailAddress") must beRight("jim@acme.com")) and
-            (contextJSecondElement
-              .downField("data")
-              .downField("data")
-              .get[String]("emailAddress2") must beRight(
-              "1c6660411341411d5431669699149283d10e070224be4339d52bbc4b007e78c5"
-            )) and
-            (contextJSecondElement.downField("data").get[String]("schema") must beRight(
-              "iglu:com.acme/email_sent/jsonschema/1-0-0"
-            )) and
-            (unstructEventJ.get[String]("ip") must beRight(
-              "269c433d0cc00395e3bc5fe7f06c5ad822096a38bec2d8a005367b52c0dfb428"
-            )) and
-            (unstructEventJ.get[String]("myVar2") must beRight("awesome"))
+          val testSecondContext = enrichedEvent.contexts.lift(1) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("emailAddress") must beRight("tim@acme.com")),
+                (sdj.data.hcursor.get[String]("emailAddress2") must beRight("tom@acme.com")),
+                (sdj.data.hcursor.get[Json]("data") must beRight.like {
+                  case json: Json =>
+                    json.hcursor.get[String]("emailAddress2") must beRight(
+                      "1c6660411341411d5431669699149283d10e070224be4339d52bbc4b007e78c5"
+                    )
+                }),
+                (sdj.data.hcursor.get[String]("schema") must beRight("iglu:com.acme/email_sent/jsonschema/1-0-0"))
+              ).reduce(_ and _)
+          }
 
-          val third = (contextJThirdElement
-            .downField("data")
-            .get[List[String]]("field") must
-            beRight(
-              List[String]("b62f3a2475ac957009088f9b8ab77ceb7b4ed7c5a6fd920daa204a1953334acb",
-                           "8ad32723b7435cbf535025e519cc94dbf1568e17ced2aeb4b9e7941f6346d7d0"
-              )
-            )) and
-            (contextJThirdElement
-              .downField("data")
-              .downField("field2")
-              .focus must beSome.like { case json => json.isNull }) and
-            (contextJThirdElement
-              .downField("data")
-              .downField("field3")
-              .focus must beSome.like { case json => json.isNull })
+          val testUnstructEvent = enrichedEvent.unstruct_event must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("ip") must beRight("269c433d0cc00395e3bc5fe7f06c5ad822096a38bec2d8a005367b52c0dfb428")),
+                (sdj.data.hcursor.get[String]("myVar2") must beRight("awesome"))
+              ).reduce(_ and _)
+          }
 
-          // Test that empty string in Pii field gets hashed
-          val fourth = contextJThirdElement
-            .downField("data")
-            .get[String]("field4") must beRight("7a3477dad66e666bd203b834c54b6dfe8b546bdbc5283462ad14052abfb06600")
+          val testThirdContext = enrichedEvent.contexts.lift(2) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[List[String]]("field") must beRight(
+                  List[String]("b62f3a2475ac957009088f9b8ab77ceb7b4ed7c5a6fd920daa204a1953334acb",
+                               "8ad32723b7435cbf535025e519cc94dbf1568e17ced2aeb4b9e7941f6346d7d0"
+                  )
+                )),
+                (sdj.data.hcursor.downField("field2").focus must beSome.like { case json => json.isNull }),
+                (sdj.data.hcursor.downField("field3").focus must beSome.like { case json => json.isNull }),
+                (sdj.data.hcursor.get[String]("field4") must beRight("7a3477dad66e666bd203b834c54b6dfe8b546bdbc5283462ad14052abfb06600"))
+              ).reduce(_ and _)
+          }
 
-          first and second and third and fourth
+          testFirstContext and testSecondContext and testThirdContext and testUnstructEvent
       }
       size and validOut
     }
@@ -302,68 +284,43 @@ class AnonymousOnlySpec extends Specification with ValidatedMatchers with CatsEf
       val size = output.size must_== 1
       val validOut = output.head must beRight.like {
         case enrichedEvent =>
-          val contextJ = parse(enrichedEvent.contexts).toOption.get.hcursor
-          val contextJFirstElement = contextJ.downField("data").downArray
-          val contextJSecondElement = contextJFirstElement.right
-          val contextJThirdElement = contextJSecondElement.right
-          val unstructEventJ = parse(enrichedEvent.unstruct_event).toOption.get.hcursor
-            .downField("data")
-            .downField("data")
-          val first = (contextJFirstElement
-            .downField("data")
-            .get[String]("emailAddress") must beRight(
-            "jim@acme.com"
-          )) and
-            (contextJFirstElement.downField("data").get[String]("emailAddress2") must beRight(
-              "bob@acme.com"
-            )) and
-            (contextJSecondElement.downField("data").get[String]("emailAddress") must beRight(
-              "tim@acme.com"
-            )) and
-            (contextJSecondElement.downField("data").get[String]("emailAddress2") must beRight(
-              "tom@acme.com"
-            ))
+          val testFirstContext = enrichedEvent.contexts.lift(0) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              sdj.data.hcursor.get[String]("emailAddress2") must beRight("bob@acme.com")
+          }
 
-          // The following three tests are for the case that the context schema allows the fields
-          // data and schema and in addition the schema field matches the configured schema. There
-          // should be no replacement there (unless that is specified in jsonpath)
-          val second = (contextJSecondElement
-            .downField("data")
-            .downField("data")
-            .get[String]("emailAddress") must beRight("jim@acme.com")) and
-            (contextJSecondElement
-              .downField("data")
-              .downField("data")
-              .get[String]("emailAddress2") must beRight(
-              "bob@acme.com"
-            )) and
-            (contextJSecondElement.downField("data").get[String]("schema") must beRight(
-              "iglu:com.acme/email_sent/jsonschema/1-0-0"
-            )) and
-            (unstructEventJ.get[String]("ip") must beRight(
-              "50.56.129.169"
-            )) and
-            (unstructEventJ.get[String]("myVar2") must beRight("awesome"))
+          val testSecondContext = enrichedEvent.contexts.lift(1) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("emailAddress") must beRight("tim@acme.com")),
+                (sdj.data.hcursor.get[String]("emailAddress2") must beRight("tom@acme.com")),
+                (sdj.data.hcursor.get[Json]("data") must beRight.like {
+                  case json: Json =>
+                    json.hcursor.get[String]("emailAddress2") must beRight("bob@acme.com")
+                }),
+                (sdj.data.hcursor.get[String]("schema") must beRight("iglu:com.acme/email_sent/jsonschema/1-0-0"))
+              ).reduce(_ and _)
+          }
 
-          val third = (contextJThirdElement
-            .downField("data")
-            .get[List[String]]("field") must
-            beRight(List[String]("hello", "world"))) and
-            (contextJThirdElement
-              .downField("data")
-              .downField("field2")
-              .focus must beSome.like { case json => json.isNull }) and
-            (contextJThirdElement
-              .downField("data")
-              .downField("field3")
-              .focus must beSome.like { case json => json.isNull })
+          val testUnstructEvent = enrichedEvent.unstruct_event must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("ip") must beRight("50.56.129.169")),
+                (sdj.data.hcursor.get[String]("myVar2") must beRight("awesome"))
+              ).reduce(_ and _)
+          }
 
-          // Test that empty string in Pii field gets hashed
-          val fourth = contextJThirdElement
-            .downField("data")
-            .get[String]("field4") must beRight("")
+          val testThirdContext = enrichedEvent.contexts.lift(2) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[List[String]]("field") must beRight(List[String]("hello", "world"))),
+                (sdj.data.hcursor.downField("field2").focus must beSome.like { case json => json.isNull }),
+                (sdj.data.hcursor.downField("field3").focus must beSome.like { case json => json.isNull }),
+                (sdj.data.hcursor.get[String]("field4") must beRight(""))
+              ).reduce(_ and _)
+          }
 
-          first and second and third and fourth
+          testFirstContext and testSecondContext and testThirdContext and testUnstructEvent
       }
       size and validOut
     }
@@ -383,72 +340,57 @@ class AnonymousOnlySpec extends Specification with ValidatedMatchers with CatsEf
       val size = output.size must_== 1
       val validOut = output.head must beRight.like {
         case enrichedEvent =>
-          val contextJ = parse(enrichedEvent.contexts).toOption.get.hcursor
-          val contextJFirstElement = contextJ.downField("data").downArray
-          val contextJSecondElement = contextJFirstElement.right
-          val contextJThirdElement = contextJSecondElement.right
-          val unstructEventJ = parse(enrichedEvent.unstruct_event).toOption.get.hcursor
-            .downField("data")
-            .downField("data")
-          val first = (contextJFirstElement
-            .downField("data")
-            .get[String]("emailAddress") must beRight(
-            "72f323d5359eabefc69836369e4cabc6257c43ab6419b05dfb2211d0e44284c6"
-          )) and
-            (contextJFirstElement.downField("data").get[String]("emailAddress2") must beRight(
-              "bob@acme.com"
-            )) and
-            (contextJSecondElement.downField("data").get[String]("emailAddress") must beRight(
-              "tim@acme.com"
-            )) and
-            (contextJSecondElement.downField("data").get[String]("emailAddress2") must beRight(
-              "tom@acme.com"
-            ))
+          val testFirstContext = enrichedEvent.contexts.lift(0) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("emailAddress") must beRight(
+                  "72f323d5359eabefc69836369e4cabc6257c43ab6419b05dfb2211d0e44284c6"
+                )),
+                (sdj.data.hcursor.get[String]("emailAddress2") must beRight("bob@acme.com"))
+              ).reduce(_ and _)
+          }
 
-          // The following three tests are for the case that the context schema allows the fields
-          // data and schema and in addition the schema field matches the configured schema. There
-          // should be no replacement there (unless that is specified in jsonpath)
-          val second = (contextJSecondElement
-            .downField("data")
-            .downField("data")
-            .get[String]("emailAddress") must beRight("jim@acme.com")) and
-            (contextJSecondElement
-              .downField("data")
-              .downField("data")
-              .get[String]("emailAddress2") must beRight(
-              "1c6660411341411d5431669699149283d10e070224be4339d52bbc4b007e78c5"
-            )) and
-            (contextJSecondElement.downField("data").get[String]("schema") must beRight(
-              "iglu:com.acme/email_sent/jsonschema/1-0-0"
-            )) and
-            (unstructEventJ.get[String]("ip") must beRight(
-              "269c433d0cc00395e3bc5fe7f06c5ad822096a38bec2d8a005367b52c0dfb428"
-            )) and
-            (unstructEventJ.get[String]("myVar2") must beRight("awesome"))
+          val testSecondContext = enrichedEvent.contexts.lift(1) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("emailAddress") must beRight("tim@acme.com")),
+                (sdj.data.hcursor.get[String]("emailAddress2") must beRight("tom@acme.com")),
+                (sdj.data.hcursor.get[Json]("data") must beRight.like {
+                  case json: Json =>
+                    List(
+                      (json.hcursor.get[String]("emailAddress") must beRight("jim@acme.com")),
+                      (json.hcursor.get[String]("emailAddress2") must beRight(
+                        "1c6660411341411d5431669699149283d10e070224be4339d52bbc4b007e78c5"
+                      ))
+                    ).reduce(_ and _)
+                }),
+                (sdj.data.hcursor.get[String]("schema") must beRight("iglu:com.acme/email_sent/jsonschema/1-0-0"))
+              ).reduce(_ and _)
+          }
 
-          val third = (contextJThirdElement
-            .downField("data")
-            .get[List[String]]("field") must
-            beRight(
-              List[String]("b62f3a2475ac957009088f9b8ab77ceb7b4ed7c5a6fd920daa204a1953334acb",
-                           "8ad32723b7435cbf535025e519cc94dbf1568e17ced2aeb4b9e7941f6346d7d0"
-              )
-            )) and
-            (contextJThirdElement
-              .downField("data")
-              .downField("field2")
-              .focus must beSome.like { case json => json.isNull }) and
-            (contextJThirdElement
-              .downField("data")
-              .downField("field3")
-              .focus must beSome.like { case json => json.isNull })
+          val testUnstructEvent = enrichedEvent.unstruct_event must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("ip") must beRight("269c433d0cc00395e3bc5fe7f06c5ad822096a38bec2d8a005367b52c0dfb428")),
+                (sdj.data.hcursor.get[String]("myVar2") must beRight("awesome"))
+              ).reduce(_ and _)
+          }
 
-          // Test that empty string in Pii field gets hashed
-          val fourth = contextJThirdElement
-            .downField("data")
-            .get[String]("field4") must beRight("7a3477dad66e666bd203b834c54b6dfe8b546bdbc5283462ad14052abfb06600")
+          val testThirdContext = enrichedEvent.contexts.lift(2) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[List[String]]("field") must beRight(
+                  List[String]("b62f3a2475ac957009088f9b8ab77ceb7b4ed7c5a6fd920daa204a1953334acb",
+                               "8ad32723b7435cbf535025e519cc94dbf1568e17ced2aeb4b9e7941f6346d7d0"
+                  )
+                )),
+                (sdj.data.hcursor.downField("field2").focus must beSome.like { case json => json.isNull }),
+                (sdj.data.hcursor.downField("field3").focus must beSome.like { case json => json.isNull }),
+                (sdj.data.hcursor.get[String]("field4") must beRight("7a3477dad66e666bd203b834c54b6dfe8b546bdbc5283462ad14052abfb06600"))
+              ).reduce(_ and _)
+          }
 
-          first and second and third and fourth
+          testFirstContext and testSecondContext and testThirdContext and testUnstructEvent
       }
       size and validOut
     }
@@ -468,72 +410,57 @@ class AnonymousOnlySpec extends Specification with ValidatedMatchers with CatsEf
       val size = output.size must_== 1
       val validOut = output.head must beRight.like {
         case enrichedEvent =>
-          val contextJ = parse(enrichedEvent.contexts).toOption.get.hcursor
-          val contextJFirstElement = contextJ.downField("data").downArray
-          val contextJSecondElement = contextJFirstElement.right
-          val contextJThirdElement = contextJSecondElement.right
-          val unstructEventJ = parse(enrichedEvent.unstruct_event).toOption.get.hcursor
-            .downField("data")
-            .downField("data")
-          val first = (contextJFirstElement
-            .downField("data")
-            .get[String]("emailAddress") must beRight(
-            "72f323d5359eabefc69836369e4cabc6257c43ab6419b05dfb2211d0e44284c6"
-          )) and
-            (contextJFirstElement.downField("data").get[String]("emailAddress2") must beRight(
-              "bob@acme.com"
-            )) and
-            (contextJSecondElement.downField("data").get[String]("emailAddress") must beRight(
-              "tim@acme.com"
-            )) and
-            (contextJSecondElement.downField("data").get[String]("emailAddress2") must beRight(
-              "tom@acme.com"
-            ))
+          val testFirstContext = enrichedEvent.contexts.lift(0) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("emailAddress") must beRight(
+                  "72f323d5359eabefc69836369e4cabc6257c43ab6419b05dfb2211d0e44284c6"
+                )),
+                (sdj.data.hcursor.get[String]("emailAddress2") must beRight("bob@acme.com"))
+              ).reduce(_ and _)
+          }
 
-          // The following three tests are for the case that the context schema allows the fields
-          // data and schema and in addition the schema field matches the configured schema. There
-          // should be no replacement there (unless that is specified in jsonpath)
-          val second = (contextJSecondElement
-            .downField("data")
-            .downField("data")
-            .get[String]("emailAddress") must beRight("jim@acme.com")) and
-            (contextJSecondElement
-              .downField("data")
-              .downField("data")
-              .get[String]("emailAddress2") must beRight(
-              "1c6660411341411d5431669699149283d10e070224be4339d52bbc4b007e78c5"
-            )) and
-            (contextJSecondElement.downField("data").get[String]("schema") must beRight(
-              "iglu:com.acme/email_sent/jsonschema/1-0-0"
-            )) and
-            (unstructEventJ.get[String]("ip") must beRight(
-              "269c433d0cc00395e3bc5fe7f06c5ad822096a38bec2d8a005367b52c0dfb428"
-            )) and
-            (unstructEventJ.get[String]("myVar2") must beRight("awesome"))
+          val testSecondContext = enrichedEvent.contexts.lift(1) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("emailAddress") must beRight("tim@acme.com")),
+                (sdj.data.hcursor.get[String]("emailAddress2") must beRight("tom@acme.com")),
+                (sdj.data.hcursor.get[Json]("data") must beRight.like {
+                  case json: Json =>
+                    List(
+                      json.hcursor.get[String]("emailAddress") must beRight("jim@acme.com"),
+                      json.hcursor.get[String]("emailAddress2") must beRight(
+                        "1c6660411341411d5431669699149283d10e070224be4339d52bbc4b007e78c5"
+                      )
+                    ).reduce(_ and _)
+                }),
+                (sdj.data.hcursor.get[String]("schema") must beRight("iglu:com.acme/email_sent/jsonschema/1-0-0"))
+              ).reduce(_ and _)
+          }
 
-          val third = (contextJThirdElement
-            .downField("data")
-            .get[List[String]]("field") must
-            beRight(
-              List[String]("b62f3a2475ac957009088f9b8ab77ceb7b4ed7c5a6fd920daa204a1953334acb",
-                           "8ad32723b7435cbf535025e519cc94dbf1568e17ced2aeb4b9e7941f6346d7d0"
-              )
-            )) and
-            (contextJThirdElement
-              .downField("data")
-              .downField("field2")
-              .focus must beSome.like { case json => json.isNull }) and
-            (contextJThirdElement
-              .downField("data")
-              .downField("field3")
-              .focus must beSome.like { case json => json.isNull })
+          val testUnstructEvent = enrichedEvent.unstruct_event must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("ip") must beRight("269c433d0cc00395e3bc5fe7f06c5ad822096a38bec2d8a005367b52c0dfb428")),
+                (sdj.data.hcursor.get[String]("myVar2") must beRight("awesome"))
+              ).reduce(_ and _)
+          }
 
-          // Test that empty string in Pii field gets hashed
-          val fourth = contextJThirdElement
-            .downField("data")
-            .get[String]("field4") must beRight("7a3477dad66e666bd203b834c54b6dfe8b546bdbc5283462ad14052abfb06600")
+          val testThirdContext = enrichedEvent.contexts.lift(2) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[List[String]]("field") must beRight(
+                  List[String]("b62f3a2475ac957009088f9b8ab77ceb7b4ed7c5a6fd920daa204a1953334acb",
+                               "8ad32723b7435cbf535025e519cc94dbf1568e17ced2aeb4b9e7941f6346d7d0"
+                  )
+                )),
+                (sdj.data.hcursor.downField("field2").focus must beSome.like { case json => json.isNull }),
+                (sdj.data.hcursor.downField("field3").focus must beSome.like { case json => json.isNull }),
+                (sdj.data.hcursor.get[String]("field4") must beRight("7a3477dad66e666bd203b834c54b6dfe8b546bdbc5283462ad14052abfb06600"))
+              ).reduce(_ and _)
+          }
 
-          first and second and third and fourth
+          testFirstContext and testSecondContext and testThirdContext and testUnstructEvent
       }
       size and validOut
     }
@@ -591,92 +518,71 @@ object AnonymousOnlySpec {
     val domain_sessionid = "87857856-a603-4eb8-9178-fed2a195a1ed"
   }
 
-  val jsonFieldList =
-    List(
-      PiiJson(
-        fieldMutator = JsonMutators("contexts"),
+  val jsonFieldMutators: PiiMutators = {
+    val contexts = List(
+      PiiPseudonymizerEnrichment.JsonFieldLocator(
         schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0),
         jsonPath = "$.emailAddress"
       ),
-      PiiJson(
-        fieldMutator = JsonMutators("contexts"),
+      PiiPseudonymizerEnrichment.JsonFieldLocator(
         schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 1, 0),
         jsonPath = "$.data.emailAddress2"
       ),
-      PiiJson(
-        fieldMutator = JsonMutators("contexts"),
+      PiiPseudonymizerEnrichment.JsonFieldLocator(
         schemaCriterion = SchemaCriterion("com.test", "array", "jsonschema", 1, 0, 0),
         jsonPath = "$.field"
       ),
-      PiiJson(
-        fieldMutator = JsonMutators("contexts"),
+      PiiPseudonymizerEnrichment.JsonFieldLocator(
         schemaCriterion = SchemaCriterion("com.test", "array", "jsonschema", 1, 0, 0),
         jsonPath = "$.field2"
       ),
-      PiiJson(
-        fieldMutator = JsonMutators("contexts"),
+      PiiPseudonymizerEnrichment.JsonFieldLocator(
         schemaCriterion = SchemaCriterion("com.test", "array", "jsonschema", 1, 0, 0),
         jsonPath = "$.field3.a"
       ),
-      PiiJson(
-        fieldMutator = JsonMutators("unstruct_event"),
-        schemaCriterion = SchemaCriterion("com.mailgun", "message_clicked", "jsonschema", 1, 0, 0),
-        jsonPath = "$.ip"
-      ),
-      PiiJson(
-        fieldMutator = JsonMutators("contexts"),
+      PiiPseudonymizerEnrichment.JsonFieldLocator(
         schemaCriterion = SchemaCriterion("com.test", "array", "jsonschema", 1, 0, 0),
         jsonPath = "$.field4"
       )
     )
 
-  val scalarFieldList =
-    List(
-      PiiScalar(fieldMutator = ScalarMutators("user_id")),
-      PiiScalar(
-        fieldMutator = ScalarMutators("user_ipaddress")
-      ),
-      PiiScalar(
-        fieldMutator = ScalarMutators("user_fingerprint")
-      ),
-      PiiScalar(
-        fieldMutator = ScalarMutators("domain_userid")
-      ),
-      PiiScalar(
-        fieldMutator = ScalarMutators("network_userid")
-      ),
-      PiiScalar(
-        fieldMutator = ScalarMutators("ip_organization")
-      ),
-      PiiScalar(
-        fieldMutator = ScalarMutators("ip_domain")
-      ),
-      PiiScalar(
-        fieldMutator = ScalarMutators("tr_orderid")
-      ),
-      PiiScalar(
-        fieldMutator = ScalarMutators("ti_orderid")
-      ),
-      PiiScalar(
-        fieldMutator = ScalarMutators("mkt_term")
-      ),
-      PiiScalar(
-        fieldMutator = ScalarMutators("mkt_clickid")
-      ),
-      PiiScalar(
-        fieldMutator = ScalarMutators("mkt_content")
-      ),
-      PiiScalar(fieldMutator = ScalarMutators("se_category")),
-      PiiScalar(fieldMutator = ScalarMutators("se_action")),
-      PiiScalar(fieldMutator = ScalarMutators("se_label")),
-      PiiScalar(fieldMutator = ScalarMutators("se_property")),
-      PiiScalar(fieldMutator = ScalarMutators("refr_domain_userid")),
-      PiiScalar(fieldMutator = ScalarMutators("domain_sessionid"))
+    val unstructs = List(
+      PiiPseudonymizerEnrichment.JsonFieldLocator(
+        schemaCriterion = SchemaCriterion("com.mailgun", "message_clicked", "jsonschema", 1, 0, 0),
+        jsonPath = "$.ip"
+      )
     )
+
+    PiiMutators(pojo = Nil, unstruct = unstructs, contexts = contexts, derivedContexts = Nil)
+  }
+
+  val scalarFieldMutators: PiiMutators = {
+    val mutators = List(
+      ScalarMutators.byFieldName("user_id"),
+      ScalarMutators.byFieldName("user_ipaddress"),
+      ScalarMutators.byFieldName("user_fingerprint"),
+      ScalarMutators.byFieldName("domain_userid"),
+      ScalarMutators.byFieldName("network_userid"),
+      ScalarMutators.byFieldName("ip_organization"),
+      ScalarMutators.byFieldName("ip_domain"),
+      ScalarMutators.byFieldName("tr_orderid"),
+      ScalarMutators.byFieldName("ti_orderid"),
+      ScalarMutators.byFieldName("mkt_term"),
+      ScalarMutators.byFieldName("mkt_clickid"),
+      ScalarMutators.byFieldName("mkt_content"),
+      ScalarMutators.byFieldName("se_category"),
+      ScalarMutators.byFieldName("se_action"),
+      ScalarMutators.byFieldName("se_label"),
+      ScalarMutators.byFieldName("se_property"),
+      ScalarMutators.byFieldName("refr_domain_userid"),
+      ScalarMutators.byFieldName("domain_sessionid")
+    )
+    PiiMutators(mutators, Nil, Nil, Nil)
+  }
 
   def piiEnrichmentConfig(isScalar: Boolean, anonymousOnly: Boolean): PiiPseudonymizerEnrichment =
     PiiPseudonymizerEnrichment(
-      if (isScalar) scalarFieldList else jsonFieldList,
+      if (isScalar) scalarFieldMutators else jsonFieldMutators,
       emitIdentificationEvent = false,
       PiiStrategyPseudonymize(
         "SHA-256",

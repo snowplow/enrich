@@ -27,7 +27,6 @@ import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 
 import com.snowplowanalytics.snowplow.enrich.common.utils.{AtomicError, IgluUtils, OptionIor, ConversionUtils => CU}
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
-import com.snowplowanalytics.iglu.core.circe.implicits._
 
 import com.snowplowanalytics.snowplow.badrows._
 import com.snowplowanalytics.snowplow.badrows.{Failure => BadRowFailure}
@@ -87,15 +86,13 @@ object EnrichmentManager {
                            .leftMap(NonEmptyList.one)
                            .toOptionIorT
         _ = {
-          enriched.contexts = ME.formatContexts(extractResult.contexts).orNull
-          enriched.unstruct_event = ME.formatUnstructEvent(extractResult.unstructEvent).orNull
+          enriched.contexts = extractResult.contexts
+          enriched.unstruct_event = extractResult.unstructEvent
         }
         enrichmentsContexts <- runEnrichments(
                                  registry,
                                  raw,
                                  enriched,
-                                 extractResult.contexts,
-                                 extractResult.unstructEvent,
                                  maxJsonDepth,
                                  Instant.ofEpochMilli(etlTstamp.getMillis)
                                )
@@ -184,7 +181,7 @@ object EnrichmentManager {
       ll.flatten.toList
         .map(_.toSDJ(processor))
     }.merge
-    ME.formatContexts(derivedContexts).foreach(c => enriched.derived_contexts = c)
+    enriched.derived_contexts = derivedContexts
   }
 
   private def mapAndValidateInput[F[_]: Sync](
@@ -197,11 +194,11 @@ object EnrichmentManager {
     maxJsonDepth: Int
   ): IorT[F, NonEmptyList[Failure], IgluUtils.EventExtractResult] =
     for {
-      _ <- setupEnrichedEvent[F](raw, enrichedEvent, etlTstamp, processor)
-             .leftMap(NonEmptyList.one)
+      igluInputs <- setupEnrichedEvent[F](raw, enrichedEvent, etlTstamp, processor)
+                      .leftMap(NonEmptyList.one)
       extract <-
         IgluUtils
-          .extractAndValidateInputJsons(enrichedEvent, client, registryLookup, maxJsonDepth, Instant.ofEpochMilli(etlTstamp.getMillis))
+          .extractAndValidateInputJsons(igluInputs, client, registryLookup, maxJsonDepth, Instant.ofEpochMilli(etlTstamp.getMillis))
           .leftMap { l: NonEmptyList[Failure] => l }
     } yield extract
 
@@ -215,13 +212,11 @@ object EnrichmentManager {
     registry: EnrichmentRegistry[F],
     raw: RawEvent,
     enriched: EnrichedEvent,
-    inputContexts: List[SelfDescribingData[Json]],
-    unstructEvent: Option[SelfDescribingData[Json]],
     maxJsonDepth: Int,
     etlTstamp: Instant
   ): OptionIorT[F, NonEmptyList[Failure], List[SelfDescribingData[Json]]] =
     OptionIorT {
-      accState(registry, raw, inputContexts, unstructEvent, maxJsonDepth)
+      accState(registry, raw, maxJsonDepth)
         .runS(Accumulation.Enriched(enriched, Nil, Nil))
         .map {
           case Accumulation.Enriched(_, failures, contexts) =>
@@ -326,8 +321,6 @@ object EnrichmentManager {
   private def accState[F[_]: Monad](
     registry: EnrichmentRegistry[F],
     raw: RawEvent,
-    inputContexts: List[SelfDescribingData[Json]],
-    unstructEvent: Option[SelfDescribingData[Json]],
     maxJsonDepth: Int
   ): EStateT[F, Unit] = {
     val getCookieContexts = headerContexts[F, CookieExtractorEnrichment](
@@ -340,8 +333,8 @@ object EnrichmentManager {
       registry.httpHeaderExtractor,
       (e, hs) => e.extract(hs)
     )
-    val sqlContexts = getSqlQueryContexts[F](inputContexts, unstructEvent, registry.sqlQuery)
-    val apiContexts = getApiRequestContexts[F](inputContexts, unstructEvent, registry.apiRequest)
+    val sqlContexts = getSqlQueryContexts[F](registry.sqlQuery)
+    val apiContexts = getApiRequestContexts[F](registry.apiRequest)
 
     for {
       // format: off
@@ -361,7 +354,7 @@ object EnrichmentManager {
       _       <- getHttpHeaderContexts                                              // Execute header extractor enrichment
       _       <- getWeatherContext[F](registry.weather)                             // Fetch weather context
       _       <- getYauaaContext[F](registry.yauaa, raw.context.headers)            // Runs YAUAA enrichment (gets info thanks to user agent)
-      _       <- extractSchemaFields[F](unstructEvent)                              // Extract the event vendor/name/format/version
+      _       <- extractSchemaFields[F]                                             // Extract the event vendor/name/format/version
       _       <- geoLocation[F](registry.ipLookups)                                 // Execute IP lookup enrichment
       _       <- registry.javascriptScript.traverse(                                // Execute the JavaScript scripting enrichment
                    getJsScript[F](_, raw.context.headers, maxJsonDepth)
@@ -381,7 +374,7 @@ object EnrichmentManager {
     e: EnrichedEvent,
     etlTstamp: DateTime,
     processor: Processor
-  ): IorT[F, Failure.SchemaViolation, Unit] =
+  ): IorT[F, Failure.SchemaViolation, IgluUtils.EventExtractInput] =
     IorT {
       Sync[F].delay {
         e.event_id = EE.generateEventId() // May be updated later if we have an `eid` parameter
@@ -398,11 +391,13 @@ object EnrichmentManager {
         // Validate that the collectorTstamp exists and is Redshift-compatible
         val collectorTstamp = setCollectorTstamp(e, raw.context.timestamp).toValidatedNel
         // Map/validate/transform input fields to enriched event fields
-        val transformed = Transform.transform(raw, e)
+        val (transformError, eventExtractInput) = Transform.transform(raw, e)
 
-        (collectorTstamp |+| transformed).void.toIor
-          .leftMap(errors => AtomicFields.errorsToSchemaViolation(errors, Instant.ofEpochMilli(etlTstamp.getMillis)))
-          .putRight(())
+        (collectorTstamp |+| transformError).toIor
+          .leftMap { errors =>
+            AtomicFields.errorsToSchemaViolation(errors, Instant.ofEpochMilli(etlTstamp.getMillis))
+          }
+          .putRight(eventExtractInput)
       }
     }
 
@@ -788,13 +783,11 @@ object EnrichmentManager {
     }
 
   // Extract the event vendor/name/format/version
-  def extractSchemaFields[F[_]: Applicative](
-    unstructEvent: Option[SelfDescribingData[Json]]
-  ): EStateT[F, Unit] =
+  def extractSchemaFields[F[_]: Applicative]: EStateT[F, Unit] =
     EStateT.fromEither {
       case (event, _) =>
         SchemaEnrichment
-          .extractSchema(event, unstructEvent)
+          .extractSchema(event)
           .map {
             case Some(schemaKey) =>
               event.event_vendor = schemaKey.vendor
@@ -815,11 +808,11 @@ object EnrichmentManager {
   ): EStateT[F, Unit] =
     EStateT.fromJsEnrichmentResult {
       case (event, derivedContexts) =>
-        ME.formatContexts(derivedContexts).foreach(c => event.derived_contexts = c)
+        event.derived_contexts = derivedContexts
         val result = javascriptScript.process(event, headers, maxJsonDepth)
         // It is set above to make it accessible from JS enrichment.
-        // Final value will be set later. For now, it should be set to null.
-        event.derived_contexts = null
+        // Final value will be set later. For now, it should be set to Nil
+        event.derived_contexts = Nil
         result
     }
 
@@ -859,15 +852,13 @@ object EnrichmentManager {
 
   // Derive some contexts with custom SQL Query enrichment
   def getSqlQueryContexts[F[_]: Monad](
-    inputContexts: List[SelfDescribingData[Json]],
-    unstructEvent: Option[SelfDescribingData[Json]],
     sqlQuery: Option[SqlQueryEnrichment[F]]
   ): EStateT[F, Unit] =
     EStateT.fromEitherF {
       case (event, derivedContexts) =>
         sqlQuery match {
           case Some(enrichment) =>
-            enrichment.lookup(event, derivedContexts, inputContexts, unstructEvent).map(_.toEither)
+            enrichment.lookup(event, derivedContexts).map(_.toEither)
           case None =>
             List.empty[SelfDescribingData[Json]].asRight.pure[F]
         }
@@ -875,15 +866,13 @@ object EnrichmentManager {
 
   // Derive some contexts with custom API Request enrichment
   def getApiRequestContexts[F[_]: Monad](
-    inputContexts: List[SelfDescribingData[Json]],
-    unstructEvent: Option[SelfDescribingData[Json]],
     apiRequest: Option[ApiRequestEnrichment[F]]
   ): EStateT[F, Unit] =
     EStateT.fromEitherF {
       case (event, derivedContexts) =>
         apiRequest match {
           case Some(enrichment) =>
-            enrichment.lookup(event, derivedContexts, inputContexts, unstructEvent).map(_.toEither)
+            enrichment.lookup(event, derivedContexts).map(_.toEither)
           case None =>
             List.empty[SelfDescribingData[Json]].asRight.pure[F]
         }
@@ -894,7 +883,7 @@ object EnrichmentManager {
       case (event, _) =>
         piiPseudonymizer match {
           case Some(pseudonymizer) =>
-            pseudonymizer.transformer(event, headers).foreach(p => event.pii = p.asString)
+            pseudonymizer.transformer(event, headers).foreach(p => event.pii = Some(p))
             Nil.asRight
           case None =>
             Nil.asRight

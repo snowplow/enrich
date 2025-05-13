@@ -147,17 +147,13 @@ final case class ApiRequestEnrichment[F[_]: Monad: Clock](
    */
   def lookup(
     event: EnrichedEvent,
-    derivedContexts: List[SelfDescribingData[Json]],
-    customContexts: List[SelfDescribingData[Json]],
-    unstructEvent: Option[SelfDescribingData[Json]]
+    derivedContexts: List[SelfDescribingData[Json]]
   ): F[ValidatedNel[FailureDetails.EnrichmentFailure, List[SelfDescribingData[Json]]]] = {
     val templateContext =
       Input.buildTemplateContext(
         inputs,
         event,
-        derivedContexts,
-        customContexts,
-        unstructEvent
+        derivedContexts
       )
 
     val contexts: EitherT[F, NonEmptyList[String], List[SelfDescribingData[Json]]] =

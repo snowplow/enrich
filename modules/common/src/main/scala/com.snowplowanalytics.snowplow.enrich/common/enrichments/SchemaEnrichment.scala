@@ -10,9 +10,7 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments
 
-import io.circe.Json
-
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
@@ -37,8 +35,7 @@ object SchemaEnrichment {
    * thus making it 2 bad rows for the same problem.
    */
   def extractSchema(
-    event: EnrichedEvent,
-    unstructEvent: Option[SelfDescribingData[Json]]
+    event: EnrichedEvent
   ): Either[FailureDetails.EnrichmentFailure, Option[SchemaKey]] =
     event.event match {
       case "page_view" => Right(Some(Schemas.pageViewSchema))
@@ -47,7 +44,7 @@ object SchemaEnrichment {
       case "transaction" => Right(Some(Schemas.transactionSchema))
       case "transaction_item" => Right(Some(Schemas.transactionItemSchema))
       case "unstruct" =>
-        unstructEvent match {
+        event.unstruct_event match {
           case Some(sdj) => Right(Some(sdj.schema))
           case _ => Right(None)
         }

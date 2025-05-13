@@ -173,19 +173,14 @@ final case class SqlQueryEnrichment[F[_]: Async](
    * JSON-value, etc. Successful Nil skipped lookup (unfilled placeholder for eg, empty response)
    * @param event currently enriching event
    * @param derivedContexts derived contexts as list of JSON objects
-   * @param customContexts custom contexts as SelfDescribingData
-   * @param unstructEvent unstructured (self-describing) event as empty or single element
-   * SelfDescribingData
    * @return Nil if some inputs were missing, validated JSON contexts if lookup performed
    */
   def lookup(
     event: EnrichedEvent,
-    derivedContexts: List[SelfDescribingData[Json]],
-    customContexts: List[SelfDescribingData[Json]],
-    unstructEvent: Option[SelfDescribingData[Json]]
+    derivedContexts: List[SelfDescribingData[Json]]
   ): F[ValidatedNel[FailureDetails.EnrichmentFailure, List[SelfDescribingData[Json]]]] = {
     val contexts = for {
-      placeholders <- buildPlaceHolderMap(inputs, event, derivedContexts, customContexts, unstructEvent)
+      placeholders <- buildPlaceHolderMap(inputs, event, derivedContexts)
       result <- maybeLookup(placeholders)
     } yield result
 
@@ -253,12 +248,10 @@ final case class SqlQueryEnrichment[F[_]: Async](
   private def buildPlaceHolderMap(
     inputs: List[Input],
     event: EnrichedEvent,
-    derivedContexts: List[SelfDescribingData[Json]],
-    customContexts: List[SelfDescribingData[Json]],
-    unstructEvent: Option[SelfDescribingData[Json]]
+    derivedContexts: List[SelfDescribingData[Json]]
   ): EitherT[F, NonEmptyList[String], Input.PlaceholderMap] =
     Input
-      .buildPlaceholderMap(inputs, event, derivedContexts, customContexts, unstructEvent)
+      .buildPlaceholderMap(inputs, event, derivedContexts)
       .toEitherT[F]
       .leftMap { t =>
         NonEmptyList.of("Error while building the map of placeholders", t.toString)

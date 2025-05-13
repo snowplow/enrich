@@ -68,13 +68,13 @@ object EnrichmentConf {
 
   final case class PiiPseudonymizerConf(
     schemaKey: SchemaKey,
-    fieldList: List[pii.PiiField],
+    mutators: pii.PiiMutators,
     emitIdentificationEvent: Boolean,
     strategy: pii.PiiStrategy,
     anonymousOnly: Boolean
   ) extends EnrichmentConf {
     def enrichment: pii.PiiPseudonymizerEnrichment =
-      pii.PiiPseudonymizerEnrichment(fieldList, emitIdentificationEvent, strategy, anonymousOnly)
+      pii.PiiPseudonymizerEnrichment(mutators, emitIdentificationEvent, strategy, anonymousOnly)
   }
 
   final case class SqlQueryConf(

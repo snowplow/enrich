@@ -11,6 +11,7 @@
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery
 
 import java.sql.PreparedStatement
+import java.lang.reflect.Method
 
 import scala.collection.immutable.IntMap
 import scala.util.control.NonFatal
@@ -39,34 +40,33 @@ sealed trait Input extends Product with Serializable {
    * Get placeholder-value pair input from list of JSON payloads or Event POJO
    * @param event Event POJO with classic parameters
    * @param derived list of self-describing JObjects representing derived contexts
-   * @param custom list of self-describing JObjects representing custom contexts
-   * @param unstruct optional self-describing JObject representing unstruct event
    * @return validated pair of placeholder's postition and extracted value ready to be setted on
    * PreparedStatement
    */
   def pull(
     event: EnrichedEvent,
-    derived: List[SelfDescribingData[JSON]],
-    custom: List[SelfDescribingData[JSON]],
-    unstruct: Option[SelfDescribingData[JSON]]
+    derived: List[SelfDescribingData[JSON]]
   ): ValidatedNel[Throwable, (Int, Option[Input.ExtractedValue])] =
     this match {
       case json: Input.Json =>
         json
-          .extract(derived, custom, unstruct)
+          .extract(derived, event.contexts, event.unstruct_event)
           .map(json => (placeholder, json.flatMap(Input.extractFromJson)))
       case pojoInput: Input.Pojo =>
-        Input.getFieldType(pojoInput.field) match {
-          case Some(placeholderType) =>
+        (pojoInput.placeholderType, pojoInput.method) match {
+          case (Some(placeholderType), Right(method)) =>
             try {
-              val anyRef = event.getClass.getMethod(pojoInput.field).invoke(event)
+              val anyRef = method.invoke(event)
               val option = Option(anyRef.asInstanceOf[placeholderType.PlaceholderType])
               (placeholder, option.map(placeholderType.Value.apply)).validNel
             } catch {
               case NonFatal(e) =>
                 InvalidInput("SQL Query Enrichment: Extracting from POJO failed: " + e.toString).invalidNel
             }
-          case None =>
+
+          case (Some(_), Left(e)) =>
+            InvalidInput("SQL Query Enrichment: Extracting from POJO failed: " + e.toString).invalidNel
+          case (None, _) =>
             InvalidInput("SQL Query Enrichment: Wrong POJO input field was specified").invalidNel
         }
     }
@@ -82,7 +82,10 @@ object Input {
    * Describes how to take key from POJO source
    * @param field `EnrichedEvent` object field
    */
-  final case class Pojo(placeholder: Int, field: String) extends Input
+  final case class Pojo(placeholder: Int, field: String) extends Input {
+    val placeholderType: Option[StatementPlaceholder] = Input.getFieldType(field)
+    val method: Either[Throwable, Method] = Either.catchNonFatal(classOf[EnrichedEvent].getMethod(field))
+  }
 
   /**
    * @param field where to get this json, one of unstruct_event, contexts or derived_contexts
@@ -166,7 +169,7 @@ object Input {
    * Map all properties inside EnrichedEvent to textual representations of their types
    * It is dynamically configured *once*, when job has started
    */
-  val eventTypeMap = classOf[EnrichedEvent].getDeclaredFields
+  val eventTypeMap = EnrichedEvent.atomicFields
     .map(_.toString.split(' ').toList)
     .collect { case List(_, propertyType, name) => (name.split('.').last, propertyType) }
     .toMap
@@ -181,8 +184,8 @@ object Input {
     "java.lang.Byte" -> BytePlaceholder,
     "java.lang.Float" -> FloatPlaceholder,
     "java.math.BigDecimal" -> BigDecimalPlaceholder,
-    "java.lang.Boolean" -> BooleanPlaceholder,
     // Just in case
+    "java.lang.Boolean" -> BooleanPlaceholder,
     "String" -> StringPlaceholder,
     "scala.Int" -> IntPlaceholder,
     "scala.Double" -> DoublePlaceholder,
@@ -220,20 +223,16 @@ object Input {
    * @param inputs list of all [[Input]] objects
    * @param event POJO of enriched event
    * @param derivedContexts list of derived contexts
-   * @param customContexts list of custom contexts
-   * @param unstructEvent optional unstructured event
    * @return IntMap if all input values were extracted without error, non-empty list of errors
    * otherwise
    */
   def buildPlaceholderMap(
     inputs: List[Input],
     event: EnrichedEvent,
-    derivedContexts: List[SelfDescribingData[JSON]],
-    customContexts: List[SelfDescribingData[JSON]],
-    unstructEvent: Option[SelfDescribingData[JSON]]
+    derivedContexts: List[SelfDescribingData[JSON]]
   ): EitherNel[String, PlaceholderMap] =
     inputs
-      .traverse(_.pull(event, derivedContexts, customContexts, unstructEvent))
+      .traverse(_.pull(event, derivedContexts))
       .map(_.collect { case (position, Some(value)) => (position, value) })
       .map(list => IntMap(list: _*)) match {
       case Valid(map) if isConsistent(map) => Some(map).asRight

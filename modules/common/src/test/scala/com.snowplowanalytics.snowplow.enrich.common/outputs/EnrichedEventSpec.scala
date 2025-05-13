@@ -19,6 +19,7 @@ import org.specs2.mutable.Specification
 
 import com.snowplowanalytics.snowplow.badrows.Payload.PartiallyEnrichedEvent
 
+// TODO: I should add tests here covering the new setters
 class EnrichedEventSpec extends Specification {
   import EnrichedEventSpec._
 
@@ -89,13 +90,11 @@ class EnrichedEventSpec extends Specification {
       testField(_.mkt_term = "mkt_term", _.mkt_term)
       testField(_.mkt_content = "mkt_content", _.mkt_content)
       testField(_.mkt_campaign = "mkt_campaign", _.mkt_campaign)
-      testField(_.contexts = "contexts", _.contexts)
       testField(_.se_category = "se_category", _.se_category)
       testField(_.se_action = "se_action", _.se_action)
       testField(_.se_label = "se_label", _.se_label)
       testField(_.se_property = "se_property", _.se_property)
       testField(_.se_value = new JBigDecimal("0.0"), _.se_value)
-      testField(_.unstruct_event = "unstruct_event", _.unstruct_event)
       testField(_.tr_orderid = "tr_orderid", _.tr_orderid)
       testField(_.tr_affiliation = "tr_affiliation", _.tr_affiliation)
       testField(_.tr_total = new JBigDecimal("0.0"), _.tr_total)
@@ -159,7 +158,6 @@ class EnrichedEventSpec extends Specification {
       testField(_.dvce_sent_tstamp = "dvce_sent_tstamp", _.dvce_sent_tstamp)
       testField(_.refr_domain_userid = "refr_domain_userid", _.refr_domain_userid)
       testField(_.refr_dvce_tstamp = "refr_dvce_tstamp", _.refr_dvce_tstamp)
-      testField(_.derived_contexts = "derived_contexts", _.derived_contexts)
       testField(_.domain_sessionid = "domain_sessionid", _.domain_sessionid)
       testField(_.derived_tstamp = "derived_tstamp", _.derived_tstamp)
       testField(_.event_vendor = "event_vendor", _.event_vendor)

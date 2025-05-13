@@ -13,6 +13,7 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii
 import scala.collection.JavaConverters._
 import scala.collection.mutable.MutableList
 
+import cats.Foldable
 import cats.data.ValidatedNel
 import cats.implicits._
 
@@ -29,9 +30,8 @@ import com.jayway.jsonpath.MapFunction
 
 import org.apache.commons.codec.digest.DigestUtils
 
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SelfDescribingData}
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
 
-import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.Adapter
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.PiiPseudonymizerConf
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{Enrichment, ParseableEnrichment}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
@@ -67,7 +67,7 @@ object PiiPseudonymizerEnrichment extends ParseableEnrichment {
       piiStrategy <- CirceUtils
                        .extract[PiiStrategyPseudonymize](config, "parameters", "strategy")
                        .toEither
-      piiFieldList <- extractFields(piiFields)
+      mutators <- extractMutators(piiFields)
       anonymousOnly <- CirceUtils
                          .extract[Option[Boolean]](conf, "anonymousOnly")
                          .map {
@@ -75,7 +75,7 @@ object PiiPseudonymizerEnrichment extends ParseableEnrichment {
                            case None => false
                          }
                          .toEither
-    } yield PiiPseudonymizerConf(schemaKey, piiFieldList, emitIdentificationEvent, piiStrategy, anonymousOnly)
+    } yield PiiPseudonymizerConf(schemaKey, mutators, emitIdentificationEvent, piiStrategy, anonymousOnly)
   }.toValidatedNel
 
   private[pii] def getHashFunction(strategyFunction: String): Either[String, DigestFunction] =
@@ -89,54 +89,80 @@ object PiiPseudonymizerEnrichment extends ParseableEnrichment {
       case fName => s"Unknown function $fName".asLeft
     }
 
-  private def extractFields(piiFields: List[Json]): Either[String, List[PiiField]] =
-    piiFields.map { json =>
-      CirceUtils
-        .extract[String](json, "pojo", "field")
-        .toEither
-        .flatMap(extractPiiScalarField)
-        .orElse {
-          json.hcursor
-            .downField("json")
-            .focus
-            .toRight("No json field")
-            .flatMap(extractPiiJsonField)
-        }
-        .orElse {
-          ("PII Configuration: pii field does not include 'pojo' nor 'json' fields. " +
-            s"Got: [${json.noSpaces}]").asLeft
-        }
-    }.sequence
+  /**
+   * Part of the config parser
+   *  @param piiFields The plain JSON provided by the enrichment config
+   *  @return If JSON config is recognized, then a `PiiMutators` which contains the mutators that act on incoming events
+   */
+  private def extractMutators(piiFields: List[Json]): Either[String, PiiMutators] =
+    Foldable[List].foldM(piiFields, PiiMutators(Nil, Nil, Nil, Nil)) {
+      case (mutators, json) =>
+        CirceUtils
+          .extract[String](json, "pojo", "field")
+          .toEither
+          .flatMap(extractPojoMutator)
+          .map { pojoMutator =>
+            mutators.copy(pojo = mutators.pojo :+ pojoMutator)
+          }
+          .orElse {
+            json.hcursor
+              .downField("json")
+              .focus
+              .toRight("No json field")
+              .flatMap(extractFieldLocator(mutators, _))
+          }
+          .orElse {
+            ("PII Configuration: pii field does not include 'pojo' nor 'json' fields. " +
+              s"Got: [${json.noSpaces}]").asLeft
+          }
+    }
 
-  private def extractPiiScalarField(fieldName: String): Either[String, PiiScalar] =
-    ScalarMutators
+  /**
+   * Part of the config parser
+   *  @param fieldName A pojo field name provided in the enrichment config
+   *  @return If field name is recognized, then a mutator that acts on incoming events
+   */
+  private def extractPojoMutator(fieldName: String): Either[String, MutatorFn] =
+    ScalarMutators.byFieldName
       .get(fieldName)
-      .map(PiiScalar(_).asRight)
+      .map(_.asRight)
       .getOrElse(s"The specified pojo field $fieldName is not supported".asLeft)
 
-  private def extractPiiJsonField(jsonField: Json): Either[String, PiiJson] = {
+  /**
+   * Part of the config parser. Used inside a `fold` function; accumulates more mutators.
+   *  @param mutators The accumulated mutators so far
+   *  @param jsonField The plain JSON received in the enrichment config, corresponding to a single mutator
+   *  @param If JSON is recognized, then returns the accumulated `mutators` appended with an extra mutator
+   */
+  private def extractFieldLocator(mutators: PiiMutators, jsonField: Json): Either[String, PiiMutators] = {
     val schemaCriterion = CirceUtils
       .extract[String](jsonField, "schemaCriterion")
       .toEither
       .flatMap(sc => SchemaCriterion.parse(sc).toRight(s"Could not parse schema criterion $sc"))
       .toValidatedNel
     val jsonPath = CirceUtils.extract[String](jsonField, "jsonPath").toValidatedNel
-    val mutator = CirceUtils
+    val entityType = CirceUtils
       .extract[String](jsonField, "field")
       .toEither
-      .flatMap(getJsonMutator)
+      .flatMap {
+        case "unstruct_event" => EntityType.Unstruct.asRight
+        case "contexts" => EntityType.Contexts.asRight
+        case "derived_contexts" => EntityType.DerivedContexts.asRight
+        case other => s"The specified json field $other is not supported".asLeft
+      }
       .toValidatedNel
-    (mutator, schemaCriterion, jsonPath)
-      .mapN(PiiJson.apply)
+    (entityType, schemaCriterion, jsonPath)
+      .mapN {
+        case (EntityType.Unstruct, sc, jp) =>
+          mutators.copy(unstruct = mutators.unstruct :+ JsonFieldLocator(sc, jp))
+        case (EntityType.Contexts, sc, jp) =>
+          mutators.copy(contexts = mutators.contexts :+ JsonFieldLocator(sc, jp))
+        case (EntityType.DerivedContexts, sc, jp) =>
+          mutators.copy(derivedContexts = mutators.derivedContexts :+ JsonFieldLocator(sc, jp))
+      }
       .leftMap(x => s"Unable to extract PII JSON: ${x.toList.mkString(",")}")
       .toEither
   }
-
-  private def getJsonMutator(fieldName: String): Either[String, Mutator] =
-    JsonMutators
-      .get(fieldName)
-      .map(_.asRight)
-      .getOrElse(s"The specified json field $fieldName is not supported".asLeft)
 
   /** Helper to remove fields that were wrongly added and are not in the original JSON. See #351. */
   private[pii] def removeAddedFields(hashed: Json, original: Json): Json = {
@@ -156,6 +182,57 @@ object PiiPseudonymizerEnrichment extends ParseableEnrichment {
 
     fixedObject.orElse(fixedArray).getOrElse(hashed)
   }
+
+  /**
+   * Specifies the location of field in a self-describing JSON entity
+   * @param schemaCriterion A SDJ will be pseudonymized when its schema matches this criterion
+   * @param jsonPath The field in the SDJ to pseudonymize
+   */
+  case class JsonFieldLocator(schemaCriterion: SchemaCriterion, jsonPath: String)
+
+  sealed trait EntityType {
+    val fieldName: String
+  }
+  object EntityType {
+    case object Unstruct extends EntityType {
+      val fieldName: String = "unstruct_event"
+    }
+    case object Contexts extends EntityType {
+      val fieldName: String = "contexts"
+    }
+    case object DerivedContexts extends EntityType {
+      val fieldName: String = "derived_contexts"
+    }
+  }
+
+  /**
+   * Runs pseudonymization on a JSON field, after it has been identified as matching a locator from the config
+   *  @param entityType The entity type this JSON came from
+   *  @param json The json to be pseudonymized (i.e. the `data` field of a SDJ)
+   *  @param strategy How to hash this field
+   *  @param schemaKey The schema this JSON came from
+   *  @param jsonPath Locates the specific field in the JSON
+   */
+  private def jsonPathReplace(
+    entityType: EntityType,
+    json: Json,
+    strategy: PiiStrategy,
+    schema: SchemaKey,
+    jsonPath: String
+  ): (Json, List[JsonModifiedField]) = {
+    val objectNode = io.circe.jackson.mapper.valueToTree[ObjectNode](json)
+    val documentContext = JJsonPath.using(JsonPathConf).parse(objectNode)
+    val modifiedFields = MutableList[JsonModifiedField]()
+    Option(documentContext.read[AnyRef](jsonPath)) match { // check that json object not null
+      case None => (jacksonToCirce(documentContext.json[JsonNode]()), modifiedFields.toList)
+      case _ =>
+        val documentContext2 = documentContext.map(
+          jsonPath,
+          new ScrambleMapFunction(strategy, modifiedFields, entityType.fieldName, jsonPath, schema)
+        )
+        (jacksonToCirce(documentContext2.json[JsonNode]()), modifiedFields.toList)
+    }
+  }
 }
 
 /**
@@ -168,16 +245,24 @@ object PiiPseudonymizerEnrichment extends ParseableEnrichment {
  * effectively a scalar field in the EnrichedEvent, whereas a `json` is a "context" formatted field
  * and it can either contain a single value in the case of unstruct_event, or an array in the case
  * of derived_events and contexts.
- * @param fieldList list of configured PiiFields
+ * @param mutators list of mutators that operatre on the fields
  * @param emitIdentificationEvent to emit an identification event
  * @param strategy pseudonymization strategy to use
  */
 final case class PiiPseudonymizerEnrichment(
-  fieldList: List[PiiField],
+  mutators: PiiMutators,
   emitIdentificationEvent: Boolean,
   strategy: PiiStrategy,
   anonymousOnly: Boolean
 ) extends Enrichment {
+  import PiiPseudonymizerEnrichment._
+
+  val piiTransformationSchema: SchemaKey = SchemaKey(
+    "com.snowplowanalytics.snowplow",
+    "pii_transformation",
+    "jsonschema",
+    SchemaVer.Full(1, 0, 0)
+  )
 
   /**
    * Mask PII fields except if anonymousOnly is true and SP-Anonymous header is not present
@@ -188,126 +273,74 @@ final case class PiiPseudonymizerEnrichment(
     if (anonymousOnly && !anonymousHeaderExist)
       None
     else {
-      val modifiedFields = fieldList.flatMap(_.transform(event, strategy))
-      if (emitIdentificationEvent && modifiedFields.nonEmpty)
-        SelfDescribingData(Adapter.UnstructEvent, PiiModifiedFields(modifiedFields, strategy).asJson).some
-      else None
+      val pojoModifiedFields = mutators.pojo.flatMap(_.apply(event, strategy))
+      val ueModifiedFields = transformUnstruct(event)
+      val contextsModifiedFields = transformContexts(event)
+      val derivedContextsModifiedFields = transformDerivedContexts(event)
+
+      if (emitIdentificationEvent) {
+        val allModifications = pojoModifiedFields ::: ueModifiedFields ::: contextsModifiedFields ::: derivedContextsModifiedFields
+        if (allModifications.nonEmpty)
+          SelfDescribingData(piiTransformationSchema, PiiModifiedFields(allModifications, strategy).asJson).some
+        else None
+      } else None
     }
   }
-}
 
-/**
- * Specifies a scalar field in POJO and the strategy that should be applied to it.
- * @param fieldMutator the field mutator where the strategy will be applied
- */
-final case class PiiScalar(fieldMutator: Mutator) extends PiiField {
-  override def applyStrategy(fieldValue: String, strategy: PiiStrategy): (String, ModifiedFields) =
-    if (fieldValue != null) {
-      val modifiedValue = strategy.scramble(fieldValue)
-      (modifiedValue, List(ScalarModifiedField(fieldMutator.fieldName, fieldValue, modifiedValue)))
-    } else (null, List())
-}
-
-/**
- * Specifies a strategy to use, a field mutator where the JSON can be found in the EnrichedEvent
- * POJO, a schema criterion to discriminate which contexts to apply this strategy to, and a JSON
- * path within the contexts where this strategy will be applied (the path may correspond to
- * multiple fields).
- * @param fieldMutator the field mutator for the JSON field
- * @param schemaCriterion the schema for which the strategy will be applied
- * @param jsonPath the path where the strategy will be applied
- */
-final case class PiiJson(
-  fieldMutator: Mutator,
-  schemaCriterion: SchemaCriterion,
-  jsonPath: String
-) extends PiiField {
-
-  override def applyStrategy(fieldValue: String, strategy: PiiStrategy): (String, ModifiedFields) =
-    (for {
-      value <- Option(fieldValue)
-      parsed <- parse(value).toOption
-      (substituted, modifiedFields) = parsed.asObject
-                                        .map { obj =>
-                                          val jObjectMap = obj.toMap
-                                          val contextMapped = jObjectMap.map(mapContextTopFields(_, strategy))
-                                          (
-                                            Json.obj(contextMapped.mapValues(_._1).toList: _*),
-                                            contextMapped.values.flatMap(_._2)
-                                          )
-                                        }
-                                        .getOrElse((parsed, List.empty[JsonModifiedField]))
-    } yield (PiiPseudonymizerEnrichment.removeAddedFields(substituted, parsed).noSpaces, modifiedFields.toList))
-      .getOrElse((null, List.empty))
-
-  /** Map context top fields with strategy if they match. */
-  private def mapContextTopFields(tuple: (String, Json), strategy: PiiStrategy): (String, (Json, List[JsonModifiedField])) =
-    tuple match {
-      case (k, contexts) if k == "data" =>
-        (
-          k,
-          contexts.asArray match {
-            case Some(array) =>
-              val updatedAndModified = array.map(getModifiedContext(_, strategy))
-              (
-                Json.fromValues(updatedAndModified.map(_._1)),
-                updatedAndModified.flatMap(_._2).toList
-              )
-            case None => getModifiedContext(contexts, strategy)
-          }
-        )
-      case (k, v) => (k, (v, List.empty[JsonModifiedField]))
+  private def transformUnstruct(event: EnrichedEvent): ModifiedFields =
+    event.unstruct_event match {
+      case Some(sdj) =>
+        val locators = mutators.unstruct.filter { locator =>
+          locator.schemaCriterion.matches(sdj.schema)
+        }
+        val (hashed, modifiedFields) = locators.foldLeft((sdj.data, List.empty[ModifiedField])) {
+          case ((data, modifiedFields), locator) =>
+            val (fixed, moreModifiedFields) = jsonPathReplace(EntityType.Unstruct, data, strategy, sdj.schema, locator.jsonPath)
+            (fixed, modifiedFields ::: moreModifiedFields)
+        }
+        val fixed = if (modifiedFields.nonEmpty) removeAddedFields(hashed, sdj.data) else hashed
+        event.unstruct_event = Some(sdj.copy(data = fixed))
+        modifiedFields
+      case None =>
+        Nil
     }
 
-  /** Returns a modified context or unstruct event along with a list of modified fields. */
-  private def getModifiedContext(jv: Json, strategy: PiiStrategy): (Json, List[JsonModifiedField]) =
-    jv.asObject
-      .map { context =>
-        val (obj, fields) = modifyObjectIfSchemaMatches(context.toList, strategy)
-        (Json.fromJsonObject(obj), fields)
+  private def transformContexts(event: EnrichedEvent): ModifiedFields = {
+    val finalResult = MutableList[ModifiedField]()
+    val fixed = event.contexts.map { sdj =>
+      val locators = mutators.contexts.filter { locator =>
+        locator.schemaCriterion.matches(sdj.schema)
       }
-      .getOrElse((jv, List.empty))
-
-  /**
-   * Tests whether the schema for this event matches the schema criterion and if it does modifies
-   * it.
-   */
-  private def modifyObjectIfSchemaMatches(context: List[(String, Json)], strategy: PiiStrategy): (JsonObject, List[JsonModifiedField]) = {
-    val fieldsObj = context.toMap
-    (for {
-      schema <- fieldsObj.get("schema")
-      schemaStr <- schema.asString
-      parsedSchemaMatches <- SchemaKey.fromUri(schemaStr).map(schemaCriterion.matches).toOption
-      // withFilter generates an unused variable
-      _ <- if (parsedSchemaMatches) Some(()) else None
-      data <- fieldsObj.get("data")
-      updated = jsonPathReplace(data, strategy, schemaStr)
-    } yield (
-      JsonObject(fieldsObj.updated("schema", schema).updated("data", updated._1).toList: _*),
-      updated._2
-    )).getOrElse((JsonObject(context: _*), List()))
+      val (hashed, modifiedFields) = locators.foldLeft((sdj.data, List.empty[ModifiedField])) {
+        case ((data, modifiedFields), locator) =>
+          val (fixed, moreModifiedFields) = jsonPathReplace(EntityType.Contexts, data, strategy, sdj.schema, locator.jsonPath)
+          (fixed, modifiedFields ::: moreModifiedFields)
+      }
+      val fixed = if (modifiedFields.nonEmpty) removeAddedFields(hashed, sdj.data) else hashed
+      finalResult ++= modifiedFields
+      sdj.copy(data = fixed)
+    }
+    event.contexts = fixed
+    finalResult.toList
   }
 
-  /**
-   * Replaces a value in the given context with the result of applying the strategy to that value.
-   */
-  private def jsonPathReplace(
-    json: Json,
-    strategy: PiiStrategy,
-    schema: String
-  ): (Json, List[JsonModifiedField]) = {
-    val objectNode = io.circe.jackson.mapper.valueToTree[ObjectNode](json)
-    val documentContext = JJsonPath.using(JsonPathConf).parse(objectNode)
-    val modifiedFields = MutableList[JsonModifiedField]()
-    Option(documentContext.read[AnyRef](jsonPath)) match { // check that json object not null
-      case None => (jacksonToCirce(documentContext.json[JsonNode]()), modifiedFields.toList)
-      case _ =>
-        val documentContext2 = documentContext.map(
-          jsonPath,
-          new ScrambleMapFunction(strategy, modifiedFields, fieldMutator.fieldName, jsonPath, schema)
-        )
-        (jacksonToCirce(documentContext2.json[JsonNode]()), modifiedFields.toList)
+  private def transformDerivedContexts(event: EnrichedEvent): ModifiedFields = {
+    val finalResult = MutableList[ModifiedField]()
+    val fixed = event.derived_contexts.map { sdj =>
+      val locators = mutators.derivedContexts.filter { locator =>
+        locator.schemaCriterion.matches(sdj.schema)
+      }
+      val (hashed, modifiedFields) = locators.foldLeft((sdj.data, List.empty[ModifiedField])) {
+        case ((data, modifiedFields), locator) =>
+          val (fixed, moreModifiedFields) = jsonPathReplace(EntityType.DerivedContexts, data, strategy, sdj.schema, locator.jsonPath)
+          (fixed, modifiedFields ::: moreModifiedFields)
+      }
+      val fixed = if (modifiedFields.nonEmpty) removeAddedFields(hashed, sdj.data) else hashed
+      finalResult ++= modifiedFields
+      sdj.copy(data = fixed)
     }
+    event.derived_contexts = fixed
+    finalResult.toList
   }
 }
 
@@ -316,13 +349,13 @@ private final case class ScrambleMapFunction(
   modifiedFields: MutableList[JsonModifiedField],
   fieldName: String,
   jsonPath: String,
-  schema: String
+  schema: SchemaKey
 ) extends MapFunction {
   override def map(currentValue: AnyRef, configuration: Configuration): AnyRef =
     currentValue match {
       case s: String =>
         val newValue = strategy.scramble(s)
-        val _ = modifiedFields += JsonModifiedField(fieldName, s, newValue, jsonPath, schema)
+        val _ = modifiedFields += JsonModifiedField(fieldName, s, newValue, jsonPath, schema.toSchemaUri)
         newValue
       case a: ArrayNode =>
         val mapper = new ObjectMapper()
@@ -336,7 +369,7 @@ private final case class ScrambleMapFunction(
               originalValue,
               newValue,
               jsonPath,
-              schema
+              schema.toSchemaUri
             )
             arr.add(newValue)
           case default: AnyRef => arr.add(default)

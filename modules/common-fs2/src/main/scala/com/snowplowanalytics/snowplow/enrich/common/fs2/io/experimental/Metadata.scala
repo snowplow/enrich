@@ -26,7 +26,6 @@ import cats.effect.kernel.{Async, Clock, Ref, Spawn, Sync}
 import cats.effect.implicits._
 import fs2.Stream
 import io.circe.Json
-import io.circe.parser._
 import io.circe.syntax._
 import org.http4s.{MediaType, Method, Request, Status, Uri}
 import org.http4s.client.Client
@@ -240,18 +239,8 @@ object Metadata {
   private[experimental] def unwrapEntities(event: EnrichedEvent): (Set[SchemaKey], Option[String]) = {
     case class Entities(schemas: Set[SchemaKey], scenarioId: Option[String])
 
-    def unwrap(str: String): Entities = {
-      val sdjs = decode[SelfDescribingData[Json]](str)
-        .traverse(
-          _.data
-            .as[List[SelfDescribingData[Json]]]
-            .sequence
-            .flatMap(_.toList)
-        )
-        .flatMap(_.toList)
-        .toSet
-
-      val schemas = sdjs.map(_.schema)
+    def unwrap(sdjs: List[SelfDescribingData[Json]]): Entities = {
+      val schemas = sdjs.map(_.schema).toSet
 
       val scenarioId = sdjs.collectFirst {
         case sdj if sdj.schema.vendor == eventSpecInfo.schemaVendor && sdj.schema.name == eventSpecInfo.schemaName =>

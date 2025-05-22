@@ -155,3 +155,46 @@ jobs:
         PGP_SECRET: ${{ secrets.SONA_PGP_SECRET }}
         SONATYPE_USERNAME: ${{ secrets.SONA_USER }}
         SONATYPE_PASSWORD: ${{ secrets.SONA_PASS }}
+
+  snowman-tests:
+    name: Run Snowman Tests
+    runs-on: ubuntu-latest
+    needs: publish_docker
+    strategy:
+      matrix:
+        component:
+          - enrich
+        test_directory:
+          - e2e
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get version from tag
+        id: ver
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+            echo "Using tag version: $VERSION"
+            echo "project_version=$VERSION" >> "$GITHUB_ENV"
+            echo "project_version=$VERSION" >> "$GITHUB_OUTPUT"
+          else
+            echo "❌ No tag found. This job expects to run on a tag."
+            exit 1
+          fi
+      - name: Run Snowman QA Tests
+        uses: the-actions-org/workflow-dispatch@v4
+        with:
+          workflow: Trigger Snowman Tests
+          repo: snowplow-devops/snowman
+          ref: refs/heads/main
+          token: ${{ secrets.GLOBAL_QA_FRAMEWORK_PAT }}
+          inputs: >-
+            {
+              "test_directory": "${{ matrix.test_directory }}",
+              "component": "${{ matrix.component }}",
+              "dry_run": false,
+              "version": "${{ steps.ver.outputs.project_version }}",
+              "token": "${{ secrets.GLOBAL_QA_FRAMEWORK_PAT }}"
+            }
+          wait-for-completion: true
+          wait-for-completion-timeout: 240m
+          display-workflow-run-url: true

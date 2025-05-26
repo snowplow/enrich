@@ -125,7 +125,8 @@ object Environment {
                               )
                           }
       blobClients = HttpBlobClient.wrapHttp4sClient(httpClient) :: toBlobClients(config.main.blobClients)
-      enrichmentRegistry <- mkEnrichmentRegistry(enrichmentsConfs, blobClients, config.main.http.client)
+      enrichmentRegistry <-
+        mkEnrichmentRegistry(enrichmentsConfs, blobClients, config.main.http.client, config.main.validation.exitOnJsCompileError)
     } yield Environment(
       appInfo = appInfo,
       source = sourceAndAck,
@@ -180,7 +181,8 @@ object Environment {
   def mkEnrichmentRegistry[F[_]: Async](
     enrichmentsConfs: List[EnrichmentConf],
     blobClients: List[BlobClient[F]],
-    httpClientConfig: HttpClientConfig
+    httpClientConfig: HttpClientConfig,
+    exitOnJsCompileError: Boolean
   ): Resource[F, EnrichmentRegistry[F]] =
     for {
       _ <- Resource.eval(Logger[F].info(show"Enabled enrichments: ${enrichmentsConfs.map(_.schemaKey.name).mkString(", ")}"))
@@ -199,7 +201,8 @@ object Environment {
                              enrichmentsConfs,
                              apiEnrichmentClient,
                              ipLookupEC,
-                             sqlEC
+                             sqlEC,
+                             exitOnJsCompileError
                            )
                            .value
                        }

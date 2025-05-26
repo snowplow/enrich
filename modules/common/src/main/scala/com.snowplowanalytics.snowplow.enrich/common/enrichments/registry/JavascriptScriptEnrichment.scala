@@ -28,7 +28,6 @@ import com.snowplowanalytics.snowplow.badrows.FailureDetails
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.JavascriptScriptConf
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.{CirceUtils, ConversionUtils, JsonUtils}
-import JavascriptScriptEnrichment.{JavascriptRejectionException, Result}
 
 object JavascriptScriptEnrichment extends ParseableEnrichment {
   override val supportedSchema =
@@ -59,6 +58,75 @@ object JavascriptScriptEnrichment extends ParseableEnrichment {
       _ <- if (script.isEmpty) Left("Provided script for JS enrichment is empty") else Right(())
     } yield JavascriptScriptConf(schemaKey, script, params.getOrElse(JsonObject.empty))).toValidatedNel
 
+  def create(
+    schemaKey: SchemaKey,
+    rawFunction: String,
+    params: JsonObject,
+    exitOnCompileError: Boolean
+  ): Either[String, JavascriptScriptEnrichment] =
+    Either
+      .catchNonFatal {
+        val engine = new ScriptEngineManager()
+          .getEngineByName("nashorn")
+          .asInstanceOf[ScriptEngine with Invocable with Compilable]
+        val stringified = rawFunction + s"""
+          var getJavascriptContexts = function() {
+            const params = ${params.asJson.noSpaces};
+            return function(event, headers) {
+              const result = process(event, params, headers);
+              if (result == null) {
+                return "[]"
+              } else {
+                return JSON.stringify(result);
+              }
+            }
+          }()
+          """
+        engine.compile(stringified).eval()
+        val jsEngine = new JsEngine {
+          override def process(event: EnrichedEvent, headers: List[String]): Either[JsFailure, String] =
+            Either
+              .catchNonFatal(engine.invokeFunction("getJavascriptContexts", event, headers.asJava).asInstanceOf[String])
+              .leftMap {
+                case e if isRejectionException(e) => JsFailure.RejectedEvent
+                case e => JsFailure.RuntimeError(s"Error during execution of JavaScript function: [${e.getMessage}]")
+              }
+        }
+        JavascriptScriptEnrichment(schemaKey, jsEngine)
+      }
+      .leftFlatMap { e =>
+        val errorMsg = s"Error compiling JavaScript function: [${e.getMessage}]"
+        if (exitOnCompileError)
+          Left(errorMsg)
+        else
+          Right {
+            val jsEngine = new JsEngine {
+              override def process(event: EnrichedEvent, headers: List[String]): Either[JsFailure, String] =
+                Left(JsFailure.CompilationError(errorMsg))
+            }
+            JavascriptScriptEnrichment(schemaKey, jsEngine)
+          }
+      }
+
+  private def isRejectionException(t: Throwable): Boolean =
+    Option(t.getCause) match {
+      case Some(cause) if cause.isInstanceOf[JavascriptRejectionException] => true
+      case Some(cause) => isRejectionException(cause)
+      case None => false
+    }
+
+  trait JsEngine {
+    def process(event: EnrichedEvent, headers: List[String]): Either[JsFailure, String]
+  }
+
+  sealed trait JsFailure
+
+  object JsFailure {
+    case class CompilationError(error: String) extends JsFailure
+    case class RuntimeError(error: String) extends JsFailure
+    case object RejectedEvent extends JsFailure
+  }
+
   /**
    * Represents the result of JS enrichment script
    */
@@ -87,34 +155,12 @@ object JavascriptScriptEnrichment extends ParseableEnrichment {
 
 final case class JavascriptScriptEnrichment(
   schemaKey: SchemaKey,
-  rawFunction: String,
-  params: JsonObject = JsonObject.empty
+  engine: JavascriptScriptEnrichment.JsEngine
 ) extends Enrichment {
+  import JavascriptScriptEnrichment._
+
   private val enrichmentInfo =
     FailureDetails.EnrichmentInformation(schemaKey, "Javascript enrichment").some
-
-  private val engine = new ScriptEngineManager()
-    .getEngineByName("nashorn")
-    .asInstanceOf[ScriptEngine with Invocable with Compilable]
-
-  private val stringified = rawFunction + s"""
-    var getJavascriptContexts = function() {
-      const params = ${params.asJson.noSpaces};
-      return function(event, headers) {
-        const result = process(event, params, headers);
-        if (result == null) {
-          return "[]"
-        } else {
-          return JSON.stringify(result);
-        }
-      }
-    }()
-    """
-
-  private val invocable =
-    Either
-      .catchNonFatal(engine.compile(stringified).eval())
-      .leftMap(e => s"Error compiling JavaScript function: [${e.getMessage}]")
 
   /**
    * Run the process function from the Javascript configuration on the supplied EnrichedEvent.
@@ -126,24 +172,23 @@ final case class JavascriptScriptEnrichment(
     event: EnrichedEvent,
     headers: List[String],
     maxJsonDepth: Int
-  ): Result =
+  ): Result = {
+    // It is possible it is set to true by previous JS enrichment script.
+    // We don't want it to have an effect on the result of current JS enrichment
+    // script therefore setting it to false before running the script.
+    event.use_derived_contexts_from_js_enrichment_only = false
     (for {
-      _ <- invocable.leftMap(createFailure)
-      // It is possible it is set to true by previous JS enrichment script.
-      // We don't want it to have an effect on the result of current JS enrichment
-      // script therefore setting it to false before running the script.
-      _ = event.use_derived_contexts_from_js_enrichment_only = false
-      contexts <- Either
-                    .catchNonFatal(engine.invokeFunction("getJavascriptContexts", event, headers.asJava).asInstanceOf[String])
-                    .leftMap {
-                      case e if isRejectionException(e) => Result.Dropped
-                      case e => createFailure(s"Error during execution of JavaScript function: [${e.getMessage}]")
-                    }
+      contexts <- engine.process(event, headers).leftMap {
+                    case JsFailure.RejectedEvent => Result.Dropped
+                    case JsFailure.CompilationError(e) => createFailure(e)
+                    case JsFailure.RuntimeError(e) => createFailure(e)
+                  }
       json <- JsonUtils
                 .extractJson(contexts, maxJsonDepth)
                 .leftMap(err => createFailure(s"Could not parse output JSON of Javascript function. Error: [$err]"))
       l <- parseContexts(json).leftMap(createFailure)
     } yield Result.Success(l, event.use_derived_contexts_from_js_enrichment_only)).merge
+  }
 
   private def parseContexts(json: Json): Either[String, List[SelfDescribingData[Json]]] =
     json.asArray match {
@@ -170,11 +215,4 @@ final case class JavascriptScriptEnrichment(
 
   private def createFailure(errorMsg: String) =
     Result.Failure(FailureDetails.EnrichmentFailure(enrichmentInfo, FailureDetails.EnrichmentFailureMessage.Simple(errorMsg)))
-
-  private def isRejectionException(t: Throwable): Boolean =
-    Option(t.getCause) match {
-      case Some(cause) if cause.isInstanceOf[JavascriptRejectionException] => true
-      case Some(cause) => isRejectionException(cause)
-      case None => false
-    }
 }

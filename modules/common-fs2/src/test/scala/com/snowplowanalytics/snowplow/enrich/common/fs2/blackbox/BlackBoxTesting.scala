@@ -160,7 +160,7 @@ object BlackBoxTesting extends Specification with CatsEffect {
                                   case Invalid(e) => IO.raiseError(new IllegalArgumentException(s"can't parse enrichmentsJson: $e"))
                                   case Valid(list) => IO.pure(list)
                                 }
-                       built <- EnrichmentRegistry.build[IO](confs, http, SpecHelpers.blockingEC, SpecHelpers.blockingEC).value
+                       built <- EnrichmentRegistry.build[IO](confs, http, SpecHelpers.blockingEC, SpecHelpers.blockingEC, true).value
                        registry <- built match {
                                      case Left(e) => IO.raiseError(new IllegalArgumentException(s"can't build EnrichmentRegistry: $e"))
                                      case Right(r) => IO.pure(r)
@@ -170,5 +170,5 @@ object BlackBoxTesting extends Specification with CatsEffect {
       resource <- Resource.eval(registry)
     } yield resource
 
-  private val featureFlags = FeatureFlags(acceptInvalid = false)
+  private val featureFlags = FeatureFlags(acceptInvalid = false, exitOnJsCompileError = true)
 }

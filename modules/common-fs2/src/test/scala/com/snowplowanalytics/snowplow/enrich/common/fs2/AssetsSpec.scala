@@ -111,7 +111,7 @@ class AssetsSpec extends Specification with CatsEffect with ScalaCheck {
           val resources =
             for {
               sem <- Resource.eval(Semaphore[IO](1L))
-              enrichments <- Environment.Enrichments.make[IO](List())
+              enrichments <- Environment.Enrichments.make[IO](List(), true)
               _ <- SpecHelpers.filesResource(TestFiles)
             } yield (sem, enrichments)
 

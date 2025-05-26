@@ -107,7 +107,11 @@ object TestEnvironment extends CatsEffect {
    * A dummy test environment without enrichment and with noop sinks and sources
    * One can replace stream and sinks via `.copy`
    */
-  def make(source: Stream[IO, Array[Byte]], enrichments: List[EnrichmentConf] = Nil): Resource[IO, TestEnvironment[Array[Byte]]] =
+  def make(
+    source: Stream[IO, Array[Byte]],
+    enrichments: List[EnrichmentConf] = Nil,
+    exitOnJsCompileError: Boolean = true
+  ): Resource[IO, TestEnvironment[Array[Byte]]] =
     for {
       http4s <- Clients.mkHttp[IO]()
       _ <- SpecHelpers.filesResource(enrichments.flatMap(_.filesToCache).map(p => Path(p._2)))
@@ -118,7 +122,7 @@ object TestEnvironment extends CatsEffect {
       clients = Clients.init[IO](http4s, Nil)
       sem <- Resource.eval(Semaphore[IO](1L))
       assetsState <- Resource.eval(Assets.State.make(sem, clients, enrichments.flatMap(_.filesToCache)))
-      enrichmentsRef <- Enrichments.make[IO](enrichments)
+      enrichmentsRef <- Enrichments.make[IO](enrichments, exitOnJsCompileError)
       goodRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
       piiRef <- Resource.eval(Ref.of[IO, Vector[AttributedData[Array[Byte]]]](Vector.empty))
       badRef <- Resource.eval(Ref.of[IO, Vector[Array[Byte]]](Vector.empty))

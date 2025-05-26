@@ -244,6 +244,13 @@
     # More details: https://github.com/snowplow/enrich/issues/517#issuecomment-1033910690
     "acceptInvalid": false
 
+    # Default is true.
+    # If it is set to true, Enrich will exit with error if JS enrichment
+    # script is invalid.
+    # If it is set to false, Enrich will continue to run if JS enrichment
+    # script is invalid but every event will end up as bad row.
+    "exitOnJsCompileError": true
+
   }
 
   # Optional. Configuration for blob storage clients used to download

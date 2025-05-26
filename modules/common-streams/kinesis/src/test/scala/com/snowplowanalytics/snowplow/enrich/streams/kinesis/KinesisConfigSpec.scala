@@ -129,7 +129,8 @@ object KinesisConfigSpec {
     validation = Config.Validation(
       acceptInvalid = false,
       atomicFieldsLimits = AtomicFields.from(atomicFieldLimitsDefaults),
-      maxJsonDepth = 50
+      maxJsonDepth = 50,
+      exitOnJsCompileError = true
     ),
     telemetry = Telemetry.Config(
       disable = false,
@@ -228,7 +229,8 @@ object KinesisConfigSpec {
     validation = Config.Validation(
       acceptInvalid = false,
       atomicFieldsLimits = AtomicFields.from(atomicFieldLimitsDefaults ++ Map("app_id" -> 5, "mkt_clickid" -> 100000)),
-      maxJsonDepth = 50
+      maxJsonDepth = 50,
+      exitOnJsCompileError = true
     ),
     telemetry = Telemetry.Config(
       disable = false,

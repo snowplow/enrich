@@ -140,19 +140,21 @@ object Environment {
     configs: List[EnrichmentConf],
     apiEnrichmentClient: HttpClient[F],
     ipLookupEC: ExecutionContext,
-    sqlEC: ExecutionContext
+    sqlEC: ExecutionContext,
+    exitOnJsCompileError: Boolean
   ) {
 
     /** Initialize same enrichments, specified by configs (in case DB files updated) */
     def reinitialize: F[Enrichments[F]] =
       Enrichments
-        .buildRegistry(configs, apiEnrichmentClient, ipLookupEC, sqlEC)
-        .map(registry => Enrichments(registry, configs, apiEnrichmentClient, ipLookupEC, sqlEC))
+        .buildRegistry(configs, apiEnrichmentClient, ipLookupEC, sqlEC, exitOnJsCompileError)
+        .map(registry => Enrichments(registry, configs, apiEnrichmentClient, ipLookupEC, sqlEC, exitOnJsCompileError))
   }
 
   object Enrichments {
     def make[F[_]: Async](
-      configs: List[EnrichmentConf]
+      configs: List[EnrichmentConf],
+      exitOnJsCompileError: Boolean
     ): Resource[F, Ref[F, Enrichments[F]]] =
       for {
         // We don't want the HTTP client of API enrichment to be reinitialized each time the assets are refreshed
@@ -164,17 +166,18 @@ object Environment {
                                }
         ipLookupEC <- IpLookupExecutionContext.mk
         sqlEC <- SqlExecutionContext.mk
-        registry <- Resource.eval(buildRegistry[F](configs, apiEnrichmentClient, ipLookupEC, sqlEC))
-        ref <- Resource.eval(Ref.of(Enrichments[F](registry, configs, apiEnrichmentClient, ipLookupEC, sqlEC)))
+        registry <- Resource.eval(buildRegistry[F](configs, apiEnrichmentClient, ipLookupEC, sqlEC, exitOnJsCompileError))
+        ref <- Resource.eval(Ref.of(Enrichments[F](registry, configs, apiEnrichmentClient, ipLookupEC, sqlEC, exitOnJsCompileError)))
       } yield ref
 
     def buildRegistry[F[_]: Async](
       configs: List[EnrichmentConf],
       apiEnrichmentClient: HttpClient[F],
       ipLookupEC: ExecutionContext,
-      sqlEC: ExecutionContext
+      sqlEC: ExecutionContext,
+      exitOnJsCompileError: Boolean
     ) =
-      EnrichmentRegistry.build[F](configs, apiEnrichmentClient, ipLookupEC, sqlEC).value.flatMap {
+      EnrichmentRegistry.build[F](configs, apiEnrichmentClient, ipLookupEC, sqlEC, exitOnJsCompileError).value.flatMap {
         case Right(reg) => Async[F].pure(reg)
         case Left(error) => Async[F].raiseError[EnrichmentRegistry[F]](new RuntimeException(error))
       }
@@ -217,7 +220,7 @@ object Environment {
       adapterRegistry = new AdapterRegistry(remoteAdapters, file.adaptersSchemas)
       sem <- Resource.eval(Semaphore(1L))
       assetsState <- Resource.eval(Assets.State.make[F](sem, clts, assets))
-      enrichments <- Enrichments.make[F](parsedConfigs.enrichmentConfigs)
+      enrichments <- Enrichments.make[F](parsedConfigs.enrichmentConfigs, parsedConfigs.configFile.featureFlags.exitOnJsCompileError)
     } yield Environment[F, A](
       igluClient,
       Http4sRegistryLookup(http4s),

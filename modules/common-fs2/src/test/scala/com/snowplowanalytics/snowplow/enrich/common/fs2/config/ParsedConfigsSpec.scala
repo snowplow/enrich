@@ -104,9 +104,7 @@ class ParsedConfigsSpec extends Specification with CatsEffect {
           Some("enrich-kinesis-ce"),
           Some("1.0.0")
         ),
-        io.FeatureFlags(
-          false
-        ),
+        io.FeatureFlags(acceptInvalid = false, exitOnJsCompileError = true),
         Some(
           io.Experimental(
             Some(

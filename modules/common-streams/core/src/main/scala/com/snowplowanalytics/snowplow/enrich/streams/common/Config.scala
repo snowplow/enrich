@@ -117,7 +117,8 @@ object Config {
   case class Validation(
     acceptInvalid: Boolean,
     atomicFieldsLimits: AtomicFields,
-    maxJsonDepth: Int
+    maxJsonDepth: Int,
+    exitOnJsCompileError: Boolean
   )
 
   case class MetadataM[M[_]](

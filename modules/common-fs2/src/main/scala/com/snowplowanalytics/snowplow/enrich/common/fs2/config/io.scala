@@ -444,7 +444,7 @@ object io {
       deriveConfiguredDecoder[Experimental]
   }
 
-  case class FeatureFlags(acceptInvalid: Boolean)
+  case class FeatureFlags(acceptInvalid: Boolean, exitOnJsCompileError: Boolean)
 
   object FeatureFlags {
     implicit val featureFlagsDecoder: Decoder[FeatureFlags] =

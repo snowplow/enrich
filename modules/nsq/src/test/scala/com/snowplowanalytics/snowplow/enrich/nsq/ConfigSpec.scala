@@ -128,7 +128,8 @@ class ConfigSpec extends Specification with CatsEffect {
           Some("1.0.0")
         ),
         io.FeatureFlags(
-          false
+          acceptInvalid = false,
+          exitOnJsCompileError = true
         ),
         Some(
           io.Experimental(
@@ -234,7 +235,8 @@ class ConfigSpec extends Specification with CatsEffect {
           None
         ),
         io.FeatureFlags(
-          false
+          acceptInvalid = false,
+          exitOnJsCompileError = true
         ),
         None,
         adaptersSchemas,

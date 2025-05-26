@@ -84,7 +84,8 @@ object MockEnvironment {
       enrichmentRegistry <- Environment.mkEnrichmentRegistry[IO](
                               enrichmentsConfs,
                               blobClients,
-                              httpClientConfig
+                              httpClientConfig,
+                              exitOnJsCompileError = true
                             )
     } yield {
       val env = Environment(
@@ -119,7 +120,8 @@ object MockEnvironment {
         validation = Config.Validation(
           acceptInvalid = false,
           atomicFieldsLimits = AtomicFields.from(SpecHelpers.atomicFieldLimitsDefaults),
-          maxJsonDepth = SpecHelpers.DefaultMaxJsonDepth
+          maxJsonDepth = SpecHelpers.DefaultMaxJsonDepth,
+          exitOnJsCompileError = true
         ),
         partitionKeyField = None,
         attributeFields = List(EnrichedEvent.atomicFields.find(_.getName === "app_id").get)

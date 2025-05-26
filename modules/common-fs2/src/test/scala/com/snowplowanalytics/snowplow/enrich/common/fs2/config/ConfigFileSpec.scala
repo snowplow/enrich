@@ -91,6 +91,7 @@ class ConfigFileSpec extends Specification with CatsEffect {
           },
           "featureFlags" : {
             "acceptInvalid": false,
+            "exitOnJsCompileError": true
           },
           "experimental": {
             "metadata": {
@@ -170,6 +171,7 @@ class ConfigFileSpec extends Specification with CatsEffect {
           },
           "featureFlags" : {
             "acceptInvalid": false,
+            "exitOnJsCompileError": true
           },
           "blobStorage": {
             "gcs": true,

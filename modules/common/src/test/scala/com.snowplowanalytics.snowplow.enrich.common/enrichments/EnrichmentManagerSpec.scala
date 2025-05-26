@@ -43,7 +43,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii.{
   PiiStrategyPseudonymize
 }
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.{AtomicError, ConversionUtils, OptionIor}
+import com.snowplowanalytics.snowplow.enrich.common.utils.{AtomicError, OptionIor}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{
   CrossNavigationEnrichment,
   HttpHeaderExtractorEnrichment,
@@ -51,6 +51,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{
   JavascriptScriptEnrichment,
   YauaaEnrichment
 }
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.JavascriptScriptEnrichmentSpec.createJsEnrichment
 import com.snowplowanalytics.snowplow.enrich.common.AcceptInvalid
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
@@ -314,22 +315,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           throw "Javascript exception";
           return [ { a: "b" } ];
         }"""
-
-      val config =
-        json"""{
-        "parameters": {
-          "script": ${ConversionUtils.encodeBase64Url(script)}
-        }
-      }"""
-      val schemaKey = SchemaKey(
-        "com.snowplowanalytics.snowplow",
-        "javascript_script_config",
-        "jsonschema",
-        SchemaVer.Full(1, 0, 0)
-      )
-      val jsEnrichConf =
-        JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
-      val jsEnrich = JavascriptScriptEnrichment(jsEnrichConf.schemaKey, jsEnrichConf.rawFunction)
+      val jsEnrich = createJsEnrichment(script)
       val enrichmentReg = EnrichmentRegistry[IO](javascriptScript = List(jsEnrich))
 
       val parameters = Map(
@@ -384,22 +370,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
                      }
                    } ];
         }"""
-
-      val config =
-        json"""{
-        "parameters": {
-          "script": ${ConversionUtils.encodeBase64Url(script)}
-        }
-      }"""
-      val schemaKey = SchemaKey(
-        "com.snowplowanalytics.snowplow",
-        "javascript_script_config",
-        "jsonschema",
-        SchemaVer.Full(1, 0, 0)
-      )
-      val jsEnrichConf =
-        JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
-      val jsEnrich = JavascriptScriptEnrichment(jsEnrichConf.schemaKey, jsEnrichConf.rawFunction)
+      val jsEnrich = createJsEnrichment(script)
       val enrichmentReg = EnrichmentRegistry[IO](javascriptScript = List(jsEnrich))
 
       val parameters = Map(
@@ -1118,15 +1089,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           event.setApp_id(firstHeaderValue);
           return [];
         }"""
-
-      val schemaKey = SchemaKey(
-        "com.snowplowanalytics.snowplow",
-        "javascript_script_config",
-        "jsonschema",
-        SchemaVer.Full(1, 0, 0)
-      )
       val enrichmentReg = EnrichmentRegistry[IO](
-        javascriptScript = List(JavascriptScriptEnrichment(schemaKey, script)),
+        javascriptScript = List(createJsEnrichment(script)),
         httpHeaderExtractor = Some(HttpHeaderExtractorEnrichment(".*"))
       )
 
@@ -1170,17 +1134,10 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           event.setPlatform("test_platform");
           return [];
         }"""
-
-      val schemaKey = SchemaKey(
-        "com.snowplowanalytics.snowplow",
-        "javascript_script_config",
-        "jsonschema",
-        SchemaVer.Full(1, 0, 0)
-      )
       val enrichmentReg = EnrichmentRegistry[IO](
         javascriptScript = List(
-          JavascriptScriptEnrichment(schemaKey, script1),
-          JavascriptScriptEnrichment(schemaKey, script2)
+          createJsEnrichment(script1),
+          createJsEnrichment(script2)
         )
       )
 
@@ -1381,15 +1338,9 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         function process(event) {
           return [ ${emailSent} ];
         }"""
-      val schemaKey = SchemaKey(
-        "com.snowplowanalytics.snowplow",
-        "javascript_script_config",
-        "jsonschema",
-        SchemaVer.Full(1, 0, 0)
-      )
       val enrichmentReg = EnrichmentRegistry[IO](
         javascriptScript = List(
-          JavascriptScriptEnrichment(schemaKey, script)
+          createJsEnrichment(script)
         )
       )
       val invalidUeData =
@@ -1476,15 +1427,9 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         function process(event) {
           return [ ${emailSent} ];
         }"""
-      val schemaKey = SchemaKey(
-        "com.snowplowanalytics.snowplow",
-        "javascript_script_config",
-        "jsonschema",
-        SchemaVer.Full(1, 0, 0)
-      )
       val enrichmentReg = EnrichmentRegistry[IO](
         javascriptScript = List(
-          JavascriptScriptEnrichment(schemaKey, script)
+          createJsEnrichment(script)
         )
       )
       val invalidContextData =
@@ -1574,15 +1519,9 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         function process(event) {
           return [ ${emailSent} ];
         }"""
-      val schemaKey = SchemaKey(
-        "com.snowplowanalytics.snowplow",
-        "javascript_script_config",
-        "jsonschema",
-        SchemaVer.Full(1, 0, 0)
-      )
       val enrichmentReg = EnrichmentRegistry[IO](
         javascriptScript = List(
-          JavascriptScriptEnrichment(schemaKey, script)
+          createJsEnrichment(script)
         )
       )
       val invalidContextData =
@@ -1678,16 +1617,10 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           throw "Javascript exception";
           return [ $emailSent ];
         }"""
-      val schemaKey = SchemaKey(
-        "com.snowplowanalytics.snowplow",
-        "javascript_script_config",
-        "jsonschema",
-        SchemaVer.Full(1, 0, 0)
-      )
       val enrichmentReg = EnrichmentRegistry[IO](
         yauaa = Some(YauaaEnrichment(None)),
         javascriptScript = List(
-          JavascriptScriptEnrichment(schemaKey, script)
+          createJsEnrichment(script)
         )
       )
 
@@ -1750,15 +1683,9 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           throw "Javascript exception";
           return [ $emailSent ];
         }"""
-      val schemaKey = SchemaKey(
-        "com.snowplowanalytics.snowplow",
-        "javascript_script_config",
-        "jsonschema",
-        SchemaVer.Full(1, 0, 0)
-      )
       val enrichmentReg = EnrichmentRegistry[IO](
         javascriptScript = List(
-          JavascriptScriptEnrichment(schemaKey, script)
+          createJsEnrichment(script)
         )
       )
 
@@ -1844,16 +1771,10 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
             $invalidContext
           ];
         }"""
-      val schemaKey = SchemaKey(
-        "com.snowplowanalytics.snowplow",
-        "javascript_script_config",
-        "jsonschema",
-        SchemaVer.Full(1, 0, 0)
-      )
       val enrichmentReg = EnrichmentRegistry[IO](
         yauaa = Some(YauaaEnrichment(None)),
         javascriptScript = List(
-          JavascriptScriptEnrichment(schemaKey, script)
+          createJsEnrichment(script)
         )
       )
 
@@ -1944,15 +1865,9 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
             $invalidContext
           ];
         }"""
-      val schemaKey = SchemaKey(
-        "com.snowplowanalytics.snowplow",
-        "javascript_script_config",
-        "jsonschema",
-        SchemaVer.Full(1, 0, 0)
-      )
       val enrichmentReg = EnrichmentRegistry[IO](
         javascriptScript = List(
-          JavascriptScriptEnrichment(schemaKey, script)
+          createJsEnrichment(script)
         )
       )
       val parameters = Map(
@@ -2533,22 +2448,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
                      }
                    } ];
         }"""
-
-      val config =
-        json"""{
-        "parameters": {
-          "script": ${ConversionUtils.encodeBase64Url(script)}
-        }
-      }"""
-      val schemaKey = SchemaKey(
-        "com.snowplowanalytics.snowplow",
-        "javascript_script_config",
-        "jsonschema",
-        SchemaVer.Full(1, 0, 0)
-      )
-      val jsEnrichConf =
-        JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
-      val jsEnrich = JavascriptScriptEnrichment(jsEnrichConf.schemaKey, jsEnrichConf.rawFunction)
+      val jsEnrich = createJsEnrichment(script)
       val enrichmentReg = EnrichmentRegistry[IO](javascriptScript = List(jsEnrich))
 
       val rawEvent = RawEvent(api, fatBody, None, source, context)
@@ -2679,21 +2579,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       emitIncomplete: Boolean = false,
       collectorName: String = source.name
     ) = {
-      val config =
-        json"""{
-        "parameters": {
-          "script": ${ConversionUtils.encodeBase64Url(script)}
-        }
-      }"""
-      val schemaKey = SchemaKey(
-        "com.snowplowanalytics.snowplow",
-        "javascript_script_config",
-        "jsonschema",
-        SchemaVer.Full(1, 0, 0)
-      )
-      val jsEnrichConf =
-        JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
-      val jsEnrich = JavascriptScriptEnrichment(jsEnrichConf.schemaKey, jsEnrichConf.rawFunction)
+      val jsEnrich = createJsEnrichment(script)
       val enrichmentReg = EnrichmentRegistry[IO](javascriptScript = List(jsEnrich))
 
       val rawEvent = RawEvent(api, parameters, None, source.copy(name = collectorName), context)
@@ -2816,23 +2702,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       emitIncomplete: Boolean = false,
       collectorName: String = source.name
     ) = {
-      val jsEnrichList = scripts.map { script =>
-        val config =
-          json"""{
-        "parameters": {
-          "script": ${ConversionUtils.encodeBase64Url(script)}
-        }
-      }"""
-        val schemaKey = SchemaKey(
-          "com.snowplowanalytics.snowplow",
-          "javascript_script_config",
-          "jsonschema",
-          SchemaVer.Full(1, 0, 0)
-        )
-        val jsEnrichConf =
-          JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
-        JavascriptScriptEnrichment(jsEnrichConf.schemaKey, jsEnrichConf.rawFunction)
-      }
+      val jsEnrichList = scripts.map(s => createJsEnrichment(s))
       val enrichmentReg = EnrichmentRegistry[IO](
         javascriptScript = jsEnrichList,
         httpHeaderExtractor = Some(HttpHeaderExtractorEnrichment(".*"))

@@ -646,6 +646,82 @@ class EnrichSpec extends Specification with CatsEffect with ScalaCheck {
         }
       }
     }
+
+    "Invalid Javascript enrichment script" should {
+      "make application exit if exitOnJsCompileError is true" in {
+        val script = """
+          function process(event, params) {
+            return [;
+          }"""
+        val config = json"""{
+          "parameters": {
+            "script": ${ConversionUtils.encodeBase64Url(script)}
+          }
+        }"""
+        val schemaKey = SchemaKey(
+          "com.snowplowanalytics.snowplow",
+          "javascript_script_config",
+          "jsonschema",
+          SchemaVer.Full(1, 0, 0)
+        )
+        val jsEnrichConf =
+          JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
+
+        TestEnvironment
+          .make(Stream.empty, List(jsEnrichConf))
+          .use(_ => IO.pure(ko))
+          .recover {
+            case t if t.getMessage.contains("Error compiling JavaScript function") => ok
+          }
+      }
+
+      "not make application exit if exitOnJsCompileError is false" in {
+        val script = """
+          function process(event, params) {
+            return [;
+          }"""
+        val config = json"""{
+          "parameters": {
+            "script": ${ConversionUtils.encodeBase64Url(script)}
+          }
+        }"""
+        val schemaKey = SchemaKey(
+          "com.snowplowanalytics.snowplow",
+          "javascript_script_config",
+          "jsonschema",
+          SchemaVer.Full(1, 0, 0)
+        )
+        val jsEnrichConf =
+          JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
+
+        val input = Stream.emits(
+          List(
+            EnrichSpec.payload,
+            EnrichSpec.payload,
+            EnrichSpec.payload
+          )
+        )
+        TestEnvironment.make(input, List(jsEnrichConf), exitOnJsCompileError = false).use { test =>
+          val enrichStream = Enrich.run[IO, Array[Byte]](test.env)
+          for {
+            _ <- enrichStream.compile.drain
+            good <- test.good
+            bad <- test.bad
+            incomplete <- test.incomplete
+            counter <- test.counter.get
+          } yield {
+            (counter.raw must_== 3L)
+            (counter.good must_== 0L)
+            (counter.bad must_== 3L)
+            (counter.dropped must_== 0L)
+            (counter.incomplete must_== 3L)
+            (good.size must_== 0)
+            (bad.size must_== 3)
+            (incomplete.size must_== 3)
+          }
+        }
+      }
+    }
   }
 
   def sinkGood(
@@ -724,7 +800,7 @@ object EnrichSpec {
       derived_tstamp = Some(collectorTstamp)
     )
 
-  val featureFlags = FeatureFlags(acceptInvalid = false)
+  val featureFlags = FeatureFlags(acceptInvalid = false, exitOnJsCompileError = true)
 
   def jsonEntityQueryParam(fieldName: String, jsonEntity: String): BasicNameValuePair =
     new BasicNameValuePair(

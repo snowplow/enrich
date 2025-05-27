@@ -18,6 +18,7 @@ import scala.concurrent.duration.DurationInt
 import org.specs2.Specification
 
 import cats.Id
+import cats.implicits._
 
 import cats.effect.{ExitCode, IO}
 
@@ -37,6 +38,7 @@ import com.snowplowanalytics.snowplow.kinesis.BackoffPolicy
 
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.{adaptersSchemas, atomicFieldLimitsDefaults}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
 import com.snowplowanalytics.snowplow.enrich.streams.common.Config
 
@@ -100,7 +102,7 @@ object KinesisConfigSpec {
         ),
         maxRecordSize = 1000000,
         partitionKey = None,
-        attributes = None
+        attributes = Nil
       ),
       failed = None,
       bad = Config.SinkWithMetadata(
@@ -113,7 +115,7 @@ object KinesisConfigSpec {
         ),
         maxRecordSize = 1000000,
         partitionKey = None,
-        attributes = None
+        attributes = Nil
       )
     ),
     cpuParallelismFraction = BigDecimal(0.75),
@@ -172,8 +174,8 @@ object KinesisConfigSpec {
           customEndpoint = None
         ),
         maxRecordSize = 1000000,
-        partitionKey = Some("user_id"),
-        attributes = None
+        partitionKey = Some(EnrichedEvent.atomicFields.find(_.getName === "user_id").get),
+        attributes = Nil
       ),
       failed = Some(
         Config.SinkWithMetadata(
@@ -186,7 +188,7 @@ object KinesisConfigSpec {
           ),
           maxRecordSize = 1000000,
           partitionKey = None,
-          attributes = None
+          attributes = Nil
         )
       ),
       bad = Config.SinkWithMetadata(
@@ -199,7 +201,7 @@ object KinesisConfigSpec {
         ),
         maxRecordSize = 1000000,
         partitionKey = None,
-        attributes = None
+        attributes = Nil
       )
     ),
     cpuParallelismFraction = BigDecimal(0.75),

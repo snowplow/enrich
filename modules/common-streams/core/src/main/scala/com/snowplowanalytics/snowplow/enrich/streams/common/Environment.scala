@@ -42,7 +42,6 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.Enrichm
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.ApiRequestConf
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.IpLookupExecutionContext
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.SqlExecutionContext
-import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient => CommonHttpClient}
 
 import com.snowplowanalytics.snowplow.enrich.cloudutils.core.BlobClient
@@ -72,8 +71,8 @@ case class Environment[F[_]](
   httpClient: Client[F],
   registryLookup: RegistryLookup[F],
   validation: Config.Validation,
-  getPartitionKey: EnrichedEvent => Option[String],
-  getAttributes: EnrichedEvent => Map[String, String]
+  partitionKeyField: Option[Field],
+  attributeFields: List[Field]
 ) {
   def badRowProcessor = BadRowProcessor(appInfo.name, appInfo.version)
 }
@@ -127,8 +126,6 @@ object Environment {
                           }
       blobClients = HttpBlobClient.wrapHttp4sClient(httpClient) :: toBlobClients(config.main.blobClients)
       enrichmentRegistry <- mkEnrichmentRegistry(enrichmentsConfs, blobClients, config.main.http.client)
-      getPartitionKey <- getPartitionKey(config.main.output.enriched.partitionKey)
-      getAttributes <- getAttributes(config.main.output.enriched.attributes)
     } yield Environment(
       appInfo = appInfo,
       source = sourceAndAck,
@@ -145,8 +142,8 @@ object Environment {
       httpClient = httpClient,
       registryLookup = registryLookup,
       validation = config.main.validation,
-      getPartitionKey,
-      getAttributes
+      partitionKeyField = config.main.output.enriched.partitionKey,
+      attributeFields = config.main.output.enriched.attributes
     )
 
   private def enableSentry[F[_]: Sync](appInfo: AppInfo, config: Option[Config.Sentry]): Resource[F, Unit] =
@@ -179,36 +176,6 @@ object Environment {
         .value
         .rethrow
     }
-
-  private val enrichedFieldsMap: Map[String, Field] = EnrichedEvent.atomicFields.map(f => f.getName -> f).toMap
-
-  private def getPartitionKey[F[_]: Sync](partitionKey: Option[String]): Resource[F, EnrichedEvent => Option[String]] =
-    partitionKey.fold[Resource[F, EnrichedEvent => Option[String]]](Resource.pure(_ => None)) { key =>
-      enrichedFieldsMap.get(key) match {
-        case Some(field) =>
-          Resource.pure { enriched =>
-            Option(field.get(enriched).toString)
-          }
-        case None =>
-          Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"$key is not a valid partition key")))
-      }
-    }
-
-  private def getAttributes[F[_]: Sync](attributes: Option[Set[String]]): Resource[F, EnrichedEvent => Map[String, String]] =
-    attributes
-      .flatMap(maybeAttributes => if (maybeAttributes.isEmpty) None else Some(maybeAttributes))
-      .fold[Resource[F, EnrichedEvent => Map[String, String]]](Resource.pure(_ => Map.empty)) { set =>
-        val fields = set.toList.map(enrichedFieldsMap.get)
-        fields.sequence match {
-          case Some(valid) =>
-            Resource.pure { enriched =>
-              valid.map(field => field.getName -> field.get(enriched).toString).toMap
-            }
-          case None =>
-            val wrongFields = set.zip(fields).collect { case (fieldName, None) => fieldName }
-            Resource.eval(Sync[F].raiseError(new IllegalArgumentException(s"[${wrongFields.mkString(", ")}] not valid attributes")))
-        }
-      }
 
   def mkEnrichmentRegistry[F[_]: Async](
     enrichmentsConfs: List[EnrichmentConf],

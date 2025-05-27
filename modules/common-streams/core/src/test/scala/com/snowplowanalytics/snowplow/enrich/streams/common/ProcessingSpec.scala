@@ -66,7 +66,7 @@ class ProcessingSpec extends Specification with CatsEffect {
         Enriched(
           expectedPageView(eventId),
           None,
-          Map.empty
+          Map("app_id" -> "test_app")
         )
       )
 
@@ -181,7 +181,7 @@ class ProcessingSpec extends Specification with CatsEffect {
         Enriched(
           expectedPageView(eventId),
           None,
-          Map.empty
+          Map("app_id" -> "test_app")
         )
       )
 
@@ -254,7 +254,7 @@ class ProcessingSpec extends Specification with CatsEffect {
             derived_contexts = SnowplowEvent.Contexts(List(addToCartSDD(quantity)))
           ),
           None,
-          Map.empty
+          Map("app_id" -> "test_app")
         )
       )
 

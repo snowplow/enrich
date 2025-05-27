@@ -39,6 +39,7 @@ import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
 import com.snowplowanalytics.snowplow.enrich.cloudutils.core.HttpBlobClient
 
@@ -120,8 +121,8 @@ object MockEnvironment {
           atomicFieldsLimits = AtomicFields.from(SpecHelpers.atomicFieldLimitsDefaults),
           maxJsonDepth = SpecHelpers.DefaultMaxJsonDepth
         ),
-        getPartitionKey = _ => None,
-        getAttributes = _ => Map.empty
+        partitionKeyField = None,
+        attributeFields = List(EnrichedEvent.atomicFields.find(_.getName === "app_id").get)
       )
       MockEnvironment(state, env)
     }

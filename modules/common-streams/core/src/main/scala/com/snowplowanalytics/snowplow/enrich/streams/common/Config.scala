@@ -12,6 +12,7 @@ package com.snowplowanalytics.snowplow.enrich.streams.common
 
 import java.util.UUID
 import java.nio.file.{Files => NioFiles, Path => NioPath}
+import java.lang.reflect.Field
 
 import scala.concurrent.duration.FiniteDuration
 import scala.jdk.CollectionConverters._
@@ -48,6 +49,7 @@ import com.snowplowanalytics.snowplow.runtime.HealthProbe.decoders._
 
 import com.snowplowanalytics.snowplow.enrich.common.adapters._
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
 case class Config[+Source, +Sink, +BlobClients](
   license: AcceptedLicense,
@@ -74,15 +76,15 @@ object Config {
 
   case class SinkMetadata(
     maxRecordSize: Int,
-    partitionKey: Option[String],
-    attributes: Option[Set[String]]
+    partitionKey: Option[Field],
+    attributes: List[Field]
   )
 
   case class SinkWithMetadata[+Sink](
     sink: Sink,
     maxRecordSize: Int,
-    partitionKey: Option[String],
-    attributes: Option[Set[String]]
+    partitionKey: Option[Field],
+    attributes: List[Field]
   )
 
   case class Output[+Sink](
@@ -139,6 +141,12 @@ object Config {
     implicit val configuration = Configuration.default.withDiscriminator("type")
     implicit val licenseDecoder =
       AcceptedLicense.decoder(AcceptedLicense.DocumentationLink("https://docs.snowplow.io/limited-use-license-1.1/"))
+    implicit val fieldDecoder: Decoder[Field] = Decoder[String].emap { name =>
+      EnrichedEvent.atomicFields.find(_.getName === name) match {
+        case Some(field) => Right(field)
+        case None => Left(s"$name is not a field of EnrichedEvent")
+      }
+    }
     implicit val sinkWithMetadataDecoder = for {
       sink <- Decoder[Sink]
       metadata <- deriveConfiguredDecoder[SinkMetadata]

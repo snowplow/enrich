@@ -12,6 +12,7 @@ package com.snowplowanalytics.snowplow.enrich.streams.common
 
 import java.time.Instant
 import java.nio.charset.StandardCharsets.UTF_8
+import java.lang.reflect.Field
 
 import scala.concurrent.duration.DurationLong
 
@@ -160,13 +161,19 @@ object Processing {
       Sync[F].delay {
         val (sizeViolations, good) = enriched.enriched.foldLeft((List.empty[Sinkable], List.empty[Sinkable])) {
           case ((ls, rs), e) =>
-            serializeEnriched(e, env.getPartitionKey, env.getAttributes, env.sinkMaxSize, env.badRowProcessor, enriched.etlTstamp) match {
+            serializeEnriched(e,
+                              env.partitionKeyField,
+                              env.attributeFields,
+                              env.sinkMaxSize,
+                              env.badRowProcessor,
+                              enriched.etlTstamp
+            ) match {
               case Left(sv) => (sv :: ls, rs)
               case Right(e) => (ls, e :: rs)
             }
         }
         val failed = enriched.failed.map { failed =>
-          serializeFailed(failed, env.getPartitionKey, env.getAttributes, env.sinkMaxSize)
+          serializeFailed(failed, env.partitionKeyField, env.attributeFields, env.sinkMaxSize)
         }.flatten
         val bad = enriched.bad.mapUnordered { br =>
           serializeBad(br, env.sinkMaxSize, env.badRowProcessor, enriched.etlTstamp)
@@ -184,8 +191,8 @@ object Processing {
 
   private def serializeEnriched(
     enriched: EnrichedEvent,
-    getPartitionKey: EnrichedEvent => Option[String],
-    getAttributes: EnrichedEvent => Map[String, String],
+    partitionKeyField: Option[Field],
+    attributeFields: List[Field],
     maxRecordSize: Int,
     processor: BadRowProcessor,
     etlTstamp: Instant
@@ -197,22 +204,32 @@ object Processing {
       val error = s"Enriched event exceeds the maximum allowed size of $maxRecordSize bytes"
       val sv = mkSizeViolation(tsv, maxRecordSize, processor, error, etlTstamp)
       Left(sv)
-    } else
-      Right(Sinkable(bytes, getPartitionKey(enriched), getAttributes(enriched)))
+    } else {
+      val partitionKey = partitionKeyField.flatMap(f => Option(f.get(enriched)).map(_.toString))
+      val attributes = attributeFields.flatMap { f =>
+        Option(f.get(enriched)).map(v => f.getName -> v.toString)
+      }.toMap
+      Right(Sinkable(bytes, partitionKey, attributes))
+    }
   }
 
   private def serializeFailed(
     failed: EnrichedEvent,
-    getPartitionKey: EnrichedEvent => Option[String],
-    getAttributes: EnrichedEvent => Map[String, String],
+    partitionKeyField: Option[Field],
+    attributeFields: List[Field],
     maxRecordSize: Int
   ): Option[Sinkable] = {
     val tsv = ConversionUtils.tabSeparatedEnrichedEvent(failed)
     val bytes = tsv.getBytes(UTF_8)
     if (bytes.length > maxRecordSize)
       None
-    else
-      Some(Sinkable(bytes, getPartitionKey(failed), getAttributes(failed)))
+    else {
+      val partitionKey = partitionKeyField.flatMap(f => Option(f.get(failed)).map(_.toString))
+      val attributes = attributeFields.flatMap { f =>
+        Option(f.get(failed)).map(v => f.getName -> v.toString)
+      }.toMap
+      Some(Sinkable(bytes, partitionKey, attributes))
+    }
   }
 
   private def serializeBad(

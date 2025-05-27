@@ -50,6 +50,7 @@ class JavascriptScriptEnrichmentSpec extends Specification {
   Javascript enrichment should be able to manipulate context                         $e17
   Javascript enrichment should fail if the unstruct_event is set to invalid json     $e18
   Javascript enrichment should fail if the contexts field is set to invalid json     $e19
+  Javascript enrichment should run successfully with Java packages                   $e20
   """
 
   def e1_1 =
@@ -345,6 +346,110 @@ class JavascriptScriptEnrichmentSpec extends Specification {
 
     createJsEnrichment(function).process(enriched, List.empty, SpecHelpers.DefaultMaxJsonDepth) must beLike {
       failureContains("invalid contexts json")
+    }
+  }
+
+  def e20 = {
+    val enriched = buildEnriched()
+    val testUrl =
+      "https://raw.githubusercontent.com/snowplow/iglu-central/refs/heads/master/schemas/com.snowplowanalytics.snowplow/atomic/jsonschema/1-0-0"
+    val testStr = "test"
+    // URL constructors are deprecated in Java 21, but they can still be used in JS enrichment script
+    val bufferedReader = new java.io.BufferedReader(
+      new java.io.InputStreamReader(
+        new java.net.URI(testUrl).toURL.openConnection().getInputStream()
+      )
+    )
+    val testQuery = "q1=v1&q2=v2"
+    val bufferedReaderExpected = bufferedReader.readLine()
+    bufferedReader.close()
+    val shaValExpected = org.apache.commons.codec.digest.DigestUtils.sha256Hex(testStr)
+    val urlEncodedExpected = java.net.URLEncoder.encode(testUrl, java.nio.charset.StandardCharsets.UTF_8)
+    val baseEncoded = new String(java.util.Base64.getEncoder.encode(testStr.getBytes))
+    val function =
+      s"""
+      testUrl = "$testUrl"
+      conn = new java.net.URL(testUrl).openConnection()
+      reader = new java.io.BufferedReader(new java.io.InputStreamReader(conn.getInputStream()))
+      check1 = reader.readLine() === "$bufferedReaderExpected"
+      reader.close()
+
+      uri = new java.net.URI(testUrl)
+      check2 = uri.toString() === testUrl
+
+      digest = java.security.MessageDigest.getInstance("SHA3-256")
+      check3 = digest.getAlgorithm() === "SHA3-256"
+
+      shaVal = org.apache.commons.codec.digest.DigestUtils.sha256Hex("$testStr")
+      check4 = shaVal === "$shaValExpected"
+
+      URLEncoder = Java.type('java.net.URLEncoder')
+      StandardCharsets = Java.type('java.nio.charset.StandardCharsets')
+      urlEncoded = URLEncoder.encode(testUrl, StandardCharsets.UTF_8.toString())
+      check5 = urlEncoded === "$urlEncodedExpected"
+
+      conn = new java.net.URL(testUrl).openConnection()
+      conn.setRequestMethod("POST")
+      conn.setRequestProperty("accept", "application/json")
+      conn.setDoOutput(true)
+      var writer = new java.io.OutputStreamWriter(conn.getOutputStream())
+      writer.write("payload")
+      writer.close()
+
+      base64Decoded = new java.lang.String(java.util.Base64.decoder.decode("$baseEncoded"))
+      check6 = base64Decoded === "$testStr"
+
+      urlQuery = new java.net.URI("$testUrl?$testQuery").getQuery()
+      check7 = urlQuery === "$testQuery"
+
+      check8 = new java.util.ArrayList(["test1", "test2", "test3"]).contains("test3")
+
+      urlDecoded = java.net.URLDecoder.decode(urlEncoded, "UTF-8")
+      check9 = urlDecoded === "$testUrl"
+
+      function process(event) {
+          return [
+            {
+              schema: "iglu:com.snowplowanalytics.iglu/anything-a/jsonschema/1-0-0",
+              data: {
+                 check1: check1,
+                 check2: check2,
+                 check3: check3,
+                 check4: check4,
+                 check5: check5,
+                 check6: check6,
+                 check7: check7,
+                 check8: check8,
+                 check9: check9,
+              }
+            }
+          ]
+      }"""
+
+    val expected =
+      SelfDescribingData(
+        SchemaKey("com.snowplowanalytics.iglu", "anything-a", "jsonschema", SchemaVer.Full(1, 0, 0)),
+        json"""{
+          "check1": true,
+          "check2": true,
+          "check3": true,
+          "check4": true,
+          "check5": true,
+          "check6": true,
+          "check7": true,
+          "check8": true,
+          "check9": true
+        }"""
+      )
+
+    JavascriptScriptEnrichment.create(schemaKey, function, JsonObject.empty, exitOnCompileError = true) match {
+      case Left(e) => ko(s"Error while creating the JS enrichment: $e")
+      case Right(js) =>
+        js.process(enriched, List.empty, SpecHelpers.DefaultMaxJsonDepth) match {
+          case Result.Success(List(c), false) =>
+            c must beEqualTo(expected)
+          case Result.Failure(f) => ko(s"Error during the execution of the JS enrichment: ${f.message}")
+        }
     }
   }
 

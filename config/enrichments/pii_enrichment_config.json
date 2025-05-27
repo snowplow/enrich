@@ -5,6 +5,7 @@
     "name": "pii_enrichment_config",
     "emitEvent": true,
     "enabled": true,
+    "anonymousOnly": false,
     "parameters": {
       "pii": [
         {
@@ -30,8 +31,7 @@
           "hashFunction": "SHA-1",
           "salt": "pepper123"
         }
-      },
-      "anonymousOnly": false
+      }
     }
   }
 }

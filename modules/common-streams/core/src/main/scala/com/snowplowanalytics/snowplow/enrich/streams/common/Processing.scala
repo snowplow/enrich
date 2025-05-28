@@ -46,6 +46,7 @@ object Processing {
   ): EventProcessor[F] =
     _.through(parseBytes(env))
       .through(enrich(env))
+      .through(collectMetadata(env))
       .through(serialize(env))
       .through(sinkEnriched(env))
       .through(setE2ELatencyMetric(env))
@@ -298,6 +299,21 @@ object Processing {
 
   private def emitToken[F[_]]: Pipe[F, Serialized, Unique.Token] =
     _.map(_.token)
+
+  private def collectMetadata[F[_]: Async](
+    env: Environment[F]
+  ): Pipe[F, Enriched, Enriched] =
+    env.metadata match {
+      case Some(reporter) =>
+        _.evalTap { enriched =>
+          if (enriched.enriched.nonEmpty) {
+            val extracts = Metadata.extractsForBatch(enriched.enriched)
+            reporter.add(extracts)
+          } else Async[F].unit
+        }
+      case None =>
+        identity
+    }
 
   private def mkSizeViolation(
     payload: String,

@@ -110,6 +110,8 @@ object EventUtils {
         event_version = Some("1-0-0")
       )
 
+  def expectedPageViewMetadata = Metadata.MetadataEvent(None, Some(appID), None, None, None)
+
   def invalidAddToCart(eventId: UUID): CollectorPayload = {
     val queryString: List[NameValuePair] = List(
       new BasicNameValuePair("eid", eventId.toString),

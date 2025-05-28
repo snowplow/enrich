@@ -68,6 +68,8 @@ object MockEnvironment {
     /* Health */
     case class BecameUnhealthy(service: RuntimeService) extends Action
     case class BecameHealthy(service: RuntimeService) extends Action
+    /* Metadata */
+    case class AddedMetadata(aggregates: Metadata.Aggregates) extends Action
   }
   import Action._
 
@@ -124,7 +126,8 @@ object MockEnvironment {
           exitOnJsCompileError = true
         ),
         partitionKeyField = None,
-        attributeFields = List(EnrichedEvent.atomicFields.find(_.getName === "app_id").get)
+        attributeFields = List(EnrichedEvent.atomicFields.find(_.getName === "app_id").get),
+        metadata = Some(testMetadataReporter(state))
       )
       MockEnvironment(state, env)
     }
@@ -274,4 +277,10 @@ object MockEnvironment {
                case Left(err) => IO.raiseError(new RuntimeException(s"Can't decode bad row: $err"))
              }
     } yield Bad(bad, sinkable.partitionKey, sinkable.attributes)
+
+  private def testMetadataReporter(ref: Ref[IO, Vector[Action]]): MetadataReporter[IO] =
+    new MetadataReporter[IO] {
+      def add(aggregates: Metadata.Aggregates): IO[Unit] =
+        ref.update(_ :+ AddedMetadata(aggregates))
+    }
 }

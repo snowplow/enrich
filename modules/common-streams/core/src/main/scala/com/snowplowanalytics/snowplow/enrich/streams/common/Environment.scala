@@ -72,7 +72,8 @@ case class Environment[F[_]](
   registryLookup: RegistryLookup[F],
   validation: Config.Validation,
   partitionKeyField: Option[Field],
-  attributeFields: List[Field]
+  attributeFields: List[Field],
+  metadata: Option[MetadataReporter[F]]
 ) {
   def badRowProcessor = BadRowProcessor(appInfo.name, appInfo.version)
 }
@@ -127,6 +128,7 @@ object Environment {
       blobClients = HttpBlobClient.wrapHttp4sClient(httpClient) :: toBlobClients(config.main.blobClients)
       enrichmentRegistry <-
         mkEnrichmentRegistry(enrichmentsConfs, blobClients, config.main.http.client, config.main.validation.exitOnJsCompileError)
+      metadata <- config.main.metadata.traverse(MetadataReporter.build[F](_, appInfo, httpClient))
     } yield Environment(
       appInfo = appInfo,
       source = sourceAndAck,
@@ -144,7 +146,8 @@ object Environment {
       registryLookup = registryLookup,
       validation = config.main.validation,
       partitionKeyField = config.main.output.enriched.partitionKey,
-      attributeFields = config.main.output.enriched.attributes
+      attributeFields = config.main.output.enriched.attributes,
+      metadata = metadata
     )
 
   private def enableSentry[F[_]: Sync](appInfo: AppInfo, config: Option[Config.Sentry]): Resource[F, Unit] =

@@ -70,6 +70,11 @@ class ProcessingSpec extends Specification with CatsEffect {
         )
       )
 
+    val expectedMetadata = {
+      val entities = Metadata.EntitiesAndCount(Set.empty, 2)
+      Map(expectedPageViewMetadata -> entities)
+    }
+
     val io = runTest(etlTstamp, input) {
       case (input, control) =>
         for {
@@ -79,6 +84,7 @@ class ProcessingSpec extends Specification with CatsEffect {
         } yield state should beEqualTo(
           Vector(
             Action.AddedRawCountMetric(2),
+            Action.AddedMetadata(expectedMetadata),
             Action.SentToEnriched(expectedEnriched),
             Action.AddedEnrichedCountMetric(2),
             Action.SetE2ELatencyMetric(Duration(5, MINUTES)),
@@ -185,6 +191,11 @@ class ProcessingSpec extends Specification with CatsEffect {
         )
       )
 
+    val expectedMetadata = {
+      val entities = Metadata.EntitiesAndCount(Set.empty, 1)
+      Map(expectedPageViewMetadata -> entities)
+    }
+
     val script = """
       function process(event, params) {
         if(event.app_id == "drop") {
@@ -220,6 +231,7 @@ class ProcessingSpec extends Specification with CatsEffect {
           Vector(
             Action.AddedRawCountMetric(2),
             Action.AddedDroppedCountMetric(1),
+            Action.AddedMetadata(expectedMetadata),
             Action.SentToEnriched(expectedEnriched),
             Action.AddedEnrichedCountMetric(1),
             Action.SetE2ELatencyMetric(Duration(5, MINUTES)),
@@ -238,6 +250,8 @@ class ProcessingSpec extends Specification with CatsEffect {
 
     val input = List(GoodBatch(List(pageView(eventId, tiQuantity = Some(quantity)))))
 
+    val expectedContext = addToCartSDD(quantity)
+
     def expectedEnriched(etlTstamp: Option[Instant]) =
       List(
         Enriched(
@@ -251,12 +265,17 @@ class ProcessingSpec extends Specification with CatsEffect {
             geo_region_name = Some("Jilin Sheng"),
             geo_timezone = Some("Asia/Harbin"),
             ti_quantity = Some(quantity),
-            derived_contexts = SnowplowEvent.Contexts(List(addToCartSDD(quantity)))
+            derived_contexts = SnowplowEvent.Contexts(List(expectedContext))
           ),
           None,
           Map("app_id" -> "test_app")
         )
       )
+
+    val expectedMetadata = {
+      val entities = Metadata.EntitiesAndCount(Set(expectedContext.schema), 1)
+      Map(expectedPageViewMetadata -> entities)
+    }
 
     val ipLookupsConf = IpLookupsEnrichment
       .parse(
@@ -355,6 +374,7 @@ class ProcessingSpec extends Specification with CatsEffect {
         } yield state should beEqualTo(
           Vector(
             Action.AddedRawCountMetric(1),
+            Action.AddedMetadata(expectedMetadata),
             Action.SentToEnriched(expectedEnriched(expectedEtlTstamp)),
             Action.AddedEnrichedCountMetric(1),
             Action.SetE2ELatencyMetric(expectedE2ELatency),

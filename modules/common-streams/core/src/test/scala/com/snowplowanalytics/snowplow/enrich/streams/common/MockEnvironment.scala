@@ -12,7 +12,7 @@ package com.snowplowanalytics.snowplow.enrich.streams.common
 
 import java.nio.charset.StandardCharsets.UTF_8
 
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration._
 
 import cats.implicits._
 import cats.data.Validated
@@ -20,9 +20,16 @@ import cats.data.Validated
 import cats.effect.IO
 import cats.effect.kernel.{Ref, Resource, Unique}
 
+import org.http4s.client.{Client => Http4sClient}
+import org.http4s.dsl.io._
+
 import io.circe.parser
+import io.circe.literal._
 
 import fs2.Stream
+import fs2.io.readInputStream
+
+import org.http4s.Uri
 
 import com.snowplowanalytics.snowplow.badrows.BadRow
 
@@ -30,15 +37,20 @@ import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 
 import com.snowplowanalytics.iglu.core.SelfDescribingData
 
+import com.snowplowanalytics.iglu.client.{IgluCirceClient, Resolver}
+
 import com.snowplowanalytics.snowplow.runtime.{AppHealth, AppInfo}
-import com.snowplowanalytics.snowplow.runtime.HttpClient.{Config => HttpClientConfig}
+import com.snowplowanalytics.snowplow.runtime.processing.Coldswap
 import com.snowplowanalytics.snowplow.streams.{EventProcessingConfig, EventProcessor, Sink, Sinkable, SourceAndAck, TokenedEvents}
 
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.IpLookupExecutionContext
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.SqlExecutionContext
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient => CommonHttpClient}
 
 import com.snowplowanalytics.snowplow.enrich.cloudutils.core.HttpBlobClient
 
@@ -73,21 +85,29 @@ object MockEnvironment {
   import Action._
 
   def build(
-    inputs: List[TokenedEvents],
+    inputs: Stream[IO, TokenedEvents],
     enrichmentsConfs: List[EnrichmentConf] = Nil,
     mocks: Mocks = Mocks.default
   ): Resource[IO, MockEnvironment] =
     for {
       state <- Resource.eval(Ref[IO].of(Vector.empty[Action]))
-      httpClientConfig = HttpClientConfig(maxConnectionsPerServer = 4)
-      httpClient <- HttpClient.resource[IO](httpClientConfig)
-      blobClients = List(HttpBlobClient.wrapHttp4sClient(httpClient))
-      enrichmentRegistry <- Environment.mkEnrichmentRegistry[IO](
-                              enrichmentsConfs,
-                              blobClients,
-                              httpClientConfig,
-                              exitOnJsCompileError = true
+      httpClient <- Resource.eval(mockHttpClient)
+      blobClients = List(HttpBlobClient.wrapHttp4sClient(httpClient.mock))
+      assets = Assets.fromEnrichmentConfs(enrichmentsConfs)
+      _ <- Resource.eval(Assets.downloadAssets(assets, blobClients))
+      apiEnrichmentClient = CommonHttpClient.fromHttp4sClient[IO](httpClient.mock)
+      ipLookupEC <- IpLookupExecutionContext.mk[IO]
+      sqlEC <- SqlExecutionContext.mk[IO]
+      enrichmentRegistry <- Coldswap.make(
+                              Environment.mkEnrichmentRegistry[IO](
+                                enrichmentsConfs,
+                                apiEnrichmentClient,
+                                ipLookupEC,
+                                sqlEC,
+                                exitOnJsCompileError = true
+                              )
                             )
+      igluClient <- Resource.eval(IgluCirceClient.fromResolver(Resolver[IO](Nil, None), 0, 40))
     } yield {
       val env = Environment(
         appInfo = appInfo,
@@ -114,9 +134,11 @@ object MockEnvironment {
         cpuParallelism = 2,
         sinkMaxSize = 1024 * 1024,
         adapterRegistry = testAdapterRegistry,
+        assets = assets,
+        blobClients = blobClients,
         enrichmentRegistry = enrichmentRegistry,
-        igluClient = SpecHelpers.client,
-        httpClient = httpClient,
+        igluClient = igluClient,
+        httpClient = httpClient.mock,
         registryLookup = SpecHelpers.registryLookup,
         validation = Config.Validation(
           acceptInvalid = false,
@@ -126,7 +148,8 @@ object MockEnvironment {
         ),
         partitionKeyField = None,
         attributeFields = List(EnrichedEvent.atomicFields.find(_.getName === "app_id").get),
-        metadata = Some(testMetadataReporter(state))
+        metadata = Some(testMetadataReporter(state)),
+        assetsUpdatePeriod = 3.seconds
       )
       MockEnvironment(state, env)
     }
@@ -158,15 +181,14 @@ object MockEnvironment {
     def cloud = "OnPrem"
   }
 
-  private def testSourceAndAck(inputs: List[TokenedEvents], state: Ref[IO, Vector[Action]]): SourceAndAck[IO] =
+  private def testSourceAndAck(inputs: Stream[IO, TokenedEvents], state: Ref[IO, Vector[Action]]): SourceAndAck[IO] =
     new SourceAndAck[IO] {
       def stream(config: EventProcessingConfig[IO], processor: EventProcessor[IO]): Stream[IO, Nothing] =
-        Stream
-          .emits(inputs)
+        inputs
           .through(processor)
           .chunks
-          .evalMap { chunk =>
-            state.update(_ :+ Checkpointed(chunk.toList))
+          .evalMap { tokens =>
+            state.update(_ :+ Checkpointed(tokens.toList))
           }
           .drain
 
@@ -282,4 +304,34 @@ object MockEnvironment {
       def add(aggregates: Metadata.Aggregates): IO[Unit] =
         ref.update(_ :+ AddedMetadata(aggregates))
     }
+
+  val mockHttpServerUri = "http://mockserver"
+
+  def mockHttpClient: IO[MockHttpClient] =
+    Ref[IO].of(Map.empty[Uri, Int]).map(new MockHttpClient(_))
+
+  class MockHttpClient(val requestsCounts: Ref[IO, Map[Uri, Int]]) {
+
+    def mock: Http4sClient[IO] =
+      Http4sClient { req =>
+        Resource.eval {
+          for {
+            counts <- requestsCounts.updateAndGet(_ |+| Map(req.uri -> 1))
+            count = counts(req.uri)
+            response <- if (req.uri == Uri.unsafeFromString(s"$mockHttpServerUri/maxmind/GeoIP2-City.mmdb")) {
+                          val filename = count match {
+                            case 1 => "/GeoIP2-City.mmdb"
+                            case _ => "/GeoIP2-City-updated.mmdb"
+                          }
+                          val is = IO(getClass.getResourceAsStream(filename))
+                          Ok(readInputStream[IO](is, 256).compile.to(Array))
+                        } else if (req.uri.toString.startsWith(s"$mockHttpServerUri/enrichment/api")) {
+                          val quantity = req.uri.path.segments.last.toString.toInt
+                          Ok(json"""{"record":{"sku":"pedals","quantity":$quantity}}""".noSpaces)
+                        } else
+                          NotFound("Endpoint not implemented")
+          } yield response
+        }
+      }
+  }
 }

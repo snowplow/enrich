@@ -47,6 +47,10 @@ lazy val commonStreams = project
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(common % "test->test;compile->compile")
   .dependsOn(cloudUtilsStreams % "test->test;compile->compile")
+  .settings(Test / igluUris := Seq(
+    "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+    "iglu:com.snowplowanalytics.snowplow/add_to_cart/jsonschema/1-0-0"
+  ))
 
 lazy val cloudUtilsStreams = project
   .in(file("modules/common-streams/cloudutils/core"))

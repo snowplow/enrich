@@ -19,13 +19,9 @@ import org.specs2.Specification
 
 import io.circe.parser
 
-import cats.implicits._
-
 import cats.effect.IO
 
-import fs2.Chunk
-
-import cats.implicits._
+import fs2.{Chunk, Stream}
 
 import cats.effect.testkit.TestControl
 
@@ -53,13 +49,14 @@ class ProcessingSpec extends Specification with CatsEffect {
     Emit failed events and bad rows for invalid events $e2
     Emit bad rows for malformed events $e3
     Allow Javascript enrichment to drop events $e4
-    Enrich with IP lookups and API enrichments $e5
+    Enrich with API enrichment $e5
+    Refresh IP lookups assets $e6
   """
 
   def e1 = {
     val eventId = UUID.randomUUID
 
-    val input = List(GoodBatch(List.fill(2)(pageView(eventId))))
+    val input = GoodBatch(List.fill(2)(pageView(eventId)))
 
     val expectedEnriched =
       List.fill(2)(
@@ -75,23 +72,27 @@ class ProcessingSpec extends Specification with CatsEffect {
       Map(expectedPageViewMetadata -> entities)
     }
 
-    val io = runTest(etlTstamp, input) {
-      case (input, control) =>
-        for {
-          _ <- Processing.stream(control.environment).compile.drain
-          state <- control.state.get
-          tokens = input.map(_.ack)
-        } yield state should beEqualTo(
-          Vector(
-            Action.AddedRawCountMetric(2),
-            Action.AddedMetadata(expectedMetadata),
-            Action.SentToEnriched(expectedEnriched),
-            Action.AddedEnrichedCountMetric(2),
-            Action.SetE2ELatencyMetric(Duration(5, MINUTES)),
-            Action.Checkpointed(tokens)
-          )
-        )
-    }
+    val io =
+      for {
+        token <- IO.unique
+        inputStream = mkGoodStream((input, token))
+        assertion <- runTest(etlTstamp, inputStream) {
+                       case control =>
+                         for {
+                           _ <- Processing.stream(control.environment).compile.drain
+                           state <- control.state.get
+                         } yield state should beEqualTo(
+                           Vector(
+                             Action.AddedRawCountMetric(2),
+                             Action.AddedMetadata(expectedMetadata),
+                             Action.SentToEnriched(expectedEnriched),
+                             Action.AddedEnrichedCountMetric(2),
+                             Action.SetE2ELatencyMetric(Duration(etlLatency.toMinutes, MINUTES)),
+                             Action.Checkpointed(List(token))
+                           )
+                         )
+                     }
+      } yield assertion
 
     TestControl.executeEmbed(io)
   }
@@ -99,7 +100,7 @@ class ProcessingSpec extends Specification with CatsEffect {
   def e2 = {
     val eventId = UUID.randomUUID
 
-    val input = List(GoodBatch(List(invalidAddToCart(eventId))))
+    val input = GoodBatch(List(invalidAddToCart(eventId)))
 
     val expectedFailed =
       List(
@@ -119,30 +120,34 @@ class ProcessingSpec extends Specification with CatsEffect {
         )
       )
 
-    val io = runTest(etlTstamp, input) {
-      case (input, control) =>
-        for {
-          _ <- Processing.stream(control.environment).compile.drain
-          state <- control.state.get
-          tokens = input.map(_.ack)
-        } yield state should beEqualTo(
-          Vector(
-            Action.AddedRawCountMetric(1),
-            Action.SetE2ELatencyMetric(Duration(5, MINUTES)),
-            Action.SentToFailed(expectedFailed),
-            Action.AddedFailedCountMetric(1),
-            Action.SentToBad(expectedBad),
-            Action.AddedBadCountMetric(1),
-            Action.Checkpointed(tokens)
-          )
-        )
-    }
+    val io =
+      for {
+        token <- IO.unique
+        inputStream = mkGoodStream((input, token))
+        assertion <- runTest(etlTstamp, inputStream) {
+                       case control =>
+                         for {
+                           _ <- Processing.stream(control.environment).compile.drain
+                           state <- control.state.get
+                         } yield state should beEqualTo(
+                           Vector(
+                             Action.AddedRawCountMetric(1),
+                             Action.SetE2ELatencyMetric(Duration(etlLatency.toMinutes, MINUTES)),
+                             Action.SentToFailed(expectedFailed),
+                             Action.AddedFailedCountMetric(1),
+                             Action.SentToBad(expectedBad),
+                             Action.AddedBadCountMetric(1),
+                             Action.Checkpointed(List(token))
+                           )
+                         )
+                     }
+      } yield assertion
 
     TestControl.executeEmbed(io)
   }
 
   def e3 = {
-    val input = List(BadBatch(Chunk("nonsense", "nonsense2")))
+    val input = BadBatch(Chunk("nonsense", "nonsense2"))
 
     val expectedBad =
       List(
@@ -158,21 +163,25 @@ class ProcessingSpec extends Specification with CatsEffect {
         )
       )
 
-    val io = runTest(etlTstamp, input) {
-      case (input, control) =>
-        for {
-          _ <- Processing.stream(control.environment).compile.drain
-          state <- control.state.get
-          tokens = input.map(_.ack)
-        } yield state should beEqualTo(
-          Vector(
-            Action.AddedRawCountMetric(2),
-            Action.SentToBad(expectedBad),
-            Action.AddedBadCountMetric(2),
-            Action.Checkpointed(tokens)
-          )
-        )
-    }
+    val io =
+      for {
+        token <- IO.unique
+        inputStream = mkBadStream((input, token))
+        assertion <- runTest(etlTstamp, inputStream) {
+                       case control =>
+                         for {
+                           _ <- Processing.stream(control.environment).compile.drain
+                           state <- control.state.get
+                         } yield state should beEqualTo(
+                           Vector(
+                             Action.AddedRawCountMetric(2),
+                             Action.SentToBad(expectedBad),
+                             Action.AddedBadCountMetric(2),
+                             Action.Checkpointed(List(token))
+                           )
+                         )
+                     }
+      } yield assertion
 
     TestControl.executeEmbed(io)
   }
@@ -180,7 +189,7 @@ class ProcessingSpec extends Specification with CatsEffect {
   def e4 = {
     val eventId = UUID.randomUUID
 
-    val input = List(GoodBatch(List(pageView(eventId), pageView(eventId, appID = "drop"))))
+    val input = GoodBatch(List(pageView(eventId), pageView(eventId, appID = "drop")))
 
     val expectedEnriched =
       List(
@@ -221,24 +230,28 @@ class ProcessingSpec extends Specification with CatsEffect {
     val jsEnrichConf =
       JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
 
-    val io = runTest(etlTstamp, input, List(jsEnrichConf)) {
-      case (input, control) =>
-        for {
-          _ <- Processing.stream(control.environment).compile.drain
-          state <- control.state.get
-          tokens = input.map(_.ack)
-        } yield state should beEqualTo(
-          Vector(
-            Action.AddedRawCountMetric(2),
-            Action.AddedDroppedCountMetric(1),
-            Action.AddedMetadata(expectedMetadata),
-            Action.SentToEnriched(expectedEnriched),
-            Action.AddedEnrichedCountMetric(1),
-            Action.SetE2ELatencyMetric(Duration(5, MINUTES)),
-            Action.Checkpointed(tokens)
-          )
-        )
-    }
+    val io =
+      for {
+        token <- IO.unique
+        inputStream = mkGoodStream((input, token))
+        assertion <- runTest(etlTstamp, inputStream, List(jsEnrichConf)) {
+                       case control =>
+                         for {
+                           _ <- Processing.stream(control.environment).compile.drain
+                           state <- control.state.get
+                         } yield state should beEqualTo(
+                           Vector(
+                             Action.AddedRawCountMetric(2),
+                             Action.AddedDroppedCountMetric(1),
+                             Action.AddedMetadata(expectedMetadata),
+                             Action.SentToEnriched(expectedEnriched),
+                             Action.AddedEnrichedCountMetric(1),
+                             Action.SetE2ELatencyMetric(Duration(etlLatency.toMinutes, MINUTES)),
+                             Action.Checkpointed(List(token))
+                           )
+                         )
+                     }
+      } yield assertion
 
     TestControl.executeEmbed(io)
   }
@@ -248,22 +261,14 @@ class ProcessingSpec extends Specification with CatsEffect {
 
     val quantity = 2
 
-    val input = List(GoodBatch(List(pageView(eventId, tiQuantity = Some(quantity)))))
+    val input = GoodBatch(List(pageView(eventId, tiQuantity = Some(quantity))))
 
     val expectedContext = addToCartSDD(quantity)
 
-    def expectedEnriched(etlTstamp: Option[Instant]) =
+    def expectedEnriched =
       List(
         Enriched(
           expectedPageView(eventId).copy(
-            etl_tstamp = etlTstamp,
-            geo_country = Some("CN"),
-            geo_region = Some("22"),
-            geo_city = Some("Fuyu"),
-            geo_latitude = Some(43.88),
-            geo_longitude = Some(125.3228),
-            geo_region_name = Some("Jilin Sheng"),
-            geo_timezone = Some("Asia/Harbin"),
             ti_quantity = Some(quantity),
             derived_contexts = SnowplowEvent.Contexts(List(expectedContext))
           ),
@@ -276,34 +281,6 @@ class ProcessingSpec extends Specification with CatsEffect {
       val entities = Metadata.EntitiesAndCount(Set(expectedContext.schema), 1)
       Map(expectedPageViewMetadata -> entities)
     }
-
-    val ipLookupsConf = IpLookupsEnrichment
-      .parse(
-        parser
-          .parse(s"""
-        {
-          "name": "ip_lookups",
-          "vendor": "com.snowplowanalytics.snowplow",
-          "enabled": true,
-          "parameters": {
-            "geo": {
-              "database": "GeoIP2-City.mmdb",
-              "uri": "http://localhost:${HttpServer.port}/maxmind"
-            }
-          }
-        }""")
-          .toOption
-          .get,
-        SchemaKey(
-          "com.snowplowanalytics.snowplow",
-          "ip_lookups",
-          "jsonschema",
-          SchemaVer.Full(2, 0, 0)
-        ),
-        false
-      )
-      .toOption
-      .get
 
     val apiRequestConf = ApiRequestEnrichment
       .parse(
@@ -325,7 +302,7 @@ class ProcessingSpec extends Specification with CatsEffect {
             "api": {
               "http": {
                 "method": "GET",
-                "uri": "http://localhost:${HttpServer.port}/enrichment/api/{{quantity}}?format=json",
+                "uri": "${MockEnvironment.mockHttpServerUri}/enrichment/api/{{quantity}}?format=json",
                 "timeout": 2000,
                 "authentication": {}
               }
@@ -358,49 +335,131 @@ class ProcessingSpec extends Specification with CatsEffect {
       .toOption
       .get
 
-    val io = runTest(Instant.EPOCH, input, List(apiRequestConf, ipLookupsConf)) {
-      case (input, control) =>
-        for {
-          _ <- Processing.stream(control.environment).compile.drain
-          state <- control.state.get
-          tokens = input.map(_.ack)
-          expectedEtlTstamp = state.collectFirst {
-                                case Action.SentToEnriched(List(enriched)) =>
-                                  enriched.event.etl_tstamp
-                              }.flatten
-          expectedE2ELatency = state.collectFirst {
-                                 case Action.SetE2ELatencyMetric(latency) => latency
-                               }.get
-        } yield state should beEqualTo(
-          Vector(
-            Action.AddedRawCountMetric(1),
-            Action.AddedMetadata(expectedMetadata),
-            Action.SentToEnriched(expectedEnriched(expectedEtlTstamp)),
-            Action.AddedEnrichedCountMetric(1),
-            Action.SetE2ELatencyMetric(expectedE2ELatency),
-            Action.Checkpointed(tokens)
-          )
-        )
-    }
+    val io =
+      for {
+        token <- IO.unique
+        inputStream = mkGoodStream((input, token))
+        assertion <- runTest(etlTstamp, inputStream, List(apiRequestConf)) {
+                       case control =>
+                         for {
+                           _ <- Processing.stream(control.environment).compile.drain
+                           state <- control.state.get
+                         } yield state should beEqualTo(
+                           Vector(
+                             Action.AddedRawCountMetric(1),
+                             Action.AddedMetadata(expectedMetadata),
+                             Action.SentToEnriched(expectedEnriched),
+                             Action.AddedEnrichedCountMetric(1),
+                             Action.SetE2ELatencyMetric(Duration(etlLatency.toMinutes, MINUTES)),
+                             Action.Checkpointed(List(token))
+                           )
+                         )
+                     }
+      } yield assertion
 
-    // This is not executed inside TestControl.executeEmbed because timeouts are immediate
-    // and there is very unstable behavior with Ember client
-    HttpServer.resource.use(_ => io)
+    TestControl.executeEmbed(io)
+  }
+
+  def e6 = {
+    val eventId = UUID.randomUUID
+
+    val input = GoodBatch(List(pageView(eventId)))
+
+    def expectedEnriched(etlTstamp: Instant, city: String) =
+      List(
+        Enriched(
+          expectedPageView(eventId).copy(
+            etl_tstamp = Some(etlTstamp),
+            geo_country = Some("CN"),
+            geo_region = Some("22"),
+            geo_city = Some(city),
+            geo_latitude = Some(43.88),
+            geo_longitude = Some(125.3228),
+            geo_region_name = Some("Jilin Sheng"),
+            geo_timezone = Some("Asia/Harbin")
+          ),
+          None,
+          Map("app_id" -> "test_app")
+        )
+      )
+
+    val expectedMetadata = Map(Metadata.MetadataEvent(None, Some("test_app"), None, None, None) -> Metadata.EntitiesAndCount(Set(), 1))
+
+    val ipLookupsConf = IpLookupsEnrichment
+      .parse(
+        parser
+          .parse(s"""
+        {
+          "name": "ip_lookups",
+          "vendor": "com.snowplowanalytics.snowplow",
+          "enabled": true,
+          "parameters": {
+            "geo": {
+              "database": "GeoIP2-City.mmdb",
+              "uri": "${MockEnvironment.mockHttpServerUri}/maxmind"
+            }
+          }
+        }""")
+          .toOption
+          .get,
+        SchemaKey(
+          "com.snowplowanalytics.snowplow",
+          "ip_lookups",
+          "jsonschema",
+          SchemaVer.Full(2, 0, 0)
+        ),
+        false
+      )
+      .toOption
+      .get
+
+    val io =
+      for {
+        token1 <- IO.unique
+        token2 <- IO.unique
+        inputStream = mkGoodStream((input, token1), (input, token2)).spaced(4.seconds)
+        assertion <- runTest(Instant.EPOCH, inputStream, List(ipLookupsConf)) {
+                       case control =>
+                         for {
+                           _ <- Processing.stream(control.environment).compile.drain
+                           state <- control.state.get
+                           etlTstamps = state.collect { case Action.SentToEnriched(List(enriched)) => enriched.event.etl_tstamp.get }
+                           etlLatencies = state.collect { case Action.SetE2ELatencyMetric(latency) => latency }
+                         } yield state should beEqualTo(
+                           Vector(
+                             Action.AddedRawCountMetric(1),
+                             Action.AddedMetadata(expectedMetadata),
+                             Action.SentToEnriched(expectedEnriched(etlTstamps.head, "Fuyu")),
+                             Action.AddedEnrichedCountMetric(1),
+                             Action.SetE2ELatencyMetric(Duration(etlLatencies.head.toMicros, MICROSECONDS)),
+                             Action.Checkpointed(List(token1)),
+                             Action.AddedRawCountMetric(1),
+                             Action.AddedMetadata(expectedMetadata),
+                             Action.SentToEnriched(expectedEnriched(etlTstamps.last, "Changchun")),
+                             Action.AddedEnrichedCountMetric(1),
+                             Action.SetE2ELatencyMetric(Duration(etlLatencies.last.toMicros, MICROSECONDS)),
+                             Action.Checkpointed(List(token2))
+                           )
+                         )
+                     }
+      } yield assertion
+
+    // Can't get executed with TestControl because of Async.evalOn in IP lookups enrichment
+    io
   }
 }
 
 object ProcessingSpec {
   def runTest[A](
     etlTstamp: Instant,
-    input: List[TestBatch],
+    input: Stream[IO, TokenedEvents],
     enrichmentsConfs: List[EnrichmentConf] = Nil,
     mocks: Mocks = Mocks.default
   )(
-    f: (List[TokenedEvents], MockEnvironment) => IO[A]
+    f: MockEnvironment => IO[A]
   ): IO[A] =
-    IO.sleep(etlTstamp.toEpochMilli.millis) >> input.traverse(_.tokened).flatMap { events =>
-      MockEnvironment.build(events, enrichmentsConfs, mocks).use { control =>
-        f(events, control)
+    IO.sleep(etlTstamp.toEpochMilli.millis) >>
+      MockEnvironment.build(input, enrichmentsConfs, mocks).use { env =>
+        f(env)
       }
-    }
 }

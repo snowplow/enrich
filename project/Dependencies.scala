@@ -320,8 +320,7 @@ object Dependencies {
       // Tests
       specs2,
       catsEffectTestkit,
-      http4sDsl,
-      http4sServer
+      http4sDsl
     )
 
     val cloudUtilsStreamsDependencies = Seq(

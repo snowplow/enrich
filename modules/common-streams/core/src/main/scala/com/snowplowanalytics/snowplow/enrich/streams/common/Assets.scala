@@ -18,19 +18,24 @@ import scala.util.control.NonFatal
 import cats.{Applicative, Foldable}
 import cats.implicits._
 
-import cats.effect.kernel.{Async, Sync}
+import cats.effect.kernel.{Async, Resource, Sync}
 import cats.effect.implicits._
 
 import retry.{RetryDetails, RetryPolicies, RetryPolicy, Sleep, retryingOnSomeErrors}
 
-import fs2.io.file.{Files, Path}
+import fs2.io.file.{CopyFlag, CopyFlags, Files, Path}
+import fs2.hashing.{HashAlgorithm, Hashing}
+import fs2.Stream
 
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
+import com.snowplowanalytics.snowplow.runtime.processing.Coldswap
 
 import com.snowplowanalytics.snowplow.enrich.cloudutils.core._
+
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 
 /** Code in charge of downloading the assets used by enrichments (e.g. MaxMind/IAB DBs) */
 object Assets {
@@ -40,14 +45,12 @@ object Assets {
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
     Slf4jLogger.getLogger[F]
 
-  def downloadAll[F[_]: Async](
-    enrichmentsConfs: List[EnrichmentConf],
-    blobClients: List[BlobClient[F]]
-  ): F[Unit] = {
-    val assets = enrichmentsConfs.flatMap { conf =>
+  def fromEnrichmentConfs(enrichmentConfs: List[EnrichmentConf]): List[Asset] =
+    enrichmentConfs.flatMap { conf =>
       conf.filesToCache.map(tuple => Asset(tuple._1, tuple._2))
     }
 
+  def downloadAssets[F[_]: Async](assets: List[Asset], blobClients: List[BlobClient[F]]): F[Unit] = {
     val groupedByClientF = Foldable[List].foldM(assets, Map.empty[BlobClient[F], List[Asset]]) {
       case (acc, asset) =>
         acc.find(_._1.canDownload(asset.uri)) match {
@@ -79,6 +82,53 @@ object Assets {
       }
     }
   }
+
+  def updateStream[F[_]: Async](
+    assets: List[Asset],
+    refreshPeriod: FiniteDuration,
+    enrichmentRegistry: Coldswap[F, EnrichmentRegistry[F]],
+    blobClients: List[BlobClient[F]]
+  ): Stream[F, Nothing] =
+    Stream
+      .fixedDelay[F](refreshPeriod)
+      .evalMap { _ =>
+        val resources =
+          for {
+            withTmpPath <- assets.traverse(asset => Files.forAsync[F].tempFile(None, "", "", None).map(tmpPath => (asset, tmpPath)))
+            _ <- Resource.eval(
+                   downloadAssets(
+                     withTmpPath.map { case (asset, tmpPath) => Asset(asset.uri, tmpPath.toString) },
+                     blobClients
+                   )
+                 )
+            md5sum = Hashing.forSync[F].hash(HashAlgorithm.MD5)
+            currentHashes <- Resource.eval(
+                               withTmpPath.traverse {
+                                 case (asset, _) => Files.forAsync[F].readAll(Path(asset.localPath)).through(md5sum).compile.lastOrError
+                               }
+                             )
+            newHashes <-
+              Resource.eval(
+                withTmpPath.traverse { case (_, tmpPath) => Files.forAsync[F].readAll(tmpPath).through(md5sum).compile.lastOrError }
+              )
+            updated = withTmpPath.zip(currentHashes.zip(newHashes)).collect {
+                        case ((asset, tmpPath), (currentHash, newHash)) if newHash != currentHash => (asset, tmpPath)
+                      }
+            _ <- Resource.eval {
+                   if (updated.isEmpty) Sync[F].unit
+                   else
+                     enrichmentRegistry.closed.surround {
+                       updated.traverse {
+                         case (asset, tmpPath) =>
+                           Files.forAsync[F].copy(tmpPath, Path(asset.localPath), CopyFlags(CopyFlag.ReplaceExisting))
+                       }
+                     }
+                 }
+          } yield ()
+
+        resources.use_
+      }
+      .drain
 
   private def retry[F[_]: Sleep: Sync, A](download: F[A]): F[A] =
     retryingOnSomeErrors[A](retryPolicy[F], worthRetrying[F], onError[F])(download)

@@ -34,11 +34,14 @@ import com.snowplowanalytics.snowplow.enrich.common.EtlPipeline
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.loaders.{CollectorPayload, ThriftLoader}
 import com.snowplowanalytics.snowplow.enrich.common.utils.{ConversionUtils, OptionIor}
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 
 object Processing {
 
   def stream[F[_]: Async](env: Environment[F]): Stream[F, Nothing] =
-    env.source.stream(EventProcessingConfig(EventProcessingConfig.NoWindowing, env.metrics.setLatency), eventProcessor(env))
+    env.source
+      .stream(EventProcessingConfig(EventProcessingConfig.NoWindowing, env.metrics.setLatency), eventProcessor(env))
+      .concurrently(Assets.updateStream(env.assets, env.assetsUpdatePeriod, env.enrichmentRegistry, env.blobClients))
 
   private def eventProcessor[F[_]: Async](
     env: Environment[F]
@@ -104,10 +107,14 @@ object Processing {
   private def enrich[F[_]: Async](
     env: Environment[F]
   ): Pipe[F, Parsed, Enriched] = { in =>
-    def enrichPayload(collectorPayload: CollectorPayload, etlTstamp: Instant): F[List[OptionIor[BadRow, EnrichedEvent]]] =
+    def enrichPayload(
+      collectorPayload: CollectorPayload,
+      etlTstamp: Instant,
+      enrichmentRegistry: EnrichmentRegistry[F]
+    ): F[List[OptionIor[BadRow, EnrichedEvent]]] =
       EtlPipeline.processEvents[F](
         env.adapterRegistry,
-        env.enrichmentRegistry,
+        enrichmentRegistry,
         env.igluClient,
         env.badRowProcessor,
         new DateTime(etlTstamp.toEpochMilli),
@@ -121,19 +128,22 @@ object Processing {
       )
 
     in.parEvalMap(env.cpuParallelism) { parsed =>
-      Foldable[List]
-        .foldM(parsed.collectorPayloads, (List.empty[BadRow], List.empty[EnrichedEvent], List.empty[EnrichedEvent], 0)) {
-          case ((lefts, boths, rights, droppedCount), payload) =>
-            enrichPayload(payload, parsed.etlTstamp).map { list =>
-              list.foldLeft((lefts, boths, rights, droppedCount)) {
-                case ((ls, bs, rs, dropped), i) =>
-                  i match {
-                    case OptionIor.Left(b) => (b :: ls, bs, rs, dropped)
-                    case OptionIor.Right(c) => (ls, bs, c :: rs, dropped)
-                    case OptionIor.Both(b, c) => (b :: ls, c :: bs, rs, dropped)
-                    case OptionIor.None => (ls, bs, rs, dropped + 1)
+      env.enrichmentRegistry.opened
+        .use { enrRegistry =>
+          Foldable[List]
+            .foldM(parsed.collectorPayloads, (List.empty[BadRow], List.empty[EnrichedEvent], List.empty[EnrichedEvent], 0)) {
+              case ((lefts, boths, rights, droppedCount), payload) =>
+                enrichPayload(payload, parsed.etlTstamp, enrRegistry).map { list =>
+                  list.foldLeft((lefts, boths, rights, droppedCount)) {
+                    case ((ls, bs, rs, dropped), i) =>
+                      i match {
+                        case OptionIor.Left(b) => (b :: ls, bs, rs, dropped)
+                        case OptionIor.Right(c) => (ls, bs, c :: rs, dropped)
+                        case OptionIor.Both(b, c) => (b :: ls, c :: bs, rs, dropped)
+                        case OptionIor.None => (ls, bs, rs, dropped + 1)
+                      }
                   }
-              }
+                }
             }
         }
         .flatMap {

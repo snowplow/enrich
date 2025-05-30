@@ -13,7 +13,10 @@ package com.snowplowanalytics.snowplow.enrich.streams.common
 import java.nio.charset.StandardCharsets
 import java.nio.ByteBuffer
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.{Base64, UUID}
+
+import scala.concurrent.duration._
 
 import org.apache.http.NameValuePair
 import org.apache.http.message.BasicNameValuePair
@@ -24,8 +27,9 @@ import org.joda.time.DateTimeZone
 import cats.implicits._
 
 import cats.effect.IO
+import cats.effect.kernel.Unique
 
-import fs2.Chunk
+import fs2.{Chunk, Stream}
 
 import io.circe.Json
 import io.circe.parser
@@ -46,29 +50,25 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.EventEnrichments
 
 object EventUtils {
 
-  sealed trait TestBatch {
-    def tokened: IO[TokenedEvents]
-  }
+  case class GoodBatch(value: List[CollectorPayload])
 
-  case class GoodBatch(value: List[CollectorPayload]) extends TestBatch {
-    override def tokened: IO[TokenedEvents] = {
-      val serialized = Chunk.from(value).map { cp =>
-        ByteBuffer.wrap(cp.toRaw)
-      }
-      IO.unique.map { ack =>
+  def mkGoodStream(batches: (GoodBatch, Unique.Token)*): Stream[IO, TokenedEvents] =
+    Stream.emits(batches).map {
+      case (batch, ack) =>
+        val serialized = Chunk.from(batch.value).map { cp =>
+          ByteBuffer.wrap(cp.toRaw)
+        }
         TokenedEvents(serialized, ack)
-      }
     }
-  }
 
-  case class BadBatch(value: Chunk[String]) extends TestBatch {
-    override def tokened: IO[TokenedEvents] = {
-      val serialized = value.map(s => ByteBuffer.wrap(s.getBytes(StandardCharsets.UTF_8)))
-      IO.unique.map { token =>
-        TokenedEvents(serialized, token)
-      }
+  case class BadBatch(value: Chunk[String])
+
+  def mkBadStream(batches: (BadBatch, Unique.Token)*): Stream[IO, TokenedEvents] =
+    Stream.emits(batches).map {
+      case (batch, ack) =>
+        val serialized = batch.value.map(s => ByteBuffer.wrap(s.getBytes(StandardCharsets.UTF_8)))
+        TokenedEvents(serialized, ack)
     }
-  }
 
   def pageView(
     eventId: UUID,
@@ -226,7 +226,8 @@ object EventUtils {
   }
 
   val collectorTstamp = Instant.parse("2025-04-30T10:00:00.000Z")
-  val etlTstamp = Instant.parse("2025-04-30T10:05:00.000Z")
+  val etlLatency = 5.minutes
+  val etlTstamp = collectorTstamp.plus(etlLatency.toMinutes, ChronoUnit.MINUTES)
   val vendor = "com.snowplowanalytics.snowplow"
   val vendorVersion = "tp2"
   val collectorName = "test-collector"

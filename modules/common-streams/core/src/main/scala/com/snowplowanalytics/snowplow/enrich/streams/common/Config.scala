@@ -51,10 +51,11 @@ import com.snowplowanalytics.snowplow.enrich.common.adapters._
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
-case class Config[+Source, +Sink, +BlobClients](
+case class Config[+Factory, +Source, +Sink, +BlobClients](
   license: AcceptedLicense,
   input: Source,
   output: Config.Output[Sink],
+  streams: Factory,
   cpuParallelismFraction: BigDecimal,
   monitoring: Config.Monitoring,
   assetsUpdatePeriod: FiniteDuration,
@@ -68,8 +69,8 @@ case class Config[+Source, +Sink, +BlobClients](
 
 object Config {
 
-  case class Full[+Source, +Sink, +BlobClients](
-    main: Config[Source, Sink, BlobClients],
+  case class Full[+Factory, +Source, +Sink, +BlobClients](
+    main: Config[Factory, Source, Sink, BlobClients],
     iglu: ResolverConfig,
     enrichments: Json
   )
@@ -135,10 +136,11 @@ object Config {
     Decoder[String].emap(s => Either.catchOnly[ParseFailure](Uri.unsafeFromString(s)).leftMap(_.toString))
 
   implicit def decoder[
+    Factory: Decoder,
     Source: Decoder,
     Sink: Decoder: OptionalDecoder,
     BlobClients: Decoder
-  ]: Decoder[Config[Source, Sink, BlobClients]] = {
+  ]: Decoder[Config[Factory, Source, Sink, BlobClients]] = {
     implicit val configuration = Configuration.default.withDiscriminator("type")
     implicit val licenseDecoder =
       AcceptedLicense.decoder(AcceptedLicense.DocumentationLink("https://docs.snowplow.io/limited-use-license-1.1/"))
@@ -228,7 +230,7 @@ object Config {
     implicit val adaptersSchemasDecoder: Decoder[AdaptersSchemas] =
       deriveConfiguredDecoder[AdaptersSchemas]
 
-    deriveConfiguredDecoder[Config[Source, Sink, BlobClients]]
+    deriveConfiguredDecoder[Config[Factory, Source, Sink, BlobClients]]
   }
 
   /** Create the JSON that holds all the enrichments configs */

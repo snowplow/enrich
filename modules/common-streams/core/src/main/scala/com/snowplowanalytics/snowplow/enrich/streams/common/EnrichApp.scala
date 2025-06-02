@@ -23,13 +23,12 @@ import com.monovore.decline.effect.CommandIOApp
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
-import com.snowplowanalytics.snowplow.sources.SourceAndAck
-import com.snowplowanalytics.snowplow.sinks.Sink
+import com.snowplowanalytics.snowplow.streams.Factory
 import com.snowplowanalytics.snowplow.runtime.AppInfo
 
 import com.snowplowanalytics.snowplow.enrich.cloudutils.core.BlobClient
 
-abstract class EnrichApp[SourceConfig: Decoder, SinkConfig: Decoder: OptionalDecoder, BlobClientsConfig: Decoder](
+abstract class EnrichApp[FactoryConfig: Decoder, SourceConfig: Decoder, SinkConfig: Decoder: OptionalDecoder, BlobClientsConfig: Decoder](
   info: AppInfo
 ) extends CommandIOApp(name = EnrichApp.helpCommand(info), header = info.dockerAlias, version = info.version) {
 
@@ -41,15 +40,13 @@ abstract class EnrichApp[SourceConfig: Decoder, SinkConfig: Decoder: OptionalDec
   override def onCpuStarvationWarn(metrics: CpuStarvationWarningMetrics): IO[Unit] =
     Logger[IO].debug(s"Cats Effect measured responsiveness in excess of ${metrics.starvationInterval * metrics.starvationThreshold}")
 
-  type SinkProvider = SinkConfig => Resource[IO, Sink[IO]]
-  type SourceProvider = SourceConfig => IO[SourceAndAck[IO]]
+  type FactoryProvider = FactoryConfig => Resource[IO, Factory[IO, SourceConfig, SinkConfig]]
   type BlobClientsProvider = BlobClientsConfig => List[BlobClient[IO]]
 
-  def toSource: SourceProvider
-  def toSink: SinkProvider
+  def toFactory: FactoryProvider
   def toBlobClients: BlobClientsProvider
 
-  final def main: Opts[IO[ExitCode]] = Run.fromCli(info, toSource, toSink, toBlobClients)
+  final def main: Opts[IO[ExitCode]] = Run.fromCli(info, toFactory, toBlobClients)
 }
 
 object EnrichApp {

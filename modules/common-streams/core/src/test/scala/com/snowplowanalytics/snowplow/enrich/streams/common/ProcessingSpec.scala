@@ -35,7 +35,7 @@ import com.snowplowanalytics.snowplow.analytics.scalasdk.SnowplowEvent
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
-import com.snowplowanalytics.snowplow.sources.TokenedEvents
+import com.snowplowanalytics.snowplow.streams.TokenedEvents
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{IpLookupsEnrichment, JavascriptScriptEnrichment}

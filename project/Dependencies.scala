@@ -98,7 +98,7 @@ object Dependencies {
 
     val snowplowTracker  = "2.0.0"
 
-    val streams          = "0.11.1-M1"
+    val streams          = "0.13.0-M4"
 
     val specs2            = "4.20.3"
     val specs2Cats        = "4.20.3"

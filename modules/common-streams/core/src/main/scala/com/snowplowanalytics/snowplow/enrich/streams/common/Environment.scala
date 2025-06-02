@@ -31,8 +31,7 @@ import com.snowplowanalytics.iglu.client.resolver.Resolver
 import com.snowplowanalytics.iglu.client.resolver.registries.{Http4sRegistryLookup, RegistryLookup}
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 
-import com.snowplowanalytics.snowplow.sources.SourceAndAck
-import com.snowplowanalytics.snowplow.sinks.Sink
+import com.snowplowanalytics.snowplow.streams.{Factory, Sink, SourceAndAck}
 import com.snowplowanalytics.snowplow.runtime.{AppHealth, AppInfo, HealthProbe}
 import com.snowplowanalytics.snowplow.runtime.HttpClient.{Config => HttpClientConfig}
 
@@ -82,29 +81,30 @@ object Environment {
 
   private implicit def logger[F[_]: Sync] = Slf4jLogger.getLogger[F]
 
-  def fromConfig[F[_]: Async, SourceConfig, SinkConfig, BlobClientsConfig](
-    config: Config.Full[SourceConfig, SinkConfig, BlobClientsConfig],
+  def fromConfig[F[_]: Async, FactoryConfig, SourceConfig, SinkConfig, BlobClientsConfig](
+    config: Config.Full[FactoryConfig, SourceConfig, SinkConfig, BlobClientsConfig],
     appInfo: AppInfo,
-    toSource: SourceConfig => F[SourceAndAck[F]],
-    toSink: SinkConfig => Resource[F, Sink[F]],
+    toFactory: FactoryConfig => Resource[F, Factory[F, SourceConfig, SinkConfig]],
     toBlobClients: BlobClientsConfig => List[BlobClient[F]]
   ): Resource[F, Environment[F]] =
     for {
       _ <- enableSentry[F](appInfo, config.main.monitoring.sentry)
-      sourceAndAck <- Resource.eval(toSource(config.main.input))
+      factory <- toFactory(config.main.streams)
+      sourceAndAck <- factory.source(config.main.input)
       sourceReporter = sourceAndAck.isHealthy(config.main.monitoring.healthProbe.unhealthyLatency).map(_.showIfUnhealthy)
       appHealth <- Resource.eval(AppHealth.init[F, String, RuntimeService](List(sourceReporter)))
       _ <- HealthProbe.resource(config.main.monitoring.healthProbe.port, appHealth)
-      enrichedSink <- toSink(config.main.output.enriched.sink).onError {
+      enrichedSink <- factory.sink(config.main.output.enriched.sink).onError {
                         case _ => Resource.eval(appHealth.beUnhealthyForRuntimeService(RuntimeService.EnrichedSink))
                       }
       failedSink <- config.main.output.failed.traverse { sinkConfig =>
-                      toSink(sinkConfig.sink)
+                      factory
+                        .sink(sinkConfig.sink)
                         .onError {
                           case _ => Resource.eval(appHealth.beUnhealthyForRuntimeService(RuntimeService.FailedSink))
                         }
                     }
-      badSink <- toSink(config.main.output.bad.sink).onError {
+      badSink <- factory.sink(config.main.output.bad.sink).onError {
                    case _ => Resource.eval(appHealth.beUnhealthyForRuntimeService(RuntimeService.BadSink))
                  }
       metrics <- Resource.eval(Metrics.build(config.main.monitoring.metrics))

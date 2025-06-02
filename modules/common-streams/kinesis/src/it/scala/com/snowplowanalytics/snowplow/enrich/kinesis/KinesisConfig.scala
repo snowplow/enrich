@@ -17,9 +17,7 @@ import scala.concurrent.duration._
 
 import cats.Id
 
-import com.snowplowanalytics.snowplow.kinesis.BackoffPolicy
-import com.snowplowanalytics.snowplow.sinks.kinesis.{KinesisSinkConfig, KinesisSinkConfigM}
-import com.snowplowanalytics.snowplow.sources.kinesis.KinesisSourceConfig
+import com.snowplowanalytics.snowplow.streams.kinesis.{BackoffPolicy, KinesisSinkConfig, KinesisSinkConfigM, KinesisSourceConfig}
 
 object KinesisConfig {
 

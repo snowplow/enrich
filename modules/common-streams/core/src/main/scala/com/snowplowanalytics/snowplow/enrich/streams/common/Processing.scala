@@ -27,8 +27,7 @@ import cats.effect.kernel.{Async, Sync, Unique}
 import fs2.{Chunk, Pipe, Stream}
 
 import com.snowplowanalytics.snowplow.badrows.{BadRow, Failure => BadRowFailure, Payload => BadRowPayload, Processor => BadRowProcessor}
-import com.snowplowanalytics.snowplow.sources.{EventProcessingConfig, EventProcessor, TokenedEvents}
-import com.snowplowanalytics.snowplow.sinks.{ListOfList, Sinkable}
+import com.snowplowanalytics.snowplow.streams.{EventProcessingConfig, EventProcessor, ListOfList, Sinkable, TokenedEvents}
 import com.snowplowanalytics.snowplow.runtime.syntax.foldable._
 
 import com.snowplowanalytics.snowplow.enrich.common.EtlPipeline

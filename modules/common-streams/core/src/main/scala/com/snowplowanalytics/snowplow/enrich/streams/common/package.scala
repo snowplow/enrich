@@ -13,6 +13,6 @@ package com.snowplowanalytics.snowplow.enrich.streams
 import io.circe.Decoder
 
 package object common {
-  type AnyConfig = Config[Any, Any, Any]
+  type AnyConfig = Config[Any, Any, Any, Any]
   type OptionalDecoder[M] = Decoder[Option[M]]
 }

@@ -29,11 +29,8 @@ import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 
 import com.snowplowanalytics.snowplow.badrows.BadRow
 
-import com.snowplowanalytics.snowplow.sinks.kinesis.KinesisSink
-import com.snowplowanalytics.snowplow.sinks.{ListOfList, Sink}
-
-import com.snowplowanalytics.snowplow.sources.kinesis.KinesisSource
-import com.snowplowanalytics.snowplow.sources.{EventProcessingConfig, EventProcessor}
+import com.snowplowanalytics.snowplow.streams.kinesis.KinesisFactory
+import com.snowplowanalytics.snowplow.streams.{EventProcessingConfig, EventProcessor, ListOfList, Sink}
 
 import com.snowplowanalytics.snowplow.enrich.streams.common.Utils
 
@@ -55,19 +52,19 @@ object utils extends CatsEffect {
     localstackPort: Int,
     uuid: String
   ): IO[Output] = {
-    def streams(ref: Ref[IO, Output]): Stream[IO, Nothing] = {
+    def streams(ref: Ref[IO, Output], factory: KinesisFactory[IO]): Stream[IO, Nothing] = {
       val streams = KinesisConfig.getStreams(uuid)
       val rawSink = Stream
-        .resource[IO, Sink[IO]](KinesisSink.resource[IO](KinesisConfig.sinkConfig(localstackPort, streams.raw)))
+        .resource[IO, Sink[IO]](factory.sink(KinesisConfig.sinkConfig(localstackPort, streams.raw)))
         .flatMap(sink => input.parEvalMapUnordered(10)(cp => sink.sinkSimple(ListOfList.ofItems(cp))))
       val enrichedSource = Stream
-        .eval(KinesisSource.build[IO](KinesisConfig.sourceConfig(localstackPort, streams.enriched)))
+        .resource(factory.source(KinesisConfig.sourceConfig(localstackPort, streams.enriched)))
         .flatMap(source => source.stream(EventProcessingConfig(EventProcessingConfig.NoWindowing, _ => IO.unit), enrichedProcessor(ref)))
       val failedSource = Stream
-        .eval(KinesisSource.build[IO](KinesisConfig.sourceConfig(localstackPort, streams.failed)))
+        .resource(factory.source(KinesisConfig.sourceConfig(localstackPort, streams.failed)))
         .flatMap(source => source.stream(EventProcessingConfig(EventProcessingConfig.NoWindowing, _ => IO.unit), failedProcessor(ref)))
       val badSource = Stream
-        .eval(KinesisSource.build[IO](KinesisConfig.sourceConfig(localstackPort, streams.bad)))
+        .resource(factory.source(KinesisConfig.sourceConfig(localstackPort, streams.bad)))
         .flatMap(source => source.stream(EventProcessingConfig(EventProcessingConfig.NoWindowing, _ => IO.unit), badProcessor(ref)))
 
       enrichedSource
@@ -77,11 +74,13 @@ object utils extends CatsEffect {
         .drain
     }
 
-    for {
-      ref <- Ref.of[IO, Output](Output.empty)
-      _ <- streams(ref).interruptAfter(4.minutes).compile.drain
-      output <- ref.get
-    } yield output
+    KinesisFactory.resource[IO].use { factory =>
+      for {
+        ref <- Ref.of[IO, Output](Output.empty)
+        _ <- streams(ref, factory).interruptAfter(4.minutes).compile.drain
+        output <- ref.get
+      } yield output
+    }
   }
 
   private def enrichedProcessor(ref: Ref[IO, Output]): EventProcessor[IO] =

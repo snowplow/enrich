@@ -32,8 +32,7 @@ import com.snowplowanalytics.iglu.core.SelfDescribingData
 
 import com.snowplowanalytics.snowplow.runtime.{AppHealth, AppInfo}
 import com.snowplowanalytics.snowplow.runtime.HttpClient.{Config => HttpClientConfig}
-import com.snowplowanalytics.snowplow.sinks.{Sink, Sinkable}
-import com.snowplowanalytics.snowplow.sources.{EventProcessingConfig, EventProcessor, SourceAndAck, TokenedEvents}
+import com.snowplowanalytics.snowplow.streams.{EventProcessingConfig, EventProcessor, Sink, Sinkable, SourceAndAck, TokenedEvents}
 
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter

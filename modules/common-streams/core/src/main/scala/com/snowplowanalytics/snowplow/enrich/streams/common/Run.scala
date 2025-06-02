@@ -25,8 +25,7 @@ import io.circe.Decoder
 
 import com.monovore.decline.Opts
 
-import com.snowplowanalytics.snowplow.sources.SourceAndAck
-import com.snowplowanalytics.snowplow.sinks.Sink
+import com.snowplowanalytics.snowplow.streams.Factory
 import com.snowplowanalytics.snowplow.runtime.{AppInfo, ConfigParser, LogUtils, Telemetry}
 
 import com.snowplowanalytics.snowplow.enrich.cloudutils.core.BlobClient
@@ -35,10 +34,9 @@ object Run {
 
   private implicit def logger[F[_]: Sync] = Slf4jLogger.getLogger[F]
 
-  def fromCli[F[_]: Async, SourceConfig: Decoder, SinkConfig: Decoder: OptionalDecoder, BlobClientsConfig: Decoder](
+  def fromCli[F[_]: Async, FactoryConfig: Decoder, SourceConfig: Decoder, SinkConfig: Decoder: OptionalDecoder, BlobClientsConfig: Decoder](
     appInfo: AppInfo,
-    toSource: SourceConfig => F[SourceAndAck[F]],
-    toSink: SinkConfig => Resource[F, Sink[F]],
+    toFactory: FactoryConfig => Resource[F, Factory[F, SourceConfig, SinkConfig]],
     toBlobClients: BlobClientsConfig => List[BlobClient[F]]
   ): Opts[F[ExitCode]] = {
     val configPathOpt = Opts.option[Path]("config", help = "path to config file")
@@ -46,14 +44,19 @@ object Run {
     val enrichmentsPathOpt = Opts.option[Path]("enrichments", help = "path to dir with enrichments config files")
     (configPathOpt, igluPathOpt, enrichmentsPathOpt).mapN {
       case (configPath, igluPath, enrichmentsPath) =>
-        fromConfigPaths(appInfo, toSource, toSink, toBlobClients, configPath, igluPath, enrichmentsPath)
+        fromConfigPaths(appInfo, toFactory, toBlobClients, configPath, igluPath, enrichmentsPath)
     }
   }
 
-  def fromConfigPaths[F[_]: Async, SourceConfig: Decoder, SinkConfig: Decoder: OptionalDecoder, BlobClientsConfig: Decoder](
+  def fromConfigPaths[
+    F[_]: Async,
+    FactoryConfig: Decoder,
+    SourceConfig: Decoder,
+    SinkConfig: Decoder: OptionalDecoder,
+    BlobClientsConfig: Decoder
+  ](
     appInfo: AppInfo,
-    toSource: SourceConfig => F[SourceAndAck[F]],
-    toSink: SinkConfig => Resource[F, Sink[F]],
+    toFactory: FactoryConfig => Resource[F, Factory[F, SourceConfig, SinkConfig]],
     toBlobClients: BlobClientsConfig => List[BlobClient[F]],
     pathToConfig: Path,
     pathToResolver: Path,
@@ -61,12 +64,12 @@ object Run {
   ): F[ExitCode] = {
 
     val eitherT = for {
-      config <- ConfigParser.configFromFile[F, Config[SourceConfig, SinkConfig, BlobClientsConfig]](pathToConfig)
+      config <- ConfigParser.configFromFile[F, Config[FactoryConfig, SourceConfig, SinkConfig, BlobClientsConfig]](pathToConfig)
       resolver <- ConfigParser.igluResolverFromFile(pathToResolver)
       enrichments <- Config.mkEnrichmentsJson(pathToEnrichments)
 
       fullConfig = Config.Full(config, resolver, enrichments)
-      _ <- EitherT.right[String](fromConfig(appInfo, toSource, toSink, toBlobClients, fullConfig))
+      _ <- EitherT.right[String](fromConfig(appInfo, toFactory, toBlobClients, fullConfig))
     } yield ExitCode.Success
 
     eitherT
@@ -80,14 +83,13 @@ object Run {
       }
   }
 
-  private def fromConfig[F[_]: Async, SourceConfig, SinkConfig, BlobClientsConfig](
+  private def fromConfig[F[_]: Async, FactoryConfig, SourceConfig, SinkConfig, BlobClientsConfig](
     appInfo: AppInfo,
-    toSource: SourceConfig => F[SourceAndAck[F]],
-    toSink: SinkConfig => Resource[F, Sink[F]],
+    toFactory: FactoryConfig => Resource[F, Factory[F, SourceConfig, SinkConfig]],
     toBlobClients: BlobClientsConfig => List[BlobClient[F]],
-    config: Config.Full[SourceConfig, SinkConfig, BlobClientsConfig]
+    config: Config.Full[FactoryConfig, SourceConfig, SinkConfig, BlobClientsConfig]
   ): F[ExitCode] =
-    Environment.fromConfig(config, appInfo, toSource, toSink, toBlobClients).use { env =>
+    Environment.fromConfig(config, appInfo, toFactory, toBlobClients).use { env =>
       Processing
         .stream(env)
         .concurrently(Telemetry.stream(config.main.telemetry, env.appInfo, env.httpClient))

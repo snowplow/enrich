@@ -1,3 +1,27 @@
+5.4.0 (2025-06-02)
+------------------
+Update GitHub workflows (#32)
+Start refactoring with common-streams (#30)
+Remove feature flags `legacyEnrichmentOrder` and `tryBase64Decoding` (#33)
+Collector tstamp is not an Option (#34)
+Remove ShiftExecution (#35)
+ThriftLoader deserialize directly from a ByteBuffer (#39)
+Replace all Instant.now() with Sync[F].realTime (#40)
+Remove unused method for converting EnrichedEvent to JSON (#41)
+Do not use reflection (#43)
+Allow erasing derived contexts in JS enrichment (#45)
+EnrichedEvent should store self-describing fields as parsed Json (#44)
+Fix bad row message on invalid thrift (#46)
+Update sync-public-main (#47)
+Java 21 for docker images (#18)
+Implementation of automated snowman tests (#65)
+Fix pii enrichment config example (#71)
+common-streams: add the execution of enrichments (#37)
+common-streams: parse field names in Config instead of Environment (#69)
+Exit at the start if there is an error during compilation of JS enrichment (#70)
+Port metadata feature to common-streams version of Enrich (#66)
+Add unit test for JS enrichment that uses various Java packages in the JS script (#73)
+
 5.3.0 (2025-03-18)
 ------------------
 Add a method to drop events

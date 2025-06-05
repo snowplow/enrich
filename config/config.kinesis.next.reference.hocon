@@ -56,7 +56,7 @@
 
   "output": {
 
-    "enriched": {
+    "good": {
       # -- Output kinesis stream for enriched events
       "streamName": "snowplow-enriched"
 

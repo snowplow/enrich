@@ -89,7 +89,7 @@ object Config {
   )
 
   case class Output[+Sink](
-    enriched: SinkWithMetadata[Sink],
+    good: SinkWithMetadata[Sink],
     failed: Option[SinkWithMetadata[Sink]],
     bad: SinkWithMetadata[Sink]
   )

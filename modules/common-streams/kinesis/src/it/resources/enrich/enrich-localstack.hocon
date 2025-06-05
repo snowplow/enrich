@@ -13,7 +13,7 @@
   }
 
   "output": {
-    "enriched": {
+    "good": {
       "streamName": ${STREAM_ENRICHED}
       "customEndpoint": ${LOCALSTACK_ENDPOINT}
     }

@@ -94,7 +94,7 @@ object Environment {
       sourceReporter = sourceAndAck.isHealthy(config.main.monitoring.healthProbe.unhealthyLatency).map(_.showIfUnhealthy)
       appHealth <- Resource.eval(AppHealth.init[F, String, RuntimeService](List(sourceReporter)))
       _ <- HealthProbe.resource(config.main.monitoring.healthProbe.port, appHealth)
-      enrichedSink <- factory.sink(config.main.output.enriched.sink).onError {
+      enrichedSink <- factory.sink(config.main.output.good.sink).onError {
                         case _ => Resource.eval(appHealth.beUnhealthyForRuntimeService(RuntimeService.EnrichedSink))
                       }
       failedSink <- config.main.output.failed.traverse { sinkConfig =>
@@ -138,15 +138,15 @@ object Environment {
       badSink = badSink,
       metrics = metrics,
       cpuParallelism = cpuParallelism,
-      sinkMaxSize = config.main.output.enriched.maxRecordSize,
+      sinkMaxSize = config.main.output.good.maxRecordSize,
       adapterRegistry = adapterRegistry,
       enrichmentRegistry = enrichmentRegistry,
       igluClient = igluClient,
       httpClient = httpClient,
       registryLookup = registryLookup,
       validation = config.main.validation,
-      partitionKeyField = config.main.output.enriched.partitionKey,
-      attributeFields = config.main.output.enriched.attributes,
+      partitionKeyField = config.main.output.good.partitionKey,
+      attributeFields = config.main.output.good.attributes,
       metadata = metadata
     )
 

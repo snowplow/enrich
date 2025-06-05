@@ -93,7 +93,7 @@ object KinesisConfigSpec {
       debounceCheckpoints = 10.seconds
     ),
     output = Config.Output(
-      enriched = Config.SinkWithMetadata(
+      good = Config.SinkWithMetadata(
         sink = KinesisSinkConfigM[Id](
           streamName = "snowplow-enriched",
           throttledBackoffPolicy = BackoffPolicy(minBackoff = 100.millis, maxBackoff = 1.second),
@@ -166,7 +166,7 @@ object KinesisConfigSpec {
       debounceCheckpoints = 10.seconds
     ),
     output = Config.Output(
-      enriched = Config.SinkWithMetadata(
+      good = Config.SinkWithMetadata(
         sink = KinesisSinkConfigM[Id](
           streamName = "snowplow-enriched",
           throttledBackoffPolicy = BackoffPolicy(minBackoff = 100.millis, maxBackoff = 1.second),

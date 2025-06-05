@@ -50,7 +50,9 @@ class ProcessingSpec extends Specification with CatsEffect {
     Emit bad rows for malformed events $e3
     Allow Javascript enrichment to drop events $e4
     Enrich with API enrichment $e5
-    Refresh IP lookups assets $e6
+    Crash if JS script is invalid and exitOnJsCompileError is true $e6
+    Emit failed events and bad rows if JS script is invalid and exitOnJsCompileError is false $e7
+    Refresh IP lookups assets $e8
   """
 
   def e1 = {
@@ -361,6 +363,111 @@ class ProcessingSpec extends Specification with CatsEffect {
   }
 
   def e6 = {
+    val script = """
+      function process(event, params) {
+          return [ ;
+        }
+      }""".getBytes(UTF_8)
+    val config = parser
+      .parse(s"""{
+      "parameters": {
+        "script": "${Base64.getEncoder.encodeToString(script)}"
+      }
+    }""")
+      .toOption
+      .get
+    val schemaKey = SchemaKey(
+      "com.snowplowanalytics.snowplow",
+      "javascript_script_config",
+      "jsonschema",
+      SchemaVer.Full(1, 0, 0)
+    )
+    val jsEnrichConf =
+      JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
+
+    val io = runTest(etlTstamp, Stream.empty, List(jsEnrichConf), exitOnJsCompileError = true) {
+      case control => Processing.stream(control.environment).compile.drain
+    }.attempt.map {
+      case Left(err) if err.getMessage.contains("Can't build enrichments registry: Error compiling JavaScript function") => ok
+      case Left(_) => ko("Environment crashed with unexpected error")
+      case Right(_) => ko("Environment didn't crash")
+    }
+
+    TestControl.executeEmbed(io)
+  }
+
+  def e7 = {
+    val eventId = UUID.randomUUID
+
+    val input = GoodBatch(List(pageView(eventId)))
+
+    val expectedFailed =
+      List(
+        Failed(
+          expectedFailedJavascript(eventId),
+          None,
+          Map("app_id" -> "test_app")
+        )
+      )
+
+    val expectedBad =
+      List(
+        Bad(
+          expectedBadJavascript(eventId),
+          None,
+          Map.empty
+        )
+      )
+
+    val script = """
+      function process(event, params) {
+          return [ ;
+        }
+      }""".getBytes(UTF_8)
+    val config = parser
+      .parse(s"""{
+      "parameters": {
+        "script": "${Base64.getEncoder.encodeToString(script)}"
+      }
+    }""")
+      .toOption
+      .get
+    val schemaKey = SchemaKey(
+      "com.snowplowanalytics.snowplow",
+      "javascript_script_config",
+      "jsonschema",
+      SchemaVer.Full(1, 0, 0)
+    )
+    val jsEnrichConf =
+      JavascriptScriptEnrichment.parse(config, schemaKey).toOption.get
+
+    val io =
+      for {
+        token <- IO.unique
+        inputStream = mkGoodStream((input, token))
+        assertion <- runTest(etlTstamp, inputStream, List(jsEnrichConf), exitOnJsCompileError = false) {
+                       case control =>
+                         for {
+                           _ <- Processing.stream(control.environment).compile.drain
+                           state <- control.state.get
+                         } yield state should beEqualTo(
+                           Vector(
+                             Action.AddedRawCountMetric(1),
+                             Action.SetE2ELatencyMetric(Duration(etlLatency.toMinutes, MINUTES)),
+                             Action.SentToFailed(expectedFailed),
+                             Action.AddedFailedCountMetric(1),
+                             Action.SentToBad(expectedBad),
+                             Action.AddedBadCountMetric(1),
+                             Action.Checkpointed(List(token))
+                           )
+                         )
+                     }
+      } yield assertion
+
+    TestControl.executeEmbed(io)
+  }
+
+  def e8 = {
     val eventId = UUID.randomUUID
 
     val input = GoodBatch(List(pageView(eventId)))
@@ -454,12 +561,13 @@ object ProcessingSpec {
     etlTstamp: Instant,
     input: Stream[IO, TokenedEvents],
     enrichmentsConfs: List[EnrichmentConf] = Nil,
-    mocks: Mocks = Mocks.default
+    mocks: Mocks = Mocks.default,
+    exitOnJsCompileError: Boolean = true
   )(
     f: MockEnvironment => IO[A]
   ): IO[A] =
     IO.sleep(etlTstamp.toEpochMilli.millis) >>
-      MockEnvironment.build(input, enrichmentsConfs, mocks).use { env =>
+      MockEnvironment.build(input, enrichmentsConfs, mocks, exitOnJsCompileError).use { env =>
         f(env)
       }
 }

@@ -25,6 +25,7 @@ import org.joda.time.DateTime
 import org.joda.time.DateTimeZone
 
 import cats.implicits._
+import cats.data.NonEmptyList
 
 import cats.effect.IO
 import cats.effect.kernel.Unique
@@ -34,7 +35,8 @@ import fs2.{Chunk, Stream}
 import io.circe.Json
 import io.circe.parser
 
-import com.snowplowanalytics.snowplow.badrows.{BadRow, Failure, FailureDetails, NVP, Payload, Processor}
+import com.snowplowanalytics.snowplow.badrows._
+import com.snowplowanalytics.snowplow.badrows.FailureDetails._
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
@@ -104,7 +106,7 @@ object EventUtils {
         event = Some(pageViewType.full),
         user_ipaddress = Some(EventUtils.ip),
         derived_tstamp = Some(collectorTstamp),
-        event_vendor = Some(EventUtils.vendor),
+        event_vendor = Some(vendor),
         event_name = Some(pageViewType.full),
         event_format = Some("jsonschema"),
         event_version = Some("1-0-0")
@@ -135,6 +137,12 @@ object EventUtils {
         user_ipaddress = Some(EventUtils.ip),
         derived_tstamp = Some(collectorTstamp),
         derived_contexts = Contexts(List(failureAddToCart))
+      )
+
+  def expectedFailedJavascript(eventId: UUID) =
+    expectedPageView(eventId)
+      .copy(
+        derived_contexts = Contexts(List(failureJavascript))
       )
 
   def expectedBadSV(eventId: UUID) = {
@@ -225,6 +233,67 @@ object EventUtils {
     BadRow.CPFormatViolation(processor, failure, payload)
   }
 
+  def expectedBadJavascript(eventId: UUID) = {
+    val processor = Processor(MockEnvironment.appInfo.name, MockEnvironment.appInfo.version)
+    val failure = Failure.EnrichmentFailures(
+      etlTstamp,
+      messages = NonEmptyList.one(
+        FailureDetails.EnrichmentFailure(
+          Some(
+            EnrichmentInformation(
+              SchemaKey("com.snowplowanalytics.snowplow", "javascript_script_config", "jsonschema", SchemaVer.Full(1, 0, 0)),
+              "Javascript enrichment"
+            )
+          ),
+          EnrichmentFailureMessage.Simple(
+            "Error compiling JavaScript function: [<eval>:3:19 Expected an operand but found ;\n          return [ ;\n                   ^ in <eval> at line number 3 at column number 19]"
+          )
+        )
+      )
+    )
+
+    val enriched = new EnrichedEvent
+    enriched.app_id = appID
+    enriched.etl_tstamp = EventEnrichments.toTimestamp(new DateTime(etlTstamp.toEpochMilli))
+    enriched.collector_tstamp = EventEnrichments.toTimestamp(new DateTime(collectorTstamp.toEpochMilli))
+    enriched.event = pageViewType.full
+    enriched.event_id = eventId.toString
+    enriched.v_collector = collectorName
+    enriched.v_etl = vEtl
+    enriched.user_ipaddress = ip
+    enriched.derived_contexts = List(failureJavascript)
+    enriched.derived_tstamp = enriched.collector_tstamp
+    enriched.event_vendor = vendor
+    enriched.event_name = pageViewType.full
+    enriched.event_format = "jsonschema"
+    enriched.event_version = "1-0-0"
+
+    val raw = Payload.RawEvent(
+      vendor = vendor,
+      version = vendorVersion,
+      parameters = List(
+        NVP("eid", Some(eventId.toString)),
+        NVP("e", Some(pageViewType.short)),
+        NVP("aid", Some(appID))
+      ),
+      contentType = None,
+      loaderName = collectorName,
+      encoding = collectorEncoding,
+      hostname = Some(collectorHostname),
+      timestamp = Some(new DateTime(collectorTstamp.toEpochMilli, DateTimeZone.UTC)),
+      ipAddress = Some(ip),
+      useragent = None,
+      refererUri = None,
+      headers = Nil,
+      userId = None
+    )
+    val payload = Payload.EnrichmentPayload(
+      EnrichedEvent.toPartiallyEnrichedEvent(enriched),
+      raw
+    )
+    BadRow.EnrichmentFailures(processor, failure, payload)
+  }
+
   val collectorTstamp = Instant.parse("2025-04-30T10:00:00.000Z")
   val etlLatency = 5.minutes
   val etlTstamp = collectorTstamp.plus(etlLatency.toMinutes, ChronoUnit.MINUTES)
@@ -261,30 +330,51 @@ object EventUtils {
     {
       "failureType" : "ValidationError",
       "errors" : [
-      {
-        "message" : "$$.sku: is missing but it is required",
-        "source" : "unstruct",
-        "path" : "$$",
-        "keyword" : "required",
-        "targets" : [
-          "sku"
-        ]
-      },
-      {
-        "message" : "$$.skuu: is not defined in the schema and the schema does not allow additional properties",
-        "source" : "unstruct",
-        "path" : "$$",
-        "keyword" : "additionalProperties",
-        "targets" : [
-          "skuu"
-        ]
-      }
+        {
+          "message" : "$$.sku: is missing but it is required",
+          "source" : "unstruct",
+          "path" : "$$",
+          "keyword" : "required",
+          "targets" : [
+            "sku"
+          ]
+        },
+        {
+          "message" : "$$.skuu: is not defined in the schema and the schema does not allow additional properties",
+          "source" : "unstruct",
+          "path" : "$$",
+          "keyword" : "additionalProperties",
+          "targets" : [
+            "skuu"
+          ]
+        }
       ],
       "schema" : "iglu:com.snowplowanalytics.snowplow/add_to_cart/jsonschema/1-0-0",
       "data" : {
         "skuu" : "pedals",
         "quantity" : 2
       },
+      "timestamp" : "$etlTstamp",
+      "componentName" : "${MockEnvironment.appInfo.name}",
+      "componentVersion" : "${MockEnvironment.appInfo.version}"
+    }""")
+      .toOption
+      .get
+  )
+
+  val failureJavascript: SelfDescribingData[Json] = SelfDescribingData(
+    SchemaKey("com.snowplowanalytics.snowplow", "failure", "jsonschema", SchemaVer.Full(1, 0, 0)),
+    parser
+      .parse(s"""
+    {
+      "failureType" : "EnrichmentError: Javascript enrichment",
+      "errors" : [
+        {
+          "message" : "Error compiling JavaScript function: [<eval>:3:19 Expected an operand but found ;\\n          return [ ;\\n                   ^ in <eval> at line number 3 at column number 19]"
+        }
+      ],
+      "schema" : "iglu:com.snowplowanalytics.snowplow/javascript_script_config/jsonschema/1-0-0",
+      "data" : null,
       "timestamp" : "$etlTstamp",
       "componentName" : "${MockEnvironment.appInfo.name}",
       "componentVersion" : "${MockEnvironment.appInfo.version}"

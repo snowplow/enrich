@@ -87,7 +87,8 @@ object MockEnvironment {
   def build(
     inputs: Stream[IO, TokenedEvents],
     enrichmentsConfs: List[EnrichmentConf] = Nil,
-    mocks: Mocks = Mocks.default
+    mocks: Mocks = Mocks.default,
+    exitOnJsCompileError: Boolean = true
   ): Resource[IO, MockEnvironment] =
     for {
       state <- Resource.eval(Ref[IO].of(Vector.empty[Action]))
@@ -104,9 +105,10 @@ object MockEnvironment {
                                 apiEnrichmentClient,
                                 ipLookupEC,
                                 sqlEC,
-                                exitOnJsCompileError = true
+                                exitOnJsCompileError
                               )
                             )
+      _ <- Resource.eval(enrichmentRegistry.opened.use_)
       igluClient <- Resource.eval(IgluCirceClient.fromResolver(Resolver[IO](Nil, None), 0, 40))
     } yield {
       val env = Environment(

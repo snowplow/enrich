@@ -1,0 +1,192 @@
+{
+  # -- Full license text available in LICENSE.md
+  "license" {
+    "accept": true
+  }
+
+  "input": {
+    # -- pubsub subscription for the source of ollector payloads
+    "subscription": "projects/myproject/subscriptions/snowplow-collector-payloads"
+
+    # -- Controls how many threads are used internally by the pubsub client library for fetching events.
+    # -- The number of threads is equal to this factor multiplied by the number of availble cpu cores
+    "parallelPullFactor": 0.5
+
+    # -- Pubsub ack deadlines are extended for this duration when needed.
+    "durationPerAckExtension": "60 seconds"
+
+    # -- Controls when ack deadlines are re-extended, for a message that is close to exceeding its ack deadline.
+    # -- For example, if `durationPerAckExtension` is `60 seconds` and `minRemainingAckDeadline` is `0.1` then the Source
+    # -- will wait until there is `6 seconds` left of the remining deadline, before re-extending the message deadline.
+    "minRemainingAckDeadline": 0.1
+
+    # -- How many pubsub messages to pull from the server in a single request.
+    "maxMessagesPerPull": 1000
+
+    # -- Adds an artifical delay between consecutive requests to pubsub for more messages.
+    # -- Under some circumstances, this was found to slightly alleviate a problem in which pubsub might re-deliver
+    # -- the same messages multiple times.
+    "debounceRequests": "100 millis"
+  }
+
+  "output": {
+
+    "good": {
+      # -- Output pubsub topic for enriched events
+      "topic": "projects/myproject/topics/snowplow-enriched"
+
+      # Optional. Enriched event fields to add as PubSub message attributes.
+      "attributes": [ "app_id" ]
+
+      # -- Failed events are sent to pubsub in batches not exceeding this size.
+      "batchSize": 100
+      # -- Failed events are sent to pubsub in batches not exceeding this size number of bytes
+      "requestByteThreshold": 1000000
+    }
+
+    "failed": {
+      # -- Output pubsub topic for failed events that could not be validated or enriched (TSV)
+      "topic": "projects/myproject/topics/snowplow-failed"
+
+      # -- Failed events are sent to pubsub in batches not exceeding this size.
+      "batchSize": 100
+      # -- Failed events are sent to pubsub in batches not exceeding this size number of bytes
+      "requestByteThreshold": 1000000
+    }
+
+    "bad": {
+      # -- Output pubsub topic for bad rows (JSON)
+      "topic": "projects/myproject/topics/snowplow-bad"
+
+      # -- Bad events are sent to pubsub in batches not exceeding this size.
+      "batchSize": 100
+      # -- Bad events are sent to pubsub in batches not exceeding this size number of bytes
+      "requestByteThreshold": 1000000
+    }
+  }
+
+  # -- Controls how the app splits the workload into concurrent batches which can be run in parallel
+  # -- E.g. If there are 4 available processors, and cpuParallelismFactor = 0.75, then we process 3 batches concurrently.
+  # -- Adjusting this value can cause the app to use more or less of the available CPU.
+  # -- Steps with parallelism: parsing input bytes, validating and enriching, serializing output records
+  "cpuParallelismFraction": 0.75
+
+  "monitoring": {
+
+    "metrics": {
+      # -- Send runtime metrics to a statsd server
+      "statsd": {
+        "hostname": "127.0.0.1"
+        "port": 8125
+
+        # -- Map of key/value pairs to be send along with the metric
+        "tags": {
+          "env": "prod"
+        }
+
+        # -- How often to report metrics
+        "period": "1 minute"
+
+        # -- Prefix used for the metric name when sending to statsd
+        "prefix": "snowplow.enrich"
+      }
+    }
+
+    # -- Report unexpected runtime exceptions to Sentry
+    "sentry": {
+      "dsn": "https://public@sentry.example.com/1"
+
+      # -- Map of key/value pairs to be included as tags
+      "tags": {
+        "myTag": "xyz"
+      }
+    }
+
+    # -- Open a HTTP server that returns OK only if the app is healthy
+    "healthProbe": {
+      "port": 8000
+
+      # -- Health probe becomes unhealthy if any received event is still not fully processed before
+      # -- this cutoff time
+      "unhealthyLatency": "2 minutes"
+    }
+  }
+
+  # -- Period after which enrich assets should be checked for updates
+  "assetsUpdatePeriod": "7 days"
+
+  # -- Configuration of internal http client used for iglu resolver, alerts, telemetry and metadata
+  "http": {
+    "client": {
+      "maxConnectionsPerServer": 4
+    }
+  }
+
+  "validation" : {
+
+    # When set to true, events with fields too long still get emitted as valid enriched events
+    # WARNING: this feature flag will be removed in a future version
+    "acceptInvalid": false
+
+    # Override default maximum atomic fields (strings) length
+    # Map-like structure with keys being field names and values being their max allowed length
+    "atomicFieldsLimits": {
+        "app_id": 5
+        "mkt_clickid": 100000
+        # ...and any other 'atomic' field with custom limit
+    }
+
+    # Maximum allowed depth for the JSON entities in the events. The default value is 40
+    # Event will be sent to bad row stream if it contains JSON entity with a depth that exceeds this value
+    "maxJsonDepth": 50
+
+    # Default is true.
+    # If it is set to true, Enrich will exit with error if JS enrichment
+    # script is invalid.
+    # If it is set to false, Enrich will continue to run if JS enrichment
+    # script is invalid but every event will end up as bad row.
+    "exitOnJsCompileError": true
+  }
+
+  # Optional. Configure telemetry
+  "telemetry": {
+
+    # Set to true to disable telemetry
+    "disable": false
+
+    # Interval for the heartbeat event
+    "interval": 15 minutes
+
+    # URI of the collector receiving the heartbeat event
+    "collectorUri": collector-g.snowplowanalytics.com
+
+    # Identifier intended to tie events together across modules,
+    # infrastructure and apps when used consistently
+    "userProvidedId": my_pipeline
+
+    # ID automatically generated upon running a modules deployment script
+    # Intended to identify each independent module, and the infrastructure it controls
+    "autoGeneratedId": hfy67e5ydhtrd
+
+    # Unique identifier for the VM instance
+    # Unique for each instance of the app running within a module
+    "instanceId": 665bhft5u6udjf
+
+    # Name of the terraform module that deployed the app
+    "moduleName": enrich-kinesis-ce
+
+    # Version of the terraform module that deployed the app
+    "moduleVersion": 1.0.0
+  }
+
+  # Optional. Whether to export metadata using a webhook URL
+  # Follows iglu-webhook protocol
+  "metadata": {
+    "endpoint": "https://my_pipeline.my_domain.com/iglu"
+    "interval": 5 minutes
+    "organizationId": "c5f3a09f-75f8-4309-bec5-fea560f78455"
+    "pipelineId": "75a13583-5c99-40e3-81fc-541084dfc784"
+    # Maximum body size for the payloads sent to the endpoint
+    "maxBodySize": 150000
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "license": {
+    "accept": true
+  }
+
+  "input": {
+    "subscription": "projects/myproject/subscriptions/snowplow-collector-payloads"
+  }
+
+  "output": {
+    "good": {
+      "topic": "projects/myproject/topics/snowplow-enriched"
+    }
+
+    "bad": {
+      "topic": "projects/myproject/topics/snowplow-bad"
+    }
+  }
+}

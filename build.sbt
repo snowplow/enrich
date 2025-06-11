@@ -78,6 +78,13 @@ lazy val gcpUtils = project
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(commonFs2 % "test->test;compile->compile")
 
+lazy val gcpUtilsStreams = project
+  .in(file("modules/common-streams/cloudutils/gcp"))
+  .settings(gcpUtilsStreamsBuildSettings)
+  .settings(libraryDependencies ++= gcpUtilsDependencies)
+  .settings(addCompilerPlugin(betterMonadicFor))
+  .dependsOn(cloudUtilsStreams % "compile->compile")
+
 lazy val azureUtils = project
   .in(file("modules/cloudutils/azure"))
   .settings(azureUtilsBuildSettings)
@@ -107,6 +114,29 @@ lazy val pubsubDistroless = project
   .dependsOn(common % "compile->compile;test->test")
   .dependsOn(commonFs2 % "test->test;compile->compile")
   .dependsOn(gcpUtils % "compile->compile")
+
+lazy val pubsubStreams = project
+  .in(file("modules/common-streams/pubsub"))
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDockerPlugin)
+  .settings(pubsubStreamsBuildSettings)
+  .settings(libraryDependencies ++= pubsubStreamsDependencies)
+  .settings(excludeDependencies ++= exclusions)
+  .settings(addCompilerPlugin(betterMonadicFor))
+  .dependsOn(common % "compile->compile;test->test")
+  .dependsOn(commonStreams % "compile->compile")
+  .dependsOn(gcpUtilsStreams % "compile->compile")
+
+lazy val pubsubStreamsDistroless = project
+  .in(file("modules/distroless/streams/pubsub"))
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDistrolessDockerPlugin)
+  .settings(sourceDirectory := (pubsubStreams / sourceDirectory).value)
+  .settings(pubsubStreamsDistrolessBuildSettings)
+  .settings(libraryDependencies ++= pubsubStreamsDependencies)
+  .settings(excludeDependencies ++= exclusions)
+  .settings(addCompilerPlugin(betterMonadicFor))
+  .dependsOn(common % "compile->compile;test->test")
+  .dependsOn(commonStreams % "compile->compile")
+  .dependsOn(gcpUtilsStreams % "compile->compile")
 
 lazy val kinesis = project
   .in(file("modules/kinesis"))

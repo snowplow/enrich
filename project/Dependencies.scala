@@ -167,6 +167,7 @@ object Dependencies {
 
     val streams         = "com.snowplowanalytics" %% "streams-core"   % V.streams
     val kinesisSnowplow = "com.snowplowanalytics" %% "kinesis"        % V.streams
+    val pubsubSnowplow  = "com.snowplowanalytics" %% "pubsub"         % V.streams
     val runtime         = "com.snowplowanalytics" %% "runtime-common" % V.streams
 
     val specs2             = "org.specs2"             %% "specs2-core"                   % V.specs2            % Test
@@ -352,6 +353,10 @@ object Dependencies {
       protobuf, // for security vulnerabilities
       specs2,
       specs2CE
+    )
+
+    val pubsubStreamsDependencies = Seq(
+      pubsubSnowplow
     )
 
     val kinesisDependencies = Seq(

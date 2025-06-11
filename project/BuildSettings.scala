@@ -74,6 +74,12 @@ object BuildSettings {
     description := "GCP specific utils"
   )
 
+  lazy val gcpUtilsStreamsProjectSettings = projectSettings ++ Seq(
+    name := "snowplow-enrich-gcp-utils-streams",
+    moduleName := "snowplow-enrich-gcp-utils-streams",
+    description := "GCP specific utils"
+  )
+
   lazy val azureUtilsProjectSettings = projectSettings ++ Seq(
     name := "snowplow-enrich-azure-utils",
     moduleName := "snowplow-enrich-azure-utils",
@@ -86,6 +92,15 @@ object BuildSettings {
     description := "High-performance streaming enrich app working with Pub/Sub, built on top of functional streams",
     buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
     buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.pubsub.generated"
+  )
+
+  lazy val pubsubStreamsProjectSettings = projectSettings ++ Seq(
+    name := "snowplow-enrich-pubsub-streams",
+    moduleName := "snowplow-enrich-pubsub-streams",
+    description := "Enrich application for Pubsub built on top of common-streams",
+    buildInfoOptions += BuildInfoOption.Traits("com.snowplowanalytics.snowplow.runtime.AppInfo"),
+    buildInfoKeys := Seq[BuildInfoKey](name, version, dockerAlias, BuildInfoKey("cloud" -> "GCP")),
+    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.streams.pubsub"
   )
 
   lazy val kinesisProjectSettings = projectSettings ++ Seq(
@@ -270,6 +285,13 @@ object BuildSettings {
     noParallelTestExecution ++ addExampleConfToTestCp
   }
 
+  lazy val gcpUtilsStreamsBuildSettings = {
+    // Project
+    gcpUtilsStreamsProjectSettings ++ buildSettings ++
+      // Tests
+      noParallelTestExecution ++ addExampleConfToTestCp
+  }
+
   lazy val azureUtilsBuildSettings = {
     // Project
     azureUtilsProjectSettings ++ buildSettings ++
@@ -288,6 +310,23 @@ object BuildSettings {
   }
 
   lazy val pubsubDistrolessBuildSettings = pubsubBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
+
+  lazy val pubsubStreamsBuildSettings = {
+    // Project
+    pubsubStreamsProjectSettings ++ buildSettings ++
+      // Build and publish
+      dockerSettingsFocal ++
+      Seq(Docker / packageName := "snowplow-enrich-pubsub") ++
+      Seq(Docker / version := s"${version.value}-next") ++
+      // Tests
+      noParallelTestExecution ++ Seq(Test / fork := true) ++ Seq(
+      Test / unmanagedClasspath += {
+        baseDirectory.value.getParentFile.getParentFile.getParentFile / "config"
+      }
+    )
+  }
+
+  lazy val pubsubStreamsDistrolessBuildSettings = pubsubStreamsBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
 
   lazy val kinesisBuildSettings = {
     // Project

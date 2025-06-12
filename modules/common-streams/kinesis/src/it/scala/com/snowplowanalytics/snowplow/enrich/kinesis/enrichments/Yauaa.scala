@@ -11,6 +11,7 @@
 package com.snowplowanalytics.snowplow.enrich.streams.kinesis.enrichments
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.YauaaEnrichment
+import com.snowplowanalytics.snowplow.enrich.streams.common.Enrichment
 
 case object Yauaa extends Enrichment {
   val fileName = "yauaa_enrichment_config.json"

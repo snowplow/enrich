@@ -19,12 +19,15 @@ jobs:
           - kinesis
           - kinesisStreams
           - kafka
+          - kafkaStreams
           - nsq
         include:
           - run_snyk: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc') }}
           - app: kinesisStreams
             isCommonStreams: true
           - app: pubsubStreams
+            isCommonStreams: true
+          - app: kafkaStreams
             isCommonStreams: true
     steps:
     - uses: actions/checkout@v4

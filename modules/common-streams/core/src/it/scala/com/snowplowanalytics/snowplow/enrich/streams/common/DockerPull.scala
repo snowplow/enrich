@@ -8,7 +8,7 @@
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
-package com.snowplowanalytics.snowplow.enrich.streams.kinesis
+package com.snowplowanalytics.snowplow.enrich.streams.common
 
 import com.github.dockerjava.core.DockerClientBuilder
 import com.github.dockerjava.api.command.PullImageResultCallback

@@ -11,11 +11,8 @@
 package com.snowplowanalytics.snowplow.enrich.streams.kinesis
 
 import java.util.UUID
-import java.nio.file.{Files, Path, Paths}
-import java.nio.charset.StandardCharsets
-import java.nio.file.attribute.PosixFilePermission
+import java.nio.file.Path
 
-import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 
 import org.slf4j.LoggerFactory
@@ -35,7 +32,7 @@ import org.testcontainers.containers.output.Slf4jLogConsumer
 
 import com.dimafeng.testcontainers.GenericContainer
 
-import com.snowplowanalytics.snowplow.enrich.streams.kinesis.enrichments.Enrichment
+import com.snowplowanalytics.snowplow.enrich.streams.common.{Enrichment, Utils}
 
 object Containers extends CatsEffect {
 
@@ -148,7 +145,7 @@ object Containers extends CatsEffect {
 
     for {
       _ <- Resource.eval(createStreams(localstack, KinesisConfig.region, streams))
-      enrichmentsPath <- writeEnrichmentsConfigsToDisk(enrichments)
+      enrichmentsPath <- Utils.writeEnrichmentsConfigsToDisk(enrichments)
       container <- Resource.make(startContainerWithLogs(container(enrichmentsPath), testName))(c => IO.blocking(c.stop()))
     } yield container
   }
@@ -264,28 +261,4 @@ object Containers extends CatsEffect {
         )
       )
     }
-
-  private def writeEnrichmentsConfigsToDisk(enrichments: List[Enrichment]): Resource[IO, Path] =
-    for {
-      path <- Resource.make(IO.blocking(Files.createTempDirectory("")))(path => IO.blocking(Files.delete(path)))
-      allPermissions = Set(
-                         PosixFilePermission.OWNER_READ,
-                         PosixFilePermission.OWNER_WRITE,
-                         PosixFilePermission.OWNER_EXECUTE,
-                         PosixFilePermission.GROUP_READ,
-                         PosixFilePermission.GROUP_WRITE,
-                         PosixFilePermission.GROUP_EXECUTE,
-                         PosixFilePermission.OTHERS_READ,
-                         PosixFilePermission.OTHERS_WRITE,
-                         PosixFilePermission.OTHERS_EXECUTE
-                       ).asJava
-      _ <- Resource.eval(IO.blocking(Files.setPosixFilePermissions(path, allPermissions)))
-      _ <- enrichments.traverse { enrichment =>
-             val enrichmentPath = Paths.get(path.toAbsolutePath.toString, enrichment.fileName)
-             Resource.make(
-               IO.blocking(Files.write(enrichmentPath, enrichment.config.getBytes(StandardCharsets.UTF_8))) >>
-                 IO.blocking(Files.setPosixFilePermissions(enrichmentPath, allPermissions))
-             )(_ => IO.blocking(Files.delete(enrichmentPath)))
-           }
-    } yield path
 }

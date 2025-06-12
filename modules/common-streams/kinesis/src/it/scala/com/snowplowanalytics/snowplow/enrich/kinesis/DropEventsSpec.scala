@@ -18,7 +18,7 @@ import org.specs2.mutable.SpecificationLike
 import java.util.UUID
 import scala.concurrent.duration._
 
-import com.snowplowanalytics.snowplow.enrich.streams.common.CollectorPayloadGen
+import com.snowplowanalytics.snowplow.enrich.streams.common.{CollectorPayloadGen, DockerPull}
 import com.snowplowanalytics.snowplow.enrich.streams.kinesis.enrichments._
 import com.snowplowanalytics.snowplow.enrich.streams.kinesis.utils._
 

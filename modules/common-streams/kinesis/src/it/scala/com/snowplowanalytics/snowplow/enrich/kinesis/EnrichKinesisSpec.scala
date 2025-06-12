@@ -21,7 +21,7 @@ import cats.effect.testing.specs2.CatsResource
 
 import org.specs2.mutable.SpecificationLike
 
-import com.snowplowanalytics.snowplow.enrich.streams.common.CollectorPayloadGen
+import com.snowplowanalytics.snowplow.enrich.streams.common.{CollectorPayloadGen, DockerPull}
 
 import com.snowplowanalytics.snowplow.enrich.streams.kinesis.enrichments._
 import com.snowplowanalytics.snowplow.enrich.streams.kinesis.Containers.Localstack

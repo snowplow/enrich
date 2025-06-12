@@ -86,6 +86,12 @@ object BuildSettings {
     description := "Azure specific utils"
   )
 
+  lazy val azureUtilsStreamsProjectSettings = projectSettings ++ Seq(
+    name := "snowplow-enrich-azure-utils-streams",
+    moduleName := "snowplow-enrich-azure-utils-streams",
+    description := "Azure specific utils"
+  )
+
   lazy val pubsubProjectSettings = projectSettings ++ Seq(
     name := "snowplow-enrich-pubsub",
     moduleName := "snowplow-enrich-pubsub",
@@ -132,6 +138,15 @@ object BuildSettings {
     description := "High-performance streaming enrich app working with Kafka, built on top of functional streams",
     buildInfoKeys := Seq[BuildInfoKey](organization, name, version, description),
     buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.kafka.generated"
+  )
+
+  lazy val kafkaStreamsProjectSettings = projectSettings ++ Seq(
+    name := "snowplow-enrich-kafka-streams",
+    moduleName := "snowplow-enrich-kafka-streams",
+    description := "Enrich application for Kafka built on top of common-streams",
+    buildInfoOptions += BuildInfoOption.Traits("com.snowplowanalytics.snowplow.runtime.AppInfo"),
+    buildInfoKeys := Seq[BuildInfoKey](name, version, dockerAlias, BuildInfoKey("cloud" -> "Azure")),
+    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.streams.kafka"
   )
 
   lazy val nsqProjectSettings = projectSettings ++ Seq(
@@ -299,6 +314,13 @@ object BuildSettings {
     noParallelTestExecution ++ addExampleConfToTestCp
   }
 
+  lazy val azureUtilsStreamsBuildSettings = {
+    // Project
+    azureUtilsStreamsProjectSettings ++ buildSettings ++
+    // Tests
+    noParallelTestExecution ++ addExampleConfToTestCp
+  }
+
   lazy val pubsubBuildSettings = {
     // Project
     pubsubProjectSettings ++ buildSettings ++
@@ -368,6 +390,23 @@ object BuildSettings {
   }
 
   lazy val kafkaDistrolessBuildSettings = kafkaBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
+
+  lazy val kafkaStreamsBuildSettings = {
+    // Project
+    kafkaStreamsProjectSettings ++ buildSettings ++
+    // Build and publish
+    dockerSettingsFocal ++
+    Seq(Docker / packageName := "snowplow-enrich-kafka") ++
+    Seq(Docker / version := s"${version.value}-next") ++
+    // Tests
+    noParallelTestExecution ++ Seq(Test / fork := true) ++ Seq(
+      Test / unmanagedClasspath += {
+        baseDirectory.value.getParentFile.getParentFile.getParentFile / "config"
+      }
+    )
+  }
+
+  lazy val kafkaStreamsDistrolessBuildSettings = kafkaStreamsBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
 
   lazy val nsqBuildSettings = {
     // Project

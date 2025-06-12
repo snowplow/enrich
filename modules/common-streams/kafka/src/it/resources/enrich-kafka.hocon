@@ -1,0 +1,56 @@
+{
+  "license": {
+    "accept": true
+  }
+
+  "input": {
+    "topicName": ${TOPIC_RAW}
+    "bootstrapServers": ${KAFKA_ENDPOINT}
+    "consumerConf": {
+      "enable.auto.commit": "false"
+      "auto.offset.reset" : "earliest"
+      "security.protocol": "PLAINTEXT"
+      "sasl.mechanism": "GSSAPI"
+    }
+  }
+
+  "output": {
+    "good": {
+      "topicName": ${TOPIC_ENRICHED}
+      "bootstrapServers": ${KAFKA_ENDPOINT}
+      "producerConf": {
+        "acks": "all"
+        "security.protocol": "PLAINTEXT"
+        "sasl.mechanism": "GSSAPI"
+      }
+    }
+
+    "failed": {
+      "topicName": ${TOPIC_FAILED}
+      "bootstrapServers": ${KAFKA_ENDPOINT}
+      "producerConf": {
+        "acks": "all"
+        "security.protocol": "PLAINTEXT"
+        "sasl.mechanism": "GSSAPI"
+      }
+    }
+
+    "bad": {
+      "topicName": ${TOPIC_BAD}
+      "bootstrapServers": ${KAFKA_ENDPOINT}
+      "producerConf": {
+        "acks": "all"
+        "security.protocol": "PLAINTEXT"
+        "sasl.mechanism": "GSSAPI"
+      }
+    }
+  }
+
+  "blobClients": {
+    "accounts": []
+  }
+
+  "telemetry": {
+    "disable": true
+  }
+}

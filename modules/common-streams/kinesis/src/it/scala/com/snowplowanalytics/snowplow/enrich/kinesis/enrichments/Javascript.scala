@@ -13,6 +13,7 @@ package com.snowplowanalytics.snowplow.enrich.streams.kinesis.enrichments
 import java.util.Base64
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+import com.snowplowanalytics.snowplow.enrich.streams.common.Enrichment
 
 case object Javascript extends Enrichment {
   val fileName = "javascript_script_enrichment.json"

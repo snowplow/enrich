@@ -11,6 +11,7 @@
 package com.snowplowanalytics.snowplow.enrich.streams.kinesis.enrichments
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+import com.snowplowanalytics.snowplow.enrich.streams.common.Enrichment
 
 case object SqlQuery extends Enrichment {
   val fileName = "sql_query_enrichment_config.json"

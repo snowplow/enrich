@@ -5,64 +5,88 @@
   }
 
   "input": {
-    # -- pubsub subscription for the source of collector payloads
-    "subscription": "projects/myproject/subscriptions/snowplow-collector-payloads"
+    # -- kafka topic name for the source of collector payloads
+    "topicName": "snowplow-collector-payloads"
 
-    # -- Controls how many threads are used internally by the pubsub client library for fetching events.
-    # -- The number of threads is equal to this factor multiplied by the number of availble cpu cores
-    "parallelPullFactor": 0.5
+    # -- kafka bootstrap servers
+    "bootstrapServers": "localhost:9092"
 
-    # -- Pubsub ack deadlines are extended for this duration when needed.
-    "durationPerAckExtension": "60 seconds"
+    # -- How frequently to commit our progress back to kafka. By increasing this value,
+    # -- we decrease the number of requests made to the kafka broker
+    debounceCommitOffsets: "10 seconds"
 
-    # -- Controls when ack deadlines are re-extended, for a message that is close to exceeding its ack deadline.
-    # -- For example, if `durationPerAckExtension` is `60 seconds` and `minRemainingAckDeadline` is `0.1` then the Source
-    # -- will wait until there is `6 seconds` left of the remining deadline, before re-extending the message deadline.
-    "minRemainingAckDeadline": 0.1
-
-    # -- How many pubsub messages to pull from the server in a single request.
-    "maxMessagesPerPull": 1000
-
-    # -- Adds an artifical delay between consecutive requests to pubsub for more messages.
-    # -- Under some circumstances, this was found to slightly alleviate a problem in which pubsub might re-deliver
-    # -- the same messages multiple times.
-    "debounceRequests": "100 millis"
+    # -- Any valid Kafka consumer config options
+    consumerConf: {
+      "group.id": "enrich-kafka"
+      "enable.auto.commit": "false"
+      "allow.auto.create.topics": "false"
+      "auto.offset.reset": "earliest"
+    }
   }
 
   "output": {
 
     "good": {
-      # -- Output pubsub topic for enriched events
-      "topic": "projects/myproject/topics/snowplow-enriched"
+      # -- output kafka topic name for enriched events
+      "topicName": "snowplow-enriched"
 
-      # Optional. Enriched event fields to add as PubSub message attributes.
+      # -- kafka bootstrap servers
+      "bootstrapServers": "localhost:9092"
+
+      # -- any valid Kafka producer config options
+      "producerConf": {
+        "client.id": "enrich-kafka"
+      }
+
+      # -- optional. Partition key for the enriched events in Kafka
+      # If not set, a random UUID is used
+      "partitionKey": "user_id"
+
+      # -- optional. Enriched event fields to add as Kafka record headers.
       "attributes": [ "app_id" ]
-
-      # -- Enriched events are sent to pubsub in batches not exceeding this size.
-      "batchSize": 100
-      # -- Enriched events are sent to pubsub in batches not exceeding this size number of bytes
-      "requestByteThreshold": 1000000
     }
 
     "failed": {
-      # -- Output pubsub topic for failed events that could not be validated or enriched (TSV)
-      "topic": "projects/myproject/topics/snowplow-failed"
+      # -- output kafka topic name for failed events that could not be validated or enriched (TSV)
+      "topicName": "snowplow-failed"
 
-      # -- Failed events are sent to pubsub in batches not exceeding this size.
-      "batchSize": 100
-      # -- Failed events are sent to pubsub in batches not exceeding this size number of bytes
-      "requestByteThreshold": 1000000
+      # -- kafka bootstrap servers
+      "bootstrapServers": "localhost:9092"
+
+      # -- any valid Kafka producer config options
+      "producerConf": {
+        "client.id": "enrich-kafka"
+      }
     }
 
     "bad": {
-      # -- Output pubsub topic for bad rows (JSON)
-      "topic": "projects/myproject/topics/snowplow-bad"
+      # -- output kafka topic name for bad rows (JSON)
+      "topicName": "snowplow-bad"
 
-      # -- Bad events are sent to pubsub in batches not exceeding this size.
-      "batchSize": 100
-      # -- Bad events are sent to pubsub in batches not exceeding this size number of bytes
-      "requestByteThreshold": 1000000
+      # -- kafka bootstrap servers
+      "bootstrapServers": "localhost:9092"
+
+      # -- any valid Kafka producer config options
+      "producerConf": {
+        "client.id": "enrich-kafka"
+      }
     }
+
+  }
+
+  # Configuration for Azure blob storage client configuration
+  # used to download enrichment resources
+  "blobClients": {
+    "accounts": [
+      # Example public account with no auth
+      { "name": "storageAccount1"},
+
+      # Example private account using default auth chain -> https://learn.microsoft.com/en-us/java/api/com.azure.identity.defaultazurecredential?view=azure-java-stable
+      { "name": "storageAccount2", "auth": { "type": "default"} },
+
+      # Example private account using SAS token auth
+      { "name": "storageAccount3",  "auth": { "type": "sas", "value": "tokenValue"}}
+    ]
   }
 
   # -- Controls how the app splits the workload into concurrent batches which can be run in parallel

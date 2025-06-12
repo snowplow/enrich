@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-present Snowplow Analytics Ltd.
+ * Copyright (c) 2012-present Snowplow Analytics Ltd.
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
@@ -8,12 +8,11 @@
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
-package com.snowplowanalytics.snowplow.enrich.streams.kinesis.enrichments
+package com.snowplowanalytics.snowplow.enrich.streams.kafka
 
-import com.snowplowanalytics.iglu.core.SchemaKey
+import io.circe.generic.semiauto._
 
-trait Enrichment {
-  def fileName: String
-  def config: String
-  def outputSchema: SchemaKey
+case class EmptyConfig()
+object EmptyConfig {
+  implicit val decoder = deriveDecoder[EmptyConfig]
 }

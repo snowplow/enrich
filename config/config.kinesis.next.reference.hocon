@@ -239,4 +239,20 @@
     # Maximum body size for the payloads sent to the endpoint
     "maxBodySize": 150000
   }
+
+  # -- Enrich events via an external identity service
+  "identity": {
+    "endpoint": "http://identity-api"
+    "concurrency": 10
+    "username": "snowplow"
+    "password": "sn0wp10w"
+
+    # -- Configures how HTTP requests are retried in case of failure
+    "retries": {
+      # -- Backoff delay for follow-up attempts
+      "delay": "100 millis"
+      # -- Max number of attempts, after which Enrich will crash and exit
+      "attempts": 3
+    }
+  }
 }

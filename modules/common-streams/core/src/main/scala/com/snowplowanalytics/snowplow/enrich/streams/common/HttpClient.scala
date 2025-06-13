@@ -24,17 +24,13 @@ import org.http4s.client.middleware.Retry
 import org.http4s.client.defaults
 import org.http4s.ember.client.EmberClientBuilder
 
-import com.snowplowanalytics.snowplow.runtime.HttpClient.{Config => HttpClientConfig}
-
 object HttpClient {
   def resource[F[_]: Async](
-    config: HttpClientConfig,
-    timeout: FiniteDuration = defaults.ConnectTimeout
+    timeout: FiniteDuration = defaults.RequestTimeout
   ): Resource[F, Http4sClient[F]] = {
     implicit val n = Network.forAsync[F]
     val builder = EmberClientBuilder
       .default[F]
-      .withMaxPerKey(_ => config.maxConnectionsPerServer)
       .withTimeout(timeout)
     val retryPolicy = builder.retryPolicy
     builder.build.map(Retry[F](retryPolicy, redactHeadersWhen))

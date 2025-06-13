@@ -15,6 +15,7 @@ import java.time.Instant
 import java.net.URI
 import java.util.UUID
 
+import cats.Id
 import cats.syntax.either._
 
 import scala.concurrent.duration.{Duration, FiniteDuration}
@@ -308,19 +309,6 @@ object io {
       deriveConfiguredDecoder[Concurrency]
   }
 
-  final case class Http(client: Http.Client)
-  object Http {
-    case class Client(
-      maxConnectionsPerServer: Int
-    )
-    object Client {
-      implicit val clientDecoder: Decoder[Client] =
-        deriveConfiguredDecoder[Client]
-    }
-    implicit val httpDecoder: Decoder[Http] =
-      deriveConfiguredDecoder[Http]
-  }
-
   final case class MetricsReporters(
     statsd: Option[MetricsReporters.StatsD],
     stdout: Option[MetricsReporters.Stdout],
@@ -438,10 +426,32 @@ object io {
     }
   }
 
-  case class Experimental(metadata: Option[Metadata])
+  case class IdentityM[M[_]](
+    endpoint: M[Uri],
+    username: M[String],
+    password: M[String],
+    concurrency: Int,
+    backoffPolicy: BackoffPolicy
+  )
+
+  type Identity = IdentityM[Id]
+
+  case class Experimental(metadata: Option[Metadata], identity: Option[Identity])
+
   object Experimental {
-    implicit val experimentalDecoder: Decoder[Experimental] =
+    implicit val experimentalDecoder: Decoder[Experimental] = {
+      implicit val identityDecoder: Decoder[Option[Identity]] =
+        deriveConfiguredDecoder[IdentityM[Option]]
+          .emap[Option[Identity]] {
+            case IdentityM(Some(endpoint), Some(username), Some(password), concurrency, backoffPolicy) =>
+              Right(Some(IdentityM[Id](endpoint, username, password, concurrency, backoffPolicy)))
+            case IdentityM(None, None, None, _, _) =>
+              Right(None)
+            case _ =>
+              Left("endpoint, username and password must all be defined to enable the Identity context")
+          }
       deriveConfiguredDecoder[Experimental]
+    }
   }
 
   case class FeatureFlags(acceptInvalid: Boolean, exitOnJsCompileError: Boolean)

@@ -77,6 +77,7 @@ case class Environment[F[_]](
   partitionKeyField: Option[Field],
   attributeFields: List[Field],
   metadata: Option[MetadataReporter[F]],
+  identity: Option[Identity.Api[F]],
   assetsUpdatePeriod: FiniteDuration
 ) {
   def badRowProcessor = BadRowProcessor(appInfo.name, appInfo.version)
@@ -117,9 +118,7 @@ object Environment {
       adapterRegistry = new AdapterRegistry(Map.empty, config.main.adaptersSchemas)
       resolver <- mkResolver[F](config.iglu)
       igluClient <- Resource.eval(IgluCirceClient.fromResolver(resolver, config.iglu.cacheSize, config.main.validation.maxJsonDepth))
-      httpClient <- HttpClient.resource[F](
-                      config.main.http.client
-                    )
+      httpClient <- HttpClient.resource[F]()
       registryLookup = Http4sRegistryLookup(httpClient)
       enrichmentsConfs <- Resource.eval {
                             EnrichmentRegistry
@@ -137,7 +136,7 @@ object Environment {
       apiEnrichmentClient <- enrichmentsConfs.collectFirst { case api: ApiRequestConf => api.api.timeout } match {
                                case Some(timeoutMillis) =>
                                  HttpClient
-                                   .resource[F](config.main.http.client, timeoutMillis.millis)
+                                   .resource[F](timeoutMillis.millis)
                                    .map(CommonHttpClient.fromHttp4sClient[F])
                                case None =>
                                  Resource.pure[F, CommonHttpClient[F]](CommonHttpClient.noop[F])
@@ -150,6 +149,7 @@ object Environment {
         )
       _ <- Resource.eval(enrichmentRegistry.opened.use_)
       metadata <- config.main.metadata.traverse(MetadataReporter.build[F](_, appInfo, httpClient))
+      identity = config.main.identity.map(Identity.build(_, httpClient))
     } yield Environment(
       appInfo = appInfo,
       source = sourceAndAck,
@@ -171,7 +171,8 @@ object Environment {
       partitionKeyField = config.main.output.good.partitionKey,
       attributeFields = config.main.output.good.attributes,
       metadata = metadata,
-      assetsUpdatePeriod = config.main.assetsUpdatePeriod
+      assetsUpdatePeriod = config.main.assetsUpdatePeriod,
+      identity = identity
     )
 
   private def enableSentry[F[_]: Sync](appInfo: AppInfo, config: Option[Config.Sentry]): Resource[F, Unit] =

@@ -43,8 +43,7 @@ import com.snowplowanalytics.iglu.client.resolver.Resolver.ResolverConfig
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
-import com.snowplowanalytics.snowplow.runtime.{AcceptedLicense, Metrics => CommonMetrics, Telemetry}
-import com.snowplowanalytics.snowplow.runtime.HttpClient.{Config => HttpClientConfig}
+import com.snowplowanalytics.snowplow.runtime.{AcceptedLicense, Metrics => CommonMetrics, Retrying, Telemetry}
 import com.snowplowanalytics.snowplow.runtime.HealthProbe.decoders._
 
 import com.snowplowanalytics.snowplow.enrich.common.adapters._
@@ -59,10 +58,10 @@ case class Config[+Factory, +Source, +Sink, +BlobClients](
   cpuParallelismFraction: BigDecimal,
   monitoring: Config.Monitoring,
   assetsUpdatePeriod: FiniteDuration,
-  http: Config.Http,
   validation: Config.Validation,
   telemetry: Telemetry.Config,
   metadata: Option[Config.Metadata],
+  identity: Option[Config.Identity],
   blobClients: BlobClients,
   adaptersSchemas: AdaptersSchemas
 )
@@ -113,8 +112,6 @@ object Config {
     healthProbe: HealthProbe
   )
 
-  case class Http(client: HttpClientConfig)
-
   case class Validation(
     acceptInvalid: Boolean,
     atomicFieldsLimits: AtomicFields,
@@ -131,6 +128,16 @@ object Config {
   )
 
   type Metadata = MetadataM[Id]
+
+  case class IdentityM[M[_]](
+    endpoint: M[Uri],
+    username: M[String],
+    password: M[String],
+    concurrency: Int,
+    retries: Retrying.Config.ForTransient
+  )
+
+  type Identity = IdentityM[Id]
 
   implicit val http4sUriDecoder: Decoder[Uri] =
     Decoder[String].emap(s => Either.catchOnly[ParseFailure](Uri.unsafeFromString(s)).leftMap(_.toString))
@@ -169,7 +176,6 @@ object Config {
     implicit val metricsDecoder = deriveConfiguredDecoder[Metrics]
     implicit val healthProbeDecoder = deriveConfiguredDecoder[HealthProbe]
     implicit val monitoringDecoder = deriveConfiguredDecoder[Monitoring]
-    implicit val httpDecoder = deriveConfiguredDecoder[Http]
     implicit val atomicFieldsDecoder: Decoder[AtomicFields] = Decoder[Map[String, Int]].emap { fieldsLimits =>
       val configuredFields = fieldsLimits.keys.toList
       val supportedFields = AtomicFields.supportedFields.map(_.name)
@@ -193,6 +199,16 @@ object Config {
           Right(None)
         case _ =>
           Left("endpoint, organizationId and pipelineId should all be defined to enable metadata reporting")
+      }
+
+    implicit val identityDecoder = deriveConfiguredDecoder[IdentityM[Option]]
+      .emap[Option[Identity]] {
+        case IdentityM(Some(endpoint), Some(username), Some(password), concurrency, retries) =>
+          Right(Some(IdentityM[Id](endpoint, username, password, concurrency, retries)))
+        case IdentityM(None, None, None, _, _) =>
+          Right(None)
+        case _ =>
+          Left("endpoint, username and password must all be defined to enable the Identity context")
       }
 
     implicit val callrailSchemasDecoder: Decoder[CallrailSchemas] =

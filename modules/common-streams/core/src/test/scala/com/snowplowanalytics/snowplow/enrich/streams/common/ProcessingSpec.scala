@@ -70,7 +70,7 @@ class ProcessingSpec extends Specification with CatsEffect {
       )
 
     val expectedMetadata = {
-      val entities = Metadata.EntitiesAndCount(Set.empty, 2)
+      val entities = Metadata.EntitiesAndCount(expectedPageViewMetadataEntities, 2)
       Map(expectedPageViewMetadata -> entities)
     }
 
@@ -203,7 +203,7 @@ class ProcessingSpec extends Specification with CatsEffect {
       )
 
     val expectedMetadata = {
-      val entities = Metadata.EntitiesAndCount(Set.empty, 1)
+      val entities = Metadata.EntitiesAndCount(expectedPageViewMetadataEntities, 1)
       Map(expectedPageViewMetadata -> entities)
     }
 
@@ -272,7 +272,7 @@ class ProcessingSpec extends Specification with CatsEffect {
         Enriched(
           expectedPageView(eventId).copy(
             ti_quantity = Some(quantity),
-            derived_contexts = SnowplowEvent.Contexts(List(expectedContext))
+            derived_contexts = SnowplowEvent.Contexts(List(expectedIdentityContext(eventId, etlTstamp), expectedContext))
           ),
           None,
           Map("app_id" -> "test_app")
@@ -280,7 +280,7 @@ class ProcessingSpec extends Specification with CatsEffect {
       )
 
     val expectedMetadata = {
-      val entities = Metadata.EntitiesAndCount(Set(expectedContext.schema), 1)
+      val entities = Metadata.EntitiesAndCount((expectedPageViewMetadataEntities + expectedContext.schema), 1)
       Map(expectedPageViewMetadata -> entities)
     }
 
@@ -483,7 +483,8 @@ class ProcessingSpec extends Specification with CatsEffect {
             geo_latitude = Some(43.88),
             geo_longitude = Some(125.3228),
             geo_region_name = Some("Jilin Sheng"),
-            geo_timezone = Some("Asia/Harbin")
+            geo_timezone = Some("Asia/Harbin"),
+            derived_contexts = SnowplowEvent.Contexts(Nil)
           ),
           None,
           Map("app_id" -> "test_app")
@@ -527,8 +528,9 @@ class ProcessingSpec extends Specification with CatsEffect {
         inputStream = mkGoodStream((input, token1), (input, token2)).spaced(4.seconds)
         assertion <- runTest(Instant.EPOCH, inputStream, List(ipLookupsConf)) {
                        case control =>
+                         val environment = control.environment.copy(identity = None)
                          for {
-                           _ <- Processing.stream(control.environment).compile.drain
+                           _ <- Processing.stream(environment).compile.drain
                            state <- control.state.get
                            etlTstamps = state.collect { case Action.SentToEnriched(List(enriched)) => enriched.event.etl_tstamp.get }
                            etlLatencies = state.collect { case Action.SetE2ELatencyMetric(latency) => latency }

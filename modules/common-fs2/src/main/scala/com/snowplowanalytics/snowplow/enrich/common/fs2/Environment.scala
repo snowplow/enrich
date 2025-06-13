@@ -53,6 +53,7 @@ import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.{
   Cloud,
   Concurrency,
   FeatureFlags,
+  Identity => IdentityConfig,
   RemoteAdapterConfigs,
   Telemetry => TelemetryConfig
 }
@@ -127,7 +128,8 @@ final case class Environment[F[_], A](
   cloud: Option[Cloud],
   featureFlags: FeatureFlags,
   atomicFields: AtomicFields,
-  maxJsonDepth: Int
+  maxJsonDepth: Int,
+  identityConfig: Option[IdentityConfig]
 )
 
 object Environment {
@@ -209,7 +211,7 @@ object Environment {
       bad <- sinkBad
       pii <- sinkPii.sequence
       incomplete <- sinkIncomplete.sequence
-      http4s <- Clients.mkHttp(maxConnectionsPerServer = parsedConfigs.configFile.http.client.maxConnectionsPerServer)
+      http4s <- Clients.mkHttp()
       clts <- clients.map(Clients.init(http4s, _))
       igluClient <- IgluCirceClient.parseDefault[F](parsedConfigs.igluJson, parsedConfigs.configFile.maxJsonDepth).resource
       remoteAdaptersEnabled = file.remoteAdapters.configs.nonEmpty
@@ -251,7 +253,8 @@ object Environment {
       cloud,
       featureFlags,
       atomicFields,
-      parsedConfigs.configFile.maxJsonDepth
+      parsedConfigs.configFile.maxJsonDepth,
+      parsedConfigs.configFile.experimental.identity
     )
   }
 
@@ -275,7 +278,7 @@ object Environment {
     appName: String,
     httpClient: Http4sClient[F]
   ): Resource[F, Metadata[F]] =
-    config.experimental.flatMap(_.metadata) match {
+    config.experimental.metadata match {
       case Some(metadataConfig) =>
         val reporter = Metadata.HttpMetadataReporter[F](
           metadataConfig.endpoint.addPath("com.snowplowanalytics.snowplow").addPath("tp2"),

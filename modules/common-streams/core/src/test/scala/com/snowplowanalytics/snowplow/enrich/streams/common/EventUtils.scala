@@ -34,6 +34,7 @@ import fs2.{Chunk, Stream}
 
 import io.circe.Json
 import io.circe.parser
+import io.circe.literal._
 
 import com.snowplowanalytics.snowplow.badrows._
 import com.snowplowanalytics.snowplow.badrows.FailureDetails._
@@ -92,7 +93,19 @@ object EventUtils {
     CollectorPayload(api, queryStringFull, None, None, source, context)
   }
 
-  def expectedPageView(eventId: UUID) =
+  def expectedIdentityContext(eventId: UUID, etlTstamp: Instant): SelfDescribingData[Json] =
+    SelfDescribingData(
+      SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/identity/jsonschema/1-0-0").toOption.get,
+      json"""
+      {
+        "snowplowId": $eventId,
+        "createdAt": $etlTstamp,
+        "merged": []
+      }
+      """
+    )
+
+  def expectedPageView(eventId: UUID): Event =
     Event
       .minimal(
         id = eventId,
@@ -109,10 +122,15 @@ object EventUtils {
         event_vendor = Some(vendor),
         event_name = Some(pageViewType.full),
         event_format = Some("jsonschema"),
-        event_version = Some("1-0-0")
+        event_version = Some("1-0-0"),
+        derived_contexts = Contexts(List(expectedIdentityContext(eventId, etlTstamp)))
       )
 
   def expectedPageViewMetadata = Metadata.MetadataEvent(None, Some(appID), None, None, None)
+  def expectedPageViewMetadataEntities =
+    Set(
+      SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/identity/jsonschema/1-0-0").toOption.get
+    )
 
   def invalidAddToCart(eventId: UUID): CollectorPayload = {
     val queryString: List[NameValuePair] = List(
@@ -136,13 +154,13 @@ object EventUtils {
         event = Some(unstructType.full),
         user_ipaddress = Some(EventUtils.ip),
         derived_tstamp = Some(collectorTstamp),
-        derived_contexts = Contexts(List(failureAddToCart))
+        derived_contexts = Contexts(List(expectedIdentityContext(eventId, etlTstamp), failureAddToCart))
       )
 
   def expectedFailedJavascript(eventId: UUID) =
     expectedPageView(eventId)
       .copy(
-        derived_contexts = Contexts(List(failureJavascript))
+        derived_contexts = Contexts(List(expectedIdentityContext(eventId, etlTstamp), failureJavascript))
       )
 
   def expectedBadSV(eventId: UUID) = {

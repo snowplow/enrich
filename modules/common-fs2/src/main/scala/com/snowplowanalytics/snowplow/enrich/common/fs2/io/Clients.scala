@@ -65,8 +65,7 @@ object Clients {
   def mkHttp[F[_]: Async](
     connectionTimeout: FiniteDuration = defaults.ConnectTimeout,
     readTimeout: FiniteDuration = defaults.RequestTimeout,
-    maxConnections: Int = 100, // default of Ember client
-    maxConnectionsPerServer: Int = 4
+    maxConnections: Int = 100 // default of Ember client
   ): Resource[F, Http4sClient[F]] = {
     implicit val n = Network.forAsync[F]
     val builder = EmberClientBuilder
@@ -74,7 +73,6 @@ object Clients {
       .withTimeout(readTimeout)
       .withIdleConnectionTime(connectionTimeout)
       .withMaxTotal(maxConnections)
-      .withMaxPerKey(_ => maxConnectionsPerServer)
     val retryPolicy = builder.retryPolicy
     builder.build.map(Retry[F](retryPolicy, redactHeadersWhen))
   }

@@ -14,8 +14,8 @@ import java.net.URI
 import java.util.UUID
 import scala.concurrent.duration._
 
+import cats.Id
 import cats.effect.IO
-
 import cats.effect.testing.specs2.CatsEffect
 
 import org.http4s.Uri
@@ -82,7 +82,6 @@ class ParsedConfigsSpec extends Specification with CatsEffect {
           10,
           List()
         ),
-        io.Http(io.Http.Client(4)),
         io.Monitoring(
           Some(Sentry(URI.create("http://sentry.acme.com"))),
           io.MetricsReporters(
@@ -105,16 +104,23 @@ class ParsedConfigsSpec extends Specification with CatsEffect {
           Some("1.0.0")
         ),
         io.FeatureFlags(acceptInvalid = false, exitOnJsCompileError = true),
-        Some(
-          io.Experimental(
-            Some(
-              io.Metadata(
-                Uri.unsafeFromString("https://collector-g.snowplowanalytics.com"),
-                5.minutes,
-                UUID.fromString("c5f3a09f-75f8-4309-bec5-fea560f78455"),
-                UUID.fromString("75a13583-5c99-40e3-81fc-541084dfc784"),
-                149000
-              )
+        io.Experimental(
+          Some(
+            io.Metadata(
+              Uri.unsafeFromString("https://collector-g.snowplowanalytics.com"),
+              5.minutes,
+              UUID.fromString("c5f3a09f-75f8-4309-bec5-fea560f78455"),
+              UUID.fromString("75a13583-5c99-40e3-81fc-541084dfc784"),
+              149000
+            )
+          ),
+          Some(
+            io.IdentityM[Id](
+              Uri.unsafeFromString("http://identity-api"),
+              "snowplow",
+              "sn0wp10w",
+              10,
+              BackoffPolicy(100.millis, 10.seconds, Some(3))
             )
           )
         ),

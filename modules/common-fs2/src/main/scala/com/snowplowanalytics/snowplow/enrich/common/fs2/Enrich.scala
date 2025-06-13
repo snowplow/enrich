@@ -45,6 +45,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.{AtomicFields, E
 import com.snowplowanalytics.snowplow.enrich.common.utils.{ConversionUtils, OptionIor}
 
 import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.FeatureFlags
+import com.snowplowanalytics.snowplow.enrich.common.fs2.io.experimental.Identity
 
 object Enrich {
 
@@ -97,7 +98,10 @@ object Enrich {
         } yield result.toList
       }
 
-    val enrichedStream: Stream[F, List[Result[A]]] = env.source.chunks.evalMap(enrichChunk)
+    val enrichedStream: Stream[F, List[Result[A]]] =
+      env.source.chunks
+        .evalMap(enrichChunk)
+        .through(Identity.pipeIfConfigured(env.identityConfig, env.httpClient))
 
     val sinkAndCheckpoint: Pipe[F, List[Result[A]], Unit] =
       _.parEvalMap(env.streamsSettings.concurrency.sink) { chunk =>

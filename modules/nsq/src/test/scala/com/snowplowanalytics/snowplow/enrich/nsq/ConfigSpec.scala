@@ -16,6 +16,7 @@ import java.nio.file.Paths
 
 import scala.concurrent.duration._
 
+import cats.Id
 import cats.syntax.either._
 import cats.effect.IO
 
@@ -105,7 +106,6 @@ class ConfigSpec extends Specification with CatsEffect {
             io.RemoteAdapterConfig("com.example", "v1", "https://remote-adapter.com")
           )
         ),
-        io.Http(io.Http.Client(4)),
         io.Monitoring(
           Some(Sentry(URI.create("http://sentry.acme.com"))),
           io.MetricsReporters(
@@ -131,16 +131,23 @@ class ConfigSpec extends Specification with CatsEffect {
           acceptInvalid = false,
           exitOnJsCompileError = true
         ),
-        Some(
-          io.Experimental(
-            Some(
-              io.Metadata(
-                Uri.unsafeFromString("https://my_pipeline.my_domain.com/iglu"),
-                5.minutes,
-                UUID.fromString("c5f3a09f-75f8-4309-bec5-fea560f78455"),
-                UUID.fromString("75a13583-5c99-40e3-81fc-541084dfc784"),
-                149000
-              )
+        io.Experimental(
+          Some(
+            io.Metadata(
+              Uri.unsafeFromString("https://my_pipeline.my_domain.com/iglu"),
+              5.minutes,
+              UUID.fromString("c5f3a09f-75f8-4309-bec5-fea560f78455"),
+              UUID.fromString("75a13583-5c99-40e3-81fc-541084dfc784"),
+              149000
+            )
+          ),
+          Some(
+            io.IdentityM[Id](
+              Uri.unsafeFromString("http://identity-api"),
+              "snowplow",
+              "sn0wp10w",
+              10,
+              io.BackoffPolicy(100.millis, 10.seconds, Some(3))
             )
           )
         ),
@@ -212,7 +219,6 @@ class ConfigSpec extends Specification with CatsEffect {
           10,
           List()
         ),
-        io.Http(io.Http.Client(4)),
         io.Monitoring(
           None,
           io.MetricsReporters(
@@ -238,7 +244,7 @@ class ConfigSpec extends Specification with CatsEffect {
           acceptInvalid = false,
           exitOnJsCompileError = true
         ),
-        None,
+        io.Experimental(None, None),
         adaptersSchemas,
         io.BlobStorageClients(gcs = true, s3 = true, azureStorage = None),
         io.License(accept = true),

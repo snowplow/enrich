@@ -53,13 +53,6 @@
   # no assets will be updated if the key is absent
   "assetsUpdatePeriod": "7 days"
 
-  # Configuration of internal http client used for iglu resolver, alerts, telemetry and metadata
-  "http": {
-    "client": {
-      "maxConnectionsPerServer": 4
-    }
-  }
-
   "monitoring": {
 
     # Optional, for tracking runtime exceptions
@@ -156,5 +149,21 @@
     # More details: https://github.com/snowplow/enrich/issues/517#issuecomment-1033910690
     "acceptInvalid": false
 
+  }
+
+  # Optional. Configuration for experimental/preview features
+  "experimental": {
+    # Enrich events via an external identity service
+    "identity": {
+      "endpoint": "http://identity-api"
+      "concurrency": 10
+      "username": "snowplow"
+      "password": "sn0wp10w"
+      "backoffPolicy": {
+        "minBackoff": "100 millis"
+        "maxBackoff": "10 seconds"
+        "maxRetries": 3
+      }
+    }
   }
 }

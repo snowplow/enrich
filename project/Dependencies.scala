@@ -312,6 +312,7 @@ object Dependencies {
     )
 
     val commonStreamsDependencies = Seq(
+      circeLiteral,
       declineEffect,
       igluClientHttp4s,
       runtime,

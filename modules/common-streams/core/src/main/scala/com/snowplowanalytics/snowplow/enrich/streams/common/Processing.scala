@@ -48,6 +48,7 @@ object Processing {
   ): EventProcessor[F] =
     _.through(parseBytes(env))
       .through(enrich(env))
+      .through(addIdentityContext(env))
       .through(collectMetadata(env))
       .through(serialize(env))
       .through(sinkEnriched(env))
@@ -319,6 +320,19 @@ object Processing {
             val extracts = Metadata.extractsForBatch(enriched.enriched)
             reporter.add(extracts)
           } else Async[F].unit
+        }
+      case None =>
+        identity
+    }
+
+  private def addIdentityContext[F[_]: Async](env: Environment[F]): Pipe[F, Enriched, Enriched] =
+    env.identity match {
+      case Some(api) =>
+        _.parEvalMap(api.concurrency) { batch =>
+          if (batch.enriched.nonEmpty || batch.failed.nonEmpty)
+            Identity.addContexts(api, batch.failed ::: batch.enriched).as(batch)
+          else
+            Sync[F].pure(batch)
         }
       case None =>
         identity

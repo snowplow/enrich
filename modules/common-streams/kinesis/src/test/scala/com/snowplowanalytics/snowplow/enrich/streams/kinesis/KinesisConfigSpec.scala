@@ -30,7 +30,7 @@ import org.http4s.implicits._
 import com.comcast.ip4s.Port
 
 import com.snowplowanalytics.snowplow.runtime.Metrics.StatsdConfig
-import com.snowplowanalytics.snowplow.runtime.{AcceptedLicense, ConfigParser, HttpClient, Telemetry}
+import com.snowplowanalytics.snowplow.runtime.{AcceptedLicense, ConfigParser, Retrying, Telemetry}
 
 import com.snowplowanalytics.snowplow.streams.kinesis.{BackoffPolicy, KinesisSinkConfig, KinesisSinkConfigM, KinesisSourceConfig}
 
@@ -127,7 +127,6 @@ object KinesisConfigSpec {
       healthProbe = Config.HealthProbe(port = Port.fromInt(8000).get, unhealthyLatency = 2.minutes)
     ),
     assetsUpdatePeriod = 7.days,
-    http = Config.Http(HttpClient.Config(maxConnectionsPerServer = 4)),
     validation = Config.Validation(
       acceptInvalid = false,
       atomicFieldsLimits = AtomicFields.from(atomicFieldLimitsDefaults),
@@ -145,6 +144,7 @@ object KinesisConfigSpec {
       moduleVersion = None
     ),
     metadata = None,
+    identity = None,
     blobClients = EmptyConfig(),
     adaptersSchemas = adaptersSchemas
   )
@@ -226,7 +226,6 @@ object KinesisConfigSpec {
       )
     ),
     assetsUpdatePeriod = 7.days,
-    http = Config.Http(HttpClient.Config(maxConnectionsPerServer = 4)),
     validation = Config.Validation(
       acceptInvalid = false,
       atomicFieldsLimits = AtomicFields.from(atomicFieldLimitsDefaults ++ Map("app_id" -> 5, "mkt_clickid" -> 100000)),
@@ -250,6 +249,15 @@ object KinesisConfigSpec {
         organizationId = UUID.fromString("c5f3a09f-75f8-4309-bec5-fea560f78455"),
         pipelineId = UUID.fromString("75a13583-5c99-40e3-81fc-541084dfc784"),
         maxBodySize = 150000
+      )
+    ),
+    identity = Some(
+      Config.IdentityM[Id](
+        endpoint = Uri.unsafeFromString("http://identity-api"),
+        concurrency = 10,
+        username = "snowplow",
+        password = "sn0wp10w",
+        retries = Retrying.Config.ForTransient(100.millis, 3)
       )
     ),
     blobClients = EmptyConfig(),

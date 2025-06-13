@@ -158,7 +158,8 @@ object TestEnvironment extends CatsEffect {
                       None,
                       EnrichSpec.featureFlags,
                       AtomicFields.from(valueLimits = Map.empty),
-                      SpecHelpers.DefaultMaxJsonDepth
+                      SpecHelpers.DefaultMaxJsonDepth,
+                      None
                     )
       _ <- Resource.eval(logger.info("TestEnvironment initialized"))
     } yield TestEnvironment(environment, counter, goodRef.get, piiRef.get, badRef.get, incompleteRef.get)

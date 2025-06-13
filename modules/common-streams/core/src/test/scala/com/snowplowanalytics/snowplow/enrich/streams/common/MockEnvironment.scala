@@ -151,6 +151,7 @@ object MockEnvironment {
         partitionKeyField = None,
         attributeFields = List(EnrichedEvent.atomicFields.find(_.getName === "app_id").get),
         metadata = Some(testMetadataReporter(state)),
+        identity = Some(testIdentityApi),
         assetsUpdatePeriod = 3.seconds
       )
       MockEnvironment(state, env)
@@ -336,4 +337,22 @@ object MockEnvironment {
         }
       }
   }
+
+  private def testIdentityApi: Identity.Api[IO] =
+    new Identity.Api[IO] {
+      def post(inputs: List[Identity.BatchIdentifiers]): IO[List[Identity.BatchIdentity]] =
+        IO.realTimeInstant.map { now =>
+          inputs.map { batchIdentifiers =>
+            Identity.BatchIdentity(
+              merged = Nil,
+              createdAt = now.toString,
+              eventId = batchIdentifiers.eventId,
+              snowplowId = batchIdentifiers.eventId
+            )
+          }
+        }
+
+      def concurrency: Int = 1
+    }
+
 }

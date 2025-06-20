@@ -193,3 +193,19 @@ jobs:
         run: sbt "project nsqDistroless; publishLocal"
       - name: Run integration tests for enrich-nsq
         run: sbt "project nsqDistroless" IntegrationTest/test
+
+  it-nsq-streams:
+    if: ${{ github.event.repository.private == true }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: coursier/cache-action@v6
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: 21
+          distribution: 'temurin'
+      - name: Install sbt
+        uses: sbt/setup-sbt@v1
+      - name: Run integration tests for enrich-nsq
+        run: sbt "project nsqStreamsDistroless; it:test"

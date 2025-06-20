@@ -12,133 +12,87 @@ package com.snowplowanalytics.snowplow.enrich.streams.kinesis
 
 import java.io._
 import java.net._
+import java.net.URI
+import java.util.UUID
 
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
-import cats.data.Validated
+import cats.Id
 
 import cats.effect.IO
-import cats.effect.kernel.{Ref, Resource}
+import cats.effect.kernel.Resource
 
 import cats.effect.testing.specs2.CatsEffect
 
-import fs2.Stream
-
-import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
-
-import com.snowplowanalytics.snowplow.badrows.BadRow
-
 import com.snowplowanalytics.snowplow.streams.kinesis.KinesisFactory
-import com.snowplowanalytics.snowplow.streams.{EventProcessingConfig, EventProcessor, ListOfList, Sink}
 
 import com.snowplowanalytics.snowplow.enrich.streams.common.Utils
 
+import com.snowplowanalytics.snowplow.streams.kinesis.{BackoffPolicy, KinesisSinkConfig, KinesisSinkConfigM, KinesisSourceConfig}
+
 object utils extends CatsEffect {
 
-  case class Output(
-    enriched: List[Event],
-    failed: List[Event],
-    bad: List[BadRow]
-  )
-  object Output {
-    def empty = Output(Nil, Nil, Nil)
-  }
-
-  case class KinesisTestResources(localstack: Containers.Localstack, statsdAdmin: StatsdAdmin)
-
-  def runEnrichPipe(
-    input: Stream[IO, Array[Byte]],
-    localstackPort: Int,
-    uuid: String
-  ): IO[Output] = {
-    def streams(ref: Ref[IO, Output], factory: KinesisFactory[IO]): Stream[IO, Nothing] = {
-      val streams = KinesisConfig.getStreams(uuid)
-      val rawSink = Stream
-        .resource[IO, Sink[IO]](factory.sink(KinesisConfig.sinkConfig(localstackPort, streams.raw)))
-        .flatMap(sink => input.parEvalMapUnordered(10)(cp => sink.sinkSimple(ListOfList.ofItems(cp))))
-      val enrichedSource = Stream
-        .resource(factory.source(KinesisConfig.sourceConfig(localstackPort, streams.enriched)))
-        .flatMap(source => source.stream(EventProcessingConfig(EventProcessingConfig.NoWindowing, _ => IO.unit), enrichedProcessor(ref)))
-      val failedSource = Stream
-        .resource(factory.source(KinesisConfig.sourceConfig(localstackPort, streams.failed)))
-        .flatMap(source => source.stream(EventProcessingConfig(EventProcessingConfig.NoWindowing, _ => IO.unit), failedProcessor(ref)))
-      val badSource = Stream
-        .resource(factory.source(KinesisConfig.sourceConfig(localstackPort, streams.bad)))
-        .flatMap(source => source.stream(EventProcessingConfig(EventProcessingConfig.NoWindowing, _ => IO.unit), badProcessor(ref)))
-
-      enrichedSource
-        .concurrently(failedSource)
-        .concurrently(badSource)
-        .concurrently(rawSink)
-        .drain
-    }
+  def run(
+    enrichKinesis: EnrichKinesis,
+    nbEnriched: Long,
+    nbBad: Long = 0L,
+    nbGoodDrop: Long = 0L,
+    nbBadDrop: Long = 0L
+  ): IO[Utils.Output] = {
+    val rawSinkConfig = sinkConfig(enrichKinesis.localstack.host, enrichKinesis.localstack.mappedPort, enrichKinesis.rawStream)
+    val enrichedSourceConfig =
+      sourceConfig(enrichKinesis.localstack.host, enrichKinesis.localstack.mappedPort, enrichKinesis.enrichedStream)
+    val failedSourceConfig = sourceConfig(enrichKinesis.localstack.host, enrichKinesis.localstack.mappedPort, enrichKinesis.failedStream)
+    val badSourceConfig = sourceConfig(enrichKinesis.localstack.host, enrichKinesis.localstack.mappedPort, enrichKinesis.badStream)
 
     KinesisFactory.resource[IO].use { factory =>
-      for {
-        ref <- Ref.of[IO, Output](Output.empty)
-        _ <- streams(ref, factory).interruptAfter(4.minutes).compile.drain
-        output <- ref.get
-      } yield output
+      Utils.runEnrichPipe(
+        factory,
+        rawSinkConfig,
+        enrichedSourceConfig,
+        failedSourceConfig,
+        badSourceConfig,
+        nbEnriched,
+        nbBad,
+        nbGoodDrop,
+        nbBadDrop
+      )
     }
   }
 
-  private def enrichedProcessor(ref: Ref[IO, Output]): EventProcessor[IO] =
-    _.parEvalMapUnordered(2) { tokenedEvents =>
-      tokenedEvents.events
-        .traverse { buffer =>
-          IO {
-            val arr = new Array[Byte](buffer.remaining())
-            buffer.get(arr)
-            val s = new String(arr)
-            Event.parse(s) match {
-              case Validated.Valid(e) => e
-              case Validated.Invalid(e) =>
-                throw new RuntimeException(s"Can't parse enriched event [$s]. Error: $e")
-            }
-          }
-        }
-        .flatMap(enriched => ref.update(output => output.copy(enriched = enriched.toList ++ output.enriched)))
-        .as(tokenedEvents.ack)
-    }
+  def sourceConfig(
+    localstackHost: String,
+    localstackPort: Int,
+    streamName: String
+  ) =
+    KinesisSourceConfig(
+      appName = UUID.randomUUID().toString,
+      streamName = streamName,
+      workerIdentifier = "test-worker",
+      initialPosition = KinesisSourceConfig.InitialPosition.TrimHorizon,
+      retrievalMode = KinesisSourceConfig.Retrieval.Polling(1000),
+      customEndpoint = Some(URI.create(s"http://$localstackHost:$localstackPort")),
+      dynamodbCustomEndpoint = Some(URI.create(s"http://$localstackHost:$localstackPort")),
+      cloudwatchCustomEndpoint = Some(URI.create(s"http://$localstackHost:$localstackPort")),
+      leaseDuration = 10.seconds,
+      maxLeasesToStealAtOneTimeFactor = BigDecimal(2),
+      checkpointThrottledBackoffPolicy = BackoffPolicy(minBackoff = 100.millis, maxBackoff = 1.second),
+      debounceCheckpoints = 10.seconds
+    )
 
-  private def failedProcessor(ref: Ref[IO, Output]): EventProcessor[IO] =
-    _.parEvalMapUnordered(2) { tokenedEvents =>
-      tokenedEvents.events
-        .traverse { buffer =>
-          IO {
-            val arr = new Array[Byte](buffer.remaining())
-            buffer.get(arr)
-            val s = new String(arr)
-            Event.parse(s) match {
-              case Validated.Valid(e) => e
-              case Validated.Invalid(e) =>
-                throw new RuntimeException(s"Can't parse failed event [$s]. Error: $e")
-            }
-          }
-        }
-        .flatMap(failed => ref.update(output => output.copy(failed = failed.toList ++ output.failed)))
-        .as(tokenedEvents.ack)
-    }
-
-  private def badProcessor(ref: Ref[IO, Output]): EventProcessor[IO] =
-    _.parEvalMapUnordered(2) { tokenedEvents =>
-      tokenedEvents.events
-        .traverse { buffer =>
-          IO {
-            val arr = new Array[Byte](buffer.remaining())
-            buffer.get(arr)
-            val s = new String(arr)
-            Utils.parseBadRow(s) match {
-              case Right(br) => br
-              case Left(e) =>
-                throw new RuntimeException(s"Can't decode bad row $s. Error: $e")
-            }
-          }
-        }
-        .flatMap(bad => ref.update(output => output.copy(bad = bad.toList ++ output.bad)))
-        .as(tokenedEvents.ack)
-    }
+  def sinkConfig(
+    localstackHost: String,
+    localstackPort: Int,
+    streamName: String
+  ): KinesisSinkConfig =
+    KinesisSinkConfigM[Id](
+      streamName = streamName,
+      throttledBackoffPolicy = BackoffPolicy(minBackoff = 100.millis, maxBackoff = 1.second),
+      recordLimit = 500,
+      byteLimit = 1024 * 1024 * 1024,
+      customEndpoint = Some(URI.create(s"http://$localstackHost:$localstackPort"))
+    )
 
   trait StatsdAdmin {
     def get(metricType: String): IO[String]

@@ -115,13 +115,6 @@
   # -- Period after which enrich assets should be checked for updates
   "assetsUpdatePeriod": "7 days"
 
-  # -- Configuration of internal http client used for iglu resolver, alerts, telemetry and metadata
-  "http": {
-    "client": {
-      "maxConnectionsPerServer": 4
-    }
-  }
-
   "validation" : {
 
     # When set to true, events with fields too long still get emitted as valid enriched events
@@ -158,7 +151,7 @@
     "interval": 15 minutes
 
     # URI of the collector receiving the heartbeat event
-    "collectorUri": collector-g.snowplowanalytics.com
+    "collectorUri": "https://collector-g.snowplowanalytics.com"
 
     # Identifier intended to tie events together across modules,
     # infrastructure and apps when used consistently
@@ -188,5 +181,21 @@
     "pipelineId": "75a13583-5c99-40e3-81fc-541084dfc784"
     # Maximum body size for the payloads sent to the endpoint
     "maxBodySize": 150000
+  }
+
+  # -- Enrich events via an external identity service
+  "identity": {
+    "endpoint": "http://identity-api"
+    "concurrency": 10
+    "username": "snowplow"
+    "password": "sn0wp10w"
+
+    # -- Configures how HTTP requests are retried in case of failure
+    "retries": {
+      # -- Backoff delay for follow-up attempts
+      "delay": "100 millis"
+      # -- Max number of attempts, after which Enrich will crash and exit
+      "attempts": 3
+    }
   }
 }

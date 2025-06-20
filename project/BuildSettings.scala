@@ -157,6 +157,15 @@ object BuildSettings {
     buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.nsq.generated"
   )
 
+  lazy val nsqStreamsProjectSettings = projectSettings ++ Seq(
+    name := "snowplow-enrich-nsq-streams",
+    moduleName := "snowplow-enrich-nsq-streams",
+    description := "Enrich application for NSQ built on top of common-streams",
+    buildInfoOptions += BuildInfoOption.Traits("com.snowplowanalytics.snowplow.runtime.AppInfo"),
+    buildInfoKeys := Seq[BuildInfoKey](name, version, dockerAlias, BuildInfoKey("cloud" -> "AWS, Azure, GCP")),
+    buildInfoPackage := "com.snowplowanalytics.snowplow.enrich.streams.nsq"
+  )
+
   /** Make package (build) metadata available within source code. */
   lazy val scalifiedSettings = Seq(
     Compile / sourceGenerators += Def.task {
@@ -419,6 +428,23 @@ object BuildSettings {
   }
 
   lazy val nsqDistrolessBuildSettings = nsqBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
+
+  lazy val nsqStreamsBuildSettings = {
+    // Project
+    nsqStreamsProjectSettings ++ buildSettings ++
+    // Build and publish
+    dockerSettingsFocal ++
+    Seq(Docker / packageName := "snowplow-enrich-nsq") ++
+    Seq(Docker / version := s"${version.value}-next") ++
+    // Tests
+    noParallelTestExecution ++ Seq(Test / fork := true) ++ Seq(
+      Test / unmanagedClasspath += {
+        baseDirectory.value.getParentFile.getParentFile.getParentFile / "config"
+      }
+    )
+  }
+
+  lazy val nsqStreamsDistrolessBuildSettings = nsqStreamsBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
 
   /** Fork a JVM per test in order to not reuse enrichment registries. */
   def oneJVMPerTest(tests: Seq[TestDefinition]): Seq[Tests.Group] =

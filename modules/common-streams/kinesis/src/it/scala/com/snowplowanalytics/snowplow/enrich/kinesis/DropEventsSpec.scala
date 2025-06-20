@@ -10,20 +10,24 @@
  */
 package com.snowplowanalytics.snowplow.enrich.streams.kinesis
 
-import cats.effect.IO
-import cats.effect.kernel.Resource
-import cats.effect.testing.specs2.CatsResource
-import org.specs2.mutable.SpecificationLike
-
 import java.util.UUID
+
 import scala.concurrent.duration._
 
-import com.snowplowanalytics.snowplow.enrich.streams.common.{CollectorPayloadGen, DockerPull}
+import cats.effect.IO
+import cats.effect.kernel.Resource
+
+import cats.effect.testing.specs2.CatsResource
+
+import org.specs2.mutable.SpecificationLike
+
+import com.snowplowanalytics.snowplow.enrich.streams.common.DockerPull
 import com.snowplowanalytics.snowplow.enrich.streams.kinesis.enrichments._
 import com.snowplowanalytics.snowplow.enrich.streams.kinesis.utils._
 
-class DropEventsSpec extends CatsResource[IO, KinesisTestResources] with SpecificationLike {
+case class TestResources(localstack: Localstack, statsdAdmin: StatsdAdmin)
 
+class DropEventsSpec extends CatsResource[IO, TestResources] with SpecificationLike {
   override protected val Timeout = 10.minutes
 
   override def beforeAll(): Unit = {
@@ -32,14 +36,14 @@ class DropEventsSpec extends CatsResource[IO, KinesisTestResources] with Specifi
     super.beforeAll()
   }
 
-  override val resource: Resource[IO, KinesisTestResources] =
+  override val resource: Resource[IO, TestResources] =
     for {
       localstack <- Containers.localstack
-      statsd <- Containers.statsdServer
+      statsd <- Containers.statsdServer(localstack.container.network)
       statsdHost = statsd.container.getHost()
       statsdAdminPort = statsd.container.getMappedPort(8126)
       statsdAdmin <- mkStatsdAdmin(statsdHost, statsdAdminPort)
-    } yield KinesisTestResources(localstack, statsdAdmin)
+    } yield TestResources(localstack, statsdAdmin)
 
   "enrich-kinesis" should {
     "drop events with failed events enabled" in withResource { testResources =>
@@ -51,7 +55,7 @@ class DropEventsSpec extends CatsResource[IO, KinesisTestResources] with Specifi
     }
   }
 
-  private def commonDropTest(testResources: KinesisTestResources, emitFailed: Boolean) = {
+  private def commonDropTest(testResources: TestResources, emitFailed: Boolean) = {
     val testName = "drop"
     val nbGood = 100L
     val nbBad = 100L
@@ -61,13 +65,6 @@ class DropEventsSpec extends CatsResource[IO, KinesisTestResources] with Specifi
 
     val enrichments = List(
       JavascriptDropEvent
-    )
-
-    val input = CollectorPayloadGen.generate[IO](
-      nbGoodEvents = nbGood,
-      nbBadRows = nbBad,
-      nbGoodDroppedEvents = nbGoodDrop,
-      nbBadDroppedEvents = nbBadDrop
     )
 
     val configPath =
@@ -84,9 +81,9 @@ class DropEventsSpec extends CatsResource[IO, KinesisTestResources] with Specifi
         enrichments = enrichments,
         uuid = uuid
       )
-      .use { _ =>
+      .use { enrichKinesis =>
         for {
-          output <- runEnrichPipe(input, testResources.localstack.mappedPort, uuid)
+          output <- run(enrichKinesis, nbGood, nbBad, nbGoodDrop, nbBadDrop)
           counters <- testResources.statsdAdmin.getCounters
         } yield {
           output.enriched.size.toLong must beEqualTo(nbGood)

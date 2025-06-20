@@ -28,9 +28,15 @@ import org.http4s.Uri
 import com.comcast.ip4s.Port
 
 import com.snowplowanalytics.snowplow.runtime.Metrics.StatsdConfig
-import com.snowplowanalytics.snowplow.runtime.{AcceptedLicense, ConfigParser, HttpClient, Telemetry}
+import com.snowplowanalytics.snowplow.runtime.{AcceptedLicense, ConfigParser, Retrying, Telemetry}
 
-import com.snowplowanalytics.snowplow.streams.pubsub.{GcpUserAgent, PubsubSinkConfig, PubsubSinkConfigM, PubsubSourceConfig, PubsubFactoryConfig}
+import com.snowplowanalytics.snowplow.streams.pubsub.{
+  GcpUserAgent,
+  PubsubFactoryConfig,
+  PubsubSinkConfig,
+  PubsubSinkConfigM,
+  PubsubSourceConfig
+}
 
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.{adaptersSchemas, atomicFieldLimitsDefaults}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
@@ -62,10 +68,14 @@ class PubsubConfigSpec extends Specification with CatsEffect {
       )
     )
 
-  private def assert(resource: String, expectedResult: Either[ExitCode, Config[PubsubFactoryConfig, PubsubSourceConfig, PubsubSinkConfig, EmptyConfig]]) = {
+  private def assert(
+    resource: String,
+    expectedResult: Either[ExitCode, Config[PubsubFactoryConfig, PubsubSourceConfig, PubsubSinkConfig, EmptyConfig]]
+  ) = {
     val path = Paths.get(getClass.getResource(resource).toURI)
-    ConfigParser.configFromFile[IO, Config[PubsubFactoryConfig, PubsubSourceConfig, PubsubSinkConfig, EmptyConfig]](path).value.map { result =>
-      result must beEqualTo(expectedResult)
+    ConfigParser.configFromFile[IO, Config[PubsubFactoryConfig, PubsubSourceConfig, PubsubSinkConfig, EmptyConfig]](path).value.map {
+      result =>
+        result must beEqualTo(expectedResult)
     }
   }
 }
@@ -75,18 +85,18 @@ object PubsubConfigSpec {
     license = AcceptedLicense(),
     input = PubsubSourceConfig(
       subscription = PubsubSourceConfig.Subscription("myproject", "snowplow-collector-payloads"),
-      parallelPullFactor      = 0.5,
+      parallelPullFactor = 0.5,
       durationPerAckExtension = 60.seconds,
       minRemainingAckDeadline = 0.1,
-      maxMessagesPerPull      = 1000,
-      debounceRequests        = 100.millis
+      maxMessagesPerPull = 1000,
+      debounceRequests = 100.millis
     ),
     output = Config.Output(
       good = Config.SinkWithMetadata(
         sink = PubsubSinkConfigM[Id](
-          topic                = PubsubSinkConfig.Topic("myproject", "snowplow-enriched"),
-          batchSize            = 1000,
-          requestByteThreshold = 1000000,
+          topic = PubsubSinkConfig.Topic("myproject", "snowplow-enriched"),
+          batchSize = 1000,
+          requestByteThreshold = 1000000
         ),
         maxRecordSize = 8000000,
         partitionKey = None,
@@ -95,8 +105,8 @@ object PubsubConfigSpec {
       failed = None,
       bad = Config.SinkWithMetadata(
         sink = PubsubSinkConfigM[Id](
-          topic                = PubsubSinkConfig.Topic("myproject", "snowplow-bad"),
-          batchSize            = 1000,
+          topic = PubsubSinkConfig.Topic("myproject", "snowplow-bad"),
+          batchSize = 1000,
           requestByteThreshold = 1000000
         ),
         maxRecordSize = 10000000,
@@ -112,7 +122,6 @@ object PubsubConfigSpec {
       healthProbe = Config.HealthProbe(port = Port.fromInt(8000).get, unhealthyLatency = 2.minutes)
     ),
     assetsUpdatePeriod = 7.days,
-    http = Config.Http(HttpClient.Config(maxConnectionsPerServer = 4)),
     validation = Config.Validation(
       acceptInvalid = false,
       atomicFieldsLimits = AtomicFields.from(atomicFieldLimitsDefaults),
@@ -130,26 +139,27 @@ object PubsubConfigSpec {
       moduleVersion = None
     ),
     metadata = None,
+    identity = None,
     blobClients = EmptyConfig(),
-    adaptersSchemas = adaptersSchemas,
+    adaptersSchemas = adaptersSchemas
   )
 
   private val referenceConfig = Config[PubsubFactoryConfig, PubsubSourceConfig, PubsubSinkConfig, EmptyConfig](
     license = AcceptedLicense(),
     input = PubsubSourceConfig(
       subscription = PubsubSourceConfig.Subscription("myproject", "snowplow-collector-payloads"),
-      parallelPullFactor      = 0.5,
+      parallelPullFactor = 0.5,
       durationPerAckExtension = 60.seconds,
       minRemainingAckDeadline = 0.1,
-      maxMessagesPerPull      = 1000,
-      debounceRequests        = 100.millis
+      maxMessagesPerPull = 1000,
+      debounceRequests = 100.millis
     ),
     output = Config.Output(
       good = Config.SinkWithMetadata(
         sink = PubsubSinkConfigM[Id](
-          topic                = PubsubSinkConfig.Topic("myproject", "snowplow-enriched"),
-          batchSize            = 100,
-          requestByteThreshold = 1000000,
+          topic = PubsubSinkConfig.Topic("myproject", "snowplow-enriched"),
+          batchSize = 100,
+          requestByteThreshold = 1000000
         ),
         maxRecordSize = 8000000,
         partitionKey = None,
@@ -158,9 +168,9 @@ object PubsubConfigSpec {
       failed = Some(
         Config.SinkWithMetadata(
           sink = PubsubSinkConfigM[Id](
-            topic                = PubsubSinkConfig.Topic("myproject", "snowplow-failed"),
-            batchSize            = 100,
-            requestByteThreshold = 1000000,
+            topic = PubsubSinkConfig.Topic("myproject", "snowplow-failed"),
+            batchSize = 100,
+            requestByteThreshold = 1000000
           ),
           maxRecordSize = 10000000,
           partitionKey = None,
@@ -169,9 +179,9 @@ object PubsubConfigSpec {
       ),
       bad = Config.SinkWithMetadata(
         sink = PubsubSinkConfigM[Id](
-          topic                = PubsubSinkConfig.Topic("myproject", "snowplow-bad"),
-          batchSize            = 100,
-          requestByteThreshold = 1000000,
+          topic = PubsubSinkConfig.Topic("myproject", "snowplow-bad"),
+          batchSize = 100,
+          requestByteThreshold = 1000000
         ),
         maxRecordSize = 10000000,
         partitionKey = None,
@@ -199,7 +209,6 @@ object PubsubConfigSpec {
       )
     ),
     assetsUpdatePeriod = 7.days,
-    http = Config.Http(HttpClient.Config(maxConnectionsPerServer = 4)),
     validation = Config.Validation(
       acceptInvalid = false,
       atomicFieldsLimits = AtomicFields.from(atomicFieldLimitsDefaults ++ Map("app_id" -> 5, "mkt_clickid" -> 100000)),
@@ -209,7 +218,7 @@ object PubsubConfigSpec {
     telemetry = Telemetry.Config(
       disable = false,
       interval = 15.minutes,
-      collectorUri = Uri.unsafeFromString("collector-g.snowplowanalytics.com"),
+      collectorUri = Uri.unsafeFromString("https://collector-g.snowplowanalytics.com"),
       userProvidedId = Some("my_pipeline"),
       autoGeneratedId = Some("hfy67e5ydhtrd"),
       instanceId = Some("665bhft5u6udjf"),
@@ -223,6 +232,15 @@ object PubsubConfigSpec {
         organizationId = UUID.fromString("c5f3a09f-75f8-4309-bec5-fea560f78455"),
         pipelineId = UUID.fromString("75a13583-5c99-40e3-81fc-541084dfc784"),
         maxBodySize = 150000
+      )
+    ),
+    identity = Some(
+      Config.IdentityM[Id](
+        endpoint = Uri.unsafeFromString("http://identity-api"),
+        concurrency = 10,
+        username = "snowplow",
+        password = "sn0wp10w",
+        retries = Retrying.Config.ForTransient(100.millis, 3)
       )
     ),
     blobClients = EmptyConfig(),

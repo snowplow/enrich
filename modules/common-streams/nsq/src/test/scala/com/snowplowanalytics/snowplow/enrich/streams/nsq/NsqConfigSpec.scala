@@ -8,7 +8,7 @@
  * BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY PORTION
  * OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
  */
-package com.snowplowanalytics.snowplow.enrich.streams.kafka
+package com.snowplowanalytics.snowplow.enrich.streams.nsq
 
 import java.nio.file.Paths
 import java.util.UUID
@@ -18,7 +18,6 @@ import scala.concurrent.duration.DurationInt
 import org.specs2.Specification
 
 import cats.Id
-import cats.implicits._
 import cats.effect.{ExitCode, IO}
 
 import cats.effect.testing.specs2.CatsEffect
@@ -30,80 +29,68 @@ import com.comcast.ip4s.Port
 import com.snowplowanalytics.snowplow.runtime.Metrics.StatsdConfig
 import com.snowplowanalytics.snowplow.runtime.{AcceptedLicense, ConfigParser, Retrying, Telemetry}
 
-import com.snowplowanalytics.snowplow.streams.kafka.{KafkaSinkConfig, KafkaSinkConfigM, KafkaSourceConfig}
+import com.snowplowanalytics.snowplow.streams.nsq.{BackoffPolicy, NsqSinkConfig, NsqSinkConfigM, NsqSourceConfig}
 
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.{adaptersSchemas, atomicFieldLimitsDefaults}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
-import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
 import com.snowplowanalytics.snowplow.enrich.cloudutils.azure.AzureStorageConfig
 
 import com.snowplowanalytics.snowplow.enrich.streams.common.Config
 
-class KafkaConfigSpec extends Specification with CatsEffect {
+class NsqConfigSpec extends Specification with CatsEffect {
 
   def is = s2"""
   Config parse should be able to parse
-    minimal kafka config $minimal
-    reference kafka config $reference
+    minimal nsq config $minimal
+    reference nsq config $reference
   """
 
   private def minimal =
     assert(
-      resource = "/config.kafka.next.minimal.hocon",
+      resource = "/config.nsq.next.minimal.hocon",
       expectedResult = Right(
-        KafkaConfigSpec.minimalConfig
+        NsqConfigSpec.minimalConfig
       )
     )
 
   private def reference =
     assert(
-      resource = "/config.kafka.next.reference.hocon",
+      resource = "/config.nsq.next.reference.hocon",
       expectedResult = Right(
-        KafkaConfigSpec.referenceConfig
+        NsqConfigSpec.referenceConfig
       )
     )
 
   private def assert(
     resource: String,
-    expectedResult: Either[ExitCode, Config[EmptyConfig, KafkaSourceConfig, KafkaSinkConfig, AzureStorageConfig]]
+    expectedResult: Either[ExitCode, Config[EmptyConfig, NsqSourceConfig, NsqSinkConfig, AzureStorageConfig]]
   ) = {
     val path = Paths.get(getClass.getResource(resource).toURI)
-    ConfigParser.configFromFile[IO, Config[EmptyConfig, KafkaSourceConfig, KafkaSinkConfig, AzureStorageConfig]](path).value.map { result =>
+    ConfigParser.configFromFile[IO, Config[EmptyConfig, NsqSourceConfig, NsqSinkConfig, AzureStorageConfig]](path).value.map { result =>
       result must beEqualTo(expectedResult)
     }
   }
-
 }
 
-object KafkaConfigSpec {
-  private val minimalConfig = Config[EmptyConfig, KafkaSourceConfig, KafkaSinkConfig, AzureStorageConfig](
+object NsqConfigSpec {
+  private val minimalConfig = Config[EmptyConfig, NsqSourceConfig, NsqSinkConfig, AzureStorageConfig](
     license = AcceptedLicense(),
-    input = KafkaSourceConfig(
-      topicName = "snowplow-collector-payloads",
-      bootstrapServers = "localhost:9092",
-      debounceCommitOffsets = 10.seconds,
-      consumerConf = Map(
-        "group.id" -> "enrich-kafka",
-        "group.instance.id" -> "testWorkerId",
-        "allow.auto.create.topics" -> "false",
-        "auto.offset.reset" -> "latest",
-        "security.protocol" -> "SASL_SSL",
-        "sasl.mechanism" -> "OAUTHBEARER",
-        "sasl.jaas.config" -> "org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required;"
-      )
+    input = NsqSourceConfig(
+      topic = "collector-payloads",
+      channel = "collector-payloads-channel",
+      lookupHost = "127.0.0.1",
+      lookupPort = 4161,
+      maxBufferQueueSize = 3000
     ),
     output = Config.Output(
       good = Config.SinkWithMetadata(
-        sink = KafkaSinkConfigM[Id](
-          topicName = "snowplow-enriched",
-          bootstrapServers = "localhost:9092",
-          producerConf = Map(
-            "client.id" -> "enrich-kafka",
-            "security.protocol" -> "SASL_SSL",
-            "sasl.mechanism" -> "OAUTHBEARER",
-            "sasl.jaas.config" -> "org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required;"
-          )
+        sink = NsqSinkConfigM[Id](
+          topic = "enriched",
+          nsqdHost = "127.0.0.1",
+          nsqdPort = 4150,
+          byteLimit = 5000000,
+          backoffPolicy = BackoffPolicy(minBackoff = 100.milliseconds, maxBackoff = 10.seconds, maxRetries = Some(10))
         ),
         maxRecordSize = 1000000,
         partitionKey = None,
@@ -111,15 +98,12 @@ object KafkaConfigSpec {
       ),
       failed = None,
       bad = Config.SinkWithMetadata(
-        sink = KafkaSinkConfigM[Id](
-          topicName = "snowplow-bad",
-          bootstrapServers = "localhost:9092",
-          producerConf = Map(
-            "client.id" -> "enrich-kafka",
-            "security.protocol" -> "SASL_SSL",
-            "sasl.mechanism" -> "OAUTHBEARER",
-            "sasl.jaas.config" -> "org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required;"
-          )
+        sink = NsqSinkConfigM[Id](
+          topic = "bad",
+          nsqdHost = "127.0.0.1",
+          nsqdPort = 4150,
+          byteLimit = 5000000,
+          backoffPolicy = BackoffPolicy(minBackoff = 100.milliseconds, maxBackoff = 10.seconds, maxRetries = Some(10))
         ),
         maxRecordSize = 1000000,
         partitionKey = None,
@@ -152,54 +136,40 @@ object KafkaConfigSpec {
     ),
     metadata = None,
     identity = None,
-    blobClients = AzureStorageConfig(List(AzureStorageConfig.Account("storageAccount1", None))),
+    blobClients = AzureStorageConfig(Nil),
     adaptersSchemas = adaptersSchemas
   )
 
-  private val referenceConfig = Config[EmptyConfig, KafkaSourceConfig, KafkaSinkConfig, AzureStorageConfig](
+  private val referenceConfig = Config[EmptyConfig, NsqSourceConfig, NsqSinkConfig, AzureStorageConfig](
     license = AcceptedLicense(),
-    input = KafkaSourceConfig(
-      topicName = "snowplow-collector-payloads",
-      bootstrapServers = "localhost:9092",
-      debounceCommitOffsets = 10.seconds,
-      consumerConf = Map(
-        "group.id" -> "enrich-kafka",
-        "group.instance.id" -> "testWorkerId",
-        "enable.auto.commit" -> "false",
-        "allow.auto.create.topics" -> "false",
-        "auto.offset.reset" -> "earliest",
-        "security.protocol" -> "SASL_SSL",
-        "sasl.mechanism" -> "OAUTHBEARER",
-        "sasl.jaas.config" -> "org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required;"
-      )
+    input = NsqSourceConfig(
+      topic = "collector-payloads",
+      channel = "collector-payloads-channel",
+      lookupHost = "127.0.0.1",
+      lookupPort = 4161,
+      maxBufferQueueSize = 3000
     ),
     output = Config.Output(
       good = Config.SinkWithMetadata(
-        sink = KafkaSinkConfigM[Id](
-          topicName = "snowplow-enriched",
-          bootstrapServers = "localhost:9092",
-          producerConf = Map(
-            "client.id" -> "enrich-kafka",
-            "security.protocol" -> "SASL_SSL",
-            "sasl.mechanism" -> "OAUTHBEARER",
-            "sasl.jaas.config" -> "org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required;"
-          )
+        sink = NsqSinkConfigM[Id](
+          topic = "enriched",
+          nsqdHost = "127.0.0.1",
+          nsqdPort = 4150,
+          byteLimit = 5000000,
+          backoffPolicy = BackoffPolicy(minBackoff = 100.milliseconds, maxBackoff = 10.seconds, maxRetries = Some(10))
         ),
         maxRecordSize = 1000000,
-        partitionKey = Some(EnrichedEvent.atomicFields.find(_.getName === "user_id").get),
-        attributes = List(EnrichedEvent.atomicFields.find(_.getName === "app_id").get)
+        partitionKey = None,
+        attributes = Nil
       ),
       failed = Some(
         Config.SinkWithMetadata(
-          sink = KafkaSinkConfigM[Id](
-            topicName = "snowplow-failed",
-            bootstrapServers = "localhost:9092",
-            producerConf = Map(
-              "client.id" -> "enrich-kafka",
-              "security.protocol" -> "SASL_SSL",
-              "sasl.mechanism" -> "OAUTHBEARER",
-              "sasl.jaas.config" -> "org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required;"
-            )
+          sink = NsqSinkConfigM[Id](
+            topic = "failed",
+            nsqdHost = "127.0.0.1",
+            nsqdPort = 4150,
+            byteLimit = 5000000,
+            backoffPolicy = BackoffPolicy(minBackoff = 100.milliseconds, maxBackoff = 10.seconds, maxRetries = Some(10))
           ),
           maxRecordSize = 1000000,
           partitionKey = None,
@@ -207,15 +177,12 @@ object KafkaConfigSpec {
         )
       ),
       bad = Config.SinkWithMetadata(
-        sink = KafkaSinkConfigM[Id](
-          topicName = "snowplow-bad",
-          bootstrapServers = "localhost:9092",
-          producerConf = Map(
-            "client.id" -> "enrich-kafka",
-            "security.protocol" -> "SASL_SSL",
-            "sasl.mechanism" -> "OAUTHBEARER",
-            "sasl.jaas.config" -> "org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required;"
-          )
+        sink = NsqSinkConfigM[Id](
+          topic = "bad",
+          nsqdHost = "127.0.0.1",
+          nsqdPort = 4150,
+          byteLimit = 5000000,
+          backoffPolicy = BackoffPolicy(minBackoff = 100.milliseconds, maxBackoff = 10.seconds, maxRetries = Some(10))
         ),
         maxRecordSize = 1000000,
         partitionKey = None,

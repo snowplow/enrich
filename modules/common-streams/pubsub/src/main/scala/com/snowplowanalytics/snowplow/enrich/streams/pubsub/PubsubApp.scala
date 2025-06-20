@@ -12,7 +12,7 @@ package com.snowplowanalytics.snowplow.enrich.streams.pubsub
 
 import cats.effect.IO
 
-import com.snowplowanalytics.snowplow.streams.pubsub.{PubsubFactory, PubsubSinkConfig, PubsubSourceConfig, PubsubFactoryConfig}
+import com.snowplowanalytics.snowplow.streams.pubsub.{PubsubFactory, PubsubFactoryConfig, PubsubSinkConfig, PubsubSourceConfig}
 
 import com.snowplowanalytics.snowplow.enrich.cloudutils.gcp.GcsBlobClient
 

@@ -21,12 +21,13 @@ import cats.effect.testing.specs2.CatsResource
 
 import org.specs2.mutable.SpecificationLike
 
-import com.snowplowanalytics.snowplow.enrich.streams.common.{CollectorPayloadGen, DockerPull}
+import com.snowplowanalytics.snowplow.enrich.streams.common.DockerPull
 
 import com.snowplowanalytics.snowplow.enrich.streams.kinesis.enrichments._
-import com.snowplowanalytics.snowplow.enrich.streams.kinesis.Containers.Localstack
 
 class EnrichKinesisSpec extends CatsResource[IO, Localstack] with SpecificationLike {
+
+  import utils._
 
   override protected val Timeout = 10.minutes
 
@@ -42,14 +43,10 @@ class EnrichKinesisSpec extends CatsResource[IO, Localstack] with SpecificationL
 
   "enrich-kinesis" should {
     "emit the correct number of enriched events, failed events and bad rows" in withResource { localstack =>
-      import utils._
-
       val testName = "count"
       val nbEnriched = 1000L
       val nbBad = 100L
       val uuid = UUID.randomUUID().toString
-
-      val input = CollectorPayloadGen.generate[IO](nbEnriched, nbBad)
 
       Containers
         .enrich(
@@ -59,8 +56,8 @@ class EnrichKinesisSpec extends CatsResource[IO, Localstack] with SpecificationL
           enrichments = Nil,
           uuid = uuid
         )
-        .use { _ =>
-          runEnrichPipe(input, localstack.mappedPort, uuid).map { output =>
+        .use { enrichKinesis =>
+          run(enrichKinesis, nbEnriched, nbBad).map { output =>
             output.enriched.size.toLong must beEqualTo(nbEnriched)
             output.failed.size.toLong must beEqualTo(nbBad)
             output.bad.size.toLong must beEqualTo(nbBad)
@@ -69,52 +66,47 @@ class EnrichKinesisSpec extends CatsResource[IO, Localstack] with SpecificationL
     }
 
     "send the metrics to StatsD" in withResource { localstack =>
-      import utils._
-
       val testName = "statsd"
       val nbEnriched = 100L
       val nbBad = 10L
       val uuid = UUID.randomUUID().toString
 
-      val input = CollectorPayloadGen.generate[IO](nbEnriched, nbBad)
-
       val resources = for {
-        statsd <- Containers.statsdServer
+        statsd <- Containers.statsdServer(localstack.container.network)
         statsdHost = statsd.container.getHost()
         statsdAdminPort = statsd.container.getMappedPort(8126)
         statsdAdmin <- mkStatsdAdmin(statsdHost, statsdAdminPort)
-        _ <- Containers.enrich(
-               localstack,
-               configPath = "modules/common-streams/kinesis/src/it/resources/enrich/enrich-localstack-statsd.hocon",
-               testName = testName,
-               enrichments = Nil,
-               uuid = uuid
-             )
-      } yield statsdAdmin
+        enrichKinesis <- Containers.enrich(
+                           localstack,
+                           configPath = "modules/common-streams/kinesis/src/it/resources/enrich/enrich-localstack-statsd.hocon",
+                           testName = testName,
+                           enrichments = Nil,
+                           uuid = uuid
+                         )
+      } yield (enrichKinesis, statsdAdmin)
 
-      resources.use { statsdAdmin =>
-        for {
-          output <- runEnrichPipe(input, localstack.mappedPort, uuid)
-          counters <- statsdAdmin.getCounters
-          gauges <- statsdAdmin.getGauges
-        } yield {
-          output.enriched.size.toLong must beEqualTo(nbEnriched)
-          output.failed.size.toLong must beEqualTo(nbBad)
-          output.bad.size.toLong must beEqualTo(nbBad)
-          counters must contain(s"'snowplow.enrich.raw;env=$uuid': ${nbEnriched + nbBad}")
-          counters must contain(s"'snowplow.enrich.good;env=$uuid': $nbEnriched")
-          counters must contain(s"'snowplow.enrich.failed;env=$uuid': $nbBad")
-          counters must contain(s"'snowplow.enrich.incomplete;env=$uuid': $nbBad")
-          counters must contain(s"'snowplow.enrich.bad;env=$uuid': $nbBad")
-          counters must contain(s"'snowplow.enrich.dropped;env=$uuid': 0")
-          gauges must contain(s"'snowplow.enrich.latency;env=$uuid': ")
-        }
+      resources.use {
+        case (enrichKinesis, statsdAdmin) =>
+          for {
+            output <- run(enrichKinesis, nbEnriched, nbBad)
+            counters <- statsdAdmin.getCounters
+            gauges <- statsdAdmin.getGauges
+          } yield {
+            output.enriched.size.toLong must beEqualTo(nbEnriched)
+            output.failed.size.toLong must beEqualTo(nbBad)
+            output.bad.size.toLong must beEqualTo(nbBad)
+            counters must contain(s"'snowplow.enrich.raw;env=$uuid': ${nbEnriched + nbBad}")
+            counters must contain(s"'snowplow.enrich.good;env=$uuid': $nbEnriched")
+            counters must contain(s"'snowplow.enrich.failed;env=$uuid': $nbBad")
+            counters must contain(s"'snowplow.enrich.incomplete;env=$uuid': $nbBad")
+            counters must contain(s"'snowplow.enrich.bad;env=$uuid': $nbBad")
+            counters must contain(s"'snowplow.enrich.dropped;env=$uuid': 0")
+            gauges must contain(s"'snowplow.enrich.latency;env=$uuid': ")
+          }
       }
     }
 
     "run the enrichments and attach their context" in withResource { localstack =>
-      import utils._
-
       val testName = "enrichments"
       val nbEnriched = 1000L
       val uuid = UUID.randomUUID().toString
@@ -128,22 +120,20 @@ class EnrichKinesisSpec extends CatsResource[IO, Localstack] with SpecificationL
 
       val enrichmentsContexts = enrichments.map(_.outputSchema)
 
-      val input = CollectorPayloadGen.generate[IO](nbEnriched)
-
       val resources = for {
-        _ <- Containers.mysqlServer
-        _ <- Containers.httpServer
-        _ <- Containers.enrich(
-               localstack,
-               configPath = "modules/common-streams/kinesis/src/it/resources/enrich/enrich-localstack.hocon",
-               testName = testName,
-               enrichments = enrichments,
-               uuid = uuid
-             )
-      } yield ()
+        _ <- Containers.mysqlServer(localstack.container.network)
+        _ <- Containers.httpServer(localstack.container.network)
+        enrichKinesis <- Containers.enrich(
+                           localstack,
+                           configPath = "modules/common-streams/kinesis/src/it/resources/enrich/enrich-localstack.hocon",
+                           testName = testName,
+                           enrichments = enrichments,
+                           uuid = uuid
+                         )
+      } yield enrichKinesis
 
-      resources.use { _ =>
-        runEnrichPipe(input, localstack.mappedPort, uuid).map { output =>
+      resources.use { enrichKinesis =>
+        run(enrichKinesis, nbEnriched).map { output =>
           output.enriched.size.toLong must beEqualTo(nbEnriched)
           output.enriched.map { enriched =>
             enriched.derived_contexts.data.map(_.schema) must containTheSameElementsAs(enrichmentsContexts)
@@ -164,9 +154,15 @@ class EnrichKinesisSpec extends CatsResource[IO, Localstack] with SpecificationL
         )
         .use { enrich =>
           for {
-            _ <- IO(enrich.container.getDockerClient().killContainerCmd(enrich.container.getContainerId()).withSignal("TERM").exec())
-            _ <- Containers.waitUntilStopped(enrich)
-          } yield enrich.container.isRunning() must beFalse
+            _ <- IO(
+                   enrich.container.container
+                     .getDockerClient()
+                     .killContainerCmd(enrich.container.container.getContainerId())
+                     .withSignal("TERM")
+                     .exec()
+                 )
+            _ <- Containers.waitUntilStopped(enrich.container)
+          } yield enrich.container.container.isRunning() must beFalse
         }
     }
   }

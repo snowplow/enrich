@@ -11,11 +11,8 @@
 package com.snowplowanalytics.snowplow.enrich.streams.kinesis
 
 import java.util.UUID
-import java.nio.file.Path
 
 import scala.concurrent.duration._
-
-import org.slf4j.LoggerFactory
 
 import retry.syntax.all._
 import retry.RetryPolicies
@@ -28,11 +25,28 @@ import cats.effect.testing.specs2.CatsEffect
 
 import org.testcontainers.containers.{BindMode, Network}
 import org.testcontainers.containers.wait.strategy.Wait
-import org.testcontainers.containers.output.Slf4jLogConsumer
 
 import com.dimafeng.testcontainers.GenericContainer
 
-import com.snowplowanalytics.snowplow.enrich.streams.common.{Enrichment, Utils}
+import com.snowplowanalytics.snowplow.enrich.streams.common.Enrichment
+import com.snowplowanalytics.snowplow.enrich.streams.common.Utils._
+
+case class EnrichKinesis(
+  localstack: Localstack,
+  rawStream: String,
+  enrichedStream: String,
+  failedStream: String,
+  badStream: String,
+  container: GenericContainer
+)
+
+case class Localstack(
+  container: GenericContainer,
+  alias: String,
+  internalPort: Int,
+  mappedPort: Int,
+  host: String
+)
 
 object Containers extends CatsEffect {
 
@@ -47,43 +61,31 @@ object Containers extends CatsEffect {
     val Statsd = DockerImage("dblworks/statsd", "v0.10.2") // the official statsd/statsd size is monstrous
   }
 
-  case class Localstack(
-    container: GenericContainer,
-    alias: String,
-    internalPort: Int,
-    mappedPort: Int
-  )
-
-  private val network = Network.newNetwork()
-
   def localstack: Resource[IO, Localstack] =
-    Resource.make {
-      val port = 4566
-      val container = GenericContainer(
-        dockerImage = Images.Localstack.toStr,
-        env = Map(
-          "AWS_ACCESS_KEY_ID" -> "foo",
-          "AWS_SECRET_ACCESS_KEY" -> "bar"
-        ),
-        waitStrategy = Wait.forLogMessage(".*Ready.*", 1),
-        exposedPorts = Seq(port)
-      )
-      container.underlyingUnsafeContainer.withNetwork(network)
-      val alias = "localstack"
-      container.underlyingUnsafeContainer.withNetworkAliases(alias)
-
-      IO.blocking(container.start()) *>
-        IO(
-          Localstack(
-            container,
-            alias,
-            port,
-            container.container.getMappedPort(port)
-          )
-        )
-    } { l =>
-      IO.blocking(l.container.stop())
-    }
+    for {
+      network <- Resource.fromAutoCloseable(IO(Network.newNetwork()))
+      internalPort = 4566
+      alias = "localstack"
+      container = GenericContainer(
+                    dockerImage = Images.Localstack.toStr,
+                    env = Map(
+                      "AWS_ACCESS_KEY_ID" -> "foo",
+                      "AWS_SECRET_ACCESS_KEY" -> "bar"
+                    ),
+                    waitStrategy = Wait.forLogMessage(".*Ready.*", 1),
+                    exposedPorts = Seq(internalPort)
+                  )
+      _ <- Resource.eval(IO(container.container.withNetwork(network)))
+      _ <- Resource.eval(IO(container.container.withNetworkAliases(alias)))
+      _ <- Resource.make(IO.blocking(container.start()).as(container))(c => IO.blocking(c.stop()))
+      localstack = Localstack(
+                     container = container,
+                     alias = alias,
+                     internalPort = internalPort,
+                     mappedPort = container.container.getMappedPort(internalPort),
+                     host = "localhost"
+                   )
+    } yield localstack
 
   def enrich(
     localstack: Localstack,
@@ -92,65 +94,72 @@ object Containers extends CatsEffect {
     enrichments: List[Enrichment],
     uuid: String = UUID.randomUUID().toString,
     waitLogMessage: String = "Enabled enrichments"
-  ): Resource[IO, GenericContainer] = {
-    val streams = KinesisConfig.getStreams(uuid)
-
-    def container(enrichmentsPath: Path) = {
-      val container = GenericContainer(
-        dockerImage = Images.Enrich.toStr,
-        env = Map(
-          "AWS_REGION" -> KinesisConfig.region,
-          "AWS_ACCESS_KEY_ID" -> "foo",
-          "AWS_SECRET_ACCESS_KEY" -> "bar",
-          "JDK_JAVA_OPTIONS" -> "-Dorg.slf4j.simpleLogger.defaultLogLevel=info",
-          // appName must be unique in enrich config so that Kinesis consumers in tests don't interfere
-          "APP_NAME" -> s"${testName}_$uuid",
-          "STREAM_RAW" -> streams.raw,
-          "STREAM_ENRICHED" -> streams.enriched,
-          "STREAM_FAILED" -> streams.failed,
-          "STREAM_BAD" -> streams.bad,
-          "LOCALSTACK_ENDPOINT" -> s"http://${localstack.alias}:${localstack.internalPort}",
-          "STATSD_TAG" -> uuid
-        ),
-        fileSystemBind = Seq(
-          GenericContainer.FileSystemBind(
-            configPath,
-            "/snowplow/config/enrich.hocon",
-            BindMode.READ_ONLY
-          ),
-          GenericContainer.FileSystemBind(
-            "modules/kinesis/src/it/resources/enrich/iglu_resolver.json",
-            "/snowplow/config/iglu_resolver.json",
-            BindMode.READ_ONLY
-          ),
-          GenericContainer.FileSystemBind(
-            enrichmentsPath.toAbsolutePath.toString,
-            "/snowplow/config/enrichments/",
-            BindMode.READ_WRITE
-          )
-        ),
-        command = Seq(
-          "--config",
-          "/snowplow/config/enrich.hocon",
-          "--iglu-config",
-          "/snowplow/config/iglu_resolver.json",
-          "--enrichments",
-          "/snowplow/config/enrichments/"
-        ),
-        waitStrategy = Wait.forLogMessage(s".*$waitLogMessage.*", 1)
-      )
-      container.container.withNetwork(network)
-      container
-    }
-
+  ): Resource[IO, EnrichKinesis] =
     for {
-      _ <- Resource.eval(createStreams(localstack, KinesisConfig.region, streams))
-      enrichmentsPath <- Utils.writeEnrichmentsConfigsToDisk(enrichments)
-      container <- Resource.make(startContainerWithLogs(container(enrichmentsPath), testName))(c => IO.blocking(c.stop()))
-    } yield container
-  }
+      enrichmentsPath <- writeEnrichmentsConfigsToDisk(enrichments)
+      igluResolverPath = "modules/common-streams/core/src/it/resources/iglu_resolver.json"
+      region = "eu-central-1"
+      rawStream = s"raw-$uuid"
+      enrichedStream = s"enriched-$uuid"
+      failedStream = s"failed-$uuid"
+      badStream = s"bad-$uuid"
+      container = GenericContainer(
+                    dockerImage = Images.Enrich.toStr,
+                    env = Map(
+                      "AWS_REGION" -> region,
+                      "AWS_ACCESS_KEY_ID" -> "foo",
+                      "AWS_SECRET_ACCESS_KEY" -> "bar",
+                      "JDK_JAVA_OPTIONS" -> "-Dorg.slf4j.simpleLogger.defaultLogLevel=info",
+                      // appName must be unique in enrich config so that Kinesis consumers in tests don't interfere
+                      "APP_NAME" -> s"${testName}_$uuid",
+                      "STREAM_RAW" -> rawStream,
+                      "STREAM_ENRICHED" -> enrichedStream,
+                      "STREAM_FAILED" -> failedStream,
+                      "STREAM_BAD" -> badStream,
+                      "LOCALSTACK_ENDPOINT" -> s"http://${localstack.alias}:${localstack.internalPort}",
+                      "STATSD_TAG" -> uuid
+                    ),
+                    fileSystemBind = Seq(
+                      GenericContainer.FileSystemBind(
+                        configPath,
+                        "/snowplow/config/enrich.hocon",
+                        BindMode.READ_ONLY
+                      ),
+                      GenericContainer.FileSystemBind(
+                        igluResolverPath,
+                        "/snowplow/config/iglu_resolver.json",
+                        BindMode.READ_ONLY
+                      ),
+                      GenericContainer.FileSystemBind(
+                        enrichmentsPath.toAbsolutePath.toString,
+                        "/snowplow/config/enrichments/",
+                        BindMode.READ_WRITE
+                      )
+                    ),
+                    command = Seq(
+                      "--config",
+                      "/snowplow/config/enrich.hocon",
+                      "--iglu-config",
+                      "/snowplow/config/iglu_resolver.json",
+                      "--enrichments",
+                      "/snowplow/config/enrichments/"
+                    ),
+                    waitStrategy = Wait.forLogMessage(s".*$waitLogMessage.*", 1)
+                  )
+      _ <- Resource.eval(IO(container.container.withNetwork(localstack.container.network)))
+      _ <- Resource.eval(createStreams(localstack, region, List(rawStream, enrichedStream, failedStream, badStream)))
+      _ <- Resource.make(IO.blocking(container.start()).as(container))(c => IO.blocking(c.stop()))
+      enrichKinesis = EnrichKinesis(
+                        localstack,
+                        rawStream,
+                        enrichedStream,
+                        failedStream,
+                        badStream,
+                        container
+                      )
+    } yield enrichKinesis
 
-  def mysqlServer: Resource[IO, GenericContainer] =
+  def mysqlServer(network: Network): Resource[IO, GenericContainer] =
     Resource.make {
       val container = GenericContainer(
         dockerImage = Images.MySQL.toStr,
@@ -176,7 +185,7 @@ object Containers extends CatsEffect {
       IO(c.stop())
     }
 
-  def httpServer: Resource[IO, GenericContainer] =
+  def httpServer(network: Network): Resource[IO, GenericContainer] =
     Resource.make {
       val container = GenericContainer(
         dockerImage = Images.HTTP.toStr,
@@ -206,7 +215,7 @@ object Containers extends CatsEffect {
       IO.blocking(c.stop())
     }
 
-  def statsdServer: Resource[IO, GenericContainer] =
+  def statsdServer(network: Network): Resource[IO, GenericContainer] =
     Resource.make {
       val container = GenericContainer(Images.Statsd.toStr)
       container.underlyingUnsafeContainer.withNetwork(network)
@@ -216,16 +225,6 @@ object Containers extends CatsEffect {
     } { c =>
       IO.blocking(c.stop())
     }
-
-  private def startContainerWithLogs(
-    container: GenericContainer,
-    loggerName: String
-  ): IO[GenericContainer] = {
-    val logger = LoggerFactory.getLogger(loggerName)
-    val logs = new Slf4jLogConsumer(logger)
-    IO.blocking(container.start()) *>
-      IO(container.container.followOutput(logs)).as(container)
-  }
 
   def waitUntilStopped(container: GenericContainer): IO[Boolean] = {
     val retryPolicy = RetryPolicies.limitRetriesByCumulativeDelay(
@@ -243,9 +242,9 @@ object Containers extends CatsEffect {
   private def createStreams(
     localstack: Localstack,
     region: String,
-    streams: KinesisConfig.Streams
+    streams: List[String]
   ): IO[Unit] =
-    List(streams.raw, streams.enriched, streams.failed, streams.bad).traverse_ { stream =>
+    streams.traverse_ { stream =>
       IO.blocking(
         localstack.container.execInContainer(
           "aws",

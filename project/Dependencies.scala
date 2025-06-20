@@ -169,6 +169,7 @@ object Dependencies {
     val kinesisSnowplow = "com.snowplowanalytics" %% "kinesis"        % V.streams
     val pubsubSnowplow  = "com.snowplowanalytics" %% "pubsub"         % V.streams
     val kafkaSnowplow   = "com.snowplowanalytics" %% "kafka"          % V.streams
+    val nsqSnowplow     = "com.snowplowanalytics" %% "nsq"            % V.streams
     val runtime         = "com.snowplowanalytics" %% "runtime-common" % V.streams
 
     val specs2             = "org.specs2"             %% "specs2-core"                   % V.specs2            % Test
@@ -405,6 +406,10 @@ object Dependencies {
       log4j, // for security vulnerabilities
       specs2,
       specs2CE
+    )
+
+    val nsqStreamsDependencies = Seq(
+      nsqSnowplow
     )
 
     // exclusions

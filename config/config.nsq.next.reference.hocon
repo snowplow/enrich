@@ -5,88 +5,86 @@
   }
 
   "input": {
-    # -- kafka topic name for the source of collector payloads
-    "topicName": "snowplow-collector-payloads"
+    # -- Name of the NSQ topic with the collector payloads
+    "topic": "collector-payloads"
 
-    # -- kafka bootstrap servers
-    "bootstrapServers": "localhost:9092"
+    # -- Name of the NSQ channel used to retrieve collector payloads
+    "channel": "collector-payloads-channel"
 
-    # -- How frequently to commit our progress back to kafka. By increasing this value,
-    # -- we decrease the number of requests made to the kafka broker
-    debounceCommitOffsets: "10 seconds"
+    # -- The host name of NSQ lookup application
+    "lookupHost": "127.0.0.1"
 
-    # -- Any valid Kafka consumer config options
-    consumerConf: {
-      "group.id": "enrich-kafka"
-      "enable.auto.commit": "false"
-      "allow.auto.create.topics": "false"
-      "auto.offset.reset": "earliest"
-    }
+    # -- The port number of NSQ lookup application
+    "lookupPort": 4161
+
+    # -- Optional. Maximum size of the buffer queue used between NSQ Java and FS2
+    "maxBufferQueueSize": 3000
   }
 
   "output": {
 
     "good": {
-      # -- output kafka topic name for enriched events
-      "topicName": "snowplow-enriched"
+      # -- Name of the NSQ topic that will receive enriched events
+      "topic": "enriched"
 
-      # -- kafka bootstrap servers
-      "bootstrapServers": "localhost:9092"
+      # -- The host name of nsqd application
+      "nsqdHost": "127.0.0.1"
 
-      # -- any valid Kafka producer config options
-      "producerConf": {
-        "client.id": "enrich-kafka"
+      # -- The port number of nsqd application
+      "nsqdPort": 4150
+
+      # -- Maximum number of bytes in a batch of records sent to NSQ
+      "byteLimit": 5000000
+
+      # -- Retry policy in case writing to NSQ fails
+      "backoffPolicy": {
+        "minBackoff": 100 milliseconds
+        "maxBackoff": 10 seconds
+        "maxRetries": 10
       }
-
-      # -- optional. Partition key for the enriched events in Kafka
-      # If not set, a random UUID is used
-      "partitionKey": "user_id"
-
-      # -- optional. Enriched event fields to add as Kafka record headers.
-      "attributes": [ "app_id" ]
     }
 
     "failed": {
-      # -- output kafka topic name for failed events that could not be validated or enriched (TSV)
-      "topicName": "snowplow-failed"
+      # -- Name of the NSQ topic that will receive failed events
+      "topic": "failed"
 
-      # -- kafka bootstrap servers
-      "bootstrapServers": "localhost:9092"
+      # -- The host name of nsqd application
+      "nsqdHost": "127.0.0.1"
 
-      # -- any valid Kafka producer config options
-      "producerConf": {
-        "client.id": "enrich-kafka"
+      # -- The port number of nsqd application
+      "nsqdPort": 4150
+
+      # -- Maximum number of bytes in a batch of records sent to NSQ
+      "byteLimit": 5000000
+
+      # -- Retry policy in case writing to NSQ fails
+      "backoffPolicy": {
+        "minBackoff": 100 milliseconds
+        "maxBackoff": 10 seconds
+        "maxRetries": 10
       }
     }
 
     "bad": {
-      # -- output kafka topic name for bad rows (JSON)
-      "topicName": "snowplow-bad"
+      # -- Name of the NSQ topic that will receive bad rows
+      "topic": "bad"
 
-      # -- kafka bootstrap servers
-      "bootstrapServers": "localhost:9092"
+      # -- The host name of nsqd application
+      "nsqdHost": "127.0.0.1"
 
-      # -- any valid Kafka producer config options
-      "producerConf": {
-        "client.id": "enrich-kafka"
+      # -- The port number of nsqd application
+      "nsqdPort": 4150
+
+      # -- Maximum number of bytes in a batch of records sent to NSQ
+      "byteLimit": 5000000
+
+      # -- Retry policy in case writing to NSQ fails
+      "backoffPolicy": {
+        "minBackoff": 100 milliseconds
+        "maxBackoff": 10 seconds
+        "maxRetries": 10
       }
     }
-
-  }
-
-  # Configuration for Azure blob storage client configuration
-  # used to download enrichment resources
-  "blobClients": {
-    "accounts": [
-      # Example public account with no auth
-      { "name": "storageAccount1"},
-
-      # Example private account using default auth chain -> https://learn.microsoft.com/en-us/java/api/com.azure.identity.defaultazurecredential?view=azure-java-stable
-      { "name": "storageAccount2", "auth": { "type": "default"} },
-
-      # Example private account using SAS token auth
-      { "name": "storageAccount3",  "auth": { "type": "sas", "value": "tokenValue"}}
-    ]
   }
 
   # -- Controls how the app splits the workload into concurrent batches which can be run in parallel
@@ -139,13 +137,6 @@
   # -- Period after which enrich assets should be checked for updates
   "assetsUpdatePeriod": "7 days"
 
-  # -- Configuration of internal http client used for iglu resolver, alerts, telemetry and metadata
-  "http": {
-    "client": {
-      "maxConnectionsPerServer": 4
-    }
-  }
-
   "validation" : {
 
     # When set to true, events with fields too long still get emitted as valid enriched events
@@ -180,6 +171,9 @@
 
     # Interval for the heartbeat event
     "interval": 15 minutes
+
+    # HTTP method used to send the heartbeat event
+    "method": POST
 
     # URI of the collector receiving the heartbeat event
     "collectorUri": "https://collector-g.snowplowanalytics.com"
@@ -228,5 +222,20 @@
       # -- Max number of attempts, after which Enrich will crash and exit
       "attempts": 3
     }
+  }
+
+  # Configuration for Azure blob storage client configuration
+  # used to download enrichment resources
+  "blobClients": {
+    "accounts": [
+      # Example public account with no auth
+      { "name": "storageAccount1"},
+
+      # Example private account using default auth chain -> https://learn.microsoft.com/en-us/java/api/com.azure.identity.defaultazurecredential?view=azure-java-stable
+      { "name": "storageAccount2", "auth": { "type": "default"} },
+
+      # Example private account using SAS token auth
+      { "name": "storageAccount3",  "auth": { "type": "sas", "value": "tokenValue"}}
+    ]
   }
 }

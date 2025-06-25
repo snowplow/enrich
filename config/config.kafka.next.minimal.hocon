@@ -19,10 +19,4 @@
       "bootstrapServers": "localhost:9092"
     }
   }
-
-  "blobClients": {
-    "accounts": [
-      { "name": "storageAccount1"}
-    ]
-  }
 }

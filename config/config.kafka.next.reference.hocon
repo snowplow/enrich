@@ -74,21 +74,6 @@
 
   }
 
-  # Configuration for Azure blob storage client configuration
-  # used to download enrichment resources
-  "blobClients": {
-    "accounts": [
-      # Example public account with no auth
-      { "name": "storageAccount1"},
-
-      # Example private account using default auth chain -> https://learn.microsoft.com/en-us/java/api/com.azure.identity.defaultazurecredential?view=azure-java-stable
-      { "name": "storageAccount2", "auth": { "type": "default"} },
-
-      # Example private account using SAS token auth
-      { "name": "storageAccount3",  "auth": { "type": "sas", "value": "tokenValue"}}
-    ]
-  }
-
   # -- Controls how the app splits the workload into concurrent batches which can be run in parallel
   # -- E.g. If there are 4 available processors, and cpuParallelismFactor = 0.75, then we process 3 batches concurrently.
   # -- Adjusting this value can cause the app to use more or less of the available CPU.
@@ -228,5 +213,20 @@
       # -- Max number of attempts, after which Enrich will crash and exit
       "attempts": 3
     }
+  }
+
+  # Configuration for Azure blob storage client configuration
+  # used to download enrichment resources
+  "blobClients": {
+    "accounts": [
+      # Example public account with no auth
+      { "name": "storageAccount1"},
+
+      # Example private account using default auth chain -> https://learn.microsoft.com/en-us/java/api/com.azure.identity.defaultazurecredential?view=azure-java-stable
+      { "name": "storageAccount2", "auth": { "type": "default"} },
+
+      # Example private account using SAS token auth
+      { "name": "storageAccount3",  "auth": { "type": "sas", "value": "tokenValue"}}
+    ]
   }
 }

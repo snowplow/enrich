@@ -152,7 +152,7 @@ object KafkaConfigSpec {
     ),
     metadata = None,
     identity = None,
-    blobClients = AzureStorageConfig(List(AzureStorageConfig.Account("storageAccount1", None))),
+    blobClients = AzureStorageConfig(Nil),
     adaptersSchemas = adaptersSchemas
   )
 

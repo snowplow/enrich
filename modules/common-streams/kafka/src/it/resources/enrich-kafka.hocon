@@ -46,10 +46,6 @@
     }
   }
 
-  "blobClients": {
-    "accounts": []
-  }
-
   "telemetry": {
     "disable": true
   }

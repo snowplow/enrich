@@ -23,6 +23,7 @@ import cats.data.Validated
 import cats.Foldable
 
 import cats.effect.kernel.{Async, Sync, Unique}
+import cats.effect.implicits._
 
 import fs2.{Chunk, Pipe, Stream}
 
@@ -51,10 +52,8 @@ object Processing {
       .through(addIdentityContext(env))
       .through(collectMetadata(env))
       .through(serialize(env))
-      .through(sinkEnriched(env))
+      .through(sink(env))
       .through(setE2ELatencyMetric(env))
-      .through(sinkFailed(env))
-      .through(sinkBad(env))
       .through(emitToken)
 
   private case class Parsed(
@@ -85,7 +84,7 @@ object Processing {
   private def parseBytes[F[_]: Async](
     env: Environment[F]
   ): Pipe[F, TokenedEvents, Parsed] =
-    _.parEvalMap(env.cpuParallelism) { input =>
+    _.evalMap { input =>
       for {
         etlTstamp <- Sync[F].realTimeInstant
         (bad, collectorPayloads) <- Foldable[Chunk].traverseSeparateUnordered(input.events) { buffer =>
@@ -131,20 +130,20 @@ object Processing {
     in.parEvalMap(env.cpuParallelism) { parsed =>
       env.enrichmentRegistry.opened
         .use { enrRegistry =>
-          Foldable[List]
-            .foldM(parsed.collectorPayloads, (List.empty[BadRow], List.empty[EnrichedEvent], List.empty[EnrichedEvent], 0)) {
-              case ((lefts, boths, rights, droppedCount), payload) =>
-                enrichPayload(payload, parsed.etlTstamp, enrRegistry).map { list =>
-                  list.foldLeft((lefts, boths, rights, droppedCount)) {
-                    case ((ls, bs, rs, dropped), i) =>
-                      i match {
-                        case OptionIor.Left(b) => (b :: ls, bs, rs, dropped)
-                        case OptionIor.Right(c) => (ls, bs, c :: rs, dropped)
-                        case OptionIor.Both(b, c) => (b :: ls, c :: bs, rs, dropped)
-                        case OptionIor.None => (ls, bs, rs, dropped + 1)
-                      }
+          parsed.collectorPayloads
+            .parUnorderedTraverse { payload =>
+              enrichPayload(payload, parsed.etlTstamp, enrRegistry)
+            }
+            .map { enriched =>
+              enriched.flatten.foldLeft((List.empty[BadRow], List.empty[EnrichedEvent], List.empty[EnrichedEvent], 0)) {
+                case ((ls, bs, rs, dropped), i) =>
+                  i match {
+                    case OptionIor.Left(b) => (b :: ls, bs, rs, dropped)
+                    case OptionIor.Right(c) => (ls, bs, c :: rs, dropped)
+                    case OptionIor.Both(b, c) => (b :: ls, c :: bs, rs, dropped)
+                    case OptionIor.None => (ls, bs, rs, dropped + 1)
                   }
-                }
+              }
             }
         }
         .flatMap {
@@ -168,7 +167,7 @@ object Processing {
   private def serialize[F[_]: Async](
     env: Environment[F]
   ): Pipe[F, Enriched, Serialized] = { in =>
-    in.parEvalMap(env.cpuParallelism) { enriched =>
+    in.evalMap { enriched =>
       Sync[F].delay {
         val (sizeViolations, good) = enriched.enriched.foldLeft((List.empty[Sinkable], List.empty[Sinkable])) {
           case ((ls, rs), e) =>
@@ -259,12 +258,21 @@ object Processing {
       Sinkable(bytes, None, Map.empty)
   }
 
-  private def sinkEnriched[F[_]: Async](
+  private def sink[F[_]: Async](
     env: Environment[F]
   ): Pipe[F, Serialized, Serialized] =
-    _.evalTap {
+    _.parEvalMap(env.sinkParallelism) { batch =>
+      List(sinkEnriched(env, batch), sinkFailed(env, batch), sinkBad(env, batch)).parSequence_.as(batch)
+    }
+
+  private def sinkEnriched[F[_]: Async](
+    env: Environment[F],
+    batch: Serialized
+  ): F[Unit] =
+    batch match {
       case Serialized(enriched, _, _, _, _) if enriched.nonEmpty =>
-        env.enrichedSink.sink(ListOfList.ofLists(enriched)) >> env.metrics.addEnriched(enriched.size)
+        env.enrichedSink.sink(ListOfList.ofLists(enriched)) >>
+          env.metrics.addEnriched(enriched.size)
       case _ =>
         Sync[F].unit
     }
@@ -285,9 +293,10 @@ object Processing {
     }
 
   private def sinkFailed[F[_]: Async](
-    env: Environment[F]
-  ): Pipe[F, Serialized, Serialized] =
-    _.evalTap {
+    env: Environment[F],
+    batch: Serialized
+  ): F[Unit] =
+    batch match {
       case Serialized(_, failed, _, _, _) if failed.nonEmpty =>
         env.failedSink match {
           case Some(sink) => sink.sink(ListOfList.ofLists(failed)) >> env.metrics.addFailed(failed.size)
@@ -298,9 +307,10 @@ object Processing {
     }
 
   private def sinkBad[F[_]: Async](
-    env: Environment[F]
-  ): Pipe[F, Serialized, Serialized] =
-    _.evalTap {
+    env: Environment[F],
+    batch: Serialized
+  ): F[Unit] =
+    batch match {
       case Serialized(_, _, bad, _, _) if bad.nonEmpty =>
         env.badSink.sink(bad) >> env.metrics.addBad(bad.asIterable.size)
       case _ =>

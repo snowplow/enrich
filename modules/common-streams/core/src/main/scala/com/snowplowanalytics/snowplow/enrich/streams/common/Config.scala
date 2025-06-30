@@ -56,6 +56,7 @@ case class Config[+Factory, +Source, +Sink, +BlobClients](
   output: Config.Output[Sink],
   streams: Factory,
   cpuParallelismFraction: BigDecimal,
+  sinkParallelismFraction: BigDecimal,
   monitoring: Config.Monitoring,
   assetsUpdatePeriod: FiniteDuration,
   validation: Config.Validation,

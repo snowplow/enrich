@@ -55,6 +55,10 @@ import com.snowplowanalytics.snowplow.enrich.cloudutils.core.HttpBlobClient
  *   The processing Pipe involves several steps, some of which are cpu-intensive. We run
  *   cpu-intensive steps in parallel, so that on big instances we can take advantage of all cores.
  *   For each of those cpu-intensive steps, `cpuParallelism` controls the parallelism of that step.
+ * @param sinkParallelism
+ *   Sinking steps aren't cpu-intensive but running them in parallel helps to use CPU better.
+ *   Since it isn't cpu-intensive step, we want to control its parallelism differently
+ *   then cpu-intensive steps which are controlled with `cpuParallelism`.
  */
 case class Environment[F[_]](
   appInfo: AppInfo,
@@ -65,6 +69,7 @@ case class Environment[F[_]](
   badSink: Sink[F],
   metrics: Metrics[F],
   cpuParallelism: Int,
+  sinkParallelism: Int,
   sinkMaxSize: Int,
   adapterRegistry: AdapterRegistry[F],
   assets: List[Assets.Asset],
@@ -115,6 +120,7 @@ object Environment {
                  }
       metrics <- Resource.eval(Metrics.build(config.main.monitoring.metrics))
       cpuParallelism = chooseCpuParallelism(config.main)
+      sinkParallelism = chooseSinkParallelism(config.main)
       adapterRegistry = new AdapterRegistry(Map.empty, config.main.adaptersSchemas)
       resolver <- mkResolver[F](config.iglu)
       igluClient <- Resource.eval(IgluCirceClient.fromResolver(resolver, config.iglu.cacheSize, config.main.validation.maxJsonDepth))
@@ -159,6 +165,7 @@ object Environment {
       badSink = badSink,
       metrics = metrics,
       cpuParallelism = cpuParallelism,
+      sinkParallelism = sinkParallelism,
       sinkMaxSize = config.main.output.good.maxRecordSize,
       adapterRegistry = adapterRegistry,
       assets = assets,
@@ -242,6 +249,14 @@ object Environment {
    */
   private def chooseCpuParallelism(config: AnyConfig): Int =
     (Runtime.getRuntime.availableProcessors * config.cpuParallelismFraction)
+      .setScale(0, BigDecimal.RoundingMode.UP)
+      .toInt
+
+  /**
+   * See the description of `sinkParallelism` on the [[Environment]] class
+   */
+  private def chooseSinkParallelism(config: AnyConfig): Int =
+    (Runtime.getRuntime.availableProcessors * config.sinkParallelismFraction)
       .setScale(0, BigDecimal.RoundingMode.UP)
       .toInt
 }

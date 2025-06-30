@@ -90,8 +90,13 @@
   # -- Controls how the app splits the workload into concurrent batches which can be run in parallel
   # -- E.g. If there are 4 available processors, and cpuParallelismFactor = 0.75, then we process 3 batches concurrently.
   # -- Adjusting this value can cause the app to use more or less of the available CPU.
-  # -- Steps with parallelism: parsing input bytes, validating and enriching, serializing output records
-  "cpuParallelismFraction": 0.75
+  # -- Steps with parallelism: validating and enriching
+  "cpuParallelismFraction": 1
+
+  # -- Controls number of sink job that can be run in parallel
+  # -- E.g. If there are 4 available processors, and sinkParallelismFraction = 2, then we run 8 sink job concurrently.
+  # -- Adjusting this value can cause the app to use more or less of the available CPU.
+  "sinkParallelismFraction": 2
 
   "monitoring": {
 

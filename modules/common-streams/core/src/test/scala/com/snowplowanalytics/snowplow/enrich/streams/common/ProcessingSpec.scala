@@ -131,16 +131,20 @@ class ProcessingSpec extends Specification with CatsEffect {
                          for {
                            _ <- Processing.stream(control.environment).compile.drain
                            state <- control.state.get
-                         } yield state should beEqualTo(
-                           Vector(
-                             Action.AddedRawCountMetric(1),
-                             Action.SetE2ELatencyMetric(Duration(etlLatency.toMinutes, MINUTES)),
-                             Action.SentToFailed(expectedFailed),
-                             Action.AddedFailedCountMetric(1),
-                             Action.SentToBad(expectedBad),
-                             Action.AddedBadCountMetric(1),
-                             Action.Checkpointed(List(token))
-                           )
+                         } yield state should beOneOf(
+                           sinkActionsPermutations(
+                             Vector(
+                               Action.AddedRawCountMetric(1),
+                               Action.SentToFailed(expectedFailed),
+                               Action.AddedFailedCountMetric(1),
+                               Action.SentToBad(expectedBad),
+                               Action.AddedBadCountMetric(1),
+                               Action.SetE2ELatencyMetric(Duration(etlLatency.toMinutes, MINUTES)),
+                               Action.Checkpointed(List(token))
+                             ),
+                             1,
+                             5
+                           ): _*
                          )
                      }
       } yield assertion
@@ -450,16 +454,20 @@ class ProcessingSpec extends Specification with CatsEffect {
                          for {
                            _ <- Processing.stream(control.environment).compile.drain
                            state <- control.state.get
-                         } yield state should beEqualTo(
-                           Vector(
-                             Action.AddedRawCountMetric(1),
-                             Action.SetE2ELatencyMetric(Duration(etlLatency.toMinutes, MINUTES)),
-                             Action.SentToFailed(expectedFailed),
-                             Action.AddedFailedCountMetric(1),
-                             Action.SentToBad(expectedBad),
-                             Action.AddedBadCountMetric(1),
-                             Action.Checkpointed(List(token))
-                           )
+                         } yield state should beOneOf(
+                           sinkActionsPermutations(
+                             Vector(
+                               Action.AddedRawCountMetric(1),
+                               Action.SentToFailed(expectedFailed),
+                               Action.AddedFailedCountMetric(1),
+                               Action.SentToBad(expectedBad),
+                               Action.AddedBadCountMetric(1),
+                               Action.SetE2ELatencyMetric(Duration(etlLatency.toMinutes, MINUTES)),
+                               Action.Checkpointed(List(token))
+                             ),
+                             1,
+                             5
+                           ): _*
                          )
                      }
       } yield assertion
@@ -572,4 +580,19 @@ object ProcessingSpec {
       MockEnvironment.build(input, enrichmentsConfs, mocks, exitOnJsCompileError).use { env =>
         f(env)
       }
+
+  /**
+   * Since sink actions are run parallel, exact order of sink actions can't be known.
+   * To be able to test the results in the tests, permutations of actions are created here.
+   */
+  def sinkActionsPermutations(
+    actions: Vector[MockEnvironment.Action],
+    sinkActionStart: Int,
+    sinkActionFinish: Int
+  ): Vector[Vector[MockEnvironment.Action]] = {
+    val sublist = actions.slice(sinkActionStart, sinkActionFinish)
+    val perms = sublist.grouped(2).toVector.permutations.map(_.flatten).toVector
+    perms.map(v => actions.take(sinkActionStart) ++ v ++ actions.drop(sinkActionFinish))
+  }
+
 }

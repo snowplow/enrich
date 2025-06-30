@@ -115,7 +115,8 @@ object PubsubConfigSpec {
       )
     ),
     streams = PubsubFactoryConfig(gcpUserAgent = GcpUserAgent("Snowplow OSS", "enrich")),
-    cpuParallelismFraction = BigDecimal(0.75),
+    cpuParallelismFraction = BigDecimal(1),
+    sinkParallelismFraction = BigDecimal(2),
     monitoring = Config.Monitoring(
       metrics = Config.Metrics(None),
       sentry = None,
@@ -189,7 +190,8 @@ object PubsubConfigSpec {
       )
     ),
     streams = PubsubFactoryConfig(gcpUserAgent = GcpUserAgent("Snowplow OSS", "enrich")),
-    cpuParallelismFraction = BigDecimal(0.75),
+    cpuParallelismFraction = BigDecimal(1),
+    sinkParallelismFraction = BigDecimal(2),
     monitoring = Config.Monitoring(
       metrics = Config.Metrics(
         statsd = Some(

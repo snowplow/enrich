@@ -134,6 +134,7 @@ object MockEnvironment {
         ),
         metrics = testMetrics(state),
         cpuParallelism = 2,
+        sinkParallelism = 1,
         sinkMaxSize = 1024 * 1024,
         adapterRegistry = testAdapterRegistry,
         assets = assets,

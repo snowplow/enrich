@@ -260,6 +260,7 @@ object Config {
                  .toList
                  .attemptT
                  .leftMap(e => s"Can't list enrichments config files in ${dir.toAbsolutePath.toString}: $e")
+                 .map(_.filter(_.toString.endsWith(".json")))
       jsons <- paths.traverse { path =>
                  readJsonFile(path.toNioPath)
                    .leftMap(error => s"Problem while parsing config file $path: $error")

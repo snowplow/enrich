@@ -383,7 +383,8 @@ object Dependencies {
     )
 
     val kinesisStreamsDependencies = Seq(
-      kinesisSnowplow
+      kinesisSnowplow,
+      stsSdk2
     )
 
     val kafkaDependencies = Seq(

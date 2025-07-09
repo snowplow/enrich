@@ -139,7 +139,7 @@ class ApiRequestEnrichmentIntegrationTest extends Specification with ValidatedMa
         "api": {
           "http": {
             "method": "POST",
-            "uri": "http://localhost:8000/api/{{client}}/{{user}}/{{ jobflow }}/{{latitude}}?date={{ datetime }}",
+            "uri": "http://localhost:8001/api/{{client}}/{{user}}/{{ jobflow }}/{{latitude}}?date={{ datetime }}",
            "timeout": 5000,
             "authentication": {
               "httpBasic": {

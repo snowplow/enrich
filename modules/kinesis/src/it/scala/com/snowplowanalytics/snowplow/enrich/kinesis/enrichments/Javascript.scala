@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-present Snowplow Analytics Ltd.
+ * Copyright (c) 2022-present Snowplow Analytics Ltd.
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
@@ -13,8 +13,11 @@ package com.snowplowanalytics.snowplow.enrich.kinesis.enrichments
 import java.util.Base64
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+import com.snowplowanalytics.snowplow.enrich.core.Enrichment
 
 case object Javascript extends Enrichment {
+  val fileName = "javascript_script_enrichment.json"
+
   private val base64Encoder = Base64.getEncoder()
 
   val script = """

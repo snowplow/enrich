@@ -15,23 +15,18 @@ jobs:
       matrix:
         app:
           - pubsub
-          - pubsubStreams
           - kinesis
-          - kinesisStreams
           - kafka
-          - kafkaStreams
           - nsq
-          - nsqStreams
         include:
-          - run_snyk: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc') }}
-          - app: kinesisStreams
-            isCommonStreams: true
-          - app: pubsubStreams
-            isCommonStreams: true
-          - app: kafkaStreams
-            isCommonStreams: true
-          - app: nsqStreams
-            isCommonStreams: true
+          - app: kinesis
+            run_snyk: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc') }}
+          - app: pubsub
+            run_snyk: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc') }}
+          - app: kafka
+            run_snyk: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc') }}
+          - app: nsq
+            run_snyk: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc') }}
     steps:
     - uses: actions/checkout@v4
       if: startsWith(github.ref, 'refs/tags/')
@@ -53,24 +48,16 @@ jobs:
       with:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
-    - name: Set version suffix
-      id: versionSuffix
-      run: |
-        version_suffix=""
-        if [ "${{ matrix.isCommonStreams }}" = "true" ]; then
-          version_suffix="-next"
-        fi
-        echo "::set-output name=versionSuffix::$version_suffix"
     - name: Get current version
       if: startsWith(github.ref, 'refs/tags/')
       id: ver
-      run: echo "::set-output name=tag::${GITHUB_REF#refs/tags/}${{ steps.versionSuffix.outputs.versionSuffix }}"
+      run: echo "::set-output name=tag::${GITHUB_REF#refs/tags/}"
     - name: Get current version (snapshot)
       if: startsWith(github.ref, 'refs/heads/snapshot')
       id: ver-snapshot
       run: |
         export SNAPSHOT_VERSION=$(sbt common/version -Dsbt.log.noformat=true | grep 'SNAPSHOT' | awk '{ print $2 }')
-        echo "::set-output name=tag::$SNAPSHOT_VERSION${{ steps.versionSuffix.outputs.versionSuffix }}"
+        echo "::set-output name=tag::$SNAPSHOT_VERSION$"
     - name: Get app package name
       id: packageName
       run: |

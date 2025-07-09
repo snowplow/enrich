@@ -46,7 +46,6 @@ object Dependencies {
     val log4jToSlf4j     = "2.18.0"
     val guava            = "33.1.0-jre"
     val slf4j            = "2.0.3"
-    val log4j            = "2.20.0"
     val thrift           = "0.15.0"
     val sprayJson        = "1.3.6"
     val netty            = "4.1.118.Final"
@@ -57,7 +56,6 @@ object Dependencies {
     val maxmindIplookups = "0.8.1"
     val circe            = "0.14.3"
     val circeOptics      = "0.14.1"
-    val circeConfig      = "0.10.1"
     val circeJackson     = "0.14.0"
     val scalaForex       = "3.0.0"
     val scalaWeather     = "2.0.0"
@@ -70,45 +68,28 @@ object Dependencies {
     val collectorPayload = "0.0.0"
     val schemaSniffer    = "0.0.0"
 
-    val awsSdk           = "1.12.778"
     val gcpSdk           = "2.45.0"
-    val awsSdk2          = "2.29.20"
-    val kinesisClient2   = "2.6.1"
-    val kafka            = "3.9.0"
-    val mskAuth          = "2.0.3"
-    val nsqClient        = "1.3.0"
+    val awsSdk           = "2.29.20"
+    val kafka            = "3.9.1"
     val jackson          = "2.18.1"
-    val config           = "1.3.4"
 
     val decline          = "2.4.1"
     val fs2              = "3.10.2"
     val catsEffect       = "3.5.4"
-    val fs2PubSub        = "0.22.1"
-    val fs2Aws           = "4.1.0"
-    val fs2Kafka         = "3.6.0"
     val fs2BlobStorage   = "0.9.15"
     val azureIdentity    = "1.12.2"
-    val msal4j           = "1.17.3"
     val nimbusJoseJwt    = "9.37.2"
     val http4s           = "0.23.25"
-    val log4cats         = "2.6.0"
-    val catsRetry        = "3.1.0"
-    val specsDiff        = "0.6.0"
-    val eventGen         = "0.2.0"
-
-    val snowplowTracker  = "2.0.0"
 
     val streams          = "0.13.0-M4"
 
     val specs2            = "4.20.3"
     val specs2Cats        = "4.20.3"
     val specs2CE          = "1.5.0"
-    val scalacheck        = "1.17.0"
     val testcontainers    = "0.40.10"
     val dockerJava        = "3.3.6"
     val parserCombinators = "2.1.1"
-    val sentry            = "1.7.30"
-    val sentry7           = "7.16.0"
+    val sentry            = "7.16.0"
 
     val betterMonadicFor = "0.3.1"
   }
@@ -130,16 +111,11 @@ object Dependencies {
     val jsonsmart        = "net.minidev"                %  "json-smart"                    % V.jsonsmart
     val yauaa            = "nl.basjes.parse.useragent"  %  "yauaa"                         % V.yauaa
     val log4jToSlf4j     = "org.apache.logging.log4j"   % "log4j-to-slf4j"                 % V.log4jToSlf4j
-    val log4j            = "org.apache.logging.log4j"   % "log4j-core"                     % V.log4j
     val guava            = "com.google.guava"           %  "guava"                         % V.guava
     val nashorn          = "org.openjdk.nashorn"        % "nashorn-core"                   % V.nashorn
 
-    val circeCore        = "io.circe"                   %% "circe-core"                    % V.circe
     val circeGeneric     = "io.circe"                   %% "circe-generic"                 % V.circe
-    val circeExtras      = "io.circe"                   %% "circe-generic-extras"          % V.circe
-    val circeParser      = "io.circe"                   %% "circe-parser"                  % V.circe
     val circeLiteral     = "io.circe"                   %% "circe-literal"                 % V.circe
-    val circeConfig      = "io.circe"                   %% "circe-config"                  % V.circeConfig
     val circeOptics      = "io.circe"                   %% "circe-optics"                  % V.circeOptics
     val circeJackson     = "io.circe"                   %% "circe-jackson210"              % V.circeJackson
     val scalaUri         = "io.lemonlabs"               %% "scala-uri"                     % V.scalaUri
@@ -162,7 +138,6 @@ object Dependencies {
     val nettyCodec       = "io.netty"                   %  "netty-codec"                   % V.netty
     val slf4j            = "org.slf4j"                  %  "slf4j-simple"                  % V.slf4j
     val sentry           = "io.sentry"                  %  "sentry"                        % V.sentry
-    val sentry7          = "io.sentry"                  %  "sentry"                        % V.sentry7 // breaking change for common-fs2
     val protobuf         = "com.google.protobuf"        %  "protobuf-java"                 % V.protobuf
 
     val streams         = "com.snowplowanalytics" %% "streams-core"   % V.streams
@@ -179,57 +154,25 @@ object Dependencies {
     val specs2CE           = "org.typelevel"          %% "cats-effect-testing-specs2"    % V.specs2CE          % Test
     val specs2CEIt         = "org.typelevel"          %% "cats-effect-testing-specs2"    % V.specs2CE          % IntegrationTest
     val catsEffectTestkit  = "org.typelevel"          %% "cats-effect-testkit"           % V.catsEffect        % Test
-    val specsDiff          = "com.softwaremill.diffx" %% "diffx-specs2"                  % V.specsDiff         % Test
-    val eventGen           = "com.snowplowanalytics"  %% "snowplow-event-generator-core" % V.eventGen          % Test
     val parserCombinators  = "org.scala-lang.modules" %% "scala-parser-combinators"      % V.parserCombinators % Test
     val testContainersIt   = "com.dimafeng"           %% "testcontainers-scala-core"     % V.testcontainers    % IntegrationTest
     val dockerJavaIt       = "com.github.docker-java" %  "docker-java"                   % V.dockerJava        % IntegrationTest
 
-    val kinesisSdk       = "com.amazonaws"                    %  "aws-java-sdk-kinesis"              % V.awsSdk
-    val dynamodbSdk      = "com.amazonaws"                    %  "aws-java-sdk-dynamodb"             % V.awsSdk
-    val sts              = "com.amazonaws"                    %  "aws-java-sdk-sts"                  % V.awsSdk           % Runtime
     val gcs              = "com.google.cloud"                 %  "google-cloud-storage"              % V.gcpSdk
     val kafkaClients     = "org.apache.kafka"                 %  "kafka-clients"                     % V.kafka
-    val mskAuth          = "software.amazon.msk"              %  "aws-msk-iam-auth"                  % V.mskAuth          % Runtime
-    val config           = "com.typesafe"                     %  "config"                            % V.config
-    val nsqClient        = "com.snowplowanalytics"            %  "nsq-java-client"                   % V.nsqClient
-    val catsEffect       = "org.typelevel"                    %% "cats-effect"                       % V.catsEffect
-    val scalacheck       = "org.scalacheck"                   %% "scalacheck"                        % V.scalacheck       % Test
 
-    // FS2
-    val decline          = "com.monovore"                     %% "decline"                               % V.decline
     val declineEffect    = "com.monovore"                     %% "decline-effect"                        % V.decline
-    val fs2PubSub        = "com.permutive"                    %% "fs2-google-pubsub-grpc"                % V.fs2PubSub
-    val fs2AwsKinesis    = ("io.laserdisc"                    %% "fs2-aws-kinesis"                       % V.fs2Aws)
-                           .exclude("com.amazonaws", "amazon-kinesis-producer")
-                           .exclude("software.amazon.kinesis", "amazon-kinesis-client")
-                           .exclude("org.scala-lang.modules", "scala-xml_2.12")
     val fs2              = "co.fs2"                           %% "fs2-core"                              % V.fs2
-    val fs2Io            = "co.fs2"                           %% "fs2-io"                                % V.fs2
-    val fs2Kafka         = "com.github.fd4s"                  %% "fs2-kafka"                             % V.fs2Kafka
-    val kinesisSdk2      = "software.amazon.awssdk"           %  "kinesis"                               % V.awsSdk2
-    val dynamoDbSdk2     = "software.amazon.awssdk"           %  "dynamodb"                              % V.awsSdk2
-    val s3Sdk2           = "software.amazon.awssdk"           %  "s3"                                    % V.awsSdk2
-    val cloudwatchSdk2   = "software.amazon.awssdk"           %  "cloudwatch"                            % V.awsSdk2
-    val kinesisClient2   = ("software.amazon.kinesis"         %  "amazon-kinesis-client"                 % V.kinesisClient2)
-                           .exclude("software.amazon.glue", "schema-registry-common")
-                           .exclude("software.amazon.glue", "schema-registry-serde")
-    val stsSdk2          = "software.amazon.awssdk"           %  "sts"                                   % V.awsSdk2         % Runtime
+    val s3               = "software.amazon.awssdk"           %  "s3"                                    % V.awsSdk
+    val sts              = "software.amazon.awssdk"           %  "sts"                                   % V.awsSdk         % Runtime
     val azureIdentity    = "com.azure"                        % "azure-identity"                         % V.azureIdentity
-    val msal4j           = "com.microsoft.azure"              % "msal4j"                                 % V.msal4j
     val nimbusJoseJwt    = "com.nimbusds"                     % "nimbus-jose-jwt"                        % V.nimbusJoseJwt
     val jacksonDfXml     = "com.fasterxml.jackson.dataformat" % "jackson-dataformat-xml"                 % V.jackson
     val http4sClient     = "org.http4s"                       %% "http4s-ember-client"                   % V.http4s
-    val http4sCirce      = "org.http4s"                       %% "http4s-circe"                          % V.http4s
-    val log4cats         = "org.typelevel"                    %% "log4cats-slf4j"                        % V.log4cats
-    val catsRetry        = "com.github.cb372"                 %% "cats-retry"                            % V.catsRetry
     val fs2BlobS3        = "com.github.fs2-blobstore"         %% "s3"                                    % V.fs2BlobStorage
     val fs2BlobGcs       = "com.github.fs2-blobstore"         %% "gcs"                                   % V.fs2BlobStorage
     val fs2BlobAzure     = "com.github.fs2-blobstore"         %% "azure"                                 % V.fs2BlobStorage
     val http4sDsl        = "org.http4s"                       %% "http4s-dsl"                            % V.http4s          % Test
-    val http4sServer     = "org.http4s"                       %% "http4s-ember-server"                   % V.http4s          % Test
-    val trackerCore      = "com.snowplowanalytics"            %% "snowplow-scala-tracker-core"           % V.snowplowTracker
-    val emitterHttps     = "com.snowplowanalytics"            %% "snowplow-scala-tracker-emitter-http4s" % V.snowplowTracker
 
     // compiler plugins
     val betterMonadicFor = "com.olegpy" %% "better-monadic-for" % V.betterMonadicFor
@@ -282,43 +225,12 @@ object Dependencies {
       nashorn
     )
 
-    val commonFs2Dependencies = Seq(
-      decline,
-      circeExtras,
-      circeLiteral,
-      circeConfig,
-      catsEffect,
-      fs2,
-      fs2Io,
-      slf4j,
-      sentry,
-      log4cats,
-      catsRetry,
-      igluClient,
-      igluClientHttp4s,
-      http4sClient,
-      http4sCirce,
-      trackerCore,
-      emitterHttps,
-      specs2,
-      specs2CE,
-      scalacheck,
-      specs2Scalacheck,
-      http4sDsl,
-      http4sServer,
-      eventGen,
-      specsDiff,
-      circeCore % Test,
-      circeGeneric % Test,
-      circeParser % Test
-    )
-
-    val commonStreamsDependencies = Seq(
+    val coreDependencies = Seq(
       circeLiteral,
       declineEffect,
       igluClientHttp4s,
       runtime,
-      sentry7,
+      sentry,
       streams,
       slf4j,
       // Tests
@@ -327,14 +239,14 @@ object Dependencies {
       http4sDsl
     )
 
-    val cloudUtilsStreamsDependencies = Seq(
+    val cloudUtilsDependencies = Seq(
       fs2,
       http4sClient
     )
 
     val awsUtilsDependencies = Seq(
       fs2BlobS3,
-      s3Sdk2
+      s3
     )
 
     val gcpUtilsDependencies = Seq(
@@ -345,71 +257,26 @@ object Dependencies {
     val azureUtilsDependencies = Seq(
       fs2BlobAzure,
       azureIdentity,
+      circeGeneric,
       jacksonDfXml, // for security vulnerabilities
       nimbusJoseJwt // for security vulnerabilities
     )
 
-    val azureUtilsStreamsDependencies = azureUtilsDependencies ++ Seq(
-      circeGeneric
-    )
-
     val pubsubDependencies = Seq(
-      fs2BlobGcs,
-      gcs,
-      fs2PubSub,
-      protobuf, // for security vulnerabilities
-      specs2,
-      specs2CE
-    )
-
-    val pubsubStreamsDependencies = Seq(
       pubsubSnowplow
     )
 
     val kinesisDependencies = Seq(
-      dynamodbSdk,
-      kinesisSdk,
-      fs2BlobS3,
-      fs2AwsKinesis,
-      kinesisSdk2,
-      dynamoDbSdk2,
-      s3Sdk2,
-      cloudwatchSdk2,
-      kinesisClient2,
-      stsSdk2,
-      sts,
-      specs2,
-      specs2CE
-    )
-
-    val kinesisStreamsDependencies = Seq(
       kinesisSnowplow,
-      stsSdk2
+      sts
     )
 
     val kafkaDependencies = Seq(
-      fs2Kafka,
-      kafkaClients, // for security vulnerabilities
-      msal4j, // for security vulnerabilities
-      mskAuth,
-      specs2,
-      specs2CE
-    )
-
-    val kafkaStreamsDependencies = Seq(
-      kafkaSnowplow
+      kafkaSnowplow,
+      kafkaClients // for security vulnerabilities
     )
 
     val nsqDependencies = Seq(
-      nsqClient,
-      fs2BlobS3,
-      fs2BlobGcs,
-      log4j, // for security vulnerabilities
-      specs2,
-      specs2CE
-    )
-
-    val nsqStreamsDependencies = Seq(
       nsqSnowplow
     )
 

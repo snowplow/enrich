@@ -12,107 +12,91 @@ package com.snowplowanalytics.snowplow.enrich.kinesis
 
 import java.io._
 import java.net._
+import java.net.URI
+import java.util.UUID
 
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
-import cats.data.Validated
+import cats.Id
 
 import cats.effect.IO
 import cats.effect.kernel.Resource
 
 import cats.effect.testing.specs2.CatsEffect
 
-import fs2.{Pipe, Stream}
+import com.snowplowanalytics.snowplow.streams.kinesis.{
+  BackoffPolicy,
+  KinesisFactory,
+  KinesisSinkConfig,
+  KinesisSinkConfigM,
+  KinesisSourceConfig
+}
 
-import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
-
-import com.snowplowanalytics.snowplow.badrows.BadRow
-
-import com.snowplowanalytics.snowplow.enrich.common.fs2.config.io.Input
-import com.snowplowanalytics.snowplow.enrich.common.fs2.test.Utils
+import com.snowplowanalytics.snowplow.enrich.core.Utils
 
 object utils extends CatsEffect {
 
-  sealed trait OutputRow
-  object OutputRow {
-    final case class Good(event: Event) extends OutputRow
-    final case class Bad(badRow: BadRow) extends OutputRow
-    final case class Incomplete(incomplete: Event) extends OutputRow
+  def run(
+    enrichKinesis: EnrichKinesis,
+    nbEnriched: Long,
+    nbBad: Long = 0L,
+    nbGoodDrop: Long = 0L,
+    nbBadDrop: Long = 0L
+  ): IO[Utils.Output] = {
+    val rawSinkConfig = sinkConfig(enrichKinesis.localstack.host, enrichKinesis.localstack.mappedPort, enrichKinesis.rawStream)
+    val enrichedSourceConfig =
+      sourceConfig(enrichKinesis.localstack.host, enrichKinesis.localstack.mappedPort, enrichKinesis.enrichedStream)
+    val failedSourceConfig = sourceConfig(enrichKinesis.localstack.host, enrichKinesis.localstack.mappedPort, enrichKinesis.failedStream)
+    val badSourceConfig = sourceConfig(enrichKinesis.localstack.host, enrichKinesis.localstack.mappedPort, enrichKinesis.badStream)
+
+    KinesisFactory.resource[IO].use { factory =>
+      Utils.runEnrichPipe(
+        factory,
+        rawSinkConfig,
+        enrichedSourceConfig,
+        failedSourceConfig,
+        badSourceConfig,
+        nbEnriched,
+        nbBad,
+        nbGoodDrop,
+        nbBadDrop
+      )
+    }
   }
 
-  case class KinesisTestResources(localstack: Containers.Localstack, statsdAdmin: StatsdAdmin)
-
-  def mkEnrichPipe(
+  def sourceConfig(
+    localstackHost: String,
     localstackPort: Int,
-    uuid: String
-  ): Resource[IO, Pipe[IO, Array[Byte], OutputRow]] =
-    for {
-      streams <- Resource.pure(KinesisConfig.getStreams(uuid))
-      rawSink <- Sink.init[IO](KinesisConfig.rawStreamConfig(localstackPort, streams.raw))
-    } yield {
-      val enriched = asGood(outputStream(KinesisConfig.enrichedStreamConfig(localstackPort, streams.enriched)))
-      val bad = asBad(outputStream(KinesisConfig.badStreamConfig(localstackPort, streams.bad)))
-      val incomplete = asIncomplete(outputStream(KinesisConfig.incompleteStreamConfig(localstackPort, streams.incomplete)))
+    streamName: String
+  ) =
+    KinesisSourceConfig(
+      appName = UUID.randomUUID().toString,
+      streamName = streamName,
+      workerIdentifier = "test-worker",
+      initialPosition = KinesisSourceConfig.InitialPosition.TrimHorizon,
+      retrievalMode = KinesisSourceConfig.Retrieval.Polling(1000),
+      customEndpoint = Some(URI.create(s"http://$localstackHost:$localstackPort")),
+      dynamodbCustomEndpoint = Some(URI.create(s"http://$localstackHost:$localstackPort")),
+      cloudwatchCustomEndpoint = Some(URI.create(s"http://$localstackHost:$localstackPort")),
+      leaseDuration = 10.seconds,
+      maxLeasesToStealAtOneTimeFactor = BigDecimal(2),
+      checkpointThrottledBackoffPolicy = BackoffPolicy(minBackoff = 100.millis, maxBackoff = 1.second),
+      debounceCheckpoints = 10.seconds
+    )
 
-      collectorPayloads =>
-        enriched
-          .merge(bad)
-          .merge(incomplete)
-          .interruptAfter(4.minutes)
-          .concurrently(collectorPayloads.evalMap(bytes => rawSink(List(bytes))))
-    }
-
-  private def outputStream(config: Input.Kinesis): Stream[IO, Array[Byte]] =
-    Source.init[IO](config, KinesisConfig.monitoring)
-      .map(Main.getPayload)
-
-  private def asGood(source: Stream[IO, Array[Byte]]): Stream[IO, OutputRow.Good] =
-    source.map { bytes =>
-      OutputRow.Good {
-        val s = new String(bytes)
-        Event.parse(s) match {
-          case Validated.Valid(e) => e
-          case Validated.Invalid(e) =>
-            throw new RuntimeException(s"Can't parse enriched event [$s]. Error: $e")
-        }
-      }
-    }
-
-  private def asBad(source: Stream[IO, Array[Byte]]): Stream[IO, OutputRow.Bad] =
-    source.map { bytes =>
-      OutputRow.Bad {
-        val s = new String(bytes)
-        Utils.parseBadRow(s) match {
-          case Right(br) => br
-          case Left(e) =>
-            throw new RuntimeException(s"Can't decode bad row $s. Error: $e")
-        }
-      }
-    }
-
-  private def asIncomplete(source: Stream[IO, Array[Byte]]): Stream[IO, OutputRow.Incomplete] =
-    source.map { bytes =>
-      OutputRow.Incomplete {
-        val s = new String(bytes)
-        Event.parse(s) match {
-          case Validated.Valid(e) => e
-          case Validated.Invalid(e) =>
-            throw new RuntimeException(s"Can't parse incomplete event [$s]. Error: $e")
-        }
-      }
-    }
-
-  def parseOutput(output: List[OutputRow], testName: String): (List[Event], List[BadRow], List[Event]) = {
-    val good = output.collect { case OutputRow.Good(e) => e}
-    println(s"[$testName] Bad rows:")
-    val bad = output.collect { case OutputRow.Bad(b) =>
-      println(s"[$testName] ${b.compact}")
-      b
-    }
-    val incomplete = output.collect { case OutputRow.Incomplete(i) => i}
-    (good, bad, incomplete)
-  }
+  def sinkConfig(
+    localstackHost: String,
+    localstackPort: Int,
+    streamName: String
+  ): KinesisSinkConfig =
+    KinesisSinkConfigM[Id](
+      streamName = streamName,
+      throttledBackoffPolicy = BackoffPolicy(minBackoff = 100.millis, maxBackoff = 1.second),
+      recordLimit = 500,
+      byteLimit = 1024 * 1024 * 1024,
+      customEndpoint = Some(URI.create(s"http://$localstackHost:$localstackPort"))
+    )
 
   trait StatsdAdmin {
     def get(metricType: String): IO[String]
@@ -120,7 +104,7 @@ object utils extends CatsEffect {
     def getGauges = get("gauges")
   }
 
-  def mkStatsdAdmin(host: String, port: Int): Resource[IO, StatsdAdmin] = {
+  def mkStatsdAdmin(host: String, port: Int): Resource[IO, StatsdAdmin] =
     for {
       socket <- Resource.make(IO.blocking(new Socket(host, port)))(s => IO(s.close()))
       toStatsd <- Resource.make(IO(new PrintWriter(socket.getOutputStream(), true)))(pw => IO(pw.close()))
@@ -128,9 +112,8 @@ object utils extends CatsEffect {
     } yield new StatsdAdmin {
       def get(metricType: String): IO[String] =
         for {
-            _ <- IO.blocking(toStatsd.println(metricType))
+          _ <- IO.blocking(toStatsd.println(metricType))
           stats <- IO.blocking(fromStatsd.lines().iterator().asScala.takeWhile(!_.toLowerCase().contains("end")).mkString("\n"))
         } yield stats
     }
-  }
 }

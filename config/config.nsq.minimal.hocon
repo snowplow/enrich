@@ -5,6 +5,7 @@
 
   "input": {
     "topic": "collector-payloads"
+    "channel": "collector-payloads-channel"
     "lookupHost": "127.0.0.1"
     "lookupPort": 4161
   }

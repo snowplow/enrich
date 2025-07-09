@@ -4,16 +4,16 @@
   }
 
   "input": {
-    "streamName": "collector-payloads"
+    "streamName": "snowplow-collector-payloads"
   }
 
   "output": {
     "good": {
-      "streamName": "enriched"
+      "streamName": "snowplow-enriched"
     }
 
     "bad": {
-      "streamName": "bad"
+      "streamName": "snowplow-bad"
     }
   }
 }

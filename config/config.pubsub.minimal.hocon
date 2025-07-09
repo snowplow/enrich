@@ -4,16 +4,16 @@
   }
 
   "input": {
-    "subscription": "projects/test-project/subscriptions/collector-payloads-sub"
+    "subscription": "projects/myproject/subscriptions/snowplow-collector-payloads"
   }
 
   "output": {
     "good": {
-      "topic": "projects/test-project/topics/enriched"
+      "topic": "projects/myproject/topics/snowplow-enriched"
     }
 
     "bad": {
-      "topic": "projects/test-project/topics/bad"
+      "topic": "projects/myproject/topics/snowplow-bad"
     }
   }
 }

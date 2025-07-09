@@ -4,18 +4,18 @@
   }
 
   "input": {
-    "topicName": "collector-payloads"
+    "topicName": "snowplow-collector-payloads"
     "bootstrapServers": "localhost:9092"
   }
 
   "output": {
     "good": {
-      "topicName": "enriched"
+      "topicName": "snowplow-enriched"
       "bootstrapServers": "localhost:9092"
     }
 
     "bad": {
-      "topicName": "bad"
+      "topicName": "snowplow-bad"
       "bootstrapServers": "localhost:9092"
     }
   }

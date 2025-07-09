@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-present Snowplow Analytics Ltd.
+ * Copyright (c) 2022-present Snowplow Analytics Ltd.
  * All rights reserved.
  *
  * This software is made available by Snowplow Analytics, Ltd.,
@@ -11,8 +11,10 @@
 package com.snowplowanalytics.snowplow.enrich.kinesis.enrichments
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+import com.snowplowanalytics.snowplow.enrich.core.Enrichment
 
 case object ApiRequest extends Enrichment {
+  val fileName = "api_request_enrichment_config.json"
   val config = """
     {
       "schema": "iglu:com.snowplowanalytics.snowplow.enrichments/api_request_enrichment_config/jsonschema/1-0-0",

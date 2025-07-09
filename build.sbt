@@ -19,7 +19,7 @@ lazy val root = project.in(file("."))
   .settings(projectSettings)
   .settings(compilerSettings)
   .settings(resolverSettings)
-  .aggregate(common, commonFs2, commonStreams, pubsub, pubsubStreams, kinesis, kinesisStreams, kafka, kafkaStreams, nsq, nsqStreams)
+  .aggregate(common, core, cloudUtils, awsUtils, azureUtils, gcpUtils, pubsub, kinesis, kafka, nsq)
 
 lazy val common = project
   .in(file("modules/common"))
@@ -27,21 +27,11 @@ lazy val common = project
   .settings(libraryDependencies ++= commonDependencies)
   .settings(excludeDependencies ++= exclusions)
 
-lazy val commonFs2 = project
-  .in(file("modules/common-fs2"))
+lazy val core = project
+  .in(file("modules/core"))
   .enablePlugins(BuildInfoPlugin)
-  .settings(commonFs2BuildSettings)
-  .settings(libraryDependencies ++= commonFs2Dependencies)
-  .settings(Defaults.itSettings)
-  .configs(IntegrationTest)
-  .settings(addCompilerPlugin(betterMonadicFor))
-  .dependsOn(common % "test->test;compile->compile")
-
-lazy val commonStreams = project
-  .in(file("modules/common-streams/core"))
-  .enablePlugins(BuildInfoPlugin)
-  .settings(commonStreamsBuildSettings)
-  .settings(libraryDependencies ++= commonStreamsDependencies ++ Seq(
+  .settings(coreBuildSettings)
+  .settings(libraryDependencies ++= coreDependencies ++ Seq(
     // integration tests dependencies
     dockerJavaIt
   ))
@@ -49,58 +39,37 @@ lazy val commonStreams = project
   .configs(IntegrationTest)
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(common % "test->test;compile->compile")
-  .dependsOn(cloudUtilsStreams % "test->test;compile->compile")
+  .dependsOn(cloudUtils % "test->test;compile->compile")
   .settings(Test / igluUris := Seq(
     "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
     "iglu:com.snowplowanalytics.snowplow/add_to_cart/jsonschema/1-0-0"
   ))
 
-lazy val cloudUtilsStreams = project
-  .in(file("modules/common-streams/cloudutils/core"))
-  .settings(cloudUtilsStreamsBuildSettings)
-  .settings(libraryDependencies ++= cloudUtilsStreamsDependencies)
+lazy val cloudUtils = project
+  .in(file("modules/cloudutils/core"))
+  .settings(cloudUtilsBuildSettings)
+  .settings(libraryDependencies ++= cloudUtilsDependencies)
 
 lazy val awsUtils = project
   .in(file("modules/cloudutils/aws"))
   .settings(awsUtilsBuildSettings)
   .settings(libraryDependencies ++= awsUtilsDependencies)
   .settings(addCompilerPlugin(betterMonadicFor))
-  .dependsOn(commonFs2 % "test->test;compile->compile")
-
-lazy val awsUtilsStreams = project
-  .in(file("modules/common-streams/cloudutils/aws"))
-  .settings(awsUtilsStreamsBuildSettings)
-  .settings(libraryDependencies ++= awsUtilsDependencies)
-  .settings(addCompilerPlugin(betterMonadicFor))
-  .dependsOn(cloudUtilsStreams % "compile->compile")
+  .dependsOn(cloudUtils % "compile->compile")
 
 lazy val gcpUtils = project
   .in(file("modules/cloudutils/gcp"))
   .settings(gcpUtilsBuildSettings)
   .settings(libraryDependencies ++= gcpUtilsDependencies)
   .settings(addCompilerPlugin(betterMonadicFor))
-  .dependsOn(commonFs2 % "test->test;compile->compile")
-
-lazy val gcpUtilsStreams = project
-  .in(file("modules/common-streams/cloudutils/gcp"))
-  .settings(gcpUtilsStreamsBuildSettings)
-  .settings(libraryDependencies ++= gcpUtilsDependencies)
-  .settings(addCompilerPlugin(betterMonadicFor))
-  .dependsOn(cloudUtilsStreams % "compile->compile")
+  .dependsOn(cloudUtils % "compile->compile")
 
 lazy val azureUtils = project
   .in(file("modules/cloudutils/azure"))
   .settings(azureUtilsBuildSettings)
   .settings(libraryDependencies ++= azureUtilsDependencies)
   .settings(addCompilerPlugin(betterMonadicFor))
-  .dependsOn(commonFs2 % "test->test;compile->compile")
-
-lazy val azureUtilsStreams = project
-  .in(file("modules/common-streams/cloudutils/azure"))
-  .settings(azureUtilsStreamsBuildSettings)
-  .settings(libraryDependencies ++= azureUtilsStreamsDependencies)
-  .settings(addCompilerPlugin(betterMonadicFor))
-  .dependsOn(cloudUtilsStreams % "compile->compile")
+  .dependsOn(cloudUtils % "compile->compile")
 
 lazy val pubsub = project
   .in(file("modules/pubsub"))
@@ -110,7 +79,7 @@ lazy val pubsub = project
   .settings(excludeDependencies ++= exclusions)
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(common % "compile->compile;test->test")
-  .dependsOn(commonFs2 % "test->test;compile->compile")
+  .dependsOn(core % "compile->compile")
   .dependsOn(gcpUtils % "compile->compile")
 
 lazy val pubsubDistroless = project
@@ -122,42 +91,27 @@ lazy val pubsubDistroless = project
   .settings(excludeDependencies ++= exclusions)
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(common % "compile->compile;test->test")
-  .dependsOn(commonFs2 % "test->test;compile->compile")
+  .dependsOn(core % "compile->compile")
   .dependsOn(gcpUtils % "compile->compile")
-
-lazy val pubsubStreams = project
-  .in(file("modules/common-streams/pubsub"))
-  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDockerPlugin)
-  .settings(pubsubStreamsBuildSettings)
-  .settings(libraryDependencies ++= pubsubStreamsDependencies)
-  .settings(excludeDependencies ++= exclusions)
-  .settings(addCompilerPlugin(betterMonadicFor))
-  .dependsOn(common % "compile->compile;test->test")
-  .dependsOn(commonStreams % "compile->compile")
-  .dependsOn(gcpUtilsStreams % "compile->compile")
-
-lazy val pubsubStreamsDistroless = project
-  .in(file("modules/distroless/streams/pubsub"))
-  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDistrolessDockerPlugin)
-  .settings(sourceDirectory := (pubsubStreams / sourceDirectory).value)
-  .settings(pubsubStreamsDistrolessBuildSettings)
-  .settings(libraryDependencies ++= pubsubStreamsDependencies)
-  .settings(excludeDependencies ++= exclusions)
-  .settings(addCompilerPlugin(betterMonadicFor))
-  .dependsOn(common % "compile->compile;test->test")
-  .dependsOn(commonStreams % "compile->compile")
-  .dependsOn(gcpUtilsStreams % "compile->compile")
 
 lazy val kinesis = project
   .in(file("modules/kinesis"))
   .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDockerPlugin)
   .settings(kinesisBuildSettings)
-  .settings(libraryDependencies ++= kinesisDependencies)
+  .settings(libraryDependencies ++= kinesisDependencies ++ Seq(
+    // integration tests dependencies
+    specs2CEIt,
+    testContainersIt
+  ))
   .settings(excludeDependencies ++= exclusions)
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(common % "compile->compile;test->test")
-  .dependsOn(commonFs2 % "test->test;compile->compile")
+  .dependsOn(core % "test->test;compile->compile;it->it")
   .dependsOn(awsUtils % "compile->compile")
+  .settings(Defaults.itSettings)
+  .configs(IntegrationTest)
+  .settings((IntegrationTest / test) := (IntegrationTest / test).dependsOn(Docker / publishLocal).value)
+  .settings((IntegrationTest / testOnly) := (IntegrationTest / testOnly).dependsOn(Docker / publishLocal).evaluated)
 
 lazy val kinesisDistroless = project
   .in(file("modules/distroless/kinesis"))
@@ -167,53 +121,13 @@ lazy val kinesisDistroless = project
   .settings(libraryDependencies ++= kinesisDependencies ++ Seq(
     // integration tests dependencies
     specs2CEIt,
-    testContainersIt,
-    dockerJavaIt
+    testContainersIt
   ))
   .settings(excludeDependencies ++= exclusions)
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(common % "compile->compile;test->test")
-  .dependsOn(commonFs2 % "compile->compile;it->it")
+  .dependsOn(core % "compile->compile;it->it")
   .dependsOn(awsUtils % "compile->compile")
-  .settings(Defaults.itSettings)
-  .configs(IntegrationTest)
-  .settings((IntegrationTest / test) := (IntegrationTest / test).dependsOn(Docker / publishLocal).value)
-  .settings((IntegrationTest / testOnly) := (IntegrationTest / testOnly).dependsOn(Docker / publishLocal).evaluated)
-
-lazy val kinesisStreams = project
-  .in(file("modules/common-streams/kinesis"))
-  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDockerPlugin)
-  .settings(kinesisStreamsBuildSettings)
-  .settings(libraryDependencies ++= kinesisStreamsDependencies ++ Seq(
-    // integration tests dependencies
-    specs2CEIt,
-    testContainersIt
-  ))
-  .settings(excludeDependencies ++= exclusions)
-  .settings(addCompilerPlugin(betterMonadicFor))
-  .dependsOn(common % "compile->compile;test->test")
-  .dependsOn(commonStreams % "test->test;compile->compile;it->it")
-  .dependsOn(awsUtilsStreams % "compile->compile")
-  .settings(Defaults.itSettings)
-  .configs(IntegrationTest)
-  .settings((IntegrationTest / test) := (IntegrationTest / test).dependsOn(Docker / publishLocal).value)
-  .settings((IntegrationTest / testOnly) := (IntegrationTest / testOnly).dependsOn(Docker / publishLocal).evaluated)
-
-lazy val kinesisStreamsDistroless = project
-  .in(file("modules/distroless/streams/kinesis"))
-  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDistrolessDockerPlugin)
-  .settings(sourceDirectory := (kinesisStreams / sourceDirectory).value)
-  .settings(kinesisStreamsDistrolessBuildSettings)
-  .settings(libraryDependencies ++= kinesisStreamsDependencies ++ Seq(
-    // integration tests dependencies
-    specs2CEIt,
-    testContainersIt
-  ))
-  .settings(excludeDependencies ++= exclusions)
-  .settings(addCompilerPlugin(betterMonadicFor))
-  .dependsOn(common % "compile->compile;test->test")
-  .dependsOn(commonStreams % "compile->compile;it->it")
-  .dependsOn(awsUtilsStreams % "compile->compile")
   .settings(Defaults.itSettings)
   .configs(IntegrationTest)
   .settings((IntegrationTest / test) := (IntegrationTest / test).dependsOn(Docker / publishLocal).value)
@@ -225,66 +139,34 @@ lazy val kafka = project
   .settings(kafkaBuildSettings)
   .settings(libraryDependencies ++= kafkaDependencies ++ Seq(
     // integration tests dependencies
-    specs2CEIt
+    specs2CEIt,
+    testContainersIt
   ))
   .settings(excludeDependencies ++= exclusions)
-  .settings(Defaults.itSettings)
-  .configs(IntegrationTest)
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(common % "compile->compile;test->test")
-  .dependsOn(commonFs2 % "compile->compile;test->test;it->it")
-  .dependsOn(awsUtils % "compile->compile")
-  .dependsOn(gcpUtils % "compile->compile")
+  .dependsOn(core % "compile->compile;it->it")
   .dependsOn(azureUtils % "compile->compile")
+  .settings(Defaults.itSettings)
+  .configs(IntegrationTest)
+  .settings((IntegrationTest / test) := (IntegrationTest / test).dependsOn(Docker / publishLocal).value)
+  .settings((IntegrationTest / testOnly) := (IntegrationTest / testOnly).dependsOn(Docker / publishLocal).evaluated)
 
 lazy val kafkaDistroless = project
   .in(file("modules/distroless/kafka"))
   .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDistrolessDockerPlugin)
   .settings(sourceDirectory := (kafka / sourceDirectory).value)
   .settings(kafkaDistrolessBuildSettings)
-  .settings(libraryDependencies ++= kafkaDependencies)
+  .settings(libraryDependencies ++= kafkaDependencies ++ Seq(
+    // integration tests dependencies
+    specs2CEIt,
+    testContainersIt
+  ))
   .settings(excludeDependencies ++= exclusions)
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(common % "compile->compile;test->test")
-  .dependsOn(commonFs2)
-  .dependsOn(awsUtils % "compile->compile")
-  .dependsOn(gcpUtils % "compile->compile")
+  .dependsOn(core % "compile->compile;it->it")
   .dependsOn(azureUtils % "compile->compile")
-
-lazy val kafkaStreams = project
-  .in(file("modules/common-streams/kafka"))
-  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDockerPlugin)
-  .settings(kafkaStreamsBuildSettings)
-  .settings(libraryDependencies ++= kafkaStreamsDependencies ++ Seq(
-    // integration tests dependencies
-    specs2CEIt,
-    testContainersIt
-  ))
-  .settings(excludeDependencies ++= exclusions)
-  .settings(addCompilerPlugin(betterMonadicFor))
-  .dependsOn(common % "compile->compile;test->test")
-  .dependsOn(commonStreams % "compile->compile;it->it")
-  .dependsOn(azureUtilsStreams % "compile->compile")
-  .settings(Defaults.itSettings)
-  .configs(IntegrationTest)
-  .settings((IntegrationTest / test) := (IntegrationTest / test).dependsOn(Docker / publishLocal).value)
-  .settings((IntegrationTest / testOnly) := (IntegrationTest / testOnly).dependsOn(Docker / publishLocal).evaluated)
-
-lazy val kafkaStreamsDistroless = project
-  .in(file("modules/distroless/streams/kafka"))
-  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDistrolessDockerPlugin)
-  .settings(sourceDirectory := (kafkaStreams / sourceDirectory).value)
-  .settings(kafkaStreamsDistrolessBuildSettings)
-  .settings(libraryDependencies ++= kafkaStreamsDependencies ++ Seq(
-    // integration tests dependencies
-    specs2CEIt,
-    testContainersIt
-  ))
-  .settings(excludeDependencies ++= exclusions)
-  .settings(addCompilerPlugin(betterMonadicFor))
-  .dependsOn(common % "compile->compile;test->test")
-  .dependsOn(commonStreams % "compile->compile;it->it")
-  .dependsOn(azureUtilsStreams % "compile->compile")
   .settings(Defaults.itSettings)
   .configs(IntegrationTest)
   .settings((IntegrationTest / test) := (IntegrationTest / test).dependsOn(Docker / publishLocal).value)
@@ -294,14 +176,22 @@ lazy val nsq = project
   .in(file("modules/nsq"))
   .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDockerPlugin)
   .settings(nsqBuildSettings)
-  .settings(libraryDependencies ++= nsqDependencies)
+  .settings(libraryDependencies ++= nsqDependencies ++ Seq(
+    // integration tests dependencies
+    specs2CEIt,
+    testContainersIt
+  ))
   .settings(excludeDependencies ++= exclusions)
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(common % "compile->compile;test->test")
-  .dependsOn(commonFs2 % "compile->compile;test->test")
+  .dependsOn(core % "compile->compile;it->it")
+  .dependsOn(azureUtils % "compile->compile")
   .dependsOn(awsUtils % "compile->compile")
   .dependsOn(gcpUtils % "compile->compile")
-  .dependsOn(azureUtils % "compile->compile")
+  .settings(Defaults.itSettings)
+  .configs(IntegrationTest)
+  .settings((IntegrationTest / test) := (IntegrationTest / test).dependsOn(Docker / publishLocal).value)
+  .settings((IntegrationTest / testOnly) := (IntegrationTest / testOnly).dependsOn(Docker / publishLocal).evaluated)
 
 lazy val nsqDistroless = project
   .in(file("modules/distroless/nsq"))
@@ -316,53 +206,10 @@ lazy val nsqDistroless = project
   .settings(excludeDependencies ++= exclusions)
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(common % "compile->compile;test->test")
-  .dependsOn(commonFs2 % "compile->compile;it->it")
+  .dependsOn(core % "compile->compile;it->it")
+  .dependsOn(azureUtils % "compile->compile")
   .dependsOn(awsUtils % "compile->compile")
   .dependsOn(gcpUtils % "compile->compile")
-  .dependsOn(azureUtils % "compile->compile")
-  .settings(Defaults.itSettings)
-  .configs(IntegrationTest)
-  .settings((IntegrationTest / test) := (IntegrationTest / test).dependsOn(Docker / publishLocal).value)
-  .settings((IntegrationTest / testOnly) := (IntegrationTest / testOnly).dependsOn(Docker / publishLocal).evaluated)
-
-lazy val nsqStreams = project
-  .in(file("modules/common-streams/nsq"))
-  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDockerPlugin)
-  .settings(nsqStreamsBuildSettings)
-  .settings(libraryDependencies ++= nsqStreamsDependencies ++ Seq(
-    // integration tests dependencies
-    specs2CEIt,
-    testContainersIt
-  ))
-  .settings(excludeDependencies ++= exclusions)
-  .settings(addCompilerPlugin(betterMonadicFor))
-  .dependsOn(common % "compile->compile;test->test")
-  .dependsOn(commonStreams % "compile->compile;it->it")
-  .dependsOn(azureUtilsStreams % "compile->compile")
-  .dependsOn(awsUtilsStreams % "compile->compile")
-  .dependsOn(gcpUtilsStreams % "compile->compile")
-  .settings(Defaults.itSettings)
-  .configs(IntegrationTest)
-  .settings((IntegrationTest / test) := (IntegrationTest / test).dependsOn(Docker / publishLocal).value)
-  .settings((IntegrationTest / testOnly) := (IntegrationTest / testOnly).dependsOn(Docker / publishLocal).evaluated)
-
-lazy val nsqStreamsDistroless = project
-  .in(file("modules/distroless/streams/nsq"))
-  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, SnowplowDistrolessDockerPlugin)
-  .settings(sourceDirectory := (nsqStreams / sourceDirectory).value)
-  .settings(nsqStreamsDistrolessBuildSettings)
-  .settings(libraryDependencies ++= nsqStreamsDependencies ++ Seq(
-    // integration tests dependencies
-    specs2CEIt,
-    testContainersIt
-  ))
-  .settings(excludeDependencies ++= exclusions)
-  .settings(addCompilerPlugin(betterMonadicFor))
-  .dependsOn(common % "compile->compile;test->test")
-  .dependsOn(commonStreams % "compile->compile;it->it")
-  .dependsOn(azureUtilsStreams % "compile->compile")
-  .dependsOn(awsUtilsStreams % "compile->compile")
-  .dependsOn(gcpUtilsStreams % "compile->compile")
   .settings(Defaults.itSettings)
   .configs(IntegrationTest)
   .settings((IntegrationTest / test) := (IntegrationTest / test).dependsOn(Docker / publishLocal).value)

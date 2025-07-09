@@ -10,20 +10,26 @@
  */
 package com.snowplowanalytics.snowplow.enrich.kinesis
 
-import cats.effect.IO
-import cats.effect.kernel.Resource
-import cats.effect.testing.specs2.CatsResource
-import com.snowplowanalytics.snowplow.enrich.common.fs2.test.CollectorPayloadGen
-import com.snowplowanalytics.snowplow.enrich.kinesis.enrichments._
-import com.snowplowanalytics.snowplow.enrich.kinesis.utils._
-import org.specs2.mutable.SpecificationLike
-
 import java.util.UUID
+
 import scala.concurrent.duration._
 
-class DropEventsSpec extends CatsResource[IO, KinesisTestResources] with SpecificationLike {
+import cats.effect.IO
+import cats.effect.kernel.Resource
 
-  override protected val Timeout = 60.minutes
+import cats.effect.testing.specs2.CatsResource
+
+import org.specs2.mutable.SpecificationLike
+
+import com.snowplowanalytics.snowplow.enrich.core.DockerPull
+
+import com.snowplowanalytics.snowplow.enrich.kinesis.enrichments._
+import com.snowplowanalytics.snowplow.enrich.kinesis.utils._
+
+case class TestResources(localstack: Localstack, statsdAdmin: StatsdAdmin)
+
+class DropEventsSpec extends CatsResource[IO, TestResources] with SpecificationLike {
+  override protected val Timeout = 10.minutes
 
   override def beforeAll(): Unit = {
     DockerPull.pull(Containers.Images.Localstack.image, Containers.Images.Localstack.tag)
@@ -31,31 +37,31 @@ class DropEventsSpec extends CatsResource[IO, KinesisTestResources] with Specifi
     super.beforeAll()
   }
 
-  override val resource: Resource[IO, KinesisTestResources] =
+  override val resource: Resource[IO, TestResources] =
     for {
       localstack <- Containers.localstack
-      statsd <- Containers.statsdServer
+      statsd <- Containers.statsdServer(localstack.container.network)
       statsdHost = statsd.container.getHost()
       statsdAdminPort = statsd.container.getMappedPort(8126)
       statsdAdmin <- mkStatsdAdmin(statsdHost, statsdAdminPort)
-    } yield KinesisTestResources(localstack, statsdAdmin)
+    } yield TestResources(localstack, statsdAdmin)
 
   "enrich-kinesis" should {
-    "drop events when incomplete events enabled" in withResource { testResources =>
-      commonDropTest(testResources, emitIncomplete = true)
+    "drop events with failed events enabled" in withResource { testResources =>
+      commonDropTest(testResources, emitFailed = true)
     }
 
-    "drop events when incomplete events disabled" in withResource { testResources =>
-      commonDropTest(testResources, emitIncomplete = false)
+    "drop events with failed events disabled" in withResource { testResources =>
+      commonDropTest(testResources, emitFailed = false)
     }
   }
 
-  private def commonDropTest(testResources: KinesisTestResources, emitIncomplete: Boolean) = {
-    val testName = "enrichments"
-    val nbGood = 100l
-    val nbBad = 100l
-    val nbGoodDrop = 100l
-    val nbBadDrop = 100l
+  private def commonDropTest(testResources: TestResources, emitFailed: Boolean) = {
+    val testName = "drop"
+    val nbGood = 100L
+    val nbBad = 100L
+    val nbGoodDrop = 100L
+    val nbBadDrop = 100L
     val uuid = UUID.randomUUID().toString
 
     val enrichments = List(
@@ -63,50 +69,38 @@ class DropEventsSpec extends CatsResource[IO, KinesisTestResources] with Specifi
     )
 
     val configPath =
-      if (emitIncomplete)
+      if (emitFailed)
         "modules/kinesis/src/it/resources/enrich/enrich-localstack-statsd.hocon"
       else
-        "modules/kinesis/src/it/resources/enrich/enrich-localstack-incomplete-disabled.hocon"
+        "modules/kinesis/src/it/resources/enrich/enrich-localstack-failed-disabled.hocon"
 
-    val resources = for {
-      _ <- Containers.enrich(
+    Containers
+      .enrich(
         testResources.localstack,
         configPath = configPath,
         testName = testName,
         enrichments = enrichments,
         uuid = uuid
       )
-      enrichPipe <- mkEnrichPipe(testResources.localstack.mappedPort, uuid)
-    } yield enrichPipe
-
-    val input = CollectorPayloadGen.generate[IO](
-      nbGoodEvents = nbGood,
-      nbBadRows = nbBad,
-      nbGoodDroppedEvents = nbGoodDrop,
-      nbBadDroppedEvents = nbBadDrop
-    )
-
-    resources.use { enrich =>
-      for {
-        output <- enrich(input).compile.toList
-        (good, bad, incomplete) = parseOutput(output, testName)
-        counters <- testResources.statsdAdmin.getCounters
-      } yield {
-        good.size.toLong must beEqualTo(nbGood)
-        bad.size.toLong must beEqualTo(nbBad)
-        counters must contain(s"'snowplow.enrich.raw;env=$uuid': ${nbGood + nbBad + nbGoodDrop + nbBadDrop}")
-        counters must contain(s"'snowplow.enrich.good;env=$uuid': $nbGood")
-        counters must contain(s"'snowplow.enrich.bad;env=$uuid': $nbBad")
-        counters must contain(s"'snowplow.enrich.dropped;env=$uuid': ${nbGoodDrop + nbBadDrop}")
-        counters must contain(s"'snowplow.enrich.invalid_enriched;env=$uuid': 0")
-        if (emitIncomplete) {
-          incomplete.size.toLong must beEqualTo(nbBad)
-          counters must contain(s"'snowplow.enrich.incomplete;env=$uuid': $nbBad")
-        } else {
-          incomplete.size.toLong must beEqualTo(0)
-          counters must not(contain(s"'snowplow.enrich.incomplete;env=$uuid'"))
+      .use { enrichKinesis =>
+        for {
+          output <- run(enrichKinesis, nbGood, nbBad, nbGoodDrop, nbBadDrop)
+          counters <- testResources.statsdAdmin.getCounters
+        } yield {
+          output.enriched.size.toLong must beEqualTo(nbGood)
+          output.bad.size.toLong must beEqualTo(nbBad)
+          counters must contain(s"'snowplow.enrich.raw;env=$uuid': ${nbGood + nbBad + nbGoodDrop + nbBadDrop}")
+          counters must contain(s"'snowplow.enrich.good;env=$uuid': $nbGood")
+          counters must contain(s"'snowplow.enrich.bad;env=$uuid': $nbBad")
+          counters must contain(s"'snowplow.enrich.dropped;env=$uuid': ${nbGoodDrop + nbBadDrop}")
+          if (emitFailed) {
+            output.failed.size.toLong must beEqualTo(nbBad)
+            counters must contain(s"'snowplow.enrich.failed;env=$uuid': $nbBad")
+          } else {
+            output.failed.size.toLong must beEqualTo(0)
+            counters must contain(s"'snowplow.enrich.failed;env=$uuid': 0")
+          }
         }
       }
-    }
   }
 }

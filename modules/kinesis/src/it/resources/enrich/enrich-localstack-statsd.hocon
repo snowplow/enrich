@@ -4,10 +4,9 @@
   }
 
   "input": {
-    "type": "Kinesis"
     "appName": ${APP_NAME}
     "streamName": ${STREAM_RAW}
-    "region": ${REGION}
+    "initialPosition": { type: "TRIM_HORIZON" }
     "customEndpoint": ${LOCALSTACK_ENDPOINT}
     "dynamodbCustomEndpoint": ${LOCALSTACK_ENDPOINT}
     "cloudwatchCustomEndpoint": ${LOCALSTACK_ENDPOINT}
@@ -15,32 +14,23 @@
 
   "output": {
     "good": {
-      "type": "Kinesis"
       "streamName": ${STREAM_ENRICHED}
-      "region": ${REGION}
+      "customEndpoint": ${LOCALSTACK_ENDPOINT}
+    }
+
+    "failed": {
+      "streamName": ${STREAM_FAILED}
       "customEndpoint": ${LOCALSTACK_ENDPOINT}
     }
 
     "bad": {
-      "type": "Kinesis"
       "streamName": ${STREAM_BAD}
-      "region": ${REGION}
-      "customEndpoint": ${LOCALSTACK_ENDPOINT}
-    }
-
-    "incomplete": {
-      "type": "Kinesis"
-      "streamName": ${STREAM_INCOMPLETE}
-      "region": ${REGION}
       "customEndpoint": ${LOCALSTACK_ENDPOINT}
     }
   }
 
   "monitoring": {
     "metrics": {
-      "stdout": {
-        "period": "10 seconds"
-      }
       "statsd": {
         "hostname": statsd
         "port": 8125
@@ -50,7 +40,6 @@
         }
         "prefix": "snowplow.enrich."
       }
-      "cloudwatch": true
     }
   }
 

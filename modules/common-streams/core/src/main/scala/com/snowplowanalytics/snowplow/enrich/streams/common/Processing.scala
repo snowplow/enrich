@@ -359,7 +359,7 @@ object Processing {
       .SizeViolation(
         processor,
         BadRowFailure.SizeViolation(etlTstamp, maxRecordSize, payload.length, error),
-        BadRowPayload.RawPayload(payload.take(maxRecordSize * 8 / 10))
+        BadRowPayload.RawPayload(payload.take(maxRecordSize / 10))
       )
       .compact
       .getBytes(UTF_8)

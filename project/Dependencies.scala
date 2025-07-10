@@ -152,11 +152,10 @@ object Dependencies {
     val specs2Scalacheck   = "org.specs2"             %% "specs2-scalacheck"             % V.specs2            % Test
     val specs2Mock         = "org.specs2"             %% "specs2-mock"                   % V.specs2            % Test
     val specs2CE           = "org.typelevel"          %% "cats-effect-testing-specs2"    % V.specs2CE          % Test
-    val specs2CEIt         = "org.typelevel"          %% "cats-effect-testing-specs2"    % V.specs2CE          % IntegrationTest
     val catsEffectTestkit  = "org.typelevel"          %% "cats-effect-testkit"           % V.catsEffect        % Test
     val parserCombinators  = "org.scala-lang.modules" %% "scala-parser-combinators"      % V.parserCombinators % Test
-    val testContainersIt   = "com.dimafeng"           %% "testcontainers-scala-core"     % V.testcontainers    % IntegrationTest
-    val dockerJavaIt       = "com.github.docker-java" %  "docker-java"                   % V.dockerJava        % IntegrationTest
+    val testContainers     = "com.dimafeng"           %% "testcontainers-scala-core"     % V.testcontainers    % Test
+    val dockerJava         = "com.github.docker-java" %  "docker-java"                   % V.dockerJava        % Test
 
     val gcs              = "com.google.cloud"                 %  "google-cloud-storage"              % V.gcpSdk
     val kafkaClients     = "org.apache.kafka"                 %  "kafka-clients"                     % V.kafka
@@ -278,6 +277,12 @@ object Dependencies {
 
     val nsqDependencies = Seq(
       nsqSnowplow
+    )
+
+    val itDependencies = Seq(
+      specs2CE,
+      testContainers,
+      dockerJava
     )
 
     // exclusions

@@ -285,6 +285,8 @@ object BuildSettings {
 
   lazy val nsqDistrolessBuildSettings = nsqBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
 
+  lazy val itSettings = Seq(publish / skip := true)
+
   /** Fork a JVM per test in order to not reuse enrichment registries. */
   def oneJVMPerTest(tests: Seq[TestDefinition]): Seq[Tests.Group] =
     tests.map(t => Tests.Group(t.name, Seq(t), Tests.SubProcess(ForkOptions())))

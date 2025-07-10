@@ -42,10 +42,20 @@ jobs:
         PGPASSWORD: supersecret1
     - name: Check Scala formatting
       run: sbt scalafmtCheckAll
-    - name: Run tests
-      run: SBT_OPTS="-Xms1G -Xmx8G -Xss4M -XX:MaxMetaspaceSize=1024M" TESTCONTAINERS_RYUK_DISABLED=true sbt +test
+    - name: Unit tests common
+      run: SBT_OPTS="-Xms1G -Xmx8G -Xss4M -XX:MaxMetaspaceSize=1024M" sbt "project common; +test"
       env:
         OER_KEY: ${{ secrets.OER_KEY }}
+    - name: Unit tests core
+      run: SBT_OPTS="-Xms1G -Xmx8G -Xss4M -XX:MaxMetaspaceSize=1024M" sbt "project core; +test"
+    - name: Unit tests Kinesis
+      run: SBT_OPTS="-Xms1G -Xmx8G -Xss4M -XX:MaxMetaspaceSize=1024M" sbt "project kinesis; +test"
+    - name: Unit tests Pubsub
+      run: SBT_OPTS="-Xms1G -Xmx8G -Xss4M -XX:MaxMetaspaceSize=1024M" sbt "project pubsub; +test"
+    - name: Unit tests Kafka
+      run: SBT_OPTS="-Xms1G -Xmx8G -Xss4M -XX:MaxMetaspaceSize=1024M" sbt "project kafka; +test"
+    - name: Unit tests Nsq
+      run: SBT_OPTS="-Xms1G -Xmx8G -Xss4M -XX:MaxMetaspaceSize=1024M" sbt "project nsq; +test"
 
   it-kinesis:
     if: ${{ github.event.repository.private == true }}
@@ -60,10 +70,8 @@ jobs:
           distribution: 'temurin'
       - name: Install sbt
         uses: sbt/setup-sbt@v1
-      - name: Publish asset
-        run: sbt "project kinesisDistroless; publishLocal"
       - name: Run integration tests for enrich-kinesis
-        run: sbt "project kinesisDistroless;it:testOnly *EnrichKinesisSpec"
+        run: sbt "project itKinesis; testOnly *EnrichKinesisSpec"
         env:
           AWS_ACCESS_KEY_ID: foo
           AWS_SECRET_ACCESS_KEY: bar
@@ -82,10 +90,8 @@ jobs:
           distribution: 'temurin'
       - name: Install sbt
         uses: sbt/setup-sbt@v1
-      - name: Publish asset
-        run: sbt "project kinesisDistroless; publishLocal"
       - name: Run integration tests for 'drop events' feature
-        run: sbt "project kinesisDistroless;it:testOnly *DropEventsSpec"
+        run: sbt "project itKinesis; testOnly *DropEventsSpec"
         env:
           AWS_ACCESS_KEY_ID: foo
           AWS_SECRET_ACCESS_KEY: bar
@@ -104,10 +110,8 @@ jobs:
           distribution: 'temurin'
       - name: Install sbt
         uses: sbt/setup-sbt@v1
-      - name: Publish asset
-        run: sbt "project kafka; docker:publishLocal"
       - name: Run integration tests for enrich-kafka
-        run: sbt "project kafkaDistroless; it:test"
+        run: sbt "project itKafka; test"
 
   it-nsq:
     if: ${{ github.event.repository.private == true }}
@@ -122,7 +126,5 @@ jobs:
           distribution: 'temurin'
       - name: Install sbt
         uses: sbt/setup-sbt@v1
-      - name: Publish asset
-        run: sbt "project nsqDistroless; publishLocal"
       - name: Run integration tests for enrich-nsq
-        run: sbt "project nsqDistroless" IntegrationTest/test
+        run: sbt "project itNsq; test"

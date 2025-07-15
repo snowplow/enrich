@@ -98,7 +98,7 @@ object PubsubConfigSpec {
           batchSize = 1000,
           requestByteThreshold = 1000000
         ),
-        maxRecordSize = 8000000,
+        maxRecordSize = 9000000,
         partitionKey = None,
         attributes = Nil
       ),
@@ -109,12 +109,12 @@ object PubsubConfigSpec {
           batchSize = 1000,
           requestByteThreshold = 1000000
         ),
-        maxRecordSize = 10000000,
+        maxRecordSize = 9000000,
         partitionKey = None,
         attributes = Nil
       )
     ),
-    streams = PubsubFactoryConfig(gcpUserAgent = GcpUserAgent("Snowplow OSS", "enrich")),
+    streams = PubsubFactoryConfig(gcpUserAgent = GcpUserAgent("Snowplow OSS", "enrich"), None),
     cpuParallelismFraction = BigDecimal(1),
     sinkParallelismFraction = BigDecimal(2),
     monitoring = Config.Monitoring(
@@ -162,7 +162,7 @@ object PubsubConfigSpec {
           batchSize = 100,
           requestByteThreshold = 1000000
         ),
-        maxRecordSize = 8000000,
+        maxRecordSize = 9000000,
         partitionKey = None,
         attributes = List(EnrichedEvent.atomicFields.find(_.getName === "app_id").get)
       ),
@@ -173,7 +173,7 @@ object PubsubConfigSpec {
             batchSize = 100,
             requestByteThreshold = 1000000
           ),
-          maxRecordSize = 10000000,
+          maxRecordSize = 9000000,
           partitionKey = None,
           attributes = Nil
         )
@@ -184,12 +184,12 @@ object PubsubConfigSpec {
           batchSize = 100,
           requestByteThreshold = 1000000
         ),
-        maxRecordSize = 10000000,
+        maxRecordSize = 9000000,
         partitionKey = None,
         attributes = Nil
       )
     ),
-    streams = PubsubFactoryConfig(gcpUserAgent = GcpUserAgent("Snowplow OSS", "enrich")),
+    streams = PubsubFactoryConfig(gcpUserAgent = GcpUserAgent("Snowplow OSS", "enrich"), None),
     cpuParallelismFraction = BigDecimal(1),
     sinkParallelismFraction = BigDecimal(2),
     monitoring = Config.Monitoring(

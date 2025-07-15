@@ -41,7 +41,15 @@ import com.snowplowanalytics.iglu.client.{IgluCirceClient, Resolver}
 
 import com.snowplowanalytics.snowplow.runtime.{AppHealth, AppInfo}
 import com.snowplowanalytics.snowplow.runtime.processing.Coldswap
-import com.snowplowanalytics.snowplow.streams.{EventProcessingConfig, EventProcessor, Sink, Sinkable, SourceAndAck, TokenedEvents}
+import com.snowplowanalytics.snowplow.streams.{
+  EventProcessingConfig,
+  EventProcessor,
+  ListOfList,
+  Sink,
+  Sinkable,
+  SourceAndAck,
+  TokenedEvents
+}
 
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
@@ -220,13 +228,16 @@ object MockEnvironment {
     parse: Sinkable => IO[A],
     updateState: List[A] => IO[Unit]
   ): Sink[IO] =
-    Sink[IO] { batch =>
-      mockedResponse match {
-        case Response.Success(_) =>
-          batch.asIterable.toList.traverse(parse).flatMap(updateState)
-        case Response.ExceptionThrown(value) =>
-          IO.raiseError(value)
-      }
+    new Sink[IO] {
+      override def sink(batch: ListOfList[Sinkable]): IO[Unit] =
+        mockedResponse match {
+          case Response.Success(_) =>
+            batch.asIterable.toList.traverse(parse).flatMap(updateState)
+          case Response.ExceptionThrown(value) =>
+            IO.raiseError(value)
+        }
+
+      override def isHealthy: IO[Boolean] = IO.pure(true)
     }
 
   private def testMetrics(ref: Ref[IO, Vector[Action]]): Metrics[IO] =

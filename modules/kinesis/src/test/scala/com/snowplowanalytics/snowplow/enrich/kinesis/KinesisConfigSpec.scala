@@ -256,9 +256,9 @@ object KinesisConfigSpec {
     identity = Some(
       Config.IdentityM[Id](
         endpoint = Uri.unsafeFromString("http://identity-api"),
-        concurrency = 10,
         username = "snowplow",
         password = "sn0wp10w",
+        concurrencyFactor = BigDecimal(0.75),
         retries = Retrying.Config.ForTransient(100.millis, 3)
       )
     ),

@@ -134,7 +134,7 @@ object Config {
     endpoint: M[Uri],
     username: M[String],
     password: M[String],
-    concurrency: Int,
+    concurrencyFactor: BigDecimal,
     retries: Retrying.Config.ForTransient
   )
 

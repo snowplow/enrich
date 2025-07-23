@@ -249,9 +249,13 @@
   # -- Enrich events via an external identity service
   "identity": {
     "endpoint": "http://identity-api"
-    "concurrency": 10
     "username": "snowplow"
     "password": "sn0wp10w"
+
+    # -- Controls the number of requests that can be made in parallel to the identity service.
+    # -- E.g. If there are 4 available processors and concurrencyFactor = 0.75 then 3 requests can be made concurrently.
+    # -- Adjusting this value can cause the app to use more or less of the available CPU and memory.
+    "concurrencyFactor": 0.75
 
     # -- Configures how HTTP requests are retried in case of failure
     "retries": {

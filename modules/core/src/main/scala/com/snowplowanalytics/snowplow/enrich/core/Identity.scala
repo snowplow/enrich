@@ -58,7 +58,10 @@ object Identity {
                 .error(exception)(s"Error calling Identity API (${retryDetails.retriesSoFar} retries)")
           )
       }
-      def concurrency: Int = config.concurrency
+      def concurrency: Int =
+        (Runtime.getRuntime.availableProcessors * config.concurrencyFactor)
+          .setScale(0, BigDecimal.RoundingMode.UP)
+          .toInt
     }
   }
 

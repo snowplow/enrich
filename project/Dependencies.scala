@@ -81,7 +81,7 @@ object Dependencies {
     val nimbusJoseJwt    = "9.37.2"
     val http4s           = "0.23.25"
 
-    val streams          = "0.13.0-M9"
+    val streams          = "0.13.0"
 
     val specs2            = "4.20.3"
     val specs2Cats        = "4.20.3"

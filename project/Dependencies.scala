@@ -30,6 +30,7 @@ object Dependencies {
     // Java
     val commonsCodec     = "1.16.0"
     val commonsText      = "1.10.0"
+    val commonsLang      = "3.18.0"
     val commonsIO        = "2.14.0"
     val jodaTime         = "2.10.1"
     val useragent        = "1.21"
@@ -47,6 +48,7 @@ object Dependencies {
     val guava            = "33.1.0-jre"
     val slf4j            = "2.0.3"
     val thrift           = "0.15.0"
+    val httpclient       = "4.5.13"
     val sprayJson        = "1.3.6"
     val netty            = "4.1.118.Final"
     val protobuf         = "4.28.3"
@@ -78,7 +80,7 @@ object Dependencies {
     val catsEffect       = "3.5.4"
     val fs2BlobStorage   = "0.9.15"
     val azureIdentity    = "1.12.2"
-    val nimbusJoseJwt    = "9.37.2"
+    val nimbusJoseJwt    = "10.0.2"
     val http4s           = "0.23.25"
 
     val streams          = "0.13.0"
@@ -97,6 +99,7 @@ object Dependencies {
   object Libraries {
     val commonsCodec     = "commons-codec"              %  "commons-codec"                 % V.commonsCodec
     val commonsText      = "org.apache.commons"         %  "commons-text"                  % V.commonsText
+    val commonsLang      = "org.apache.commons"         %  "commons-lang3"                 % V.commonsLang
     val commonsIO        = "commons-io"                 %  "commons-io"                    % V.commonsIO
     val jodaTime         = "joda-time"                  %  "joda-time"                     % V.jodaTime
     val useragent        = "eu.bitwalker"               %  "UserAgentUtils"                % V.useragent
@@ -133,6 +136,7 @@ object Dependencies {
     val iabClient        = "com.snowplowanalytics"      %  "iab-spiders-and-robots-client" % V.iabClient
     val ipaddress        = "com.github.seancfoley"      %  "ipaddress"                     % V.ipaddress
     val thrift           = "org.apache.thrift"          %  "libthrift"                     % V.thrift
+    val httpclient       = "org.apache.httpcomponents"  %  "httpclient"                    % V.httpclient
     val sprayJson        = "io.spray"                   %% "spray-json"                    % V.sprayJson
     val nettyAll         = "io.netty"                   %  "netty-all"                     % V.netty
     val nettyCodec       = "io.netty"                   %  "netty-codec"                   % V.netty
@@ -180,6 +184,7 @@ object Dependencies {
       jodaTime,
       commonsCodec,
       commonsText,
+      commonsLang, // for security vulnerabilities
       commonsIO, // for security vulnerabilities
       useragent,
       jacksonDatabind,
@@ -272,7 +277,8 @@ object Dependencies {
 
     val kafkaDependencies = Seq(
       kafkaSnowplow,
-      kafkaClients // for security vulnerabilities
+      kafkaClients, // for security vulnerabilities
+      httpclient // for security vulnerabilities
     )
 
     val nsqDependencies = Seq(

@@ -122,6 +122,8 @@ lazy val kafka = project
   .dependsOn(common % "compile->compile;test->test")
   .dependsOn(core)
   .dependsOn(azureUtils)
+  .dependsOn(awsUtils)
+  .dependsOn(gcpUtils)
 
 lazy val kafkaDistroless = project
   .in(file("modules/distroless/kafka"))
@@ -134,6 +136,8 @@ lazy val kafkaDistroless = project
   .dependsOn(common % "compile->compile;test->test")
   .dependsOn(core)
   .dependsOn(azureUtils)
+  .dependsOn(awsUtils)
+  .dependsOn(gcpUtils)
 
 lazy val nsq = project
   .in(file("modules/nsq"))

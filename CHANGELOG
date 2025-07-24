@@ -1,3 +1,29 @@
+6.0.0 (2025-07-25)
+------------------
+enrich-kafka: make it possible to download enrichments assets from S3 and GCS
+Upgrade dependencies to fix vulnerabilities
+Bump common-streams to 0.13.0
+Update identity.concurrency to identity.concurrencyFactor (#96)
+Consistent formatting of comments in config reference files (#95)
+Bump sbt-ci-release to 1.11.0
+Pubsub: use common-streams default for maxRecordSize (#92)
+Move integration tests to their own project
+Replace common-fs2 assets with common-streams assets (#14)
+common-streams: reduce the size of sampled payload while creating SizeViolation bad row (#89)
+common-stream Kinesis: add aws sts dependency (#86)
+common-streams: filter enrichment files that have extension different than json or hocon (#86)
+Add parallelism to sinks and in-batch processing (#84)
+common-streams Kafka: add empty list of accounts to the default config
+common-streams: add NSQ asset (#85)
+Enrich-Kafka (non-common-streams): use 'docker:publishLocal' instead of 'publishLocal' (#83)
+common-streams: add kafka module (#82)
+Add identity feature (#79)
+common-streams: add pubsub module (#76)
+common-streams: add tests for invalid Javascript enrichment
+common-streams: add assets refresh (#75)
+common-streams: rename 'enriched' config section to 'good'
+Upgrade to common-streams 0.13.0 with Factories for Sources/Sinks (#72)
+
 5.4.0 (2025-06-02)
 ------------------
 Update GitHub workflows (#32)

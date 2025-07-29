@@ -156,6 +156,7 @@ object Environment {
       _ <- Resource.eval(enrichmentRegistry.opened.use_)
       metadata <- config.main.metadata.traverse(MetadataReporter.build[F](_, appInfo, httpClient))
       identity = config.main.identity.map(Identity.build(_, httpClient))
+      _ <- Resource.eval(appHealth.beHealthyForSetup)
     } yield Environment(
       appInfo = appInfo,
       source = sourceAndAck,

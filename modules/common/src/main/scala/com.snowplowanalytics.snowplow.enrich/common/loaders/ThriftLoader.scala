@@ -18,7 +18,7 @@ import java.util.{Base64, UUID}
 import scala.collection.JavaConverters._
 import scala.util.control.NonFatal
 
-import cats.data.{NonEmptyList, ValidatedNel}
+import cats.data.ValidatedNel
 import cats.implicits._
 
 import org.joda.time.{DateTime, DateTimeZone}
@@ -27,13 +27,11 @@ import org.apache.thrift.protocol.TBinaryProtocol
 import org.apache.thrift.transport.{TByteBuffer, TTransportException}
 
 import com.snowplowanalytics.snowplow.CollectorPayload.thrift.model1.{CollectorPayload => CollectorPayload1}
-import com.snowplowanalytics.snowplow.SchemaSniffer.thrift.model1.SchemaSniffer
-import com.snowplowanalytics.snowplow.collectors.thrift.SnowplowRawEvent
 
 import com.snowplowanalytics.snowplow.badrows._
 import com.snowplowanalytics.snowplow.badrows.FailureDetails.CPFormatViolationMessage
 
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, ParseError => IgluParseError}
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey}
 
 /** Loader for Thrift SnowplowRawEvent objects. */
 object ThriftLoader extends Loader[Array[Byte]] {
@@ -41,17 +39,9 @@ object ThriftLoader extends Loader[Array[Byte]] {
   private[loaders] val ExpectedSchema =
     SchemaCriterion("com.snowplowanalytics.snowplow", "CollectorPayload", "thrift", 1, 0)
 
-  /** Parse Error -> Collector Payload violation */
-  private def collectorPayloadViolation(e: IgluParseError) = {
-    val str = s"could not parse schema: ${e.code}"
-    val details = FailureDetails.CPFormatViolationMessage.Fallback(str)
-    NonEmptyList.of(details)
-  }
-
-  private def collectorPayloadViolation(key: SchemaKey) = {
-    val str = s"verifying record as ${ExpectedSchema.asString} failed: found ${key.toSchemaUri}"
-    val details = FailureDetails.CPFormatViolationMessage.Fallback(str)
-    NonEmptyList.of(details)
+  private def cpViolationForWrongSchemaKey(key: String): FailureDetails.CPFormatViolationMessage = {
+    val str = s"verifying record as ${ExpectedSchema.asString} failed: found $key"
+    FailureDetails.CPFormatViolationMessage.Fallback(str)
   }
 
   /**
@@ -88,18 +78,8 @@ object ThriftLoader extends Loader[Array[Byte]] {
     }
 
     val collectorPayload =
-      try {
-        val schema = extractSchema(buffer)
-        buffer.reset()
-        if (schema.isSetSchema) {
-          val payload = for {
-            schemaKey <- SchemaKey.fromUri(schema.getSchema).leftMap(collectorPayloadViolation)
-            collectorPayload <- if (ExpectedSchema.matches(schemaKey)) convertSchema1(buffer).toEither
-                                else collectorPayloadViolation(schemaKey).asLeft
-          } yield collectorPayload
-          payload.toValidated
-        } else convertOldSchema(buffer)
-      } catch {
+      try convertSchema1(buffer)
+      catch {
         case tte: TTransportException if tte.getType === TTransportException.END_OF_FILE =>
           FailureDetails.CPFormatViolationMessage
             .Fallback(s"error deserializing raw event: Reached end of bytes when parsing as thrift format")
@@ -113,16 +93,6 @@ object ThriftLoader extends Loader[Array[Byte]] {
     collectorPayload.leftMap { messages =>
       messages.map(createViolation)
     }
-  }
-
-  private def extractSchema(
-    buffer: ByteBuffer
-  ): SchemaSniffer = {
-    val schema = new SchemaSniffer()
-    val transport = new TByteBuffer(buffer)
-    val protocol = new TBinaryProtocol(transport)
-    schema.read(protocol)
-    schema
   }
 
   /**
@@ -165,7 +135,14 @@ object ThriftLoader extends Loader[Array[Byte]] {
       case Some(p) => CollectorPayload.parseApi(p).toValidatedNel
     }
 
-    (querystring.toValidatedNel, api, networkUserId).mapN { (q, a, nuid) =>
+    val schemaKeyStr = collectorPayload.getSchema
+
+    val validatedSchema = for {
+      schemaKey <- SchemaKey.fromUri(schemaKeyStr).leftMap(_ => cpViolationForWrongSchemaKey(schemaKeyStr))
+      _ <- if (ExpectedSchema.matches(schemaKey)) Right(()) else Left(cpViolationForWrongSchemaKey(schemaKeyStr))
+    } yield ()
+
+    (querystring.toValidatedNel, api, networkUserId, validatedSchema.toValidatedNel).mapN { (q, a, nuid, _) =>
       val source =
         CollectorPayload.Source(collectorPayload.collector, collectorPayload.encoding, hostname)
       val context = CollectorPayload.Context(
@@ -184,48 +161,6 @@ object ThriftLoader extends Loader[Array[Byte]] {
         source,
         context
       )
-    }
-  }
-
-  /**
-   * Converts the source string into a ValidatedMaybeCollectorPayload. Assumes that the byte array
-   * is an old serialized SnowplowRawEvent which is not self-describing.
-   * @param line A serialized Thrift object Byte array mapped to a String. The method calling this
-   * should encode the serialized object with `snowplowRawEventBytes.map(_.toChar)`.
-   * Reference: http://stackoverflow.com/questions/5250324/
-   * @return either a set of validation errors or an Option-boxed CanonicalInput object, wrapped in
-   * a ValidatedNel.
-   */
-  private def convertOldSchema(
-    input: ByteBuffer
-  ): ValidatedNel[FailureDetails.CPFormatViolationMessage, CollectorPayload] = {
-    val snowplowRawEvent = new SnowplowRawEvent()
-    val transport = new TByteBuffer(input)
-    val protocol = new TBinaryProtocol(transport)
-    snowplowRawEvent.read(protocol)
-
-    val querystring = parseQuerystring(
-      Option(snowplowRawEvent.payload.data),
-      Charset.forName(snowplowRawEvent.encoding)
-    )
-
-    val hostname = Option(snowplowRawEvent.hostname)
-    val userAgent = Option(snowplowRawEvent.userAgent)
-    val refererUri = Option(snowplowRawEvent.refererUri)
-    val networkUserId =
-      Option(snowplowRawEvent.networkUserId).traverse(parseNetworkUserId).toValidatedNel
-
-    val headers = Option(snowplowRawEvent.headers).map(_.asScala.toList).getOrElse(Nil)
-
-    val ip = Option(IpAddressExtractor.extractIpAddress(headers, snowplowRawEvent.ipAddress)) // Required
-
-    (querystring.toValidatedNel, networkUserId).mapN { (q, nuid) =>
-      val timestamp = new DateTime(snowplowRawEvent.timestamp, DateTimeZone.UTC)
-      val context = CollectorPayload.Context(timestamp, ip, userAgent, refererUri, headers, nuid)
-      val source =
-        CollectorPayload.Source(snowplowRawEvent.collector, snowplowRawEvent.encoding, hostname)
-      // No way of storing API vendor/version in Thrift yet, assume Snowplow TP1
-      CollectorPayload(CollectorPayload.SnowplowTp1, q, None, None, source, context)
     }
   }
 

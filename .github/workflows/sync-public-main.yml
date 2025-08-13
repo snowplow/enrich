@@ -8,7 +8,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PUBLIC_REPO_MAIN: main
+  PUBLIC_REPO_MAIN: master
   PUBLIC_REPO_URL: https://github.com/snowplow/enrich
   SYNC_BRANCH: public-main
 

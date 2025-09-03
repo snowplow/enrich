@@ -83,7 +83,8 @@ case class Environment[F[_]](
   attributeFields: List[Field],
   metadata: Option[MetadataReporter[F]],
   identity: Option[Identity.Api[F]],
-  assetsUpdatePeriod: FiniteDuration
+  assetsUpdatePeriod: FiniteDuration,
+  decompressionConfig: Config.Decompression
 ) {
   def badRowProcessor = BadRowProcessor(appInfo.name, appInfo.version)
 }
@@ -180,7 +181,8 @@ object Environment {
       attributeFields = config.main.output.good.attributes,
       metadata = metadata,
       assetsUpdatePeriod = config.main.assetsUpdatePeriod,
-      identity = identity
+      identity = identity,
+      decompressionConfig = config.main.decompression
     )
 
   private def enableSentry[F[_]: Sync](appInfo: AppInfo, config: Option[Config.Sentry]): Resource[F, Unit] =

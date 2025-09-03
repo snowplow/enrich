@@ -147,7 +147,8 @@ object KinesisConfigSpec {
     metadata = None,
     identity = None,
     blobClients = EmptyConfig(),
-    adaptersSchemas = adaptersSchemas
+    adaptersSchemas = adaptersSchemas,
+    decompression = Config.Decompression(5242880, 10000000)
   )
 
   private val referenceConfig = Config[EmptyConfig, KinesisSourceConfig, KinesisSinkConfig, EmptyConfig](
@@ -263,6 +264,7 @@ object KinesisConfigSpec {
       )
     ),
     blobClients = EmptyConfig(),
-    adaptersSchemas = adaptersSchemas
+    adaptersSchemas = adaptersSchemas,
+    decompression = Config.Decompression(5242880, 10000000)
   )
 }

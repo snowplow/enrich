@@ -142,7 +142,8 @@ object PubsubConfigSpec {
     metadata = None,
     identity = None,
     blobClients = EmptyConfig(),
-    adaptersSchemas = adaptersSchemas
+    adaptersSchemas = adaptersSchemas,
+    decompression = Config.Decompression(5242880, 10000000)
   )
 
   private val referenceConfig = Config[PubsubFactoryConfig, PubsubSourceConfig, PubsubSinkConfig, EmptyConfig](
@@ -246,6 +247,7 @@ object PubsubConfigSpec {
       )
     ),
     blobClients = EmptyConfig(),
-    adaptersSchemas = adaptersSchemas
+    adaptersSchemas = adaptersSchemas,
+    decompression = Config.Decompression(5242880, 10000000)
   )
 }

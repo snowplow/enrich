@@ -24,7 +24,6 @@ import org.apache.http.message.BasicNameValuePair
 import org.joda.time.DateTime
 import org.joda.time.DateTimeZone
 
-import cats.implicits._
 import cats.data.NonEmptyList
 
 import cats.effect.IO
@@ -249,6 +248,19 @@ object EventUtils {
     )
     val payload = Payload.RawPayload(rawPayload)
     BadRow.CPFormatViolation(processor, failure, payload)
+  }
+
+  def expectedBadSizeViolation(
+    maxSize: Int,
+    actualSize: Int,
+    message: String,
+    rawPayload: String = "",
+    timestamp: Instant = etlTstamp
+  ) = {
+    val processor = Processor(MockEnvironment.appInfo.name, MockEnvironment.appInfo.version)
+    val failure = Failure.SizeViolation(timestamp, maxSize, actualSize, message)
+    val payload = Payload.RawPayload(rawPayload)
+    BadRow.SizeViolation(processor, failure, payload)
   }
 
   def expectedBadJavascript(eventId: UUID) = {

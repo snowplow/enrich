@@ -36,6 +36,7 @@ import com.snowplowanalytics.snowplow.streams.TokenedEvents
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{IpLookupsEnrichment, JavascriptScriptEnrichment}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest.ApiRequestEnrichment
+import com.snowplowanalytics.snowplow.enrich.core.CompressionTestUtils._
 
 import MockEnvironment._
 import EventUtils._
@@ -53,6 +54,12 @@ class ProcessingSpec extends Specification with CatsEffect {
     Crash if JS script is invalid and exitOnJsCompileError is true $e6
     Emit failed events and bad rows if JS script is invalid and exitOnJsCompileError is false $e7
     Refresh IP lookups assets $e8
+    Process compressed GZIP input with multiple batched payloads $e9
+    Process compressed ZSTD input with multiple batched payloads $e10
+    Process mixed compressed and uncompressed inputs $e11
+    Process mixed inputs with different compression types $e12
+    Split compressed batch when exceeding maxBytesInBatch limit $e13
+    Emit bad rows for compressed payloads exceeding maxBytesSinglePayload limit $e14
   """
 
   def e1 = {
@@ -158,12 +165,12 @@ class ProcessingSpec extends Specification with CatsEffect {
     val expectedBad =
       List(
         Bad(
-          expectedBadCPF("bm9uc2Vuc2U="),
+          expectedBadCPF("bm9uc2Vuc2Uy"),
           None,
           Map.empty
         ),
         Bad(
-          expectedBadCPF("bm9uc2Vuc2Uy"),
+          expectedBadCPF("bm9uc2Vuc2U="),
           None,
           Map.empty
         )
@@ -564,6 +571,369 @@ class ProcessingSpec extends Specification with CatsEffect {
     // Can't get executed with TestControl because of Async.evalOn in IP lookups enrichment
     io
   }
+
+  // Tests e9-e12: Compressed input processing tests
+
+  def e9 = {
+    val eventId1 = UUID.randomUUID
+    val eventId2 = UUID.randomUUID
+    val eventId3 = UUID.randomUUID
+
+    val input = CompressedBatch(List(pageView(eventId1), pageView(eventId2), pageView(eventId3)), CompressionType.GZIP)
+
+    val expectedEnriched =
+      List(
+        Enriched(
+          expectedPageView(eventId1),
+          None,
+          Map("app_id" -> "test_app")
+        ),
+        Enriched(
+          expectedPageView(eventId2),
+          None,
+          Map("app_id" -> "test_app")
+        ),
+        Enriched(
+          expectedPageView(eventId3),
+          None,
+          Map("app_id" -> "test_app")
+        )
+      )
+
+    val expectedMetadata = {
+      val entities = Metadata.EntitiesAndCount(expectedPageViewMetadataEntities, 3)
+      Map(expectedPageViewMetadata -> entities)
+    }
+
+    val io =
+      for {
+        token <- IO.unique
+        inputStream = mkCompressedStream((input, token))
+        assertion <- runTest(etlTstamp, inputStream) {
+                       case control =>
+                         for {
+                           _ <- Processing.stream(control.environment).compile.drain
+                           state <- control.state.get
+                         } yield state should beEqualTo(
+                           Vector(
+                             Action.AddedRawCountMetric(3),
+                             Action.AddedMetadata(expectedMetadata),
+                             Action.SentToEnriched(expectedEnriched),
+                             Action.AddedEnrichedCountMetric(3),
+                             Action.SetE2ELatencyMetric(Duration(etlLatency.toMinutes, MINUTES)),
+                             Action.Checkpointed(List(token))
+                           )
+                         )
+                     }
+      } yield assertion
+
+    TestControl.executeEmbed(io)
+  }
+
+  def e10 = {
+    val eventId1 = UUID.randomUUID
+    val eventId2 = UUID.randomUUID
+
+    val input = CompressedBatch(List(pageView(eventId1), pageView(eventId2)), CompressionType.ZSTD)
+
+    val expectedEnriched =
+      List(
+        Enriched(
+          expectedPageView(eventId1),
+          None,
+          Map("app_id" -> "test_app")
+        ),
+        Enriched(
+          expectedPageView(eventId2),
+          None,
+          Map("app_id" -> "test_app")
+        )
+      )
+
+    val expectedMetadata = {
+      val entities = Metadata.EntitiesAndCount(expectedPageViewMetadataEntities, 2)
+      Map(expectedPageViewMetadata -> entities)
+    }
+
+    val io =
+      for {
+        token <- IO.unique
+        inputStream = mkCompressedStream((input, token))
+        assertion <- runTest(etlTstamp, inputStream) {
+                       case control =>
+                         for {
+                           _ <- Processing.stream(control.environment).compile.drain
+                           state <- control.state.get
+                         } yield state should beEqualTo(
+                           Vector(
+                             Action.AddedRawCountMetric(2),
+                             Action.AddedMetadata(expectedMetadata),
+                             Action.SentToEnriched(expectedEnriched),
+                             Action.AddedEnrichedCountMetric(2),
+                             Action.SetE2ELatencyMetric(Duration(etlLatency.toMinutes, MINUTES)),
+                             Action.Checkpointed(List(token))
+                           )
+                         )
+                     }
+      } yield assertion
+
+    TestControl.executeEmbed(io)
+  }
+
+  def e11 = {
+    val eventId1 = UUID.randomUUID
+    val eventId2 = UUID.randomUUID
+    val eventId3 = UUID.randomUUID
+    val eventId4 = UUID.randomUUID
+
+    val uncompressedBatch = GoodBatch(List(pageView(eventId1)))
+    val compressedBatch = CompressedBatch(List(pageView(eventId2), pageView(eventId3)), CompressionType.GZIP)
+    val uncompressedBatch2 = GoodBatch(List(pageView(eventId4)))
+
+    val io =
+      for {
+        token1 <- IO.unique
+        token2 <- IO.unique
+        token3 <- IO.unique
+        uncompressedStream1 = mkGoodStream((uncompressedBatch, token1))
+        compressedStream = mkCompressedStream((compressedBatch, token2))
+        uncompressedStream2 = mkGoodStream((uncompressedBatch2, token3))
+        inputStream = uncompressedStream1 ++ compressedStream ++ uncompressedStream2
+        assertion <- runTest(etlTstamp, inputStream) {
+                       case control =>
+                         for {
+                           _ <- Processing.stream(control.environment).compile.drain
+                           state <- control.state.get
+                         } yield {
+                           val rawCountMetrics = state.collect { case Action.AddedRawCountMetric(count) => count }
+                           val enrichedCountMetrics = state.collect { case Action.AddedEnrichedCountMetric(count) => count }
+                           val checkpointedTokens = state.collect { case Action.Checkpointed(tokens) => tokens }.flatten.toList
+                           val totalEnriched = state.collect { case Action.SentToEnriched(enriched) => enriched }.flatten.toList
+
+                           rawCountMetrics.sum should beEqualTo(4)
+                           enrichedCountMetrics.sum should beEqualTo(4)
+                           totalEnriched.length should beEqualTo(4)
+                           checkpointedTokens should containTheSameElementsAs(List(token1, token2, token3))
+                         }
+                     }
+      } yield assertion
+
+    TestControl.executeEmbed(io)
+  }
+
+  def e12 = {
+    val eventId1 = UUID.randomUUID
+    val eventId2 = UUID.randomUUID
+    val eventId3 = UUID.randomUUID
+    val eventId4 = UUID.randomUUID
+    val eventId5 = UUID.randomUUID
+
+    val compressedBatch1 = CompressedBatch(List(pageView(eventId1), pageView(eventId2)), CompressionType.GZIP)
+    val uncompressedBatch = GoodBatch(List(pageView(eventId3)))
+    val compressedBatch2 = CompressedBatch(List(pageView(eventId4), pageView(eventId5)), CompressionType.ZSTD)
+
+    val expectedEnriched =
+      List(
+        Enriched(
+          expectedPageView(eventId1),
+          None,
+          Map("app_id" -> "test_app")
+        ),
+        Enriched(
+          expectedPageView(eventId2),
+          None,
+          Map("app_id" -> "test_app")
+        ),
+        Enriched(
+          expectedPageView(eventId3),
+          None,
+          Map("app_id" -> "test_app")
+        ),
+        Enriched(
+          expectedPageView(eventId4),
+          None,
+          Map("app_id" -> "test_app")
+        ),
+        Enriched(
+          expectedPageView(eventId5),
+          None,
+          Map("app_id" -> "test_app")
+        )
+      )
+
+    val io =
+      for {
+        token1 <- IO.unique
+        token2 <- IO.unique
+        token3 <- IO.unique
+        compressedStream1 = mkCompressedStream((compressedBatch1, token1))
+        uncompressedStream = mkGoodStream((uncompressedBatch, token2))
+        compressedStream2 = mkCompressedStream((compressedBatch2, token3))
+        inputStream = compressedStream1 ++ uncompressedStream ++ compressedStream2
+        assertion <- runTest(etlTstamp, inputStream) {
+                       case control =>
+                         for {
+                           _ <- Processing.stream(control.environment).compile.drain
+                           state <- control.state.get
+                         } yield {
+                           val rawCountMetrics = state.collect { case Action.AddedRawCountMetric(count) => count }
+                           val enrichedCountMetrics = state.collect { case Action.AddedEnrichedCountMetric(count) => count }
+                           val checkpointedTokens = state.collect { case Action.Checkpointed(tokens) => tokens }.flatten.toList
+                           val totalEnriched = state.collect { case Action.SentToEnriched(enriched) => enriched }.flatten.toList
+
+                           rawCountMetrics.sum should beEqualTo(5) // 2+1+2 = 5
+                           enrichedCountMetrics.sum should beEqualTo(5) // 2+1+2 = 5
+                           totalEnriched.length should beEqualTo(5)
+                           totalEnriched should containTheSameElementsAs(expectedEnriched)
+                           checkpointedTokens should containTheSameElementsAs(List(token1, token2, token3))
+                         }
+                     }
+      } yield assertion
+
+    TestControl.executeEmbed(io)
+  }
+
+  def e13 = {
+    val eventId1 = UUID.randomUUID
+    val eventId2 = UUID.randomUUID
+
+    val largePayload1 = pageView(eventId1).copy(
+      querystring = pageView(eventId1).querystring ++ List.fill(100)(
+        new org.apache.http.message.BasicNameValuePair("large_param", "x" * 50)
+      )
+    )
+    val largePayload2 = pageView(eventId2).copy(
+      querystring = pageView(eventId2).querystring ++ List.fill(100)(
+        new org.apache.http.message.BasicNameValuePair("large_param", "y" * 50)
+      )
+    )
+
+    val input = CompressedBatch(
+      List(largePayload1, largePayload2),
+      CompressionType.GZIP
+    )
+
+    val expectedEnriched =
+      List(
+        Enriched(
+          expectedPageView(eventId1),
+          None,
+          Map("app_id" -> "test_app")
+        ),
+        Enriched(
+          expectedPageView(eventId2),
+          None,
+          Map("app_id" -> "test_app")
+        )
+      )
+
+    val expectedMetadata = {
+      val entities = Metadata.EntitiesAndCount(expectedPageViewMetadataEntities, 1)
+      Map(expectedPageViewMetadata -> entities)
+    }
+
+    val io =
+      for {
+        token <- IO.unique
+        inputStream = mkCompressedStream((input, token))
+        // Use very small maxBytesInBatch to force splitting of the decompressed payloads
+        smallBatchConfig = Config.Decompression(maxBytesSinglePayload = 10000000, maxBytesInBatch = 1000)
+        assertion <- runTest(etlTstamp, inputStream, decompressionConfig = smallBatchConfig) {
+                       case control =>
+                         for {
+                           _ <- Processing.stream(control.environment).compile.drain
+                           state <- control.state.get
+                         } yield state should beEqualTo(
+                           Vector(
+                             Action.AddedRawCountMetric(1), // First payload processed
+                             Action.AddedRawCountMetric(1), // Second payload processed
+                             Action.AddedMetadata(expectedMetadata),
+                             Action.SentToEnriched(List(expectedEnriched.head)),
+                             Action.AddedEnrichedCountMetric(1),
+                             Action.SetE2ELatencyMetric(Duration(etlLatency.toMicros, MICROSECONDS)),
+                             Action.AddedMetadata(expectedMetadata),
+                             Action.SentToEnriched(List(expectedEnriched(1))),
+                             Action.AddedEnrichedCountMetric(1),
+                             Action.SetE2ELatencyMetric(Duration(etlLatency.toMicros, MICROSECONDS)),
+                             Action.Checkpointed(List(token)) // Token attached to final result
+                           )
+                         )
+                     }
+      } yield assertion
+
+    TestControl.executeEmbed(io)
+  }
+
+  def e14 = {
+    // Test: Verify that compressed payloads exceeding maxBytesSinglePayload limit generate size violation bad rows
+    // Key insight: The system checks the RAW payload size (what would be decompressed) against the limit,
+    // NOT the compressed batch size. This prevents memory exhaustion from decompressing huge payloads.
+
+    val eventId = UUID.randomUUID
+
+    // Create a simple payload (just x=y parameter). Despite being simple, the raw Thrift serialization
+    // produces ~222 bytes due to all the metadata, headers, and field structures.
+    val oversizedPayload = pageView(eventId).copy(
+      querystring = List(new org.apache.http.message.BasicNameValuePair("x", "y"))
+    )
+
+    val input = CompressedBatch(List(oversizedPayload), CompressionType.GZIP)
+
+    // Set a very small limit (50 bytes) that the raw payload will exceed
+    val maxSize = 50
+
+    // Generate the compressed batch and base64 payload that will be stored in the bad row
+    val compressedBytes = createCompressedStream(List(oversizedPayload).map(_.toRaw), CompressionType.GZIP)
+    val base64Payload = java.util.Base64.getEncoder.encodeToString(compressedBytes.array())
+
+    // The decompressor reads the 4-byte size from the compressed stream header and compares it to maxSize.
+    // This size represents the raw payload that would be decompressed (~222 bytes), not the compressed
+    // batch size (~187 bytes). If rawSize > maxSize, it creates RecordTooBig BEFORE actually decompressing.
+    val actualCompressedSize = oversizedPayload.toRaw.length // ~222 bytes
+
+    // Expected behavior: The system should create a SizeViolation bad row containing:
+    // - maxSize (50): The configured limit
+    // - actualCompressedSize (~222): The raw payload size that would exceed the limit
+    // - Descriptive message about the size violation
+    // - base64Payload: The original compressed batch for debugging
+    val expectedBad =
+      List(
+        Bad(
+          expectedBadSizeViolation(
+            maxSize,
+            actualCompressedSize,
+            s"Collector payload will exceed maximum allowed size of $maxSize after Gzip decompression",
+            base64Payload
+          ),
+          None,
+          Map.empty
+        )
+      )
+
+    val io =
+      for {
+        token <- IO.unique
+        inputStream = mkCompressedStream((input, token))
+        restrictiveConfig = Config.Decompression(maxBytesSinglePayload = maxSize, maxBytesInBatch = 10000000)
+        assertion <- runTest(etlTstamp, inputStream, decompressionConfig = restrictiveConfig) {
+                       case control =>
+                         for {
+                           _ <- Processing.stream(control.environment).compile.drain
+                           state <- control.state.get
+                         } yield state should beEqualTo(
+                           Vector(
+                             Action.AddedRawCountMetric(1), // Oversized payload processed
+                             Action.SentToBad(expectedBad), // Size violation bad row created
+                             Action.AddedBadCountMetric(1), // Bad count metric updated
+                             Action.Checkpointed(List(token)) // Token attached to final result
+                           )
+                         )
+                     }
+      } yield assertion
+
+    TestControl.executeEmbed(io)
+  }
+
 }
 
 object ProcessingSpec {
@@ -572,14 +942,23 @@ object ProcessingSpec {
     input: Stream[IO, TokenedEvents],
     enrichmentsConfs: List[EnrichmentConf] = Nil,
     mocks: Mocks = Mocks.default,
-    exitOnJsCompileError: Boolean = true
+    exitOnJsCompileError: Boolean = true,
+    decompressionConfig: Config.Decompression = Config.Decompression(10000000, 10000000)
   )(
     f: MockEnvironment => IO[A]
   ): IO[A] =
     IO.sleep(etlTstamp.toEpochMilli.millis) >>
-      MockEnvironment.build(input, enrichmentsConfs, mocks, exitOnJsCompileError).use { env =>
-        f(env)
-      }
+      MockEnvironment
+        .build(
+          input,
+          enrichmentsConfs,
+          mocks,
+          exitOnJsCompileError,
+          decompressionConfig
+        )
+        .use { env =>
+          f(env)
+        }
 
   /**
    * Since sink actions are run parallel, exact order of sink actions can't be known.

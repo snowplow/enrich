@@ -96,7 +96,8 @@ object MockEnvironment {
     inputs: Stream[IO, TokenedEvents],
     enrichmentsConfs: List[EnrichmentConf] = Nil,
     mocks: Mocks = Mocks.default,
-    exitOnJsCompileError: Boolean = true
+    exitOnJsCompileError: Boolean = true,
+    decompressionConfig: Config.Decompression
   ): Resource[IO, MockEnvironment] =
     for {
       state <- Resource.eval(Ref[IO].of(Vector.empty[Action]))
@@ -161,7 +162,8 @@ object MockEnvironment {
         attributeFields = List(EnrichedEvent.atomicFields.find(_.getName === "app_id").get),
         metadata = Some(testMetadataReporter(state)),
         identity = Some(testIdentityApi),
-        assetsUpdatePeriod = 3.seconds
+        assetsUpdatePeriod = 3.seconds,
+        decompressionConfig = decompressionConfig
       )
       MockEnvironment(state, env)
     }

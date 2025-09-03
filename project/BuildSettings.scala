@@ -28,7 +28,10 @@ object BuildSettings {
   lazy val projectSettings = Seq(
     organization := "com.snowplowanalytics",
     scalaVersion := "2.12.20",
-    scalacOptions += "-Ywarn-macros:after",
+    scalacOptions ++= Seq(
+        "-Ywarn-macros:after",
+        "-Wconf:msg=discarding unmoored doc comment:silent" // so we can put scaladoc on nested functions
+      ),
     licenses += ("SLULA-1.1", url("https://docs.snowplow.io/limited-use-license-1.1"))
   )
 

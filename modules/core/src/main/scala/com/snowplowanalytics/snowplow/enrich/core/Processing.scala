@@ -25,10 +25,10 @@ import cats.Foldable
 import cats.effect.kernel.{Async, Sync, Unique}
 import cats.effect.implicits._
 
-import fs2.{Chunk, Pipe, Stream}
+import fs2.{Pipe, Stream}
 
 import com.snowplowanalytics.snowplow.badrows.{BadRow, Failure => BadRowFailure, Payload => BadRowPayload, Processor => BadRowProcessor}
-import com.snowplowanalytics.snowplow.streams.{EventProcessingConfig, EventProcessor, ListOfList, Sinkable, TokenedEvents}
+import com.snowplowanalytics.snowplow.streams.{EventProcessingConfig, EventProcessor, ListOfList, Sinkable}
 import com.snowplowanalytics.snowplow.runtime.syntax.foldable._
 
 import com.snowplowanalytics.snowplow.enrich.common.EtlPipeline
@@ -47,7 +47,8 @@ object Processing {
   private def eventProcessor[F[_]: Async](
     env: Environment[F]
   ): EventProcessor[F] =
-    _.through(parseBytes(env))
+    _.through(PayloadProvider.pipe(env.badRowProcessor, env.decompressionConfig))
+      .through(parseBytes(env))
       .through(enrich(env))
       .through(addIdentityContext(env))
       .through(collectMetadata(env))
@@ -61,7 +62,7 @@ object Processing {
     bad: List[BadRow],
     collectorTstamp: Option[DateTime],
     etlTstamp: Instant,
-    token: Unique.Token
+    token: Option[Unique.Token]
   )
 
   private case class Enriched(
@@ -70,7 +71,7 @@ object Processing {
     bad: ListOfList[BadRow],
     collectorTstamp: Option[DateTime],
     etlTstamp: Instant,
-    token: Unique.Token
+    token: Option[Unique.Token]
   )
 
   private case class Serialized(
@@ -78,26 +79,26 @@ object Processing {
     failed: List[Sinkable],
     bad: ListOfList[Sinkable],
     collectorTstamp: Option[DateTime],
-    token: Unique.Token
+    token: Option[Unique.Token]
   )
 
   private def parseBytes[F[_]: Async](
     env: Environment[F]
-  ): Pipe[F, TokenedEvents, Parsed] =
+  ): Pipe[F, PayloadProvider.Result, Parsed] =
     _.evalMap { input =>
       for {
         etlTstamp <- Sync[F].realTimeInstant
-        (bad, collectorPayloads) <- Foldable[Chunk].traverseSeparateUnordered(input.events) { buffer =>
-                                      Sync[F].delay {
-                                        ThriftLoader.toCollectorPayload(buffer, env.badRowProcessor, etlTstamp).toEither
-                                      }
-                                    }
-        cpFormatViolations = bad.flatMap(_.toList)
-        _ <- env.metrics.addRaw(cpFormatViolations.size + collectorPayloads.size)
+        (thriftBad, collectorPayloads) <- Foldable[List].traverseSeparateUnordered(input.payloads) { buffer =>
+                                            Sync[F].delay {
+                                              ThriftLoader.toCollectorPayload(buffer, env.badRowProcessor, etlTstamp).toEither
+                                            }
+                                          }
+        bad = input.bad ::: thriftBad.flatMap(_.toList)
+        _ <- env.metrics.addRaw(bad.size + collectorPayloads.size)
         collectorTstamp = collectorPayloads.headOption.map(_.context.timestamp)
       } yield Parsed(
         collectorPayloads,
-        cpFormatViolations,
+        bad,
         collectorTstamp,
         etlTstamp,
         input.ack
@@ -318,7 +319,7 @@ object Processing {
     }
 
   private def emitToken[F[_]]: Pipe[F, Serialized, Unique.Token] =
-    _.map(_.token)
+    _.map(_.token).unNone
 
   private def collectMetadata[F[_]: Async](
     env: Environment[F]

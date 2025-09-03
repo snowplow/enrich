@@ -53,6 +53,7 @@ object Dependencies {
     val netty            = "4.1.118.Final"
     val protobuf         = "4.28.3"
     val nashorn          = "15.6"
+    val zstd             = "1.5.7-4"
 
     val refererParser    = "2.1.0"
     val maxmindIplookups = "0.8.1"
@@ -116,6 +117,7 @@ object Dependencies {
     val log4jToSlf4j     = "org.apache.logging.log4j"   % "log4j-to-slf4j"                 % V.log4jToSlf4j
     val guava            = "com.google.guava"           %  "guava"                         % V.guava
     val nashorn          = "org.openjdk.nashorn"        % "nashorn-core"                   % V.nashorn
+    val zstd             = "com.github.luben"           % "zstd-jni"                       % V.zstd
 
     val circeGeneric     = "io.circe"                   %% "circe-generic"                 % V.circe
     val circeLiteral     = "io.circe"                   %% "circe-literal"                 % V.circe
@@ -237,6 +239,7 @@ object Dependencies {
       sentry,
       streams,
       slf4j,
+      zstd,
       // Tests
       specs2,
       catsEffectTestkit,

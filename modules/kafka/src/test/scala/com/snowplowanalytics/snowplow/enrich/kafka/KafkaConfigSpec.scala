@@ -153,7 +153,8 @@ object KafkaConfigSpec {
     metadata = None,
     identity = None,
     blobClients = AzureStorageConfig(Nil),
-    adaptersSchemas = adaptersSchemas
+    adaptersSchemas = adaptersSchemas,
+    decompression = Config.Decompression(5242880, 10000000)
   )
 
   private val referenceConfig = Config[EmptyConfig, KafkaSourceConfig, KafkaSinkConfig, AzureStorageConfig](
@@ -284,6 +285,7 @@ object KafkaConfigSpec {
         AzureStorageConfig.Account("storageAccount3", Some(AzureStorageConfig.Account.Auth.SasToken("tokenValue")))
       )
     ),
-    adaptersSchemas = adaptersSchemas
+    adaptersSchemas = adaptersSchemas,
+    decompression = Config.Decompression(5242880, 10000000)
   )
 }

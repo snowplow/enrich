@@ -239,4 +239,19 @@
       { "name": "storageAccount3",  "auth": { "type": "sas", "value": "tokenValue"}}
     ]
   }
+
+  # -- Configures behavior of decompresses incoming data
+  "decompression": {
+
+    # -- A cutoff used when incrementally adding events to a batch. The batch is emitted immediately
+    # -- after this cutoff size is reached. This config parameter is needed to protect the app's memory.
+    # -- Bear in mind a 1MB compressed message could become HUGE after decompression.
+    # -- This is also used to batch together events from consecutive compressed records inside a chunk.
+    "maxBytesInBatch": 5242880
+
+    # -- Each individual collector payload should not exceed this size after decompression.
+    # -- Payloads exceeding this size become a size violation type of bad row.
+    # -- This config parameter is needed to protect the app's memory.
+    "maxBytesSinglePayload": 10000000
+  }
 }

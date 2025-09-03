@@ -64,7 +64,8 @@ case class Config[+Factory, +Source, +Sink, +BlobClients](
   metadata: Option[Config.Metadata],
   identity: Option[Config.Identity],
   blobClients: BlobClients,
-  adaptersSchemas: AdaptersSchemas
+  adaptersSchemas: AdaptersSchemas,
+  decompression: Config.Decompression
 )
 
 object Config {
@@ -140,8 +141,17 @@ object Config {
 
   type Identity = IdentityM[Id]
 
-  implicit val http4sUriDecoder: Decoder[Uri] =
-    Decoder[String].emap(s => Either.catchOnly[ParseFailure](Uri.unsafeFromString(s)).leftMap(_.toString))
+  /**
+   * Configures behaviour of the parser when decompressing
+   *
+   *  @param maxBytesInBatch: A cutoff used when incrementally adding events to a batch. The batch
+   *    is emitted immediately when this cutoff size is reached. This config parameter is needed to
+   *    protect the app's memory.  Bear in mind a 1MB compressed message could become HUGE after
+   *    decompression.
+   *  @param maxBytesSinglePayload: Each individual message should not exceed this size, after
+   *    decompression.
+   */
+  case class Decompression(maxBytesInBatch: Int, maxBytesSinglePayload: Int)
 
   implicit def decoder[
     Factory: Decoder,
@@ -149,6 +159,8 @@ object Config {
     Sink: Decoder: OptionalDecoder,
     BlobClients: Decoder
   ]: Decoder[Config[Factory, Source, Sink, BlobClients]] = {
+    implicit val http4sUriDecoder: Decoder[Uri] =
+      Decoder[String].emap(s => Either.catchOnly[ParseFailure](Uri.unsafeFromString(s)).leftMap(_.toString))
     implicit val configuration = Configuration.default.withDiscriminator("type")
     implicit val licenseDecoder =
       AcceptedLicense.decoder(AcceptedLicense.DocumentationLink("https://docs.snowplow.io/limited-use-license-1.1/"))
@@ -246,6 +258,8 @@ object Config {
       deriveConfiguredDecoder[VeroSchemas]
     implicit val adaptersSchemasDecoder: Decoder[AdaptersSchemas] =
       deriveConfiguredDecoder[AdaptersSchemas]
+    implicit val decompressionDecoder: Decoder[Decompression] =
+      deriveConfiguredDecoder[Decompression]
 
     deriveConfiguredDecoder[Config[Factory, Source, Sink, BlobClients]]
   }

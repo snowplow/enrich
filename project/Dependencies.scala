@@ -50,7 +50,7 @@ object Dependencies {
     val thrift           = "0.15.0"
     val httpclient       = "4.5.13"
     val sprayJson        = "1.3.6"
-    val netty            = "4.1.118.Final"
+    val netty            = "4.1.124.Final"
     val protobuf         = "4.28.3"
     val nashorn          = "15.6"
     val zstd             = "1.5.7-4"
@@ -72,7 +72,7 @@ object Dependencies {
     val schemaSniffer    = "0.0.0"
 
     val gcpSdk           = "2.45.0"
-    val awsSdk           = "2.29.20"
+    val awsSdk           = "2.33.1"
     val kafka            = "3.9.1"
     val jackson          = "2.18.1"
 

@@ -1,3 +1,13 @@
+6.1.0 (2025-09-04)
+------------------
+Upgrade dependencies in preparation for release (#114)
+Decompress payloads from the raw stream (#36)
+Fix PUBLIC_REPO_MAIN name to "master" (#109)
+Deprecate parsing legacy thrift format (#108)
+Add visibility-based Docker image naming (#102)
+Make app healthy for setup after initialization (#101)
+Fix docker visibility suffix (#116)
+
 6.0.0 (2025-07-25)
 ------------------
 enrich-kafka: make it possible to download enrichments assets from S3 and GCS

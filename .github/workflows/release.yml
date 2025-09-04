@@ -19,7 +19,7 @@ jobs:
           - kafka
           - nsq
         include:
-          - visibility_suffix: ${{ github.event.repository.private == false && '' || '-private' }}
+          - visibility_suffix: ${{ github.event.repository.private == true && '-private' || '' }}
           - app: kinesis
             run_snyk: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc') }}
           - app: pubsub

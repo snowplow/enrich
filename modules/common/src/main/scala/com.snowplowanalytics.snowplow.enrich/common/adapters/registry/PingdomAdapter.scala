@@ -39,7 +39,7 @@ case class PingdomAdapter(schemas: PingdomSchemas) extends Adapter {
 
   // Regex for extracting data from querystring values which we
   // believe are incorrectly handled Python unicode strings.
-  private val PingdomValueRegex = """\(u'(.+)',\)""".r
+  private val PingdomValueRegex = """\(u'([^']+)',\)""".r
 
   // Schemas for reverse-engineering a Snowplow unstructured event
   private val EventSchemaMap = Map(

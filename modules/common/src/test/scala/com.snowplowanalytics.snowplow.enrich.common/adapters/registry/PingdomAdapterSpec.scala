@@ -68,7 +68,7 @@ class PingdomAdapterSpec extends Specification with DataTables with ValidatedMat
       FailureDetails.AdapterFailure.InputData(
         "p",
         "apps".some,
-        """should not pass regex \(u'(.+)',\)"""
+        """should not pass regex \(u'([^']+)',\)"""
       )
     adapterWithDefaultSchemas.reformatMapParams(nvPairs) must beLeft(NonEmptyList.one(expected))
   }

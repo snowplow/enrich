@@ -18,8 +18,12 @@ jobs:
           - kinesis
           - kafka
           - nsq
+        repo_variant:
+          - suffix: ""
+            name: "public"
+          - suffix: "-private"
+            name: "private"
         include:
-          - visibility_suffix: ${{ github.event.repository.private == true && '-private' || '' }}
           - app: kinesis
             run_snyk: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc') }}
           - app: pubsub
@@ -82,7 +86,7 @@ jobs:
       id: meta
       uses: docker/metadata-action@v3
       with:
-        images: snowplow/snowplow-enrich-${{ matrix.app }}${{ matrix.visibility_suffix }}
+        images: snowplow/snowplow-enrich-${{ matrix.app }}${{ matrix.repo_variant.suffix }}
         tags: |
           type=raw,value=latest,enable=${{ !contains(steps.ver.outputs.tag, 'rc') && !contains(steps.ver-snapshot.outputs.tag, 'SNAPSHOT' )}}
           type=raw,value=latest-focal,enable=${{ !contains(steps.ver.outputs.tag, 'rc') && !contains(steps.ver-snapshot.outputs.tag, 'SNAPSHOT' )}}
@@ -96,7 +100,7 @@ jobs:
       id: distroless-meta
       uses: docker/metadata-action@v3
       with:
-        images: snowplow/snowplow-enrich-${{ matrix.app }}${{ matrix.visibility_suffix }}
+        images: snowplow/snowplow-enrich-${{ matrix.app }}${{ matrix.repo_variant.suffix }}
         tags: |
           type=raw,value=latest-distroless,enable=${{ !contains(steps.ver.outputs.tag, 'rc') && !contains(steps.ver-snapshot.outputs.tag, 'SNAPSHOT' )}}
           type=raw,value=${{ steps.ver.outputs.tag }}-distroless,enable=${{ !contains(steps.ver.outputs.tag, 'SNAPSHOT') && steps.ver.outputs.tag != '' }}
@@ -124,13 +128,13 @@ jobs:
         tags: ${{ steps.distroless-meta.outputs.tags }}
         push: true
     - name: Build local distroless image, which is needed to run Snyk
-      if: matrix.run_snyk
+      if: ${{ matrix.run_snyk && matrix.repo_variant.name == 'public' }}
       run: sbt "project ${{ matrix.app }}Distroless" docker:publishLocal
     - name: Run Snyk to check for vulnerabilities
       uses: snyk/actions/docker@master
-      if: matrix.run_snyk
+      if: ${{ matrix.run_snyk && matrix.repo_variant.name == 'public' }}
       with:
-        image: "snowplow/snowplow-enrich-${{ matrix.app }}${{ matrix.visibility_suffix }}:${{ steps.ver.outputs.tag }}-distroless"
+        image: "snowplow/snowplow-enrich-${{ matrix.app }}${{ matrix.repo_variant.suffix }}:${{ steps.ver.outputs.tag }}-distroless"
         args: "--app-vulns --org=data-processing-new"
         command: monitor
       env:

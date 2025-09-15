@@ -34,6 +34,15 @@ class IpAddressExtractorSpec extends Specification with DataTables {
           "x-FoRwaRdeD-FOr: 129.78.138.66, 129.78.64.103",
           "Connection: keep-alive"
         ) ! "129.78.138.66" |
+        "IP address with all columns" !! List(
+          s"X-Forwarded-For: ::::::::::::::::::::::::::::::"
+        ) ! ":::::::::::::::" |
+        "Extra values after valid IPv4 address" !! List(
+          s"X-Forwarded-For: 129.78.138.66abcdefg"
+        ) ! "129.78.138.66" |
+        "Extra values after valid IPv6 address" !! List(
+          s"X-Forwarded-For: 2001:0db8:85a3:0000:0000:8a2e:0370:7334abcdefg"
+        ) ! "2001:0db8:85a3:0000:0000:8a2e:0370:" |
         "IPv6 address in X-FORWARDED-FOR header" !! List(
           "X-Forwarded-For: 2001:0db8:85a3:0000:0000:8a2e:0370:7334"
         ) ! "2001:0db8:85a3:0000:0000:8a2e:0370:7334" |
@@ -70,15 +79,9 @@ class IpAddressExtractorSpec extends Specification with DataTables {
       IpAddressExtractor.extractIpAddress(List(s"X-Forwarded-For: $ipv6WithPort"), Default) must_== ipv6
     }
 
-    "correctly extract an X-FORWARDED-FOR Cloudfront field" in {
-
-      "SPEC NAME" || "Field" | "EXP. RESULT" |
-        "No X-FORWARDED-FOR field" !! "-" ! Default |
-        "Incorrect X-FORWARDED-FOR field" !! "incorrect" ! Default |
-        "One IP in X-FORWARDED-FOR field" !! "129.78.138.66" ! "129.78.138.66" |
-        "Two IPs in X-FORWARDED-FOR field" !! "129.78.138.66,%20129.78.64.103" ! "129.78.138.66" |> { (_, xForwardedFor, expected) =>
-        IpAddressExtractor.extractIpAddress(xForwardedFor, Default) must_== expected
-      }
+    "oversized invalid IP address" in {
+      val oversized = "a".repeat(1000000)
+      IpAddressExtractor.extractIpAddress(List(s"X-Forwarded-For: $oversized"), Default) must_== Default
     }
   }
 }

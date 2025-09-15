@@ -445,7 +445,10 @@ class ExtractInetAddressSpec extends Specification with ScalaCheck {
   """
 
   def e1 =
-    ConversionUtils.extractInetAddress("unknown") must beNone
+    (ConversionUtils.extractInetAddress("unknown") must beNone) and
+      (ConversionUtils.extractInetAddress(":::::::::::::::") must beNone) and
+      (ConversionUtils.extractInetAddress("::::::") must beNone) and
+      (ConversionUtils.extractInetAddress("a".repeat(1000000)) must beNone)
 
   def e2 =
     prop { (ip: String) =>

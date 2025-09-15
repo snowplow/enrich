@@ -33,6 +33,7 @@ class IpLookupsEnrichmentSpec extends Specification with DataTables with CatsEff
   def is = s2"""
   extractIpInformation should correctly extract location data from IP addresses where possible $e1
   extractIpInformation should correctly extract ISP data from IP addresses where possible      $e2
+  extractIpInformation should return result with left's when IP address is invalid oversized string $e3
   """
 
   // When testing, localMode is set to true, so the URIs are ignored and the databases are loaded from test/resources
@@ -70,6 +71,7 @@ class IpLookupsEnrichmentSpec extends Specification with DataTables with CatsEff
       "null IP address" !! null ! "AddressNotFoundException".asLeft.some |
       "invalid IP address #1" !! "localhost" ! "AddressNotFoundException".asLeft.some |
       "invalid IP address #2" !! "hello" ! "UnknownHostException".asLeft.some |
+      "invalid IP address #3" !! ":::::::::::::::" ! "UnknownHostException".asLeft.some |
       "valid IP address" !! "175.16.199.0" !
         IpLocation( // Taken from scala-maxmind-geoip. See that test suite for other valid IP addresses
           countryCode = "CN",
@@ -115,4 +117,13 @@ class IpLookupsEnrichmentSpec extends Specification with DataTables with CatsEff
       result <- ipLookup.extractIpInformation("70.46.123.145")
       isp = result.isp
     } yield isp must beEqualTo(Some(Right("FDN Communications")))
+
+  def e3 =
+    for {
+      ipLookup <- config.enrichment[IO](SpecHelpers.blockingEC)
+      oversized = "a".repeat(1000000)
+      result <- ipLookup.extractIpInformation(oversized)
+    } yield result.ipLocation must beLike {
+      case Some(Left(_)) => ok
+    }
 }

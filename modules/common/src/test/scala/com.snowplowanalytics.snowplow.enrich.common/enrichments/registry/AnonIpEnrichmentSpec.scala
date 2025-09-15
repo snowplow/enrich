@@ -26,7 +26,8 @@ class AnonIpEnrichmentSpec extends Specification with DataTables with ScalaCheck
   Anonymizing across a variety of IP addresses (v4 and v6) should work $e1
   Given valid IPv4 address and N octets to anonymize, the final value always contains N xs $e2
   Given valid IPv6 address and N segments to anonymize, the final value always contains N xs $e3
-  Given valid shortened IPv6 address and N segments to anonymize, the final value always contains N xs $e4"""
+  Given valid shortened IPv6 address and N segments to anonymize, the final value always contains N xs $e4
+  anonymizeIp function should work with invalid oversized IP addresses $e5"""
 
   def e1 =
     "SPEC NAME" || "IP ADDRESS" | "ANONYMIZE IPv4 OCTETS" | "ANONYMIZE IPv6 PIECES" | "EXPECTED OUTPUT" |
@@ -39,6 +40,8 @@ class AnonIpEnrichmentSpec extends Specification with DataTables with ScalaCheck
       "invalid, anonymize 3" !! "999.123.777.2" ! AnonIPv4Octets(3) ! AnonIPv6Segments(3) ! "999.x.x.x" |
       "invalid, anonymize 3" !! "999.aaa.bbb.c" ! AnonIPv4Octets(3) ! AnonIPv6Segments(3) ! "999.x.x.x" |
       "invalid, anonymize 3" !! "hello;goodbye" ! AnonIPv4Octets(3) ! AnonIPv6Segments(3) ! "hello;goodbye" |
+      "invalid, anonymize 3" !! ":::::::::::::::" ! AnonIPv4Octets(3) ! AnonIPv6Segments(3) ! "x:x:x:x:x:x:x:x" |
+      "invalid, anonymize 3" !! "::1" ! AnonIPv4Octets(3) ! AnonIPv6Segments(3) ! "0:0:0:0:0:x:x:x" |
       "null, anonymize 2" !! null ! AnonIPv4Octets(2) ! AnonIPv6Segments(2) ! null |
       "empty, anonymize 4" !! "" ! AnonIPv4Octets(4) ! AnonIPv6Segments(4) ! "x" |
       "ipv6, anonymize 1" !! "4b0c:0:0:0:880c:99a8:4b0:4411" ! AnonIPv4Octets(1) ! AnonIPv6Segments(
@@ -119,5 +122,10 @@ class AnonIpEnrichmentSpec extends Specification with DataTables with ScalaCheck
           .isInstanceOf[Inet6Address] ==== true
         countProp and validIpProp
     }
+
+  def e5 = {
+    val oversized = "a".repeat(1000000)
+    AnonIpEnrichment(AnonIPv4Octets(4), AnonIPv6Segments(6)).anonymizeIp(oversized) must_== oversized
+  }
 
 }

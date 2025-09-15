@@ -19,10 +19,9 @@ import scala.annotation.tailrec
 object IpAddressExtractor {
 
   private val ipRegex =
-    """\"?\[?(?:(?:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}).*)|((?:[0-9a-f]|\.|\:+)+).*)\]?\"?""" // 1 group IPv4 and 1 IPv6
+    """\"?\[?(?:(?:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}))|((?:(?:\b[0-9a-f]{1,4}\b)|\.|\:){1,15}))""" // 1 group IPv4 and 1 IPv6
   private val XForwardedForRegex = s"""^x-forwarded-for: $ipRegex.*""".r
   private val ForwardedForRegex = s"""^forwarded: for=$ipRegex.*""".r
-  private val CloudfrontRegex = s"""^$ipRegex.*""".r
 
   /**
    * If a request has been forwarded, extract the original client IP address;
@@ -53,18 +52,5 @@ object IpAddressExtractor {
           case Some(forwardedForIp) => forwardedForIp
           case _ => lastIp
         }
-    }
-
-  /**
-   * If a request has been forwarded, extract the original client IP address;
-   * otherwise return the standard IP address
-   * @param xForwardedFor x-forwarded-for field from the Cloudfront log
-   * @param lastIp Fallback IP address if no X-FORWARDED-FOR header exists
-   * @return True client IP address
-   */
-  def extractIpAddress(xForwardedFor: String, lastIp: String): String =
-    xForwardedFor match {
-      case CloudfrontRegex(ipv4, ipv6) => Option(ipv4).getOrElse(ipv6)
-      case _ => lastIp
     }
 }

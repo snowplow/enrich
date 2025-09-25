@@ -1,3 +1,7 @@
+6.1.2 (2025-09-25)
+------------------
+Allow to publish common-enrich to Maven from private repo (#122)
+
 6.1.1 (2025-09-15)
 ------------------
 Improve efficiency of IP address extractor (#118)

@@ -8,25 +8,23 @@
     # -- pubsub subscription for the source of collector payloads
     "subscription": "projects/myproject/subscriptions/snowplow-collector-payloads"
 
-    # -- Controls how many threads are used internally by the pubsub client library for fetching events.
-    # -- The number of threads is equal to this factor multiplied by the number of availble cpu cores
-    "parallelPullFactor": 0.5
-
     # -- Pubsub ack deadlines are extended for this duration when needed.
-    "durationPerAckExtension": "60 seconds"
+    "durationPerAckExtension": "15 seconds"
 
     # -- Controls when ack deadlines are re-extended, for a message that is close to exceeding its ack deadline.
-    # -- For example, if `durationPerAckExtension` is `60 seconds` and `minRemainingAckDeadline` is `0.1` then the Source
-    # -- will wait until there is `6 seconds` left of the remining deadline, before re-extending the message deadline.
+    # -- For example, if `durationPerAckExtension` is `15 seconds` and `minRemainingAckDeadline` is `0.1` then the Source
+    # -- will wait until there is `1.5 seconds` left of the remaining deadline, before re-extending the message deadline.
     "minRemainingAckDeadline": 0.1
 
-    # -- How many pubsub messages to pull from the server in a single request.
-    "maxMessagesPerPull": 1000
-
-    # -- Adds an artifical delay between consecutive requests to pubsub for more messages.
-    # -- Under some circumstances, this was found to slightly alleviate a problem in which pubsub might re-deliver
-    # -- the same messages multiple times.
-    "debounceRequests": "100 millis"
+    # -- Configures how transient GRPC failures are retried
+    "retries": {
+      "transientErrors": {
+        # -- Backoff delay for follow-up attempts
+        "delay": "100 millis"
+        # -- Max number of attempts, after which Enrich will crash and exit
+        "attempts": 10
+      }
+    }
   }
 
   "output": {
@@ -42,6 +40,16 @@
       "batchSize": 100
       # -- Enriched events are sent to pubsub in batches not exceeding this size number of bytes
       "requestByteThreshold": 1000000
+
+      # -- Configures how transient GRPC failures are retried
+      "retries": {
+        "transientErrors": {
+          # -- Backoff delay for follow-up attempts
+          "delay": "100 millis"
+          # -- Max number of attempts, after which Enrich will crash and exit
+          "attempts": 10
+        }
+      }
     }
 
     "failed": {
@@ -52,6 +60,16 @@
       "batchSize": 100
       # -- Failed events are sent to pubsub in batches not exceeding this size number of bytes
       "requestByteThreshold": 1000000
+
+      # -- Configures how transient GRPC failures are retried
+      "retries": {
+        "transientErrors": {
+          # -- Backoff delay for follow-up attempts
+          "delay": "100 millis"
+          # -- Max number of attempts, after which Enrich will crash and exit
+          "attempts": 10
+        }
+      }
     }
 
     "bad": {
@@ -62,6 +80,16 @@
       "batchSize": 100
       # -- Bad events are sent to pubsub in batches not exceeding this size number of bytes
       "requestByteThreshold": 1000000
+
+      # -- Configures how transient GRPC failures are retried
+      "retries": {
+        "transientErrors": {
+          # -- Backoff delay for follow-up attempts
+          "delay": "100 millis"
+          # -- Max number of attempts, after which Enrich will crash and exit
+          "attempts": 10
+        }
+      }
     }
   }
 

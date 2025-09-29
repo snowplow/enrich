@@ -86,17 +86,20 @@ object PubsubConfigSpec {
     input = PubsubSourceConfig(
       subscription = PubsubSourceConfig.Subscription("myproject", "snowplow-collector-payloads"),
       parallelPullFactor = 0.5,
-      durationPerAckExtension = 60.seconds,
+      durationPerAckExtension = 15.seconds,
       minRemainingAckDeadline = 0.1,
       maxMessagesPerPull = 1000,
-      debounceRequests = 100.millis
+      debounceRequests = 100.millis,
+      streamingPull = true,
+      retries = PubsubSourceConfig.Retries(PubsubSourceConfig.TransientErrorRetrying(delay = 100.millis, attempts = 10))
     ),
     output = Config.Output(
       good = Config.SinkWithMetadata(
         sink = PubsubSinkConfigM[Id](
           topic = PubsubSinkConfig.Topic("myproject", "snowplow-enriched"),
           batchSize = 1000,
-          requestByteThreshold = 1000000
+          requestByteThreshold = 1000000,
+          retries = PubsubSinkConfig.Retries(PubsubSinkConfig.TransientErrorRetrying(delay = 100.millis, attempts = 10))
         ),
         maxRecordSize = 9000000,
         partitionKey = None,
@@ -107,7 +110,8 @@ object PubsubConfigSpec {
         sink = PubsubSinkConfigM[Id](
           topic = PubsubSinkConfig.Topic("myproject", "snowplow-bad"),
           batchSize = 1000,
-          requestByteThreshold = 1000000
+          requestByteThreshold = 1000000,
+          retries = PubsubSinkConfig.Retries(PubsubSinkConfig.TransientErrorRetrying(delay = 100.millis, attempts = 10))
         ),
         maxRecordSize = 9000000,
         partitionKey = None,
@@ -151,17 +155,20 @@ object PubsubConfigSpec {
     input = PubsubSourceConfig(
       subscription = PubsubSourceConfig.Subscription("myproject", "snowplow-collector-payloads"),
       parallelPullFactor = 0.5,
-      durationPerAckExtension = 60.seconds,
+      durationPerAckExtension = 15.seconds,
       minRemainingAckDeadline = 0.1,
       maxMessagesPerPull = 1000,
-      debounceRequests = 100.millis
+      debounceRequests = 100.millis,
+      streamingPull = true,
+      retries = PubsubSourceConfig.Retries(PubsubSourceConfig.TransientErrorRetrying(delay = 100.millis, attempts = 10))
     ),
     output = Config.Output(
       good = Config.SinkWithMetadata(
         sink = PubsubSinkConfigM[Id](
           topic = PubsubSinkConfig.Topic("myproject", "snowplow-enriched"),
           batchSize = 100,
-          requestByteThreshold = 1000000
+          requestByteThreshold = 1000000,
+          retries = PubsubSinkConfig.Retries(PubsubSinkConfig.TransientErrorRetrying(delay = 100.millis, attempts = 10))
         ),
         maxRecordSize = 9000000,
         partitionKey = None,
@@ -172,7 +179,8 @@ object PubsubConfigSpec {
           sink = PubsubSinkConfigM[Id](
             topic = PubsubSinkConfig.Topic("myproject", "snowplow-failed"),
             batchSize = 100,
-            requestByteThreshold = 1000000
+            requestByteThreshold = 1000000,
+            retries = PubsubSinkConfig.Retries(PubsubSinkConfig.TransientErrorRetrying(delay = 100.millis, attempts = 10))
           ),
           maxRecordSize = 9000000,
           partitionKey = None,
@@ -183,7 +191,8 @@ object PubsubConfigSpec {
         sink = PubsubSinkConfigM[Id](
           topic = PubsubSinkConfig.Topic("myproject", "snowplow-bad"),
           batchSize = 100,
-          requestByteThreshold = 1000000
+          requestByteThreshold = 1000000,
+          retries = PubsubSinkConfig.Retries(PubsubSinkConfig.TransientErrorRetrying(delay = 100.millis, attempts = 10))
         ),
         maxRecordSize = 9000000,
         partitionKey = None,

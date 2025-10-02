@@ -111,4 +111,25 @@ object CompressionTestUtils {
         TokenedEvents(Chunk.singleton(compressedBytes), ack)
     }
 
+  /**
+   * Creates a zstd stream that will cause ZstdIOException during record reading.
+   */
+  def createCorruptedZstdWithTrailingNull(): ByteBuffer = {
+    // Create a minimal valid zstd stream with proper Snowplow format header
+    val baos = new ByteArrayOutputStream()
+    val compressionStream = new ZstdOutputStream(baos)
+
+    // Write valid Snowplow header per the spec
+    compressionStream.write(1) // format version
+    compressionStream.write(1) // payload version
+    compressionStream.close()
+
+    val validBytes = baos.toByteArray
+
+    // Add corrupted data that will cause ZstdIOException during record parsing
+    val corruptedData = Array[Byte](0, 0, 0, 5) ++ // Fake record size (5 bytes)
+      Array.fill[Byte](20)(0) // Null bytes that cause ZstdIOException
+
+    ByteBuffer.wrap(validBytes ++ corruptedData)
+  }
 }

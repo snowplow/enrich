@@ -34,6 +34,7 @@ class DecompressorSpec extends Specification with CatsEffect {
     handle zero-length record                                                    $ensureZeroLengthRecordSupported
     handle very large number of small records                                    $ensureLargeVolumeProcessing
     handle mixed record sizes                                                    $ensureMixedSizesSupported
+    handle corrupted zstd payload with trailing null bytes                       $ensureCorruptedZstdWithTrailingNull
   """
 
   def extractSingleRecord = {
@@ -186,6 +187,15 @@ class DecompressorSpec extends Specification with CatsEffect {
     val records = List("tiny", "medium " * 10, "large " * 50, "x").map(_.getBytes("UTF-8"))
     testBothCompressionTypes { compressionType =>
       validateRecordsInOrder(records, compressionType)
+    }
+  }
+
+  def ensureCorruptedZstdWithTrailingNull = {
+    val compressed = createCorruptedZstdWithTrailingNull()
+    val factory = new Decompressor.Zstd(1000)
+    factory.build(compressed) must beLike {
+      case FactorySuccess(decompressor) =>
+        decompressor.getNextRecord must beEqualTo(CorruptInput)
     }
   }
 

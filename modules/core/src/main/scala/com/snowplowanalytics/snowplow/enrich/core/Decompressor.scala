@@ -13,7 +13,7 @@ package com.snowplowanalytics.snowplow.enrich.core
 import cats.implicits._
 import com.github.luben.zstd.ZstdInputStreamNoFinalizer
 
-import java.io.InputStream
+import java.io.{IOException, InputStream}
 import java.nio.{ByteBuffer, ByteOrder}
 import java.util.zip.GZIPInputStream
 
@@ -61,21 +61,29 @@ abstract class Decompressor private (maxBytesSinglePayload: Int, stream: InputSt
   /**
    * Reads a 32-bit integer, which has been encoded as 4 bytes in the incoming byte stream
    */
-  private def readNextSize: Either[GetRecordResult, Int] = {
-    val bb = ByteBuffer.allocate(4)
-    bb.order(ByteOrder.BIG_ENDIAN)
-    streamRead(bb.array, 0, 4) match {
-      case -1 => Left(EndOfRecords)
-      case 4 => Right(bb.getInt)
-      case _ => Left(CorruptInput)
+  private def readNextSize: Either[GetRecordResult, Int] =
+    try {
+      val bb = ByteBuffer.allocate(4)
+      bb.order(ByteOrder.BIG_ENDIAN)
+      streamRead(bb.array, 0, 4) match {
+        case -1 => Left(EndOfRecords)
+        case 4 => Right(bb.getInt)
+        case _ => Left(CorruptInput)
+      }
+    } catch {
+      case _: IOException =>
+        Left(CorruptInput)
     }
-  }
 
-  private def readBytes(nextSize: Int): Either[CorruptInput.type, Array[Byte]] = {
-    val arr = new Array[Byte](nextSize)
-    val numRead = streamRead(arr, 0, nextSize)
-    if (numRead == nextSize) Right(arr) else Left(CorruptInput)
-  }
+  private def readBytes(nextSize: Int): Either[CorruptInput.type, Array[Byte]] =
+    try {
+      val arr = new Array[Byte](nextSize)
+      val numRead = streamRead(arr, 0, nextSize)
+      if (numRead == nextSize) Right(arr) else Left(CorruptInput)
+    } catch {
+      case _: IOException =>
+        Left(CorruptInput)
+    }
 
   // Handles partial reads by recursively reading until all bytes are consumed.
   // InputStream.read() can return fewer bytes than requested even when not at EOF,

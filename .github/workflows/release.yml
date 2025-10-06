@@ -162,8 +162,8 @@ jobs:
         SONATYPE_PASSWORD: ${{ secrets.SONA_PASS }}
 
   snowman-tests:
-    if: ${{ github.event.repository.private == false && startsWith(github.ref, 'refs/tags/') }}  # Only run on public tags because Snowman is unable to get private DockerHub images yet
-    name: Run Snowman Tests
+    if: ${{ github.event.repository.private == true && startsWith(github.ref, 'refs/tags/') }} # Run only for private repo and on a tag
+    name: Run Snowman Tests and Rollout
     runs-on: ubuntu-latest
     needs: publish_docker
     strategy:
@@ -171,7 +171,7 @@ jobs:
         component:
           - enrich
         test_directory:
-          - e2e
+          - enrich, enrich_pipeline
     steps:
       - uses: actions/checkout@v4
       - name: Get version from tag
@@ -197,10 +197,10 @@ jobs:
             {
               "test_directory": "${{ matrix.test_directory }}",
               "component": "${{ matrix.component }}",
-              "dry_run": false,
               "version": "${{ steps.ver.outputs.project_version }}",
+              "dry_run": false,
               "token": "${{ secrets.GLOBAL_QA_FRAMEWORK_PAT }}"
             }
           wait-for-completion: true
-          wait-for-completion-timeout: 240m
+          wait-for-completion-timeout: 360m
           display-workflow-run-url: true

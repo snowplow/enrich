@@ -1,3 +1,10 @@
+6.2.0 (2025-10-08)
+------------------
+Streaming pull for Pubsub source (#117)
+Decompressor catches all IO exceptions (#123)
+Applied private repo access for Snowman tests (#124)
+Bump netty to 4.1.125.Final (#126)
+
 6.1.2 (2025-09-25)
 ------------------
 Allow to publish common-enrich to Maven from private repo (#122)

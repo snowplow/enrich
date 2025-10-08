@@ -50,7 +50,7 @@ object Dependencies {
     val thrift           = "0.15.0"
     val httpclient       = "4.5.13"
     val sprayJson        = "1.3.6"
-    val netty            = "4.1.124.Final"
+    val netty            = "4.1.125.Final"
     val protobuf         = "4.28.3"
     val nashorn          = "15.6"
     val zstd             = "1.5.7-4"

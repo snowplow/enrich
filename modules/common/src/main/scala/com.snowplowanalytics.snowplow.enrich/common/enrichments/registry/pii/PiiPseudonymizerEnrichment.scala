@@ -220,7 +220,7 @@ object PiiPseudonymizerEnrichment extends ParseableEnrichment {
     schema: SchemaKey,
     jsonPath: String
   ): (Json, List[JsonModifiedField]) = {
-    val objectNode = io.circe.jackson.mapper.valueToTree[ObjectNode](json)
+    val objectNode = CirceUtils.mapper.valueToTree[ObjectNode](json)
     val documentContext = JJsonPath.using(JsonPathConf).parse(objectNode)
     val modifiedFields = MutableList[JsonModifiedField]()
     Option(documentContext.read[AnyRef](jsonPath)) match { // check that json object not null

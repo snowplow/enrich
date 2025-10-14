@@ -28,6 +28,7 @@ import org.specs2.Specification
 import org.specs2.matcher.ValidatedMatchers
 
 import com.snowplowanalytics.iglu.core._
+import com.snowplowanalytics.iglu.core.circe.implicits._
 
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.Resolver
@@ -37,8 +38,7 @@ import com.snowplowanalytics.snowplow.badrows.{BadRow, Processor}
 
 import com.snowplowanalytics.snowplow.enrich.common.{EtlPipeline, SpecHelpers}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.{AtomicFields, EnrichmentRegistry}
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.IpLookupsEnrichment
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.CampaignAttributionEnrichment
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry._
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
 import com.snowplowanalytics.snowplow.enrich.common.loaders._
@@ -46,7 +46,6 @@ import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.AcceptInvalid
 import com.snowplowanalytics.snowplow.enrich.common.utils.OptionIor
 
-import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers._
 
 class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatchers with CatsEffect {
@@ -64,6 +63,7 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
   Hashing configured JSON and scalar fields in POJO emits a correct pii_transformation event                  $e7
   Hashing configured JSON fields in POJO should not create new fields                                         $e8
   removeAddedFields should remove fields added by PII enrichment                                              $e9
+  All JSON fields with different types should return from PII transformation as it is if they aren't hashed   $e10
   """
 
   def e1 = {
@@ -797,10 +797,81 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
 
     PiiPseudonymizerEnrichment.removeAddedFields(hashed, orig) must beEqualTo(expected)
   }
+
+  def e10 = {
+    val testJson = json"""{
+       "schema":"iglu:com.test/all_possible_types/jsonschema/1-0-0",
+       "data": {
+         "myString":"str",
+         "myint": 10,
+         "myLong": 1234567898765,
+         "myDouble": 123.321,
+         "myNumeric": 234.53,
+         "myNullNumeric": 567.3579,
+         "myBigNumeric": 256.125627635,
+         "myBOOL": true,
+         "myDate": "2025-10-14",
+         "myTimestamp": "2025-10-14T13:20:39+00:00",
+         "myStruct": {
+           "nestedField": "val"
+         },
+         "emptyStruct1": {},
+         "emptyStruct2": {},
+         "myArray": [1, 2, 3, 4, 5],
+         "myjson": "xyz",
+         "mynull": null
+       }
+    }""".noSpaces
+    val actual = for {
+      ipLookup <- ipEnrichment
+      enrichmentReg = EnrichmentRegistry[IO](
+                        ipLookups = Some(ipLookup),
+                        piiPseudonymizer = PiiPseudonymizerEnrichment(
+                          PiiMutators(
+                            pojo = Nil,
+                            unstruct = List(
+                              JsonFieldLocator(
+                                schemaCriterion = SchemaCriterion("com.test", "all_possible_types", "jsonschema", 1, 0, 0),
+                                jsonPath = "$.['f']"
+                              )
+                            ),
+                            contexts = List(
+                              JsonFieldLocator(
+                                schemaCriterion = SchemaCriterion("com.test", "all_possible_types", "jsonschema", 1, 0, 0),
+                                jsonPath = "$.['f']"
+                              )
+                            ),
+                            derivedContexts = Nil
+                          ),
+                          true,
+                          PiiStrategyPseudonymize(
+                            "SHA-256",
+                            hashFunction = DigestUtils.sha256Hex(_: Array[Byte]),
+                            "pepper123"
+                          ),
+                          anonymousOnly = false
+                        ).some
+                      )
+      output <- commonSetup(enrichmentReg, additionalContext = Some(testJson), customUe = Some(testJson))
+    } yield output
+
+    actual.map { output =>
+      val size = output.size must_== 1
+      val enrichedEvent = output.head.toOption.get
+      val contextCheck = enrichedEvent.contexts(3).asString must beEqualTo(testJson)
+      val ueCheck = enrichedEvent.unstruct_event.get.asString must beEqualTo(testJson)
+      size and contextCheck and ueCheck
+    }
+  }
 }
 
 object PiiPseudonymizerEnrichmentSpec {
-  def commonSetup(enrichmentReg: EnrichmentRegistry[IO], headers: List[String] = Nil): IO[List[Either[BadRow, EnrichedEvent]]] = {
+  def commonSetup(
+    enrichmentReg: EnrichmentRegistry[IO],
+    headers: List[String] = Nil,
+    additionalContext: Option[String] = None,
+    customUe: Option[String] = None
+  ): IO[List[Either[BadRow, EnrichedEvent]]] = {
     val context =
       CollectorPayload.Context(
         DateTime.parse("2017-07-14T03:39:39.000+00:00"),
@@ -831,7 +902,7 @@ object PiiPseudonymizerEnrichmentSpec {
         "duid" -> "786d1b69-a603-4eb8-9178-fed2a195a1ed",
         "sid" -> "87857856-a603-4eb8-9178-fed2a195a1ed",
         "co" ->
-          """
+          s"""
             |{
             |  "schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
             |  "data":[
@@ -864,34 +935,37 @@ object PiiPseudonymizerEnrichmentSpec {
             |        "field4": ""
             |      }
             |    }
+            |    ${additionalContext.map(c => s",$c").getOrElse("")}
             |  ]
             |}
       """.stripMargin,
-        "ue_pr" -> """
+        "ue_pr" -> s"""
                      |{
                      |   "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
-                     |   "data":{
-                     |     "schema":"iglu:com.mailgun/message_clicked/jsonschema/1-0-0",
-                     |     "data":{
-                     |       "recipient":"alice@example.com",
-                     |       "city":"San Francisco",
-                     |       "ip":"50.56.129.169",
-                     |       "myVar2":"awesome",
-                     |       "timestamp":"2016-06-30T14:31:09.000Z",
-                     |       "url":"http://mailgun.net",
-                     |       "userAgent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.31 (KHTML, like Gecko) Chrome/26.0.1410.43 Safari/537.31",
-                     |       "domain":"sandboxbcd3ccb1a529415db665622619a61616.mailgun.org",
-                     |       "signature":"ffe2d315a1d937bd09d9f5c35ddac1eb448818e2203f5a41e3a7bd1fb47da385",
-                     |       "country":"US",
-                     |       "clientType":"browser",
-                     |       "clientOs":"Linux",
-                     |       "token":"cd89cd860be0e318371f4220b7e0f368b60ac9ab066354737f",
-                     |       "clientName":"Chrome",
-                     |       "region":"CA",
-                     |       "deviceType":"desktop",
-                     |       "myVar1":"Mailgun Variable #1"
-                     |     }
-                     |   }
+                     |   "data": ${customUe.getOrElse("""
+                               |  {
+                               |     "schema":"iglu:com.mailgun/message_clicked/jsonschema/1-0-0",
+                               |     "data":{
+                               |       "recipient":"alice@example.com",
+                               |       "city":"San Francisco",
+                               |       "ip":"50.56.129.169",
+                               |       "myVar2":"awesome",
+                               |       "timestamp":"2016-06-30T14:31:09.000Z",
+                               |       "url":"http://mailgun.net",
+                               |       "userAgent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.31 (KHTML, like Gecko) Chrome/26.0.1410.43 Safari/537.31",
+                               |       "domain":"sandboxbcd3ccb1a529415db665622619a61616.mailgun.org",
+                               |       "signature":"ffe2d315a1d937bd09d9f5c35ddac1eb448818e2203f5a41e3a7bd1fb47da385",
+                               |       "country":"US",
+                               |       "clientType":"browser",
+                               |       "clientOs":"Linux",
+                               |       "token":"cd89cd860be0e318371f4220b7e0f368b60ac9ab066354737f",
+                               |       "clientName":"Chrome",
+                               |       "region":"CA",
+                               |       "deviceType":"desktop",
+                               |       "myVar1":"Mailgun Variable #1"
+                               |     }
+                               |   }
+                             |""".stripMargin)}
                      |}""".stripMargin.replaceAll("[\n\r]", "")
       ),
       None,

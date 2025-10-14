@@ -1,0 +1,31 @@
+{
+    "$schema": "http://iglucentral.com/schemas/com.snowplowanalytics.self-desc/schema/jsonschema/1-0-0#",
+    "self": {
+        "vendor": "com.test",
+        "name": "all_possible_types",
+        "format": "jsonschema",
+        "version": "1-0-0"
+    },
+    "properties": {
+        "myString": {"type": "string"},
+        "myint": {"type": "integer", "minimum": 0, "maximum": 10},
+        "myLong": {"type": "integer"},
+        "myDouble": {"type": "number"},
+        "myNumeric": {"type": "number", "minimum": 0, "maximum": 500, "multipleOf": 0.01},
+        "myNullNumeric": {"type": ["number", "null"]},
+        "myBigNumeric": {"type": "number", "minimum": 0, "maximum": 500, "multipleOf": 0.0000000001},
+        "myBOOL": {"type": "boolean"},
+        "myDate": {"type": "string", "format": "date"},
+        "myTimestamp": {"type": "string", "format": "date-time"},
+        "myStruct": {"type": "object", "properties": {"nestedField": {"type": "string" }}},
+        "emptyStruct1": {"type": "object", "properties": { }, "additionalProperties": false},
+        "emptyStruct2": {"type": "object", "properties": { }, "additionalProperties": true},
+        "myArray": {"type": "array", "items": {"type": "integer" }},
+        "myjson": {"enum": [0.1, null, "xyz"]},
+        "mynull": {"type": ["string", "null"]},
+        "f": { "type": "string"}
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": ["myString"]
+}

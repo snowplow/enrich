@@ -18,7 +18,6 @@ import com.fasterxml.jackson.databind.deser.Deserializers
 import com.fasterxml.jackson.databind.module.SimpleModule
 import com.fasterxml.jackson.databind.ser.Serializers
 import io.circe.Json
-import io.circe.jackson.CirceJsonSerializer
 
 object CirceJsonModule extends SimpleModule("SPCirceJson", Version.unknownVersion()) {
   override final def setupModule(context: SetupContext): Unit = {

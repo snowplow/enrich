@@ -208,6 +208,7 @@ class AnonymousOnlySpec extends Specification with ValidatedMatchers with CatsEf
       ipLookup <- ipEnrichment
       enrichmentReg = EnrichmentRegistry[IO](
                         ipLookups = Some(ipLookup),
+                        javascriptScript = jsEnrichment,
                         piiPseudonymizer = piiEnrichmentConfig(isScalar = false, anonymousOnly = true).some
                       )
       output <- commonSetup(enrichmentReg, List("SP-Anonymous: true"))
@@ -264,7 +265,17 @@ class AnonymousOnlySpec extends Specification with ValidatedMatchers with CatsEf
               ).reduce(_ and _)
           }
 
-          testFirstContext and testSecondContext and testThirdContext and testUnstructEvent
+          val testDerivedContext = enrichedEvent.derived_contexts.lift(0) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("emailAddress") must beRight(
+                  "72f323d5359eabefc69836369e4cabc6257c43ab6419b05dfb2211d0e44284c6"
+                )),
+                (sdj.data.hcursor.get[String]("emailAddress2") must beRight("bob@acme.com"))
+              ).reduce(_ and _)
+          }
+
+          testFirstContext and testSecondContext and testThirdContext and testUnstructEvent and testDerivedContext
       }
       size and validOut
     }
@@ -275,6 +286,7 @@ class AnonymousOnlySpec extends Specification with ValidatedMatchers with CatsEf
       ipLookup <- ipEnrichment
       enrichmentReg = EnrichmentRegistry[IO](
                         ipLookups = Some(ipLookup),
+                        javascriptScript = jsEnrichment,
                         piiPseudonymizer = piiEnrichmentConfig(isScalar = false, anonymousOnly = true).some
                       )
       output <- commonSetup(enrichmentReg)
@@ -286,7 +298,12 @@ class AnonymousOnlySpec extends Specification with ValidatedMatchers with CatsEf
         case enrichedEvent =>
           val testFirstContext = enrichedEvent.contexts.lift(0) must beSome.like {
             case sdj: SelfDescribingData[Json] =>
-              sdj.data.hcursor.get[String]("emailAddress2") must beRight("bob@acme.com")
+              List(
+                (sdj.data.hcursor.get[String]("emailAddress") must beRight(
+                  "jim@acme.com"
+                )),
+                (sdj.data.hcursor.get[String]("emailAddress2") must beRight("bob@acme.com"))
+              ).reduce(_ and _)
           }
 
           val testSecondContext = enrichedEvent.contexts.lift(1) must beSome.like {
@@ -320,7 +337,17 @@ class AnonymousOnlySpec extends Specification with ValidatedMatchers with CatsEf
               ).reduce(_ and _)
           }
 
-          testFirstContext and testSecondContext and testThirdContext and testUnstructEvent
+          val testDerivedContext = enrichedEvent.derived_contexts.lift(0) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("emailAddress") must beRight(
+                  "jim@acme.com"
+                )),
+                (sdj.data.hcursor.get[String]("emailAddress2") must beRight("bob@acme.com"))
+              ).reduce(_ and _)
+          }
+
+          testFirstContext and testSecondContext and testThirdContext and testUnstructEvent and testDerivedContext
       }
       size and validOut
     }
@@ -331,6 +358,7 @@ class AnonymousOnlySpec extends Specification with ValidatedMatchers with CatsEf
       ipLookup <- ipEnrichment
       enrichmentReg = EnrichmentRegistry[IO](
                         ipLookups = Some(ipLookup),
+                        javascriptScript = jsEnrichment,
                         piiPseudonymizer = piiEnrichmentConfig(isScalar = false, anonymousOnly = false).some
                       )
       output <- commonSetup(enrichmentReg, List("SP-Anonymous: true"))
@@ -390,7 +418,17 @@ class AnonymousOnlySpec extends Specification with ValidatedMatchers with CatsEf
               ).reduce(_ and _)
           }
 
-          testFirstContext and testSecondContext and testThirdContext and testUnstructEvent
+          val testDerivedContext = enrichedEvent.derived_contexts.lift(0) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("emailAddress") must beRight(
+                  "72f323d5359eabefc69836369e4cabc6257c43ab6419b05dfb2211d0e44284c6"
+                )),
+                (sdj.data.hcursor.get[String]("emailAddress2") must beRight("bob@acme.com"))
+              ).reduce(_ and _)
+          }
+
+          testFirstContext and testSecondContext and testThirdContext and testUnstructEvent and testDerivedContext
       }
       size and validOut
     }
@@ -401,6 +439,7 @@ class AnonymousOnlySpec extends Specification with ValidatedMatchers with CatsEf
       ipLookup <- ipEnrichment
       enrichmentReg = EnrichmentRegistry[IO](
                         ipLookups = Some(ipLookup),
+                        javascriptScript = jsEnrichment,
                         piiPseudonymizer = piiEnrichmentConfig(isScalar = false, anonymousOnly = false).some
                       )
       output <- commonSetup(enrichmentReg)
@@ -460,7 +499,17 @@ class AnonymousOnlySpec extends Specification with ValidatedMatchers with CatsEf
               ).reduce(_ and _)
           }
 
-          testFirstContext and testSecondContext and testThirdContext and testUnstructEvent
+          val testDerivedContext = enrichedEvent.derived_contexts.lift(0) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("emailAddress") must beRight(
+                  "72f323d5359eabefc69836369e4cabc6257c43ab6419b05dfb2211d0e44284c6"
+                )),
+                (sdj.data.hcursor.get[String]("emailAddress2") must beRight("bob@acme.com"))
+              ).reduce(_ and _)
+          }
+
+          testFirstContext and testSecondContext and testThirdContext and testUnstructEvent and testDerivedContext
       }
       size and validOut
     }
@@ -553,7 +602,14 @@ object AnonymousOnlySpec {
       )
     )
 
-    PiiMutators(pojo = Nil, unstruct = unstructs, contexts = contexts, derivedContexts = Nil)
+    val derivedContexts = List(
+      PiiPseudonymizerEnrichment.JsonFieldLocator(
+        schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0),
+        jsonPath = "$.emailAddress"
+      )
+    )
+
+    PiiMutators(pojo = Nil, unstruct = unstructs, contexts = contexts, derivedContexts = derivedContexts)
   }
 
   val scalarFieldMutators: PiiMutators = {

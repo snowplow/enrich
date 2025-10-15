@@ -170,6 +170,7 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
       ipLookup <- ipEnrichment
       enrichmentReg = EnrichmentRegistry[IO](
                         ipLookups = Some(ipLookup),
+                        javascriptScript = jsEnrichment,
                         piiPseudonymizer = PiiPseudonymizerEnrichment(
                           PiiMutators(
                             pojo = Nil,
@@ -205,7 +206,12 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
                                 jsonPath = "$.field4"
                               )
                             ),
-                            derivedContexts = Nil
+                            derivedContexts = List(
+                              JsonFieldLocator(
+                                schemaCriterion = SchemaCriterion("com.acme", "email_sent", "jsonschema", 1, 0),
+                                jsonPath = "$.emailAddress"
+                              )
+                            )
                           ),
                           false,
                           PiiStrategyPseudonymize(
@@ -283,7 +289,17 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
               ).reduce(_ and _)
           }
 
-          testFirstContext and testSecondContext and testThirdContext and testUnstructEvent
+          val testDerivedContext = enrichedEvent.derived_contexts.lift(0) must beSome.like {
+            case sdj: SelfDescribingData[Json] =>
+              List(
+                (sdj.data.hcursor.get[String]("emailAddress") must beRight(
+                  "72f323d5359eabefc69836369e4cabc6257c43ab6419b05dfb2211d0e44284c6"
+                )),
+                (sdj.data.hcursor.get[String]("emailAddress2") must beRight("bob@acme.com"))
+              ).reduce(_ and _)
+          }
+
+          testFirstContext and testSecondContext and testThirdContext and testUnstructEvent and testDerivedContext
       }
       size and validOut
     }
@@ -822,10 +838,17 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
          "mynull": null
        }
     }""".noSpaces
+    val script = s"""
+        function process(event) {
+          return [ $testJson ];
+        }
+    """
     val actual = for {
       ipLookup <- ipEnrichment
+      jsEnrich = JavascriptScriptEnrichmentSpec.createJsEnrichment(script)
       enrichmentReg = EnrichmentRegistry[IO](
                         ipLookups = Some(ipLookup),
+                        javascriptScript = List(jsEnrich),
                         piiPseudonymizer = PiiPseudonymizerEnrichment(
                           PiiMutators(
                             pojo = Nil,
@@ -841,7 +864,12 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
                                 jsonPath = "$.['f']"
                               )
                             ),
-                            derivedContexts = Nil
+                            derivedContexts = List(
+                              JsonFieldLocator(
+                                schemaCriterion = SchemaCriterion("com.test", "all_possible_types", "jsonschema", 1, 0, 0),
+                                jsonPath = "$.['f']"
+                              )
+                            )
                           ),
                           true,
                           PiiStrategyPseudonymize(
@@ -860,7 +888,8 @@ class PiiPseudonymizerEnrichmentSpec extends Specification with ValidatedMatcher
       val enrichedEvent = output.head.toOption.get
       val contextCheck = enrichedEvent.contexts(3).asString must beEqualTo(testJson)
       val ueCheck = enrichedEvent.unstruct_event.get.asString must beEqualTo(testJson)
-      size and contextCheck and ueCheck
+      val derivedContextCheck = enrichedEvent.derived_contexts(0).asString must beEqualTo(testJson)
+      size and contextCheck and ueCheck and derivedContextCheck
     }
   }
 }
@@ -1027,6 +1056,22 @@ object PiiPseudonymizerEnrichmentSpec {
     )
     IpLookupsEnrichment.parse(js, schemaKey, true).toOption.get.enrichment[IO](SpecHelpers.blockingEC)
   }
+
+  val jsEnrichment = List(
+    JavascriptScriptEnrichmentSpec.createJsEnrichment(
+      s"""
+          function process(event) {
+            return [{
+              "schema":  "iglu:com.acme/email_sent/jsonschema/1-0-0",
+              "data": {
+                "emailAddress" : "jim@acme.com",
+                "emailAddress2" : "bob@acme.com"
+              }
+            }];
+          }
+      """
+    )
+  )
 
   val campaignAttributionEnrichment = {
     val js = json"""{

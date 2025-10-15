@@ -316,6 +316,22 @@ object EnrichmentManager {
           }
         case Accumulation.Dropped => Applicative[F].pure((Accumulation.Dropped, ()))
       }
+
+    def fromPiiEnrichmentResult[F[_]: Applicative](
+      f: (EnrichedEvent,
+        List[SelfDescribingData[Json]]) => Either[NonEmptyList[FailureDetails.EnrichmentFailure], List[SelfDescribingData[Json]]]
+    ): EStateT[F, Unit] =
+      EStateT {
+        case Accumulation.Enriched(event, errors, contexts) =>
+          Applicative[F].pure(
+            f(event, contexts) match {
+              // Derived contexts transformed by PII enrichment must override existing contexts
+              case Right(piiTransformedContexts) => (Accumulation.Enriched(event, errors, piiTransformedContexts), ())
+              case Left(moreErrors) => (Accumulation.Enriched(event, moreErrors.toList ::: errors, contexts), ())
+            }
+          )
+        case Accumulation.Dropped => Applicative[F].pure((Accumulation.Dropped, ()))
+      }
   }
 
   private def accState[F[_]: Monad](
@@ -879,14 +895,15 @@ object EnrichmentManager {
     }
 
   def piiTransform[F[_]: Applicative](piiPseudonymizer: Option[PiiPseudonymizerEnrichment], headers: List[String]): EStateT[F, Unit] =
-    EStateT.fromEither {
-      case (event, _) =>
+    EStateT.fromPiiEnrichmentResult {
+      case (event, derivedContexts) =>
         piiPseudonymizer match {
           case Some(pseudonymizer) =>
-            pseudonymizer.transformer(event, headers).foreach(p => event.pii = Some(p))
-            Nil.asRight
+            val (modifiedFields, modifiedDerivedContexts) = pseudonymizer.transformer(event, headers, derivedContexts)
+            event.pii = modifiedFields
+            modifiedDerivedContexts.asRight
           case None =>
-            Nil.asRight
+            derivedContexts.asRight
         }
     }
 }

@@ -268,22 +268,26 @@ final case class PiiPseudonymizerEnrichment(
    * Mask PII fields except if anonymousOnly is true and SP-Anonymous header is not present
    * Header check is case-insensitive
    */
-  def transformer(event: EnrichedEvent, headers: List[String]): Option[SelfDescribingData[Json]] = {
+  def transformer(
+    event: EnrichedEvent,
+    headers: List[String],
+    derivedContexts: List[SelfDescribingData[Json]]
+  ): (Option[SelfDescribingData[Json]], List[SelfDescribingData[Json]]) = {
     lazy val anonymousHeaderExist = headers.exists(_.toLowerCase.startsWith("sp-anonymous"))
     if (anonymousOnly && !anonymousHeaderExist)
-      None
+      (None, derivedContexts)
     else {
       val pojoModifiedFields = mutators.pojo.flatMap(_.apply(event, strategy))
       val ueModifiedFields = transformUnstruct(event)
       val contextsModifiedFields = transformContexts(event)
-      val derivedContextsModifiedFields = transformDerivedContexts(event)
+      val (derivedContextsModifiedFields, modifiedDerivedContexts) = transformDerivedContexts(derivedContexts)
 
       if (emitIdentificationEvent) {
         val allModifications = pojoModifiedFields ::: ueModifiedFields ::: contextsModifiedFields ::: derivedContextsModifiedFields
         if (allModifications.nonEmpty)
-          SelfDescribingData(piiTransformationSchema, PiiModifiedFields(allModifications, strategy).asJson).some
-        else None
-      } else None
+          (SelfDescribingData(piiTransformationSchema, PiiModifiedFields(allModifications, strategy).asJson).some, modifiedDerivedContexts)
+        else (None, modifiedDerivedContexts)
+      } else (None, modifiedDerivedContexts)
     }
   }
 
@@ -324,9 +328,11 @@ final case class PiiPseudonymizerEnrichment(
     finalResult.toList
   }
 
-  private def transformDerivedContexts(event: EnrichedEvent): ModifiedFields = {
+  private def transformDerivedContexts(
+    derivedContexts: List[SelfDescribingData[Json]]
+  ): (ModifiedFields, List[SelfDescribingData[Json]]) = {
     val finalResult = MutableList[ModifiedField]()
-    val fixed = event.derived_contexts.map { sdj =>
+    val fixed = derivedContexts.map { sdj =>
       val locators = mutators.derivedContexts.filter { locator =>
         locator.schemaCriterion.matches(sdj.schema)
       }
@@ -339,8 +345,7 @@ final case class PiiPseudonymizerEnrichment(
       finalResult ++= modifiedFields
       sdj.copy(data = fixed)
     }
-    event.derived_contexts = fixed
-    finalResult.toList
+    (finalResult.toList, fixed)
   }
 }
 

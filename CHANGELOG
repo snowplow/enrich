@@ -1,3 +1,8 @@
+6.2.1 (2025-10-16)
+------------------
+Don't convert JSON fields with number type to string in PII enrichment (#128)
+Fix bug that causes PII enrichment to not run on derived contexts (#129)
+
 6.2.0 (2025-10-08)
 ------------------
 Streaming pull for Pubsub source (#117)

@@ -23,7 +23,7 @@ object JsonPath {
    * @return successful POJO on any JSON except JNothing
    */
   def convertToJson(json: Json): Object =
-    io.circe.jackson.mapper.convertValue(json, classOf[Object])
+    CirceUtils.mapper.convertValue(json, classOf[Object])
 
   /**
    * Pimp-up JsonPath class to work with JValue

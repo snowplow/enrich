@@ -283,7 +283,7 @@ class ProcessingSpec extends Specification with CatsEffect {
         Enriched(
           expectedPageView(eventId).copy(
             ti_quantity = Some(quantity),
-            derived_contexts = SnowplowEvent.Contexts(List(expectedIdentityContext(eventId, etlTstamp), expectedContext))
+            derived_contexts = SnowplowEvent.Contexts(List(expectedContext))
           ),
           None,
           Map("app_id" -> "test_app")

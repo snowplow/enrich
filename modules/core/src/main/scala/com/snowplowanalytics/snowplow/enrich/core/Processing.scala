@@ -341,7 +341,7 @@ object Processing {
       case Some(api) =>
         _.parEvalMap(api.concurrency) { batch =>
           if (batch.enriched.nonEmpty || batch.failed.nonEmpty)
-            Identity.addContexts(api, batch.failed ::: batch.enriched).as(batch)
+            api.addContexts(batch.failed ::: batch.enriched).as(batch)
           else
             Sync[F].pure(batch)
         }

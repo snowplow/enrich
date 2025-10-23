@@ -321,6 +321,10 @@ object EnrichedEvent {
       }
       .toList
 
+  /** Map of field name to Field for efficient lookup */
+  private[enrich] val atomicFieldsByName: Map[String, Field] =
+    atomicFields.map(f => f.getName -> f).toMap
+
   private implicit def unstructEventDecoder: Decoder[SelfDescribingData[SelfDescribingData[Json]]] =
     for {
       key <- Decoder[SchemaKey].at("schema")

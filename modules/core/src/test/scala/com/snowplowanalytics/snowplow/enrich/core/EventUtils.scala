@@ -122,14 +122,12 @@ object EventUtils {
         event_name = Some(pageViewType.full),
         event_format = Some("jsonschema"),
         event_version = Some("1-0-0"),
-        derived_contexts = Contexts(List(expectedIdentityContext(eventId, etlTstamp)))
+        derived_contexts = Contexts(List())
       )
 
   def expectedPageViewMetadata = Metadata.MetadataEvent(None, Some(appID), None, None, None)
   def expectedPageViewMetadataEntities =
-    Set(
-      SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/identity/jsonschema/1-0-0").toOption.get
-    )
+    Set.empty[SchemaKey]
 
   def invalidAddToCart(eventId: UUID): CollectorPayload = {
     val queryString: List[NameValuePair] = List(
@@ -153,13 +151,13 @@ object EventUtils {
         event = Some(unstructType.full),
         user_ipaddress = Some(EventUtils.ip),
         derived_tstamp = Some(collectorTstamp),
-        derived_contexts = Contexts(List(expectedIdentityContext(eventId, etlTstamp), failureAddToCart))
+        derived_contexts = Contexts(List(failureAddToCart))
       )
 
   def expectedFailedJavascript(eventId: UUID) =
     expectedPageView(eventId)
       .copy(
-        derived_contexts = Contexts(List(expectedIdentityContext(eventId, etlTstamp), failureJavascript))
+        derived_contexts = Contexts(List(failureJavascript))
       )
 
   def expectedBadSV(eventId: UUID) = {

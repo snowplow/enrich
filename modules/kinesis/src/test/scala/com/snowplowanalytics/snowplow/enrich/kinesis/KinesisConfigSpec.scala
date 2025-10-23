@@ -36,7 +36,8 @@ import com.snowplowanalytics.snowplow.streams.kinesis.{BackoffPolicy, KinesisSin
 
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.{adaptersSchemas, atomicFieldLimitsDefaults}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
-import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent.atomicFieldsByName
+import com.snowplowanalytics.snowplow.enrich.common.utils.JsonPath.compileQuery
 
 import com.snowplowanalytics.snowplow.enrich.core.Config
 
@@ -177,7 +178,7 @@ object KinesisConfigSpec {
           customEndpoint = None
         ),
         maxRecordSize = 1000000,
-        partitionKey = Some(EnrichedEvent.atomicFields.find(_.getName === "user_id").get),
+        partitionKey = Some(atomicFieldsByName("user_id")),
         attributes = Nil
       ),
       failed = Some(
@@ -260,7 +261,48 @@ object KinesisConfigSpec {
         username = "snowplow",
         password = "sn0wp10w",
         concurrencyFactor = BigDecimal(0.75),
-        retries = Retrying.Config.ForTransient(100.millis, 3)
+        retries = Retrying.Config.ForTransient(100.millis, 3),
+        customIdentifiers = Some(
+          Config.CustomIdentifiers(
+            identifiers = List(
+              Config.Identifier(
+                name = "user_id",
+                field = Config.IdentifierField.Atomic(atomicFieldsByName("user_id")),
+                priority = 1,
+                unique = true
+              ),
+              Config.Identifier(
+                name = "custom_user_id",
+                field = Config.IdentifierField.Entity("com.example", "user_context", 1, Some(0), compileQuery("$.userId").toOption.get),
+                priority = 2,
+                unique = false
+              ),
+              Config.Identifier(
+                name = "event_user_id",
+                field = Config.IdentifierField.Event("com.example", "login_event", 1, compileQuery("$.userId").toOption.get),
+                priority = 3,
+                unique = false
+              )
+            ),
+            filters = Some(
+              Config.Filter(
+                logic = Config.FilterLogic.All,
+                rules = List(
+                  Config.FilterRule(
+                    field = Config.IdentifierField.Atomic(atomicFieldsByName("app_id")),
+                    operator = Config.FilterOperator.In,
+                    values = List("production_app")
+                  ),
+                  Config.FilterRule(
+                    field = Config.IdentifierField.Atomic(atomicFieldsByName("user_id")),
+                    operator = Config.FilterOperator.NotIn,
+                    values = List("")
+                  )
+                )
+              )
+            )
+          )
+        )
       )
     ),
     blobClients = EmptyConfig(),

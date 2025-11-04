@@ -27,20 +27,17 @@ import com.snowplowanalytics.snowplow.enrich.cloudutils.core._
 
 object GcsBlobClient {
 
-  private def canDownload(uri: URI): Boolean =
-    uri.getScheme == "gs"
-
   def client[F[_]: Async]: BlobClient[F] =
     new BlobClient[F] {
 
-      override def canDownload(uri: URI): Boolean = GcsBlobClient.canDownload(uri)
+      override def canDownload(uri: URI): Boolean =
+        uri.getScheme == "gs"
 
       override def mk: Resource[F, BlobClientImpl[F]] =
         for {
           service <- Resource.fromAutoCloseable(Sync[F].delay(StorageOptions.getDefaultInstance.getService))
           store <- Resource.eval(GcsStore.builder[F](service).build.toEither.leftMap(_.head).pure[F].rethrow)
         } yield new BlobClientImpl[F] {
-          override def canDownload(uri: URI): Boolean = GcsBlobClient.canDownload(uri)
 
           override def download(uri: URI): Stream[F, Byte] =
             Stream.eval(Url.parseF[F](uri.toString)).flatMap { url =>

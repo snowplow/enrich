@@ -22,19 +22,17 @@ import fs2.Stream
 
 object HttpBlobClient {
 
-  private def canDownload(uri: URI): Boolean =
-    // Since Azure Blob Storage urls' scheme are https as well and we want to fetch them with
-    // their own client, we added second condition to not pick up those urls
-    (uri.getScheme == "http" || uri.getScheme == "https") && !uri.toString.contains("core.windows.net")
-
   def wrapHttp4sClient[F[_]: Sync](httpClient: Http4sClient[F]) =
     new BlobClient[F] {
-      override def canDownload(uri: URI): Boolean = HttpBlobClient.canDownload(uri: URI)
+
+      // Since Azure Blob Storage urls' scheme are https as well and we want to fetch them with
+      // their own client, we added second condition to not pick up those urls
+      override def canDownload(uri: URI): Boolean =
+        (uri.getScheme == "http" || uri.getScheme == "https") && !uri.toString.contains("core.windows.net")
 
       override def mk: Resource[F, BlobClientImpl[F]] =
         Resource.pure {
           new BlobClientImpl[F] {
-            override def canDownload(uri: URI): Boolean = HttpBlobClient.canDownload(uri)
 
             override def download(uri: URI): Stream[F, Byte] = {
               val request = Request[F](uri = Uri.unsafeFromString(uri.toString))

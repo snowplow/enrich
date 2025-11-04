@@ -29,18 +29,14 @@ import com.snowplowanalytics.snowplow.enrich.cloudutils.core._
 
 object AzureBlobClient {
 
-  private def canDownload(uri: URI): Boolean =
-    uri.toString.contains("core.windows.net")
-
   def client[F[_]: Async](config: AzureStorageConfig): BlobClient[F] =
     new BlobClient[F] {
-      override def canDownload(uri: URI) = AzureBlobClient.canDownload(uri)
+      override def canDownload(uri: URI) =
+        uri.toString.contains("core.windows.net")
 
       override def mk: Resource[F, BlobClientImpl[F]] =
         createStores(config).map { stores =>
           new BlobClientImpl[F] {
-
-            override def canDownload(uri: URI) = AzureBlobClient.canDownload(uri)
 
             override def download(uri: URI): Stream[F, Byte] = {
               val inputParts = BlobUrlParts.parse(uri.toString)

@@ -27,20 +27,16 @@ import com.snowplowanalytics.snowplow.enrich.cloudutils.core._
 
 object S3BlobClient {
 
-  private def canDownload(uri: URI): Boolean =
-    uri.getScheme == "s3"
-
   def client[F[_]: Async]: BlobClient[F] =
     new BlobClient[F] {
-      override def canDownload(uri: URI) = S3BlobClient.canDownload(uri)
+      override def canDownload(uri: URI) =
+        uri.getScheme == "s3"
 
       override def mk: Resource[F, BlobClientImpl[F]] =
         for {
           s3Client <- Resource.fromAutoCloseable(Sync[F].delay(S3AsyncClient.builder().defaultsMode(DefaultsMode.AUTO).build()))
           store <- Resource.eval(S3Store.builder[F](s3Client).build.toEither.leftMap(_.head).pure[F].rethrow)
         } yield new BlobClientImpl[F] {
-
-          override def canDownload(uri: URI) = S3BlobClient.canDownload(uri)
 
           override def download(uri: URI): Stream[F, Byte] =
             Stream.eval(Url.parseF[F](uri.toString)).flatMap { url =>

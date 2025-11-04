@@ -23,7 +23,6 @@ trait BlobClient[F[_]] {
 }
 
 trait BlobClientImpl[F[_]] {
-  def canDownload(uri: URI): Boolean
   def download(uri: URI): Stream[F, Byte]
 }
 

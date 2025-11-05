@@ -14,7 +14,8 @@
 import Dependencies.Libraries._
 import BuildSettings._
 
-lazy val root = project.in(file("."))
+lazy val root = project
+  .in(file("."))
   .settings(name := "enrich")
   .settings(projectSettings)
   .settings(compilerSettings)
@@ -35,10 +36,12 @@ lazy val core = project
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(common % "compile->compile;test->test")
   .dependsOn(cloudUtils)
-  .settings(Test / igluUris := Seq(
-    "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
-    "iglu:com.snowplowanalytics.snowplow/add_to_cart/jsonschema/1-0-0"
-  ))
+  .settings(
+    Test / igluUris := Seq(
+      "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+      "iglu:com.snowplowanalytics.snowplow/add_to_cart/jsonschema/1-0-0"
+    )
+  )
 
 lazy val cloudUtils = project
   .in(file("modules/cloudutils/core"))
@@ -172,7 +175,7 @@ lazy val itCore = project
   .settings(libraryDependencies ++= itDependencies)
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(core)
-  
+
 lazy val itKinesis = project
   .in(file("modules/it/kinesis"))
   .settings(itSettings)

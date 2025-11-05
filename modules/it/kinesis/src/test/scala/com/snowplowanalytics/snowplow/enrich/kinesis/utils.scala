@@ -95,7 +95,8 @@ object utils extends CatsEffect {
       throttledBackoffPolicy = BackoffPolicy(minBackoff = 100.millis, maxBackoff = 1.second),
       recordLimit = 500,
       byteLimit = 1024 * 1024 * 1024,
-      customEndpoint = Some(URI.create(s"http://$localstackHost:$localstackPort"))
+      customEndpoint = Some(URI.create(s"http://$localstackHost:$localstackPort")),
+      maxRetries = 10
     )
 
   trait StatsdAdmin {

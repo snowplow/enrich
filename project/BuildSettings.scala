@@ -29,9 +29,9 @@ object BuildSettings {
     organization := "com.snowplowanalytics",
     scalaVersion := "2.12.20",
     scalacOptions ++= Seq(
-        "-Ywarn-macros:after",
-        "-Wconf:msg=discarding unmoored doc comment:silent" // so we can put scaladoc on nested functions
-      ),
+      "-Ywarn-macros:after",
+      "-Wconf:msg=discarding unmoored doc comment:silent" // so we can put scaladoc on nested functions
+    ),
     licenses += ("SLULA-1.1", url("https://docs.snowplow.io/limited-use-license-1.1"))
   )
 
@@ -189,10 +189,10 @@ object BuildSettings {
   lazy val commonBuildSettings = {
     // Project
     commonProjectSettings ++ buildSettings ++ scalifiedSettings ++
-    // Build and publish
-    publishSettings ++
-    // Tests
-    noParallelTestExecution ++ Seq(
+      // Build and publish
+      publishSettings ++
+      // Tests
+      noParallelTestExecution ++ Seq(
       Test / fork := true,
       Test / javaOptions := Seq("-Dnashorn.args=--language=es6")
     )
@@ -201,8 +201,8 @@ object BuildSettings {
   lazy val coreBuildSettings = {
     // Project
     coreProjectSettings ++ buildSettings ++
-    // Tests
-    noParallelTestExecution ++ addExampleConfToTestCp ++ Seq(
+      // Tests
+      noParallelTestExecution ++ addExampleConfToTestCp ++ Seq(
       Test / fork := true,
       Test / javaOptions := Seq("-Dnashorn.args=--language=es6")
     )
@@ -211,39 +211,39 @@ object BuildSettings {
   lazy val cloudUtilsBuildSettings = {
     // Project
     cloudUtilsProjectSettings ++ buildSettings ++
-    // Tests
-    noParallelTestExecution ++ addExampleConfToTestCp
+      // Tests
+      noParallelTestExecution ++ addExampleConfToTestCp
   }
 
   lazy val awsUtilsBuildSettings = {
     // Project
     awsUtilsProjectSettings ++ buildSettings ++
-    // Tests
-    noParallelTestExecution ++ addExampleConfToTestCp
+      // Tests
+      noParallelTestExecution ++ addExampleConfToTestCp
   }
 
   lazy val gcpUtilsBuildSettings = {
     // Project
     gcpUtilsProjectSettings ++ buildSettings ++
-    // Tests
-    noParallelTestExecution ++ addExampleConfToTestCp
+      // Tests
+      noParallelTestExecution ++ addExampleConfToTestCp
   }
 
   lazy val azureUtilsBuildSettings = {
     // Project
     azureUtilsProjectSettings ++ buildSettings ++
-    // Tests
-    noParallelTestExecution ++ addExampleConfToTestCp
+      // Tests
+      noParallelTestExecution ++ addExampleConfToTestCp
   }
 
   lazy val pubsubBuildSettings = {
     // Project
     pubsubProjectSettings ++ buildSettings ++
-    // Build and publish
-    dockerSettingsFocal ++
+      // Build and publish
+      dockerSettingsFocal ++
       Seq(Docker / packageName := "snowplow-enrich-pubsub") ++
-    // Tests
-    noParallelTestExecution ++ addExampleConfToTestCp
+      // Tests
+      noParallelTestExecution ++ addExampleConfToTestCp
   }
 
   lazy val pubsubDistrolessBuildSettings = pubsubBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
@@ -251,15 +251,16 @@ object BuildSettings {
   lazy val kinesisBuildSettings = {
     // Project
     kinesisProjectSettings ++ buildSettings ++
-    // Build and publish
-    dockerSettingsFocal ++
+      // Build and publish
+      dockerSettingsFocal ++
       Seq(Docker / packageName := "snowplow-enrich-kinesis") ++
-    // Tests
-    noParallelTestExecution ++ Seq(Test / fork := true) ++ addExampleConfToTestCp ++ Seq(
-    // used in configuration parsing unit tests
-    Test / envVars := Map(
-      "HOSTNAME" -> "testWorkerId"
-    ))
+      // Tests
+      noParallelTestExecution ++ Seq(Test / fork := true) ++ addExampleConfToTestCp ++ Seq(
+      // used in configuration parsing unit tests
+      Test / envVars := Map(
+        "HOSTNAME" -> "testWorkerId"
+      )
+    )
   }
 
   lazy val kinesisDistrolessBuildSettings = kinesisBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless
@@ -267,11 +268,11 @@ object BuildSettings {
   lazy val kafkaBuildSettings = {
     // Project
     kafkaProjectSettings ++ buildSettings ++
-    // Build and publish
-    dockerSettingsFocal ++
+      // Build and publish
+      dockerSettingsFocal ++
       Seq(Docker / packageName := "snowplow-enrich-kafka") ++
-    // Tests
-    noParallelTestExecution ++ addExampleConfToTestCp
+      // Tests
+      noParallelTestExecution ++ addExampleConfToTestCp
   }
 
   lazy val kafkaDistrolessBuildSettings = kafkaBuildSettings.diff(dockerSettingsFocal) ++ dockerSettingsDistroless

@@ -174,9 +174,6 @@
     # -- Set to true to disable telemetry
     "disable": false
 
-    # -- Interval for the heartbeat event
-    "interval": 15 minutes
-
     # -- HTTP method used to send the heartbeat event
     "method": POST
 

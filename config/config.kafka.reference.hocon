@@ -168,9 +168,6 @@
     # -- Set to true to disable telemetry
     "disable": false
 
-    # -- Interval for the heartbeat event
-    "interval": 15 minutes
-
     # -- URI of the collector receiving the heartbeat event
     "collectorUri": "https://collector-g.snowplowanalytics.com"
 

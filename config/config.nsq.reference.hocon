@@ -230,99 +230,84 @@
       "attempts": 3
     }
 
-    # -- Optional. Configure custom identifiers to extract from events
-    "customIdentifiers": {
-      # -- List of identifier configurations
-      "identifiers": [
-        {
-          # -- Name label for this identifier (e.g., "user_id", "custom_id")
-          "name": "user_id"
+    # -- List of identifier configurations
+    "identifiers": [
+      {
+        # -- Name label for this identifier (e.g., "user_id", "custom_id")
+        "name": "user_id"
 
-          # -- Field to extract the identifier value from
+        # -- Field to extract the identifier value from
+        "field": {
+          # -- Type of field: "atomic", "event", or "entity"
+          "type": "atomic"
+          # -- Name of the atomic field
+          "name": "user_id"
+        }
+      }
+      {
+        # -- Example: Custom identifier from entity
+        "name": "custom_user_id"
+
+        "field": {
+          "type": "entity"
+          # -- Schema vendor
+          "vendor": "com.example"
+          # -- Schema name
+          "name": "user_context"
+          # -- Schema major version
+          "majorVersion": 1
+          # -- JSONPath to the field within the entity data
+          "path": "$.userId"
+          # -- Optional. Index of the entity when multiple entities of the same type exist (0-based, defaults to 0)
+          "index": 0
+        }
+      }
+      {
+        # -- Example: Identifier from unstructured event
+        "name": "event_user_id"
+
+        "field": {
+          "type": "event"
+          "vendor": "com.example"
+          "name": "login_event"
+          "majorVersion": 1
+          "path": "$.userId"
+        }
+     }
+    ]
+
+    # -- Optional. Event filtering configuration
+    "filters": {
+      # -- Logic to apply: "all" (AND) or "any" (OR)
+      "logic": "all"
+
+      # -- List of filter rules
+      "rules": [
+        {
+          # -- Field to evaluate
           "field": {
-            # -- Type of field: "atomic", "event", or "entity"
             "type": "atomic"
-            # -- Name of the atomic field
+            "name": "app_id"
+          }
+
+          # -- Operator: "in" or "nin" (not in)
+          "operator": "in"
+
+          # -- List of values to match
+          "values": ["production_app"]
+        }
+        {
+          "field": {
+            "type": "atomic"
             "name": "user_id"
           }
 
-          # -- Priority for this identifier (lower number = higher priority)
-          "priority": 1
+          "operator": "nin"
 
-          # -- Whether this identifier should be unique within a profile
-          "unique": true
-        }
-        {
-          # -- Example: Custom identifier from entity
-          "name": "custom_user_id"
-
-          "field": {
-            "type": "entity"
-            # -- Schema vendor
-            "vendor": "com.example"
-            # -- Schema name
-            "name": "user_context"
-            # -- Schema major version
-            "major_version": 1
-            # -- JSONPath to the field within the entity data
-            "path": "$.userId"
-            # -- Optional. Index of the entity when multiple entities of the same type exist (0-based, defaults to 0)
-            "index": 0
-          }
-
-          "priority": 2
-          "unique": false
-        }
-        {
-          # -- Example: Identifier from unstructured event
-          "name": "event_user_id"
-
-          "field": {
-            "type": "event"
-            "vendor": "com.example"
-            "name": "login_event"
-            "major_version": 1
-            "path": "$.userId"
-          }
-
-          "priority": 3
-          "unique": false
+          # -- Filter out events with empty user_id
+          "values": [""]
         }
       ]
-
-      # -- Optional. Event filtering configuration
-      "filters": {
-        # -- Logic to apply: "all" (AND) or "any" (OR)
-        "logic": "all"
-
-        # -- List of filter rules
-        "rules": [
-          {
-            # -- Field to evaluate
-            "field": {
-              "type": "atomic"
-              "name": "app_id"
-            }
-
-            # -- Operator: "in" or "nin" (not in)
-            "operator": "in"
-
-            # -- List of values to match
-            "values": ["production_app"]
-          }
-          {
-            "field": {
-              "type": "atomic"
-              "name": "user_id"
-            }
-
-            "operator": "nin"
-
-            # -- Filter out events with empty user_id
-            "values": [""]
-          }
-        ]
-      }
     }
   }
 

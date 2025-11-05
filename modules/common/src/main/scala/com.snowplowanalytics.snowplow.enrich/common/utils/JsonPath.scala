@@ -14,6 +14,24 @@ import cats.syntax.either._
 import io.circe._
 import io.gatling.jsonpath.{JsonPath => GatlingJsonPath}
 
+/** Wrapper around gatling JsonPath. Makes it possible to compare 2 JsonPath (in the unit tests) */
+class JsonPath(jsonPath: GatlingJsonPath, val pathStr: String) {
+  import JsonPath._
+
+  def circeQuery(json: Json): List[Json] = jsonPath.circeQuery(json)
+
+  override def equals(obj: Any): Boolean =
+    obj match {
+      case that: JsonPath =>
+        pathStr.equals(that.pathStr)
+      case _ => false
+
+    }
+
+  override def hashCode: Int = pathStr.hashCode
+
+}
+
 /** Wrapper for `io.gatling.jsonpath` for circe and scalaz */
 object JsonPath {
 
@@ -78,4 +96,7 @@ object JsonPath {
   private[utils] def anyToJson(any: Any): Json =
     if (any == null) Json.Null
     else CirceUtils.mapper.convertValue(any, classOf[Json])
+
+  implicit val decoder: Decoder[JsonPath] =
+    Decoder[String].emap(s => compileQuery(s).map(jsonPath => new JsonPath(jsonPath, s)))
 }

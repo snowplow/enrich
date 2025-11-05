@@ -353,7 +353,7 @@ object MockEnvironment {
     new Identity.Api[IO] {
       def concurrency: Int = 1
 
-      def addContexts(events: List[EnrichedEvent]): IO[Unit] =
+      def addIdentityContexts(events: List[EnrichedEvent]): IO[Unit] =
         IO.unit
     }
 

@@ -12,7 +12,7 @@ package com.snowplowanalytics.snowplow.enrich.core
 
 import java.util.UUID
 import java.nio.file.{Files => NioFiles, Path => NioPath}
-import java.lang.reflect.Field
+import java.lang.reflect.{Field => JavaField}
 
 import scala.concurrent.duration.FiniteDuration
 import scala.jdk.CollectionConverters._
@@ -34,8 +34,6 @@ import io.circe.generic.extras.Configuration
 import io.circe.config.syntax._
 import io.circe.syntax._
 
-import io.gatling.jsonpath.JsonPath
-
 import com.comcast.ip4s.Port
 
 import org.http4s.{ParseFailure, Uri}
@@ -51,7 +49,7 @@ import com.snowplowanalytics.snowplow.runtime.HealthProbe.decoders._
 import com.snowplowanalytics.snowplow.enrich.common.adapters._
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.JsonPath.compileQuery
+import com.snowplowanalytics.snowplow.enrich.common.utils.JsonPath
 
 case class Config[+Factory, +Source, +Sink, +BlobClients](
   license: AcceptedLicense,
@@ -81,15 +79,15 @@ object Config {
 
   case class SinkMetadata(
     maxRecordSize: Int,
-    partitionKey: Option[Field],
-    attributes: List[Field]
+    partitionKey: Option[JavaField],
+    attributes: List[JavaField]
   )
 
   case class SinkWithMetadata[+Sink](
     sink: Sink,
     maxRecordSize: Int,
-    partitionKey: Option[Field],
-    attributes: List[Field]
+    partitionKey: Option[JavaField],
+    attributes: List[JavaField]
   )
 
   case class Output[+Sink](
@@ -140,8 +138,59 @@ object Config {
     password: M[String],
     concurrencyFactor: BigDecimal,
     retries: Retrying.Config.ForTransient,
-    customIdentifiers: Option[CustomIdentifiers]
+    identifiers: M[List[Identity.Identifier]],
+    filters: Option[Identity.Filtering.Filters]
   )
+
+  object Identity {
+    case class Identifier(
+      name: String,
+      field: Identifier.Field
+    )
+
+    object Identifier {
+      sealed trait Field
+      case class Atomic(name: JavaField) extends Field
+      case class Event(
+        vendor: String,
+        name: String,
+        majorVersion: Int,
+        path: JsonPath
+      ) extends Field
+      case class Entity(
+        vendor: String,
+        name: String,
+        majorVersion: Int,
+        index: Option[Int],
+        path: JsonPath
+      ) extends Field
+    }
+
+    object Filtering {
+      case class Filters(
+        logic: Logic,
+        rules: List[Rule]
+      )
+
+      sealed trait Logic
+      object Logic {
+        case object All extends Logic
+        case object Any extends Logic
+      }
+
+      case class Rule(
+        field: Identifier.Field,
+        operator: Operator,
+        values: List[String]
+      )
+
+      sealed trait Operator
+      object Operator {
+        case object In extends Operator
+        case object NotIn extends Operator
+      }
+    }
+  }
 
   type Identity = IdentityM[Id]
 
@@ -157,118 +206,6 @@ object Config {
    */
   case class Decompression(maxBytesInBatch: Int, maxBytesSinglePayload: Int)
 
-  case class CustomIdentifiers(
-    identifiers: List[Identifier],
-    filters: Option[Filter]
-  )
-
-  case class Identifier(
-    name: String,
-    field: IdentifierField,
-    priority: Int,
-    unique: Boolean
-  )
-
-  sealed trait IdentifierField
-
-  object IdentifierField {
-    // Raw types for config deserialization (contain path as String)
-    case class EventRaw(
-      vendor: String,
-      name: String,
-      major_version: Int,
-      path: String
-    )
-
-    case class EntityRaw(
-      vendor: String,
-      name: String,
-      major_version: Int,
-      index: Option[Int],
-      path: String
-    )
-
-    // Compiled types for runtime (contain compiled JsonPath)
-    case class Atomic(
-      name: Field
-    ) extends IdentifierField
-
-    case class Event(
-      vendor: String,
-      name: String,
-      major_version: Int,
-      path: JsonPath
-    ) extends IdentifierField {
-      // Override equals/hashCode to exclude JsonPath (which doesn't implement equals)
-      // Only compare the structural fields
-      // Used in unit tests
-      override def equals(obj: Any): Boolean =
-        obj match {
-          case that: Event =>
-            this.vendor == that.vendor &&
-              this.name == that.name &&
-              this.major_version == that.major_version
-          case _ => false
-        }
-      override def hashCode(): Int = (vendor, name, major_version).##
-    }
-
-    object Event {
-      def fromRaw(raw: EventRaw): Either[String, Event] =
-        compileQuery(raw.path).map(compiled => Event(raw.vendor, raw.name, raw.major_version, compiled))
-    }
-
-    case class Entity(
-      vendor: String,
-      name: String,
-      major_version: Int,
-      index: Option[Int],
-      path: JsonPath
-    ) extends IdentifierField {
-      // Override equals/hashCode to exclude JsonPath (which doesn't implement equals)
-      // Only compare the structural fields
-      // Used in unit tests
-      override def equals(obj: Any): Boolean =
-        obj match {
-          case that: Entity =>
-            this.vendor == that.vendor &&
-              this.name == that.name &&
-              this.major_version == that.major_version &&
-              this.index == that.index
-          case _ => false
-        }
-      override def hashCode(): Int = (vendor, name, major_version, index).##
-    }
-
-    object Entity {
-      def fromRaw(raw: EntityRaw): Either[String, Entity] =
-        compileQuery(raw.path).map(compiled => Entity(raw.vendor, raw.name, raw.major_version, raw.index, compiled))
-    }
-  }
-
-  sealed trait FilterLogic
-  object FilterLogic {
-    case object All extends FilterLogic
-    case object Any extends FilterLogic
-  }
-
-  sealed trait FilterOperator
-  object FilterOperator {
-    case object In extends FilterOperator
-    case object NotIn extends FilterOperator
-  }
-
-  case class Filter(
-    logic: FilterLogic,
-    rules: List[FilterRule]
-  )
-
-  case class FilterRule(
-    field: IdentifierField,
-    operator: FilterOperator,
-    values: List[String]
-  )
-
   implicit def decoder[
     Factory: Decoder,
     Source: Decoder,
@@ -282,7 +219,7 @@ object Config {
       .copy(transformConstructorNames = _.toLowerCase)
     implicit val licenseDecoder =
       AcceptedLicense.decoder(AcceptedLicense.DocumentationLink("https://docs.snowplow.io/limited-use-license-1.1/"))
-    implicit val fieldDecoder: Decoder[Field] = Decoder[String].emap { name =>
+    implicit val fieldDecoder: Decoder[JavaField] = Decoder[String].emap { name =>
       EnrichedEvent.atomicFieldsByName.get(name) match {
         case Some(field) => Right(field)
         case None => Left(s"$name is not a field of EnrichedEvent")
@@ -332,56 +269,30 @@ object Config {
           Left("endpoint, organizationId and pipelineId should all be defined to enable metadata reporting")
       }
 
-    implicit val atomicDecoder: Decoder[IdentifierField.Atomic] =
-      Decoder[Field].at("name").map(IdentifierField.Atomic(_))
-    implicit val eventRawDecoder: Decoder[IdentifierField.EventRaw] =
-      deriveConfiguredDecoder[IdentifierField.EventRaw]
-    implicit val eventDecoder: Decoder[IdentifierField.Event] =
-      eventRawDecoder.emap { raw =>
-        IdentifierField.Event.fromRaw(raw).leftMap(err => s"Invalid JSONPath '${raw.path}': $err")
-      }
-    implicit val entityRawDecoder: Decoder[IdentifierField.EntityRaw] =
-      deriveConfiguredDecoder[IdentifierField.EntityRaw]
-    implicit val entityDecoder: Decoder[IdentifierField.Entity] =
-      entityRawDecoder.emap { raw =>
-        IdentifierField.Entity.fromRaw(raw).leftMap(err => s"Invalid JSONPath '${raw.path}': $err")
-      }
-
-    implicit val identifierFieldDecoder: Decoder[IdentifierField] =
-      deriveConfiguredDecoder[IdentifierField]
-    implicit val filterLogicDecoder: Decoder[FilterLogic] = Decoder[String].emap {
-      case "all" => Right(FilterLogic.All)
-      case "any" => Right(FilterLogic.Any)
+    implicit val identityAtomicDecoder = deriveConfiguredDecoder[Identity.Identifier.Atomic]
+    implicit val identityEventDecoder = deriveConfiguredDecoder[Identity.Identifier.Event]
+    implicit val identityEntityDecoder = deriveConfiguredDecoder[Identity.Identifier.Entity]
+    implicit val identityFieldDecoder = deriveConfiguredDecoder[Identity.Identifier.Field]
+    implicit val filterLogicDecoder: Decoder[Identity.Filtering.Logic] = Decoder[String].emap {
+      case "all" => Right(Identity.Filtering.Logic.All)
+      case "any" => Right(Identity.Filtering.Logic.Any)
       case other => Left(s"Unknown filter logic: $other. Expected 'all' or 'any'")
     }
-    implicit val filterOperatorDecoder: Decoder[FilterOperator] = Decoder[String].emap {
-      case "in" => Right(FilterOperator.In)
-      case "nin" => Right(FilterOperator.NotIn)
+    implicit val filterOperatorDecoder: Decoder[Identity.Filtering.Operator] = Decoder[String].emap {
+      case "in" => Right(Identity.Filtering.Operator.In)
+      case "nin" => Right(Identity.Filtering.Operator.NotIn)
       case other => Left(s"Unknown filter operator: $other. Expected 'in' or 'nin'")
     }
-    implicit val filterRuleDecoder: Decoder[FilterRule] = deriveConfiguredDecoder[FilterRule]
-    implicit val filterDecoder: Decoder[Filter] = deriveConfiguredDecoder[Filter]
-    implicit val identifierDecoder: Decoder[Identifier] = deriveConfiguredDecoder[Identifier]
-    implicit val customIdentifiersDecoder: Decoder[CustomIdentifiers] =
-      deriveConfiguredDecoder[CustomIdentifiers].emap { config =>
-        // Validate duplicate identifier names
-        val names = config.identifiers.map(_.name)
-        val duplicates = names.diff(names.distinct).distinct
-        Either.cond(
-          duplicates.isEmpty,
-          config,
-          s"Duplicate identifier names: ${duplicates.mkString(", ")}"
-        )
-      }
+    implicit val filterRuleDecoder: Decoder[Identity.Filtering.Rule] = deriveConfiguredDecoder[Identity.Filtering.Rule]
+    implicit val filtersDecoder: Decoder[Identity.Filtering.Filters] = deriveConfiguredDecoder[Identity.Filtering.Filters]
+    implicit val identifierDecoder: Decoder[Identity.Identifier] = deriveConfiguredDecoder[Identity.Identifier]
 
     implicit val identityDecoder = deriveConfiguredDecoder[IdentityM[Option]]
       .emap[Option[Identity]] {
-        case i @ IdentityM(Some(endpoint), Some(username), Some(password), _, _, _) =>
-          Right(Some(IdentityM[Id](endpoint, username, password, i.concurrencyFactor, i.retries, i.customIdentifiers)))
-        case IdentityM(None, None, None, _, _, _) =>
-          Right(None)
+        case i @ IdentityM(Some(endpoint), Some(username), Some(password), _, _, Some(identifiers), _) if identifiers.nonEmpty =>
+          Right(Some(IdentityM[Id](endpoint, username, password, i.concurrencyFactor, i.retries, identifiers, i.filters)))
         case _ =>
-          Left("endpoint, username and password must all be defined to enable the Identity context")
+          Right(None)
       }
 
     implicit val callrailSchemasDecoder: Decoder[CallrailSchemas] =

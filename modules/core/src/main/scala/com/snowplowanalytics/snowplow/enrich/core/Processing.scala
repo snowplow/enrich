@@ -50,7 +50,7 @@ object Processing {
     _.through(PayloadProvider.pipe(env.badRowProcessor, env.decompressionConfig))
       .through(parseBytes(env))
       .through(enrich(env))
-      .through(addIdentityContext(env))
+      .through(addIdentityContexts(env))
       .through(collectMetadata(env))
       .through(serialize(env))
       .through(sink(env))
@@ -336,12 +336,12 @@ object Processing {
         identity
     }
 
-  private def addIdentityContext[F[_]: Async](env: Environment[F]): Pipe[F, Enriched, Enriched] =
+  private def addIdentityContexts[F[_]: Async](env: Environment[F]): Pipe[F, Enriched, Enriched] =
     env.identity match {
       case Some(api) =>
         _.parEvalMap(api.concurrency) { batch =>
           if (batch.enriched.nonEmpty || batch.failed.nonEmpty)
-            api.addContexts(batch.failed ::: batch.enriched).as(batch)
+            api.addIdentityContexts(batch.failed ::: batch.enriched).as(batch)
           else
             Sync[F].pure(batch)
         }

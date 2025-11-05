@@ -22,7 +22,7 @@ import org.http4s.dsl.io._
 import com.snowplowanalytics.snowplow.runtime.Retrying
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.JsonPath.compileQuery
+import com.snowplowanalytics.snowplow.enrich.common.utils.JsonPath
 
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
@@ -32,29 +32,29 @@ class IdentitySpec extends Specification with CatsEffect {
 
   def is = s2"""
   Identity should
-    add contexts to enriched events $e1
+    add identity contexts to enriched events $e1
     send valid requests to the identity api $e2
-    omit id fields from the request body when they are null $e3
-    extract and send custom identifiers $e4
+    omit identfiers from the request body when they are null $e3
+    extract and send identifiers from entities $e4
     extract from the correct entity when multiple entities of same type exist $e5
     extract identifiers from unstructured events $e6
     filter with All logic and In operator $e7
     filter with All logic and NotIn operator $e8
     filter with Any logic and In operator $e9
     filter with Any logic and NotIn operator $e10
-    return None when entity index is out of bounds $e11
-    filter out event when field is missing and operator is In $e12
-    filter out event when field is missing and operator is NotIn $e13
+    filter out event when field is missing and operator is In $e11
+    filter out event when field is missing and operator is NotIn $e12
+    not query the api if no identifier can be found $e13
   """
 
   def e1 = {
     val e1 = new EnrichedEvent()
     e1.event_id = testIdPairs(1).eventId
-    e1.user_id = "test-user-1" // Add identifier so batch is not empty
+    e1.user_id = "test-user-1"
 
     val e2 = new EnrichedEvent()
     e2.event_id = testIdPairs(2).eventId
-    e2.user_id = "test-user-2" // Add identifier so batch is not empty
+    e2.user_id = "test-user-2"
 
     val expectedContext1 = json"""
     {
@@ -73,10 +73,10 @@ class IdentitySpec extends Specification with CatsEffect {
     """
     val expectedKey = SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/identity/jsonschema/1-0-0").toOption.get
 
-    val api = Identity.build(testConfig, testHttpClient)
+    val api = Identity.build(testConfig(), testHttpClient)
 
     for {
-      _ <- api.addContexts(List(e1, e2))
+      _ <- api.addIdentityContexts(List(e1, e2))
     } yield {
       val t1 = e1.derived_contexts must beLike {
         case List(SelfDescribingData(key, json)) =>
@@ -102,9 +102,9 @@ class IdentitySpec extends Specification with CatsEffect {
         {
           "eventId": ${e.event_id},
           "identifiers": {
+            "user_id": ${e.user_id},
             "domain_userid": ${e.domain_userid},
-            "network_userid": ${e.network_userid},
-            "user_id": ${e.user_id}
+            "network_userid": ${e.network_userid}
           }
         }
       ]
@@ -112,8 +112,8 @@ class IdentitySpec extends Specification with CatsEffect {
 
     for {
       ref <- Ref[IO].of(List.empty[(Request[IO], String)])
-      api = Identity.build(testConfig, new RecordingHttpClient(ref).mock)
-      _ <- api.addContexts(List(e))
+      api = Identity.build(testConfig(), new RecordingHttpClient(ref).mock)
+      _ <- api.addIdentityContexts(List(e))
       result <- ref.get
     } yield result must beLike {
       case List((request, body)) =>
@@ -130,27 +130,25 @@ class IdentitySpec extends Specification with CatsEffect {
   }
 
   def e3 = {
-
-    // unset network_userid and user_id
     val e = new EnrichedEvent()
     e.event_id = UUID.randomUUID.toString
     e.domain_userid = "test-domain-user-id"
 
     val expectedRequestBody = json"""
-        [
-          {
-            "eventId": ${e.event_id},
-            "identifiers": {
-              "domain_userid": ${e.domain_userid}
-            }
+      [
+        {
+          "eventId": ${e.event_id},
+          "identifiers": {
+            "domain_userid": ${e.domain_userid}
           }
-        ]
-      """
+        }
+      ]
+    """
 
     for {
       ref <- Ref[IO].of(List.empty[(Request[IO], String)])
-      api = Identity.build(testConfig, new RecordingHttpClient(ref).mock)
-      _ <- api.addContexts(List(e))
+      api = Identity.build(testConfig(), new RecordingHttpClient(ref).mock)
+      _ <- api.addIdentityContexts(List(e))
       result <- ref.get
     } yield result must beLike {
       case List((_, body)) =>
@@ -163,24 +161,19 @@ class IdentitySpec extends Specification with CatsEffect {
     e.event_id = UUID.randomUUID.toString
     e.user_id = "test-user-id"
 
-    // Create a test entity context
     val testEntityData = json"""{"customId": "custom-123"}"""
     val testEntitySchema = SchemaKey("com.test", "user_context", "jsonschema", SchemaVer.Full(1, 0, 0))
     e.contexts = List(SelfDescribingData(testEntitySchema, testEntityData))
 
-    val customConfig = Config.CustomIdentifiers(
+    val config = testConfig(
       identifiers = List(
-        Config.Identifier(
+        Config.Identity.Identifier(
           name = "user_id",
-          field = atomicField("user_id"),
-          priority = 1,
-          unique = true
+          field = atomicField("user_id")
         ),
-        Config.Identifier(
+        Config.Identity.Identifier(
           name = "custom_id",
-          field = entityField("com.test", "user_context", 1, "$.customId", Some(0)),
-          priority = 2,
-          unique = false
+          field = entityField("com.test", "user_context", 1, "$.customId", Some(0))
         )
       ),
       filters = None
@@ -192,29 +185,16 @@ class IdentitySpec extends Specification with CatsEffect {
           "eventId": ${e.event_id},
           "identifiers": {
             "user_id": ${e.user_id},
-            "custom": {
-              "user_id": {
-                "value": "test-user-id",
-                "priority": 1,
-                "unique": true
-              },
-              "custom_id": {
-                "value": "custom-123",
-                "priority": 2,
-                "unique": false
-              }
-            }
+            "custom_id": "custom-123"
           }
         }
       ]
     """
 
-    val testConfigWithCustom = testConfig.copy(customIdentifiers = Some(customConfig))
-
     for {
       ref <- Ref[IO].of(List.empty[(Request[IO], String)])
-      api = Identity.build(testConfigWithCustom, new RecordingHttpClient(ref).mock)
-      _ <- api.addContexts(List(e))
+      api = Identity.build(config, new RecordingHttpClient(ref).mock)
+      _ <- api.addIdentityContexts(List(e))
       result <- ref.get
     } yield result must beLike {
       case List((_, body)) =>
@@ -227,7 +207,6 @@ class IdentitySpec extends Specification with CatsEffect {
     e.event_id = UUID.randomUUID.toString
     e.user_id = "test-user-id"
 
-    // Create multiple entities of the same schema type
     val testEntitySchema = SchemaKey("com.test", "user_context", "jsonschema", SchemaVer.Full(1, 0, 0))
     val entity0 = json"""{"customId": "id-from-first"}"""
     val entity1 = json"""{"customId": "id-from-second"}"""
@@ -239,31 +218,27 @@ class IdentitySpec extends Specification with CatsEffect {
       SelfDescribingData(testEntitySchema, entity2)
     )
 
-    val customConfig = Config.CustomIdentifiers(
+    val config = testConfig(
       identifiers = List(
-        Config.Identifier(
+        Config.Identity.Identifier(
+          name = "user_id",
+          field = atomicField("user_id")
+        ),
+        Config.Identity.Identifier(
           name = "first_custom_id",
-          field = entityField("com.test", "user_context", 1, "$.customId", Some(0)),
-          priority = 1,
-          unique = false
+          field = entityField("com.test", "user_context", 1, "$.customId", Some(0))
         ),
-        Config.Identifier(
+        Config.Identity.Identifier(
           name = "second_custom_id",
-          field = entityField("com.test", "user_context", 1, "$.customId", Some(1)),
-          priority = 2,
-          unique = false
+          field = entityField("com.test", "user_context", 1, "$.customId", Some(1))
         ),
-        Config.Identifier(
+        Config.Identity.Identifier(
           name = "third_custom_id",
-          field = entityField("com.test", "user_context", 1, "$.customId", Some(2)),
-          priority = 3,
-          unique = false
+          field = entityField("com.test", "user_context", 1, "$.customId", Some(2))
         ),
-        Config.Identifier(
+        Config.Identity.Identifier(
           name = "default_custom_id",
-          field = entityField("com.test", "user_context", 1, "$.customId", None),
-          priority = 4,
-          unique = false
+          field = entityField("com.test", "user_context", 1, "$.customId", None)
         )
       ),
       filters = None
@@ -274,40 +249,20 @@ class IdentitySpec extends Specification with CatsEffect {
         {
           "eventId": ${e.event_id},
           "identifiers": {
+            "default_custom_id": "id-from-first",
+            "first_custom_id": "id-from-first",
+            "second_custom_id": "id-from-second",
             "user_id": ${e.user_id},
-            "custom": {
-              "first_custom_id": {
-                "value": "id-from-first",
-                "priority": 1,
-                "unique": false
-              },
-              "second_custom_id": {
-                "value": "id-from-second",
-                "priority": 2,
-                "unique": false
-              },
-              "third_custom_id": {
-                "value": "id-from-third",
-                "priority": 3,
-                "unique": false
-              },
-              "default_custom_id": {
-                "value": "id-from-first",
-                "priority": 4,
-                "unique": false
-              }
-            }
+            "third_custom_id": "id-from-third"
           }
         }
       ]
     """
 
-    val testConfigWithCustom = testConfig.copy(customIdentifiers = Some(customConfig))
-
     for {
       ref <- Ref[IO].of(List.empty[(Request[IO], String)])
-      api = Identity.build(testConfigWithCustom, new RecordingHttpClient(ref).mock)
-      _ <- api.addContexts(List(e))
+      api = Identity.build(config, new RecordingHttpClient(ref).mock)
+      _ <- api.addIdentityContexts(List(e))
       result <- ref.get
     } yield result must beLike {
       case List((_, body)) =>
@@ -318,20 +273,16 @@ class IdentitySpec extends Specification with CatsEffect {
   def e6 = {
     val e = new EnrichedEvent()
     e.event_id = UUID.randomUUID.toString
-    e.user_id = "test-user-id"
 
-    // Create a test unstructured event
     val testEventData = json"""{"eventUserId": "event-user-123"}"""
     val testEventSchema = SchemaKey("com.test", "login_event", "jsonschema", SchemaVer.Full(1, 0, 0))
     e.unstruct_event = Some(SelfDescribingData(testEventSchema, testEventData))
 
-    val customConfig = Config.CustomIdentifiers(
+    val config = testConfig(
       identifiers = List(
-        Config.Identifier(
+        Config.Identity.Identifier(
           name = "event_user_id",
-          field = eventField("com.test", "login_event", 1, "$.eventUserId"),
-          priority = 1,
-          unique = false
+          field = eventField("com.test", "login_event", 1, "$.eventUserId")
         )
       ),
       filters = None
@@ -342,25 +293,16 @@ class IdentitySpec extends Specification with CatsEffect {
         {
           "eventId": ${e.event_id},
           "identifiers": {
-            "user_id": ${e.user_id},
-            "custom": {
-              "event_user_id": {
-                "value": "event-user-123",
-                "priority": 1,
-                "unique": false
-              }
-            }
+            "event_user_id": "event-user-123"
           }
         }
       ]
     """
 
-    val testConfigWithCustom = testConfig.copy(customIdentifiers = Some(customConfig))
-
     for {
       ref <- Ref[IO].of(List.empty[(Request[IO], String)])
-      api = Identity.build(testConfigWithCustom, new RecordingHttpClient(ref).mock)
-      _ <- api.addContexts(List(e))
+      api = Identity.build(config, new RecordingHttpClient(ref).mock)
+      _ <- api.addIdentityContexts(List(e))
       result <- ref.get
     } yield result must beLike {
       case List((_, body)) =>
@@ -372,29 +314,27 @@ class IdentitySpec extends Specification with CatsEffect {
     val e1 = new EnrichedEvent()
     e1.event_id = UUID.randomUUID.toString
     e1.app_id = "allowed_app"
-    e1.user_id = "test-user"
+    e1.user_id = "user1"
 
     val e2 = new EnrichedEvent()
     e2.event_id = UUID.randomUUID.toString
     e2.app_id = "blocked_app"
-    e2.user_id = "test-user"
+    e2.user_id = "user2"
 
-    val customConfig = Config.CustomIdentifiers(
+    val config = testConfig(
       identifiers = List(
-        Config.Identifier(
+        Config.Identity.Identifier(
           name = "user_id",
-          field = atomicField("user_id"),
-          priority = 1,
-          unique = true
+          field = atomicField("user_id")
         )
       ),
       filters = Some(
-        Config.Filter(
-          logic = Config.FilterLogic.All,
+        Config.Identity.Filtering.Filters(
+          logic = Config.Identity.Filtering.Logic.All,
           rules = List(
-            Config.FilterRule(
+            Config.Identity.Filtering.Rule(
               field = atomicField("app_id"),
-              operator = Config.FilterOperator.In,
+              operator = Config.Identity.Filtering.Operator.In,
               values = List("allowed_app")
             )
           )
@@ -402,92 +342,26 @@ class IdentitySpec extends Specification with CatsEffect {
       )
     )
 
-    // Only e1 should pass the filter, so we expect only one request
+    // Only e1 should pass the filter
     val expectedRequestBody = json"""
       [
         {
           "eventId": ${e1.event_id},
           "identifiers": {
-            "user_id": "test-user",
-            "custom": {
-              "user_id": {
-                "value": "test-user",
-                "priority": 1,
-                "unique": true
-              }
-            }
+            "user_id": ${e1.user_id}
           }
         }
       ]
     """
 
-    val testConfigWithCustom = testConfig.copy(customIdentifiers = Some(customConfig))
-
     for {
       ref <- Ref[IO].of(List.empty[(Request[IO], String)])
-      api = Identity.build(testConfigWithCustom, new RecordingHttpClient(ref).mock)
-      _ <- api.addContexts(List(e1, e2))
+      api = Identity.build(config, new RecordingHttpClient(ref).mock)
+      _ <- api.addIdentityContexts(List(e1, e2))
       result <- ref.get
     } yield result must beLike {
       case List((_, body)) =>
         body must beEqualTo(expectedRequestBody.noSpaces)
-    }
-  }
-
-  def e9 = {
-    val e1 = new EnrichedEvent()
-    e1.event_id = UUID.randomUUID.toString
-    e1.app_id = "allowed_app"
-    e1.user_id = "" // Empty user_id
-
-    val e2 = new EnrichedEvent()
-    e2.event_id = UUID.randomUUID.toString
-    e2.app_id = "blocked_app"
-    e2.user_id = "test-user" // Has user_id
-
-    val customConfig = Config.CustomIdentifiers(
-      identifiers = List(
-        Config.Identifier(
-          name = "user_id",
-          field = atomicField("user_id"),
-          priority = 1,
-          unique = true
-        )
-      ),
-      filters = Some(
-        Config.Filter(
-          logic = Config.FilterLogic.Any, // OR logic
-          rules = List(
-            Config.FilterRule(
-              field = atomicField("app_id"),
-              operator = Config.FilterOperator.In,
-              values = List("allowed_app")
-            ),
-            Config.FilterRule(
-              field = atomicField("user_id"),
-              operator = Config.FilterOperator.In,
-              values = List("test-user")
-            )
-          )
-        )
-      )
-    )
-
-    // Both events should pass because we use Any (OR) logic
-    // e1: app_id matches
-    // e2: user_id matches
-    val testConfigWithCustom = testConfig.copy(customIdentifiers = Some(customConfig))
-
-    for {
-      ref <- Ref[IO].of(List.empty[(Request[IO], String)])
-      api = Identity.build(testConfigWithCustom, new RecordingHttpClient(ref).mock)
-      _ <- api.addContexts(List(e1, e2))
-      result <- ref.get
-    } yield result must beLike {
-      case List((_, body)) =>
-        // Both events should be in the request
-        body must contain(e1.event_id)
-        body must contain(e2.event_id)
     }
   }
 
@@ -499,57 +373,112 @@ class IdentitySpec extends Specification with CatsEffect {
 
     val e2 = new EnrichedEvent()
     e2.event_id = UUID.randomUUID.toString
-    e2.app_id = "test_app" // Should be filtered out
+    e2.app_id = "test_app"
     e2.user_id = "test-user"
 
-    val customConfig = Config.CustomIdentifiers(
+    val config = testConfig(
       identifiers = List(
-        Config.Identifier(
+        Config.Identity.Identifier(
           name = "user_id",
-          field = atomicField("user_id"),
-          priority = 1,
-          unique = true
+          field = atomicField("user_id")
         )
       ),
       filters = Some(
-        Config.Filter(
-          logic = Config.FilterLogic.All,
+        Config.Identity.Filtering.Filters(
+          logic = Config.Identity.Filtering.Logic.All,
           rules = List(
-            Config.FilterRule(
+            Config.Identity.Filtering.Rule(
               field = atomicField("app_id"),
-              operator = Config.FilterOperator.NotIn, // NotIn operator
-              values = List("test_app", "dev_app")
+              operator = Config.Identity.Filtering.Operator.NotIn,
+              values = List("test_app")
             )
           )
         )
       )
     )
 
-    // Only e1 should pass (e2 has app_id in the blocked list)
+    // Only e1 should pass
     val expectedRequestBody = json"""
       [
         {
           "eventId": ${e1.event_id},
           "identifiers": {
-            "user_id": "test-user",
-            "custom": {
-              "user_id": {
-                "value": "test-user",
-                "priority": 1,
-                "unique": true
-              }
-            }
+            "user_id": ${e1.user_id}
           }
         }
       ]
     """
 
-    val testConfigWithCustom = testConfig.copy(customIdentifiers = Some(customConfig))
+    for {
+      ref <- Ref[IO].of(List.empty[(Request[IO], String)])
+      api = Identity.build(config, new RecordingHttpClient(ref).mock)
+      _ <- api.addIdentityContexts(List(e1, e2))
+      result <- ref.get
+    } yield result must beLike {
+      case List((_, body)) =>
+        body must beEqualTo(expectedRequestBody.noSpaces)
+    }
+  }
+
+  def e9 = {
+    val e1 = new EnrichedEvent()
+    e1.event_id = UUID.randomUUID.toString
+    e1.app_id = "allowed_app"
+    e1.user_id = ""
+
+    val e2 = new EnrichedEvent()
+    e2.event_id = UUID.randomUUID.toString
+    e2.app_id = "blocked_app"
+    e2.user_id = "test-user"
+
+    val config = testConfig(
+      identifiers = List(
+        Config.Identity.Identifier(
+          name = "user_id",
+          field = atomicField("user_id")
+        )
+      ),
+      filters = Some(
+        Config.Identity.Filtering.Filters(
+          logic = Config.Identity.Filtering.Logic.Any,
+          rules = List(
+            Config.Identity.Filtering.Rule(
+              field = atomicField("app_id"),
+              operator = Config.Identity.Filtering.Operator.In,
+              values = List("allowed_app")
+            ),
+            Config.Identity.Filtering.Rule(
+              field = atomicField("user_id"),
+              operator = Config.Identity.Filtering.Operator.In,
+              values = List("test-user")
+            )
+          )
+        )
+      )
+    )
+
+    // Both events should pass
+    val expectedRequestBody = json"""
+      [
+        {
+          "eventId": ${e1.event_id},
+          "identifiers": {
+            "user_id": ${e1.user_id}
+          }
+        },
+        {
+          "eventId": ${e2.event_id},
+          "identifiers": {
+            "user_id": ${e2.user_id}
+          }
+        }
+      ]
+    """
 
     for {
       ref <- Ref[IO].of(List.empty[(Request[IO], String)])
-      api = Identity.build(testConfigWithCustom, new RecordingHttpClient(ref).mock)
-      _ <- api.addContexts(List(e1, e2))
+      api = Identity.build(config, new RecordingHttpClient(ref).mock)
+      _ <- api.addIdentityContexts(List(e1, e2))
       result <- ref.get
     } yield result must beLike {
       case List((_, body)) =>
@@ -560,35 +489,33 @@ class IdentitySpec extends Specification with CatsEffect {
   def e10 = {
     val e1 = new EnrichedEvent()
     e1.event_id = UUID.randomUUID.toString
-    e1.app_id = "dev_app" // In blocked list
+    e1.app_id = "dev_app"
     e1.user_id = "test-user"
 
     val e2 = new EnrichedEvent()
     e2.event_id = UUID.randomUUID.toString
-    e2.app_id = "production_app" // Not in blocked list, should pass
+    e2.app_id = "production_app"
     e2.user_id = "test-user"
 
     val e3 = new EnrichedEvent()
     e3.event_id = UUID.randomUUID.toString
-    e3.app_id = "staging_app" // Not in blocked list, should pass
+    e3.app_id = "staging_app"
     e3.user_id = "test-user"
 
-    val customConfig = Config.CustomIdentifiers(
+    val config = testConfig(
       identifiers = List(
-        Config.Identifier(
+        Config.Identity.Identifier(
           name = "user_id",
-          field = atomicField("user_id"),
-          priority = 1,
-          unique = true
+          field = atomicField("user_id")
         )
       ),
       filters = Some(
-        Config.Filter(
-          logic = Config.FilterLogic.Any, // OR logic
+        Config.Identity.Filtering.Filters(
+          logic = Config.Identity.Filtering.Logic.Any,
           rules = List(
-            Config.FilterRule(
+            Config.Identity.Filtering.Rule(
               field = atomicField("app_id"),
-              operator = Config.FilterOperator.NotIn, // NotIn operator
+              operator = Config.Identity.Filtering.Operator.NotIn,
               values = List("test_app", "dev_app")
             )
           )
@@ -596,30 +523,106 @@ class IdentitySpec extends Specification with CatsEffect {
       )
     )
 
-    // e2 and e3 should pass (not in blocked list)
-    // e1 should be filtered out (in blocked list)
-    val testConfigWithCustom = testConfig.copy(customIdentifiers = Some(customConfig))
+    // e2 and e3 should pass
+    val expectedRequestBody = json"""
+      [
+        {
+          "eventId": ${e2.event_id},
+          "identifiers": {
+            "user_id": ${e2.user_id}
+          }
+        },
+        {
+          "eventId": ${e3.event_id},
+          "identifiers": {
+            "user_id": ${e3.user_id}
+          }
+        }
+      ]
+    """
 
     for {
       ref <- Ref[IO].of(List.empty[(Request[IO], String)])
-      api = Identity.build(testConfigWithCustom, new RecordingHttpClient(ref).mock)
-      _ <- api.addContexts(List(e1, e2, e3))
+      api = Identity.build(config, new RecordingHttpClient(ref).mock)
+      _ <- api.addIdentityContexts(List(e1, e2, e3))
       result <- ref.get
     } yield result must beLike {
       case List((_, body)) =>
-        // e2 and e3 should be in the request, e1 should not
-        body must contain(e2.event_id)
-        body must contain(e3.event_id)
-        body must not(contain(e1.event_id))
+        body must beEqualTo(expectedRequestBody.noSpaces)
     }
   }
 
   def e11 = {
     val e = new EnrichedEvent()
     e.event_id = UUID.randomUUID.toString
+
+    val config = testConfig(
+      identifiers = List(
+        Config.Identity.Identifier(
+          name = "user_id",
+          field = atomicField("user_id")
+        )
+      ),
+      filters = Some(
+        Config.Identity.Filtering.Filters(
+          logic = Config.Identity.Filtering.Logic.All,
+          rules = List(
+            Config.Identity.Filtering.Rule(
+              field = atomicField("app_id"),
+              operator = Config.Identity.Filtering.Operator.In,
+              values = List("allowed_app")
+            )
+          )
+        )
+      )
+    )
+
+    for {
+      ref <- Ref[IO].of(List.empty[(Request[IO], String)])
+      api = Identity.build(config, new RecordingHttpClient(ref).mock)
+      _ <- api.addIdentityContexts(List(e))
+      result <- ref.get
+    } yield result must beEqualTo(Nil)
+  }
+
+  def e12 = {
+    val e = new EnrichedEvent()
+    e.event_id = UUID.randomUUID.toString
+
+    val config = testConfig(
+      identifiers = List(
+        Config.Identity.Identifier(
+          name = "user_id",
+          field = atomicField("user_id")
+        )
+      ),
+      filters = Some(
+        Config.Identity.Filtering.Filters(
+          logic = Config.Identity.Filtering.Logic.All,
+          rules = List(
+            Config.Identity.Filtering.Rule(
+              field = atomicField("app_id"),
+              operator = Config.Identity.Filtering.Operator.NotIn,
+              values = List("blocked_app")
+            )
+          )
+        )
+      )
+    )
+
+    for {
+      ref <- Ref[IO].of(List.empty[(Request[IO], String)])
+      api = Identity.build(config, new RecordingHttpClient(ref).mock)
+      _ <- api.addIdentityContexts(List(e))
+      result <- ref.get
+    } yield result must beEqualTo(Nil)
+  }
+
+  def e13 = {
+    val e = new EnrichedEvent()
+    e.event_id = UUID.randomUUID.toString
     e.user_id = "test-user-id"
 
-    // Create only 2 entities, but try to access index 5
     val testEntitySchema = SchemaKey("com.test", "user_context", "jsonschema", SchemaVer.Full(1, 0, 0))
     val entity0 = json"""{"customId": "id-from-first"}"""
     val entity1 = json"""{"customId": "id-from-second"}"""
@@ -629,129 +632,22 @@ class IdentitySpec extends Specification with CatsEffect {
       SelfDescribingData(testEntitySchema, entity1)
     )
 
-    val customConfig = Config.CustomIdentifiers(
+    val config = testConfig(
       identifiers = List(
-        Config.Identifier(
+        Config.Identity.Identifier(
           name = "out_of_bounds_id",
-          field = entityField("com.test", "user_context", 1, "$.customId", Some(5)), // Index 5 doesn't exist
-          priority = 1,
-          unique = false
+          field = entityField("com.test", "user_context", 1, "$.customId", Some(5))
         )
       ),
       filters = None
     )
 
-    // Should only send standard identifiers, no custom (because extraction failed)
-    val expectedRequestBody = json"""
-      [
-        {
-          "eventId": ${e.event_id},
-          "identifiers": {
-            "user_id": ${e.user_id}
-          }
-        }
-      ]
-    """
-
-    val testConfigWithCustom = testConfig.copy(customIdentifiers = Some(customConfig))
-
     for {
       ref <- Ref[IO].of(List.empty[(Request[IO], String)])
-      api = Identity.build(testConfigWithCustom, new RecordingHttpClient(ref).mock)
-      _ <- api.addContexts(List(e))
+      api = Identity.build(config, new RecordingHttpClient(ref).mock)
+      _ <- api.addIdentityContexts(List(e))
       result <- ref.get
-    } yield result must beLike {
-      case List((_, body)) =>
-        body must beEqualTo(expectedRequestBody.noSpaces)
-    }
-  }
-
-  def e12 = {
-    val e = new EnrichedEvent()
-    e.event_id = UUID.randomUUID.toString
-    // app_id is null/missing
-    e.user_id = "test-user"
-
-    val customConfig = Config.CustomIdentifiers(
-      identifiers = List(
-        Config.Identifier(
-          name = "user_id",
-          field = atomicField("user_id"),
-          priority = 1,
-          unique = true
-        )
-      ),
-      filters = Some(
-        Config.Filter(
-          logic = Config.FilterLogic.All,
-          rules = List(
-            Config.FilterRule(
-              field = atomicField("app_id"),
-              operator = Config.FilterOperator.In, // In operator with missing field
-              values = List("allowed_app")
-            )
-          )
-        )
-      )
-    )
-
-    val testConfigWithCustom = testConfig.copy(customIdentifiers = Some(customConfig))
-
-    for {
-      ref <- Ref[IO].of(List.empty[(Request[IO], String)])
-      api = Identity.build(testConfigWithCustom, new RecordingHttpClient(ref).mock)
-      _ <- api.addContexts(List(e))
-      result <- ref.get
-    } yield
-    // Per the identity documentation (line 610-612), when filter evaluation fails
-    // (missing field), the event should be filtered out and NOT sent to the API
-    // No HTTP request should be made when all events are filtered out
-    result must beEqualTo(List.empty[(Request[IO], String)])
-  }
-
-  def e13 = {
-    val e = new EnrichedEvent()
-    e.event_id = UUID.randomUUID.toString
-    // app_id is null/missing
-    e.user_id = "test-user"
-
-    val customConfig = Config.CustomIdentifiers(
-      identifiers = List(
-        Config.Identifier(
-          name = "user_id",
-          field = atomicField("user_id"),
-          priority = 1,
-          unique = true
-        )
-      ),
-      filters = Some(
-        Config.Filter(
-          logic = Config.FilterLogic.All,
-          rules = List(
-            Config.FilterRule(
-              field = atomicField("app_id"),
-              operator = Config.FilterOperator.NotIn, // NotIn operator with missing field
-              values = List("blocked_app")
-            )
-          )
-        )
-      )
-    )
-
-    val testConfigWithCustom = testConfig.copy(customIdentifiers = Some(customConfig))
-
-    for {
-      ref <- Ref[IO].of(List.empty[(Request[IO], String)])
-      api = Identity.build(testConfigWithCustom, new RecordingHttpClient(ref).mock)
-      _ <- api.addContexts(List(e))
-      result <- ref.get
-    } yield
-    // Per the identity documentation (line 610-612), when filter evaluation fails
-    // (missing field), the event should be filtered out and NOT sent to the API
-    // This test documents that the NotIn operator filters out events
-    // when the field value cannot be extracted (same behavior as In operator in e12)
-    // No HTTP request should be made when all events are filtered out
-    result must beEqualTo(List.empty[(Request[IO], String)])
+    } yield result must beTypedEqualTo(Nil)
   }
 }
 
@@ -759,8 +655,8 @@ object IdentitySpec {
   case class IdPair(eventId: String, snowplowId: String)
 
   // Helper to create Atomic with resolved Field
-  def atomicField(name: String): Config.IdentifierField.Atomic =
-    Config.IdentifierField.Atomic(EnrichedEvent.atomicFieldsByName(name))
+  def atomicField(name: String): Config.Identity.Identifier.Atomic =
+    Config.Identity.Identifier.Atomic(EnrichedEvent.atomicFieldsByName(name))
 
   // Helper to create Event with compiled path
   def eventField(
@@ -768,9 +664,9 @@ object IdentitySpec {
     name: String,
     majorVersion: Int,
     path: String
-  ): Config.IdentifierField.Event = {
-    val compiled = compileQuery(path).toOption.get
-    Config.IdentifierField.Event(vendor, name, majorVersion, compiled)
+  ): Config.Identity.Identifier.Event = {
+    val compiled = JsonPath.compileQuery(path).toOption.map(new JsonPath(_, path)).get
+    Config.Identity.Identifier.Event(vendor, name, majorVersion, compiled)
   }
 
   // Helper to create Entity with compiled path
@@ -780,9 +676,9 @@ object IdentitySpec {
     majorVersion: Int,
     path: String,
     index: Option[Int]
-  ): Config.IdentifierField.Entity = {
-    val compiled = compileQuery(path).toOption.get
-    Config.IdentifierField.Entity(vendor, name, majorVersion, index, compiled)
+  ): Config.Identity.Identifier.Entity = {
+    val compiled = JsonPath.compileQuery(path).toOption.map(new JsonPath(_, path)).get
+    Config.Identity.Identifier.Entity(vendor, name, majorVersion, index, compiled)
   }
 
   val testIdPairs = List(
@@ -847,12 +743,33 @@ object IdentitySpec {
       }
   }
 
-  val testConfig = Config.IdentityM[Id](Uri.unsafeFromString("http://test-server:8787"),
-                                        "test-user",
-                                        "test-password",
-                                        1,
-                                        Retrying.Config.ForTransient(100.millis, 1),
-                                        None
+  val defaultIdentifiers = List(
+    Config.Identity.Identifier(
+      name = "user_id",
+      field = atomicField("user_id")
+    ),
+    Config.Identity.Identifier(
+      name = "domain_userid",
+      field = atomicField("domain_userid")
+    ),
+    Config.Identity.Identifier(
+      name = "network_userid",
+      field = atomicField("network_userid")
+    )
   )
+
+  def testConfig(
+    identifiers: List[Config.Identity.Identifier] = defaultIdentifiers,
+    filters: Option[Config.Identity.Filtering.Filters] = None
+  ) =
+    Config.IdentityM[Id](
+      Uri.unsafeFromString("http://test-server:8787"),
+      "test-user",
+      "test-password",
+      1,
+      Retrying.Config.ForTransient(100.millis, 1),
+      identifiers,
+      filters
+    )
 
 }

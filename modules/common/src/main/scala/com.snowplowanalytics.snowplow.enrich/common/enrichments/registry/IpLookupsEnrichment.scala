@@ -11,14 +11,11 @@
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.net.URI
-import java.util.concurrent.Executors
-
-import scala.concurrent.ExecutionContext
 
 import cats.data.{NonEmptyList, ValidatedNel}
 import cats.implicits._
 
-import cats.effect.kernel.{Async, Resource, Sync}
+import cats.effect.kernel.Sync
 
 import io.circe._
 
@@ -96,12 +93,11 @@ object IpLookupsEnrichment extends ParseableEnrichment {
       } yield IpLookupsDatabase(name, uri, uriAndDb._2)).toValidated.some
     } else None
 
-  def create[F[_]: Async](
+  def create[F[_]: Sync](
     geoFilePath: Option[String],
     ispFilePath: Option[String],
     domainFilePath: Option[String],
-    connectionFilePath: Option[String],
-    blockingEC: ExecutionContext
+    connectionFilePath: Option[String]
   ): F[IpLookupsEnrichment[F]] =
     CreateIpLookups[F]
       .createFromFilenames(
@@ -112,10 +108,10 @@ object IpLookupsEnrichment extends ParseableEnrichment {
         memCache = true,
         lruCacheSize = 20000
       )
-      .map(i => IpLookupsEnrichment(i, blockingEC))
+      .map(i => IpLookupsEnrichment(i))
 }
 
-final case class IpLookupsEnrichment[F[_]: Async](ipLookups: IpLookups[F], blockingEC: ExecutionContext) extends Enrichment {
+final case class IpLookupsEnrichment[F[_]](ipLookups: IpLookups[F]) extends Enrichment {
 
   /**
    * Extract the geo-location using the client IP address.
@@ -123,10 +119,7 @@ final case class IpLookupsEnrichment[F[_]: Async](ipLookups: IpLookups[F], block
    * @return an IpLookupResult
    */
   def extractIpInformation(ip: String): F[IpLookupResult] =
-    Async[F].evalOn(
-      ipLookups.performLookups(Either.catchNonFatal(new HostName(ip).toAddress).fold(_ => ip, addr => addr.toString)),
-      blockingEC
-    )
+    ipLookups.performLookups(Either.catchNonFatal(new HostName(ip).toAddress).fold(_ => ip, addr => addr.toString))
 }
 
 private[enrichments] final case class IpLookupsDatabase(
@@ -134,13 +127,3 @@ private[enrichments] final case class IpLookupsDatabase(
   uri: URI,
   db: String
 )
-
-/**
- * ATM for every event we execute IP lookup on this execution context, in case there is some I/O happening.
- * When scala-maxmind-iplookups gets updated so that blocking calls get executed inside Sync[F].blocking(),
- * we can remove this.
- */
-object IpLookupExecutionContext {
-  def mk[F[_]: Sync]: Resource[F, ExecutionContext] =
-    Resource.make(Sync[F].delay(ExecutionContext.fromExecutorService(Executors.newCachedThreadPool)))(ec => Sync[F].delay(ec.shutdown()))
-}

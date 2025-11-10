@@ -1054,7 +1054,7 @@ object PiiPseudonymizerEnrichmentSpec {
       "jsonschema",
       SchemaVer.Full(2, 0, 0)
     )
-    IpLookupsEnrichment.parse(js, schemaKey, true).toOption.get.enrichment[IO](SpecHelpers.blockingEC)
+    IpLookupsEnrichment.parse(js, schemaKey, true).toOption.get.enrichment[IO]
   }
 
   val jsEnrichment = List(

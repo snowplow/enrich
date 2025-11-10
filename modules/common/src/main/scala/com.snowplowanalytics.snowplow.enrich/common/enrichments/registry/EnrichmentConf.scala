@@ -185,13 +185,12 @@ object EnrichmentConf {
   ) extends EnrichmentConf {
     override val filesToCache: List[(URI, String)] =
       List(geoFile, ispFile, domainFile, connectionTypeFile).flatten
-    def enrichment[F[_]: Async](blockingEC: ExecutionContext): F[IpLookupsEnrichment[F]] =
+    def enrichment[F[_]: Async]: F[IpLookupsEnrichment[F]] =
       IpLookupsEnrichment.create[F](
         geoFile.map(_._2),
         ispFile.map(_._2),
         domainFile.map(_._2),
-        connectionTypeFile.map(_._2),
-        blockingEC
+        connectionTypeFile.map(_._2)
       )
   }
 

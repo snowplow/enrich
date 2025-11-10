@@ -10,9 +10,9 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common
 
-import java.util.concurrent.Executors
 import java.nio.file.NoSuchFileException
 import java.time.Instant
+import java.util.concurrent.Executors
 
 import scala.concurrent.ExecutionContext
 

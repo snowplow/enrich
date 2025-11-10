@@ -26,8 +26,6 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
 import com.snowplowanalytics.maxmind.iplookups.model.IpLocation
 
-import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
-
 class IpLookupsEnrichmentSpec extends Specification with DataTables with CatsEffect {
 
   def is = s2"""
@@ -105,7 +103,7 @@ class IpLookupsEnrichmentSpec extends Specification with DataTables with CatsEff
           accuracyRadius = 100
         ).asRight.some |> { (_, ipAddress, expected) =>
       (for {
-        ipLookup <- config.enrichment[IO](SpecHelpers.blockingEC)
+        ipLookup <- config.enrichment[IO]
         result <- ipLookup.extractIpInformation(ipAddress)
         ipLocation = result.ipLocation.map(_.leftMap(_.getClass.getSimpleName))
       } yield ipLocation must beEqualTo(expected)).unsafeRunSync()
@@ -113,14 +111,14 @@ class IpLookupsEnrichmentSpec extends Specification with DataTables with CatsEff
 
   def e2 =
     for {
-      ipLookup <- config.enrichment[IO](SpecHelpers.blockingEC)
+      ipLookup <- config.enrichment[IO]
       result <- ipLookup.extractIpInformation("70.46.123.145")
       isp = result.isp
     } yield isp must beEqualTo(Some(Right("FDN Communications")))
 
   def e3 =
     for {
-      ipLookup <- config.enrichment[IO](SpecHelpers.blockingEC)
+      ipLookup <- config.enrichment[IO]
       oversized = "a".repeat(1000000)
       result <- ipLookup.extractIpInformation(oversized)
     } yield result.ipLocation must beLike {

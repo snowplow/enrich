@@ -41,7 +41,6 @@ import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.ApiRequestConf
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.IpLookupExecutionContext
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.SqlExecutionContext
 import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient => CommonHttpClient}
 
@@ -148,11 +147,10 @@ object Environment {
                                case None =>
                                  Resource.pure[F, CommonHttpClient[F]](CommonHttpClient.noop[F])
                              }
-      ipLookupEC <- IpLookupExecutionContext.mk
       sqlEC <- SqlExecutionContext.mk
       enrichmentRegistry <-
         Coldswap.make(
-          mkEnrichmentRegistry(enrichmentsConfs, apiEnrichmentClient, ipLookupEC, sqlEC, config.main.validation.exitOnJsCompileError)
+          mkEnrichmentRegistry(enrichmentsConfs, apiEnrichmentClient, sqlEC, config.main.validation.exitOnJsCompileError)
         )
       _ <- Resource.eval(enrichmentRegistry.opened.use_)
       metadata <- config.main.metadata.traverse(MetadataReporter.build[F](_, appInfo, httpClient))
@@ -219,7 +217,6 @@ object Environment {
   def mkEnrichmentRegistry[F[_]: Async](
     enrichmentsConfs: List[EnrichmentConf],
     apiEnrichmentHttpClient: CommonHttpClient[F],
-    ipLookupEC: ExecutionContext,
     sqlEC: ExecutionContext,
     exitOnJsCompileError: Boolean
   ): Resource[F, EnrichmentRegistry[F]] =
@@ -229,7 +226,6 @@ object Environment {
                            .build(
                              enrichmentsConfs,
                              apiEnrichmentHttpClient,
-                             ipLookupEC,
                              sqlEC,
                              exitOnJsCompileError
                            )

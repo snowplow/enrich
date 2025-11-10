@@ -37,7 +37,8 @@ import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 
 import com.snowplowanalytics.iglu.core.SelfDescribingData
 
-import com.snowplowanalytics.iglu.client.{IgluCirceClient, Resolver}
+import com.snowplowanalytics.iglu.client.IgluCirceClient
+import com.snowplowanalytics.iglu.client.resolver.Resolver
 
 import com.snowplowanalytics.snowplow.runtime.{AppHealth, AppInfo}
 import com.snowplowanalytics.snowplow.runtime.processing.Coldswap
@@ -54,7 +55,6 @@ import com.snowplowanalytics.snowplow.streams.{
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.IpLookupExecutionContext
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.SqlExecutionContext
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
@@ -106,13 +106,11 @@ object MockEnvironment {
       assets = Assets.fromEnrichmentConfs(enrichmentsConfs)
       _ <- Resource.eval(Assets.downloadAssets(assets, blobClients))
       apiEnrichmentClient = CommonHttpClient.fromHttp4sClient[IO](httpClient.mock)
-      ipLookupEC <- IpLookupExecutionContext.mk[IO]
       sqlEC <- SqlExecutionContext.mk[IO]
       enrichmentRegistry <- Coldswap.make(
                               Environment.mkEnrichmentRegistry[IO](
                                 enrichmentsConfs,
                                 apiEnrichmentClient,
-                                ipLookupEC,
                                 sqlEC,
                                 exitOnJsCompileError
                               )

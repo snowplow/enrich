@@ -107,7 +107,6 @@ object EnrichmentRegistry {
   def build[F[_]: Async](
     confs: List[EnrichmentConf],
     apiEnrichmentClient: HttpClient[F],
-    ipLookupEC: ExecutionContext,
     sqlEC: ExecutionContext,
     exitOnJsCompileError: Boolean
   ): EitherT[F, String, EnrichmentRegistry[F]] =
@@ -141,7 +140,7 @@ object EnrichmentRegistry {
           } yield registry.copy(iab = enrichment.some)
         case c: IpLookupsConf =>
           for {
-            enrichment <- EitherT.right(c.enrichment[F](ipLookupEC))
+            enrichment <- EitherT.right(c.enrichment[F])
             registry <- er
           } yield registry.copy(ipLookups = enrichment.some)
         case c: JavascriptScriptConf =>

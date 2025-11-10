@@ -83,6 +83,7 @@ object KafkaConfigSpec {
       topicName = "snowplow-collector-payloads",
       bootstrapServers = "localhost:9092",
       debounceCommitOffsets = 10.seconds,
+      commitTimeout = 15.seconds,
       consumerConf = Map(
         "group.id" -> "enrich-kafka",
         "allow.auto.create.topics" -> "false",
@@ -162,6 +163,7 @@ object KafkaConfigSpec {
       topicName = "snowplow-collector-payloads",
       bootstrapServers = "localhost:9092",
       debounceCommitOffsets = 10.seconds,
+      commitTimeout = 15.seconds,
       consumerConf = Map(
         "group.id" -> "enrich-kafka",
         "enable.auto.commit" -> "false",

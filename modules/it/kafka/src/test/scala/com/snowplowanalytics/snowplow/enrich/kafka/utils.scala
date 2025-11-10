@@ -61,7 +61,8 @@ object utils {
         "security.protocol" -> "PLAINTEXT",
         "sasl.mechanism" -> "GSSAPI"
       ),
-      debounceCommitOffsets = 1.seconds
+      debounceCommitOffsets = 1.seconds,
+      commitTimeout = 15.seconds
     )
 
   private def sinkConfig(

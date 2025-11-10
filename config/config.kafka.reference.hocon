@@ -15,6 +15,10 @@
     # -- we decrease the number of requests made to the kafka broker
     debounceCommitOffsets: "10 seconds"
 
+    # -- The time to wait for offset commits to complete. If an offset commit doesn't complete
+    # -- within this time, a CommitTimeoutException will be raised instead.
+    commitTimeout: "15 seconds"
+
     # -- Any valid Kafka consumer config options
     consumerConf: {
       "group.id": "enrich-kafka"

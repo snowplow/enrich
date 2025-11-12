@@ -1,3 +1,13 @@
+6.3.0 (2025-11-12)
+------------------
+Add custom identifier support for Identity (#125)
+Remove unused method from BlobClientImpl trait (#133)
+Bump common-streams to 0.15.0 (#131)
+Use memory file mode for IP Lookups enrichment (#132)
+Bump common-streams to 0.16.0 (#136)
+Remove redundant Enrichment trait (#137)
+Bump google-cloud-storage to 2.60.0 (#138)
+
 6.2.1 (2025-10-16)
 ------------------
 Don't convert JSON fields with number type to string in PII enrichment (#128)

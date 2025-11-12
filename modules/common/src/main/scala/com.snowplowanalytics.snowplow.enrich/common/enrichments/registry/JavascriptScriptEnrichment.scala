@@ -156,7 +156,7 @@ object JavascriptScriptEnrichment extends ParseableEnrichment {
 final case class JavascriptScriptEnrichment(
   schemaKey: SchemaKey,
   engine: JavascriptScriptEnrichment.JsEngine
-) extends Enrichment {
+) {
   import JavascriptScriptEnrichment._
 
   private val enrichmentInfo =

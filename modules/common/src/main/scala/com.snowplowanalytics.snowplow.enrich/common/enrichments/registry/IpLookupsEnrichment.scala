@@ -111,7 +111,7 @@ object IpLookupsEnrichment extends ParseableEnrichment {
       .map(i => IpLookupsEnrichment(i))
 }
 
-final case class IpLookupsEnrichment[F[_]](ipLookups: IpLookups[F]) extends Enrichment {
+final case class IpLookupsEnrichment[F[_]](ipLookups: IpLookups[F]) {
 
   /**
    * Extract the geo-location using the client IP address.

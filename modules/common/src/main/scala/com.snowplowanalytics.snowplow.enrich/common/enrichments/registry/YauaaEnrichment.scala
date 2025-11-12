@@ -73,7 +73,7 @@ object YauaaEnrichment extends ParseableEnrichment {
  * and extract as many relevant attributes as possible, like for example the device class.
  * @param cacheSize Amount of user agents already parsed that stay in cache for faster parsing.
  */
-final case class YauaaEnrichment(cacheSize: Option[Int]) extends Enrichment {
+final case class YauaaEnrichment(cacheSize: Option[Int]) {
   import YauaaEnrichment.decapitalize
 
   private val uaa: UserAgentAnalyzer = {

@@ -107,7 +107,7 @@ final case class CampaignAttributionEnrichment(
   contentParameters: List[String],
   campaignParameters: List[String],
   clickIdParameters: List[(String, String)]
-) extends Enrichment {
+) {
 
   /**
    * Find the first string in parameterList which is a key of sourceMap and return the value of that

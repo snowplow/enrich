@@ -25,7 +25,7 @@ import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.ApiRequestConf
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest.ApiRequestEnrichment.ApiRequestEvaluator
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{CachingEvaluator, Enrichment, ParseableEnrichment}
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{CachingEvaluator, ParseableEnrichment}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.{CirceUtils, HttpClient}
 
@@ -132,7 +132,7 @@ final case class ApiRequestEnrichment[F[_]: Monad: Clock](
   apiRequestEvaluator: ApiRequestEvaluator[F],
   ignoreOnError: Boolean,
   httpClient: HttpClient[F]
-) extends Enrichment {
+) {
   import ApiRequestEnrichment._
 
   private val enrichmentInfo =

@@ -114,7 +114,7 @@ object IabEnrichment extends ParseableEnrichment {
  * @param schemaKey enrichment's static Iglu Schema Key
  * @param iabClient worker object
  */
-final case class IabEnrichment(schemaKey: SchemaKey, iabClient: IabClient) extends Enrichment {
+final case class IabEnrichment(schemaKey: SchemaKey, iabClient: IabClient) {
   val outputSchema =
     SchemaKey("com.iab.snowplow", "spiders_and_robots", "jsonschema", SchemaVer.Full(1, 0, 0))
   private val enrichmentInfo =

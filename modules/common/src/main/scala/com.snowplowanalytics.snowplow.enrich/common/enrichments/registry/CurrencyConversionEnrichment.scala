@@ -101,7 +101,7 @@ final case class CurrencyConversionEnrichment[F[_]: Monad](
   schemaKey: SchemaKey,
   forex: Forex[F],
   baseCurrency: CurrencyUnit
-) extends Enrichment {
+) {
   private val enrichmentInfo =
     FailureDetails.EnrichmentInformation(schemaKey, "currency-conversion").some
 

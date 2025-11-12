@@ -31,7 +31,7 @@ import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SelfDescribi
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.SqlQueryConf
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{CachingEvaluator, Enrichment, ParseableEnrichment}
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{CachingEvaluator, ParseableEnrichment}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
 
@@ -164,7 +164,7 @@ final case class SqlQueryEnrichment[F[_]: Async](
   ec: ExecutionContext,
   dataSource: DataSource,
   ignoreOnError: Boolean
-) extends Enrichment {
+) {
   private val enrichmentInfo =
     FailureDetails.EnrichmentInformation(schemaKey, "sql-query").some
 

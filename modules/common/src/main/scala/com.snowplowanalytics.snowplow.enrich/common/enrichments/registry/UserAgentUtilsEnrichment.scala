@@ -69,7 +69,7 @@ final case class ClientAttributes(
   deviceIsMobile: Boolean
 )
 
-final case class UserAgentUtilsEnrichment(schemaKey: SchemaKey) extends Enrichment {
+final case class UserAgentUtilsEnrichment(schemaKey: SchemaKey) {
   private val mobileDeviceTypes = Set(DeviceType.MOBILE, DeviceType.TABLET, DeviceType.WEARABLE)
   private val enrichmentInfo =
     FailureDetails.EnrichmentInformation(schemaKey, "ua-parser").some

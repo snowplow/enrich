@@ -33,7 +33,7 @@ import org.apache.commons.codec.digest.DigestUtils
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.PiiPseudonymizerConf
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{Enrichment, ParseableEnrichment}
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.ParseableEnrichment
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii.serializers._
 import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
@@ -254,7 +254,7 @@ final case class PiiPseudonymizerEnrichment(
   emitIdentificationEvent: Boolean,
   strategy: PiiStrategy,
   anonymousOnly: Boolean
-) extends Enrichment {
+) {
   import PiiPseudonymizerEnrichment._
 
   val piiTransformationSchema: SchemaKey = SchemaKey(

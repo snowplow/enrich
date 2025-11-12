@@ -10,16 +10,11 @@
  */
 package com.snowplowanalytics.snowplow.enrich
 
-import common.enrichments.registry.Enrichment
-
 /** Scala package object to hold types, helper methods etc. */
 package object common {
 
   /** Type alias for HTTP headers */
   type HttpHeaders = List[String]
-
-  /** Type alias for a map whose keys are enrichment names and whose values are enrichments */
-  type EnrichmentMap = Map[String, Enrichment]
 
   /** Parameters inside of a raw event */
   type RawEventParameters = Map[String, Option[String]]

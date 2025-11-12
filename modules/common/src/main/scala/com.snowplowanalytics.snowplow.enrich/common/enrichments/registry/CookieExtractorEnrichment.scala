@@ -49,7 +49,7 @@ object CookieExtractorEnrichment extends ParseableEnrichment {
  * Enrichment extracting certain cookies from headers.
  * @param cookieNames Names of the cookies to be extracted
  */
-final case class CookieExtractorEnrichment(cookieNames: List[String]) extends Enrichment {
+final case class CookieExtractorEnrichment(cookieNames: List[String]) {
 
   def extract(headers: List[String]): List[SelfDescribingData[Json]] = {
     // rfc6265 - sections 4.2.1 and 4.2.2

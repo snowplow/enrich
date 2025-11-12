@@ -97,7 +97,7 @@ final case class UaParserEnrichment[F[_]: Monad](
   schemaKey: SchemaKey,
   parser: Parser,
   userAgentCache: UserAgentCache[F]
-) extends Enrichment {
+) {
   private val enrichmentInfo = FailureDetails.EnrichmentInformation(schemaKey, "ua-parser").some
 
   /** Adds a period in front of a not-null version element */

@@ -21,9 +21,6 @@ import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey}
 
 import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
 
-/** Trait inherited by every enrichment config case class */
-trait Enrichment
-
 /** Trait to hold helpers relating to enrichment config */
 trait ParseableEnrichment {
 

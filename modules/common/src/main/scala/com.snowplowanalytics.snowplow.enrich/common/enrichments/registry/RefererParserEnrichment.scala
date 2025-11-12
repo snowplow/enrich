@@ -79,7 +79,7 @@ object RefererParserEnrichment extends ParseableEnrichment {
  * @param parser Referer parser
  * @param domains List of internal domains
  */
-final case class RefererParserEnrichment(parser: Parser, domains: List[String]) extends Enrichment {
+final case class RefererParserEnrichment(parser: Parser, domains: List[String]) {
 
   /**
    * Extract details about the referer (sic). Uses the referer-parser library.

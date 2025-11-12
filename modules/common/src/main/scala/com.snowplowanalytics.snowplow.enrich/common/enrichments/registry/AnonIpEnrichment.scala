@@ -128,8 +128,7 @@ object AnonIPv6Segments extends Enumeration {
  * @param ipv4Octets The number of octets (IPv4) to anonymize, starting from the right
  * @param ipv6Segments The number of segments (IPv6) to anonymize, starting from the right
  */
-final case class AnonIpEnrichment(ipv4Octets: AnonIPv4Octets.AnonIPv4Octets, ipv6Segments: AnonIPv6Segments.AnonIPv6Segments)
-    extends Enrichment {
+final case class AnonIpEnrichment(ipv4Octets: AnonIPv4Octets.AnonIPv4Octets, ipv6Segments: AnonIPv6Segments.AnonIPv6Segments) {
 
   val IPv4MappedAddressPrefix = "::FFFF:"
   val MaskChar = "x"

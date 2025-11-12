@@ -222,7 +222,7 @@ object CrossNavigationEnrichment extends ParseableEnrichment {
 /**
  * Enrichment adding cross navigation context
  */
-final case class CrossNavigationEnrichment(schemaKey: SchemaKey) extends Enrichment {
+final case class CrossNavigationEnrichment(schemaKey: SchemaKey) {
   private val enrichmentInfo =
     FailureDetails.EnrichmentInformation(schemaKey, "cross-navigation").some
 

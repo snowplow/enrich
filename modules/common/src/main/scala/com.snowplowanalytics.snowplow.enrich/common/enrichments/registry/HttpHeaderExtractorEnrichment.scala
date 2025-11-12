@@ -53,7 +53,7 @@ object HttpHeaderExtractorEnrichment extends ParseableEnrichment {
  * Enrichment extracting certain headers from headers.
  * @param headersPattern Names of the headers to be extracted
  */
-final case class HttpHeaderExtractorEnrichment(headersPattern: String) extends Enrichment {
+final case class HttpHeaderExtractorEnrichment(headersPattern: String) {
   case class Header(name: String, value: String)
 
   def extract(headers: List[String]): List[SelfDescribingData[Json]] = {

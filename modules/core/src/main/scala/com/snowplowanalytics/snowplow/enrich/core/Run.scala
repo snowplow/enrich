@@ -28,7 +28,7 @@ import com.monovore.decline.Opts
 import com.snowplowanalytics.snowplow.streams.Factory
 import com.snowplowanalytics.snowplow.runtime.{AppInfo, ConfigParser, LogUtils, Telemetry}
 
-import com.snowplowanalytics.snowplow.enrich.cloudutils.core.BlobClient
+import com.snowplowanalytics.snowplow.enrich.cloudutils.core.BlobClientFactory
 
 object Run {
 
@@ -37,7 +37,7 @@ object Run {
   def fromCli[F[_]: Async, FactoryConfig: Decoder, SourceConfig: Decoder, SinkConfig: Decoder: OptionalDecoder, BlobClientsConfig: Decoder](
     appInfo: AppInfo,
     toFactory: FactoryConfig => Resource[F, Factory[F, SourceConfig, SinkConfig]],
-    toBlobClients: BlobClientsConfig => List[BlobClient[F]]
+    toBlobClients: BlobClientsConfig => List[BlobClientFactory[F]]
   ): Opts[F[ExitCode]] = {
     val configPathOpt = Opts.option[Path]("config", help = "path to config file")
     val igluPathOpt = Opts.option[Path]("iglu-config", help = "path to iglu resolver config file")
@@ -57,7 +57,7 @@ object Run {
   ](
     appInfo: AppInfo,
     toFactory: FactoryConfig => Resource[F, Factory[F, SourceConfig, SinkConfig]],
-    toBlobClients: BlobClientsConfig => List[BlobClient[F]],
+    toBlobClients: BlobClientsConfig => List[BlobClientFactory[F]],
     pathToConfig: Path,
     pathToResolver: Path,
     pathToEnrichments: Path
@@ -86,7 +86,7 @@ object Run {
   private def fromConfig[F[_]: Async, FactoryConfig, SourceConfig, SinkConfig, BlobClientsConfig](
     appInfo: AppInfo,
     toFactory: FactoryConfig => Resource[F, Factory[F, SourceConfig, SinkConfig]],
-    toBlobClients: BlobClientsConfig => List[BlobClient[F]],
+    toBlobClients: BlobClientsConfig => List[BlobClientFactory[F]],
     config: Config.Full[FactoryConfig, SourceConfig, SinkConfig, BlobClientsConfig]
   ): F[ExitCode] =
     Environment.fromConfig(config, appInfo, toFactory, toBlobClients).use { env =>

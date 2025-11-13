@@ -13,40 +13,95 @@ package com.snowplowanalytics.snowplow.enrich.cloudutils.core
 
 import java.net.URI
 
-import cats.effect.kernel.{Resource, Sync}
+import cats.implicits._
+import cats.effect.kernel.{Async, Resource}
 
 import org.http4s.client.{Client => Http4sClient}
-import org.http4s.{Request, Uri}
+import org.http4s.{Request, Response, Status, Uri}
+import org.http4s.headers.{ETag, `If-None-Match`}
 
-import fs2.Stream
+import scodec.bits.ByteVector
 
 object HttpBlobClient {
 
-  def wrapHttp4sClient[F[_]: Sync](httpClient: Http4sClient[F]) =
-    new BlobClient[F] {
+  def wrapHttp4sClient[F[_]: Async](httpClient: Http4sClient[F]): BlobClientFactory[F] =
+    new BlobClientFactory[F] {
 
       // Since Azure Blob Storage urls' scheme are https as well and we want to fetch them with
       // their own client, we added second condition to not pick up those urls
       override def canDownload(uri: URI): Boolean =
-        (uri.getScheme == "http" || uri.getScheme == "https") && !uri.toString.contains("core.windows.net")
+        (uri.getScheme === "http" || uri.getScheme === "https") && !uri.toString.contains("core.windows.net")
 
-      override def mk: Resource[F, BlobClientImpl[F]] =
+      override def mk: Resource[F, BlobClient[F]] =
         Resource.pure {
-          new BlobClientImpl[F] {
+          new BlobClient[F] {
 
-            override def download(uri: URI): Stream[F, Byte] = {
+            private def handleResponseWithBody(
+              response: Response[F]
+            ): F[BlobClient.GetResult] = {
+              val responseEtag = response.headers.get[ETag].map(_.tag.tag)
+              response.body.compile
+                .to(ByteVector)
+                .map { byteVector =>
+                  val content = byteVector.toByteBuffer
+                  responseEtag match {
+                    case Some(etag) => BlobClient.ContentWithEtag(content, etag)
+                    case None => BlobClient.ContentNoEtag(content)
+                  }
+                }
+            }
+
+            override def get(uri: URI): F[BlobClient.GetResult] = {
               val request = Request[F](uri = Uri.unsafeFromString(uri.toString))
-              for {
-                response <- httpClient.stream(request)
-                body <- if (response.status.isSuccess) response.body
-                        else Stream.raiseError[F](HttpDownloadFailure(uri))
-              } yield body
+              httpClient
+                .run(request)
+                .use[Either[Throwable, BlobClient.GetResult]] { response =>
+                  if (response.status.isSuccess)
+                    handleResponseWithBody(response).map(Right(_))
+                  else
+                    Async[F].pure(Left(HttpErrorResponse(uri, response.status.code)))
+                }
+                .handleErrorWith { e =>
+                  Async[F].raiseError(HttpException(uri, e))
+                }
+                .rethrow
+            }
+
+            override def getIfNeeded(
+              uri: URI,
+              etag: String
+            ): F[BlobClient.GetIfNeededResult] = {
+              val etagHeader = `If-None-Match`(ETag.EntityTag(etag))
+              val request = Request[F](uri = Uri.unsafeFromString(uri.toString))
+                .withHeaders(etagHeader)
+
+              httpClient
+                .run(request)
+                .use[Either[Throwable, BlobClient.GetIfNeededResult]] { response =>
+                  if (response.status === Status.NotModified)
+                    // 304 Not Modified - etag matched, no need to download
+                    Async[F].pure(Right(BlobClient.EtagMatched))
+                  else if (response.status.isSuccess)
+                    // Download needed - etag didn't match or server doesn't support conditional requests
+                    handleResponseWithBody(response).map(Right(_))
+                  else
+                    Async[F].pure(Left(HttpErrorResponse(uri, response.status.code)))
+                }
+                .handleErrorWith { e =>
+                  Async[F].raiseError(HttpException(uri, e))
+                }
+                .rethrow
             }
           }
         }
     }
 
-  case class HttpDownloadFailure(uri: URI) extends RetryableFailure {
-    override def getMessage: String = s"Cannot download $uri"
+  case class HttpErrorResponse(uri: URI, statusCode: Int) extends RetryableFailure {
+    override def getMessage: String = s"Cannot GET $uri (status code: $statusCode)"
+  }
+
+  case class HttpException(uri: URI, cause: Throwable) extends RetryableFailure {
+    override def getMessage: String = s"Exception during GET of $uri: ${cause.getMessage}"
+    override def getCause: Throwable = cause
   }
 }

@@ -11,37 +11,87 @@
 package com.snowplowanalytics.snowplow.enrich.cloudutils.aws
 
 import java.net.URI
+import java.nio.ByteBuffer
 
 import cats.implicits._
 import cats.effect.kernel.{Async, Resource, Sync}
 
-import fs2.Stream
-
-import blobstore.url.Url
-import blobstore.s3.S3Store
-
 import software.amazon.awssdk.services.s3.S3AsyncClient
+import software.amazon.awssdk.services.s3.model.{GetObjectRequest, GetObjectResponse, S3Exception}
 import software.amazon.awssdk.awscore.defaultsmode.DefaultsMode
+import software.amazon.awssdk.core.async.AsyncResponseTransformer
+import software.amazon.awssdk.core.ResponseBytes
 
 import com.snowplowanalytics.snowplow.enrich.cloudutils.core._
 
 object S3BlobClient {
 
-  def client[F[_]: Async]: BlobClient[F] =
-    new BlobClient[F] {
+  def client[F[_]: Async]: BlobClientFactory[F] =
+    new BlobClientFactory[F] {
       override def canDownload(uri: URI) =
-        uri.getScheme == "s3"
+        uri.getScheme === "s3"
 
-      override def mk: Resource[F, BlobClientImpl[F]] =
+      override def mk: Resource[F, BlobClient[F]] =
         for {
           s3Client <- Resource.fromAutoCloseable(Sync[F].delay(S3AsyncClient.builder().defaultsMode(DefaultsMode.AUTO).build()))
-          store <- Resource.eval(S3Store.builder[F](s3Client).build.toEither.leftMap(_.head).pure[F].rethrow)
-        } yield new BlobClientImpl[F] {
+        } yield new BlobClient[F] {
 
-          override def download(uri: URI): Stream[F, Byte] =
-            Stream.eval(Url.parseF[F](uri.toString)).flatMap { url =>
-              store.get(url, 16 * 1024)
-            }
+          def get(uri: URI): F[BlobClient.GetResult] = {
+            val (bucket, key) = parseS3Uri(uri)
+            val request = GetObjectRequest
+              .builder()
+              .bucket(bucket)
+              .key(key)
+              .build()
+
+            Async[F]
+              .fromCompletableFuture {
+                Sync[F].delay(s3Client.getObject(request, AsyncResponseTransformer.toBytes[GetObjectResponse]()))
+              }
+              .map(processResponseBytes)
+          }
+
+          def getIfNeeded(uri: URI, etag: String): F[BlobClient.GetIfNeededResult] = {
+            val (bucket, key) = parseS3Uri(uri)
+            val request = GetObjectRequest
+              .builder()
+              .bucket(bucket)
+              .key(key)
+              .ifNoneMatch(etag)
+              .build()
+
+            Async[F]
+              .fromCompletableFuture {
+                Sync[F].delay(s3Client.getObject(request, AsyncResponseTransformer.toBytes[GetObjectResponse]()))
+              }
+              .map[BlobClient.GetIfNeededResult](processResponseBytes)
+              .recover {
+                case e: S3Exception if e.statusCode() === 304 =>
+                  // 304 Not Modified - etag matched
+                  BlobClient.EtagMatched
+              }
+          }
+
         }
     }
+
+  private def parseS3Uri(uri: URI): (String, String) = {
+    val bucket = uri.getHost
+    val key = uri.getPath.stripPrefix("/")
+    (bucket, key)
+  }
+
+  private def processResponseBytes(
+    responseBytes: ResponseBytes[GetObjectResponse]
+  ): BlobClient.GetResult = {
+    val response = responseBytes.response()
+    val arr = responseBytes.asByteArrayUnsafe
+    val content = ByteBuffer.wrap(arr, 0, arr.length)
+
+    Option(response.eTag()) match {
+      case Some(etag) => BlobClient.ContentWithEtag(content, etag)
+      case None => BlobClient.ContentNoEtag(content)
+    }
+  }
+
 }

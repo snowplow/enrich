@@ -44,8 +44,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.Enrichm
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.SqlExecutionContext
 import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient => CommonHttpClient}
 
-import com.snowplowanalytics.snowplow.enrich.cloudutils.core.BlobClient
-import com.snowplowanalytics.snowplow.enrich.cloudutils.core.HttpBlobClient
+import com.snowplowanalytics.snowplow.enrich.cloudutils.core.{BlobClientFactory, HttpBlobClient}
 
 /**
  * Resources and runtime-derived configuration needed for processing events
@@ -71,8 +70,8 @@ case class Environment[F[_]](
   sinkParallelism: Int,
   sinkMaxSize: Int,
   adapterRegistry: AdapterRegistry[F],
-  assets: List[Assets.Asset],
-  blobClients: List[BlobClient[F]],
+  assetRefresher: AssetRefresher[F],
+  blobClients: List[BlobClientFactory[F]],
   enrichmentRegistry: Coldswap[F, EnrichmentRegistry[F]],
   igluClient: IgluCirceClient[F],
   httpClient: Http4sClient[F],
@@ -96,7 +95,7 @@ object Environment {
     config: Config.Full[FactoryConfig, SourceConfig, SinkConfig, BlobClientsConfig],
     appInfo: AppInfo,
     toFactory: FactoryConfig => Resource[F, Factory[F, SourceConfig, SinkConfig]],
-    toBlobClients: BlobClientsConfig => List[BlobClient[F]]
+    toBlobClients: BlobClientsConfig => List[BlobClientFactory[F]]
   ): Resource[F, Environment[F]] =
     for {
       _ <- enableSentry[F](appInfo, config.main.monitoring.sentry)
@@ -137,8 +136,6 @@ object Environment {
                           }
       _ <- Resource.eval(Logger[F].info(show"Enabled enrichments: ${enrichmentsConfs.map(_.schemaKey.name).mkString(", ")}"))
       blobClients = HttpBlobClient.wrapHttp4sClient(httpClient) :: toBlobClients(config.main.blobClients)
-      assets = Assets.fromEnrichmentConfs(enrichmentsConfs)
-      _ <- Resource.eval(Assets.downloadAssets(assets, blobClients))
       apiEnrichmentClient <- enrichmentsConfs.collectFirst { case api: ApiRequestConf => api.api.timeout } match {
                                case Some(timeoutMillis) =>
                                  HttpClient
@@ -152,7 +149,8 @@ object Environment {
         Coldswap.make(
           mkEnrichmentRegistry(enrichmentsConfs, apiEnrichmentClient, sqlEC, config.main.validation.exitOnJsCompileError)
         )
-      _ <- Resource.eval(enrichmentRegistry.opened.use_)
+      assetRefresher <- AssetRefresher.fromEnrichmentConfs(enrichmentsConfs, blobClients, enrichmentRegistry)
+      _ <- Resource.eval(assetRefresher.refreshAndOpenRegistry)
       metadata <- config.main.metadata.traverse(MetadataReporter.build[F](_, appInfo, httpClient))
       identity = config.main.identity.map(Identity.build(_, httpClient))
       _ <- Resource.eval(appHealth.beHealthyForSetup)
@@ -168,7 +166,7 @@ object Environment {
       sinkParallelism = sinkParallelism,
       sinkMaxSize = config.main.output.good.maxRecordSize,
       adapterRegistry = adapterRegistry,
-      assets = assets,
+      assetRefresher = assetRefresher,
       blobClients = blobClients,
       enrichmentRegistry = enrichmentRegistry,
       igluClient = igluClient,

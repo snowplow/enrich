@@ -79,8 +79,8 @@ object Dependencies {
     val decline = "2.4.1"
     val fs2 = "3.10.2"
     val catsEffect = "3.5.4"
-    val fs2BlobStorage = "0.9.15"
     val azureIdentity = "1.12.2"
+    val azureStorageBlob = "12.25.1"
     val nimbusJoseJwt = "10.0.2"
     val http4s = "0.23.25"
 
@@ -171,12 +171,10 @@ object Dependencies {
     val s3 = "software.amazon.awssdk"                     % "s3"                     % V.awsSdk
     val sts = "software.amazon.awssdk"                    % "sts"                    % V.awsSdk % Runtime
     val azureIdentity = "com.azure"                       % "azure-identity"         % V.azureIdentity
+    val azureStorageBlob = "com.azure"                    % "azure-storage-blob"     % V.azureStorageBlob
     val nimbusJoseJwt = "com.nimbusds"                    % "nimbus-jose-jwt"        % V.nimbusJoseJwt
     val jacksonDfXml = "com.fasterxml.jackson.dataformat" % "jackson-dataformat-xml" % V.jackson
     val http4sClient = "org.http4s"                      %% "http4s-ember-client"    % V.http4s
-    val fs2BlobS3 = "com.github.fs2-blobstore"           %% "s3"                     % V.fs2BlobStorage
-    val fs2BlobGcs = "com.github.fs2-blobstore"          %% "gcs"                    % V.fs2BlobStorage
-    val fs2BlobAzure = "com.github.fs2-blobstore"        %% "azure"                  % V.fs2BlobStorage
     val http4sDsl = "org.http4s"                         %% "http4s-dsl"             % V.http4s % Test
 
     // compiler plugins
@@ -248,22 +246,23 @@ object Dependencies {
 
     val cloudUtilsDependencies = Seq(
       fs2,
-      http4sClient
+      http4sClient,
+      specs2CE,
+      specs2,
+      http4sDsl
     )
 
     val awsUtilsDependencies = Seq(
-      fs2BlobS3,
       s3
     )
 
     val gcpUtilsDependencies = Seq(
-      fs2BlobGcs,
       gcs
     )
 
     val azureUtilsDependencies = Seq(
-      fs2BlobAzure,
       azureIdentity,
+      azureStorageBlob,
       circeGeneric,
       jacksonDfXml, // for security vulnerabilities
       nimbusJoseJwt // for security vulnerabilities

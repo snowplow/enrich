@@ -11,50 +11,100 @@
 package com.snowplowanalytics.snowplow.enrich.cloudutils.gcp
 
 import java.net.URI
+import java.nio.ByteBuffer
 
 import cats.implicits._
 import cats.effect.kernel.{Async, Resource, Sync}
 
-import fs2.Stream
-
-import blobstore.gcs.GcsStore
-import blobstore.url.Url
-
-import com.google.cloud.storage.StorageOptions
+import com.google.cloud.storage.{BlobId, Storage, StorageException, StorageOptions}
 import com.google.cloud.BaseServiceException
 
 import com.snowplowanalytics.snowplow.enrich.cloudutils.core._
 
 object GcsBlobClient {
 
-  def client[F[_]: Async]: BlobClient[F] =
-    new BlobClient[F] {
+  def client[F[_]: Async]: BlobClientFactory[F] =
+    new BlobClientFactory[F] {
 
       override def canDownload(uri: URI): Boolean =
-        uri.getScheme == "gs"
+        uri.getScheme === "gs"
 
-      override def mk: Resource[F, BlobClientImpl[F]] =
+      override def mk: Resource[F, BlobClient[F]] =
         for {
           service <- Resource.fromAutoCloseable(Sync[F].delay(StorageOptions.getDefaultInstance.getService))
-          store <- Resource.eval(GcsStore.builder[F](service).build.toEither.leftMap(_.head).pure[F].rethrow)
-        } yield new BlobClientImpl[F] {
+        } yield new BlobClient[F] {
 
-          override def download(uri: URI): Stream[F, Byte] =
-            Stream.eval(Url.parseF[F](uri.toString)).flatMap { url =>
-              store
-                .get(url, 16 * 1024)
-                .handleErrorWith { e =>
-                  val e2 = e match {
-                    case bse: BaseServiceException if bse.isRetryable =>
-                      new RetryableFailure {
-                        override def getMessage: String = bse.getMessage
-                        override def getCause: Throwable = bse
-                      }
-                    case e => e
-                  }
-                  Stream.raiseError[F](e2)
-                }
-            }
+          override def get(uri: URI): F[BlobClient.GetResult] = {
+            val blobId = parseGcsUri(uri)
+
+            val io: F[BlobClient.GetResult] = for {
+              blob <- Sync[F].blocking(service.get(blobId))
+              generation = blob.getGeneration
+              content <- downloadContent(service, blobId, generation)
+            } yield processBlobContent(blob, content)
+
+            handleGcsErrors(io)
+          }
+
+          override def getIfNeeded(uri: URI, etag: String): F[BlobClient.GetIfNeededResult] = {
+            val blobId = parseGcsUri(uri)
+
+            val io: F[BlobClient.GetIfNeededResult] = for {
+              blob <- Sync[F].blocking(service.get(blobId))
+              currentEtag = Option(blob.getEtag)
+              result <- currentEtag match {
+                          case Some(currentEtag) if currentEtag === etag =>
+                            // Etag matches - no need to download content
+                            Sync[F].pure(BlobClient.EtagMatched)
+                          case _ =>
+                            // Etag doesn't match or is missing - download content
+                            val generation = blob.getGeneration
+                            downloadContent(service, blobId, generation)
+                              .map(content => processBlobContent(blob, content))
+                        }
+            } yield result
+
+            handleGcsErrors(io)
+          }
+        }
+    }
+
+  private def parseGcsUri(uri: URI): BlobId = {
+    val bucket = uri.getHost
+    val blobName = uri.getPath.stripPrefix("/")
+    BlobId.of(bucket, blobName)
+  }
+
+  private def downloadContent[F[_]: Sync](
+    service: Storage,
+    blobId: BlobId,
+    generation: Long
+  ): F[ByteBuffer] =
+    Sync[F]
+      .blocking(
+        service.readAllBytes(blobId, Storage.BlobSourceOption.generationMatch(generation))
+      )
+      .map(ByteBuffer.wrap)
+
+  private def processBlobContent(blob: com.google.cloud.storage.Blob, content: ByteBuffer): BlobClient.GetResult =
+    Option(blob.getEtag) match {
+      case Some(etag) => BlobClient.ContentWithEtag(content, etag)
+      case None => BlobClient.ContentNoEtag(content)
+    }
+
+  private def handleGcsErrors[F[_]: Sync, A](io: F[A]): F[A] =
+    io.adaptError {
+      case se: StorageException if se.getCode === 412 =>
+        // 412 Precondition Failed - blob changed between metadata and content fetch
+        // This is retryable - the blob exists, it just changed
+        new RetryableFailure {
+          override def getMessage: String = s"Blob generation mismatch (412): ${se.getMessage}"
+          override def getCause: Throwable = se
+        }
+      case bse: BaseServiceException if bse.isRetryable =>
+        new RetryableFailure {
+          override def getMessage: String = bse.getMessage
+          override def getCause: Throwable = bse
         }
     }
 }

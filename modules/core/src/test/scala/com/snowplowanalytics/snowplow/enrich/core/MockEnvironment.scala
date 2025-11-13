@@ -103,8 +103,6 @@ object MockEnvironment {
       state <- Resource.eval(Ref[IO].of(Vector.empty[Action]))
       httpClient <- Resource.eval(mockHttpClient)
       blobClients = List(HttpBlobClient.wrapHttp4sClient(httpClient.mock))
-      assets = Assets.fromEnrichmentConfs(enrichmentsConfs)
-      _ <- Resource.eval(Assets.downloadAssets(assets, blobClients))
       apiEnrichmentClient = CommonHttpClient.fromHttp4sClient[IO](httpClient.mock)
       sqlEC <- SqlExecutionContext.mk[IO]
       enrichmentRegistry <- Coldswap.make(
@@ -115,7 +113,8 @@ object MockEnvironment {
                                 exitOnJsCompileError
                               )
                             )
-      _ <- Resource.eval(enrichmentRegistry.opened.use_)
+      assetRefresher <- AssetRefresher.fromEnrichmentConfs(enrichmentsConfs, blobClients, enrichmentRegistry)
+      _ <- Resource.eval(assetRefresher.refreshAndOpenRegistry)
       igluClient <- Resource.eval(IgluCirceClient.fromResolver(Resolver[IO](Nil, None), 0, 40))
     } yield {
       val env = Environment(
@@ -144,7 +143,7 @@ object MockEnvironment {
         sinkParallelism = 1,
         sinkMaxSize = 1024 * 1024,
         adapterRegistry = testAdapterRegistry,
-        assets = assets,
+        assetRefresher = assetRefresher,
         blobClients = blobClients,
         enrichmentRegistry = enrichmentRegistry,
         igluClient = igluClient,

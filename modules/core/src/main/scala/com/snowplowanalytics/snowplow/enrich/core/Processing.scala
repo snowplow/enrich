@@ -42,7 +42,7 @@ object Processing {
   def stream[F[_]: Async](env: Environment[F]): Stream[F, Nothing] =
     env.source
       .stream(EventProcessingConfig(EventProcessingConfig.NoWindowing, env.metrics.setLatency), eventProcessor(env))
-      .concurrently(Assets.updateStream(env.assets, env.assetsUpdatePeriod, env.enrichmentRegistry, env.blobClients))
+      .concurrently(AssetRefresher.updateStream(env.assetRefresher, env.assetsUpdatePeriod))
 
   private def eventProcessor[F[_]: Async](
     env: Environment[F]

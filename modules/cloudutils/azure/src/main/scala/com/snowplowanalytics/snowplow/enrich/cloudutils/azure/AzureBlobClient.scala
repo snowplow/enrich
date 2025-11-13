@@ -12,69 +12,63 @@ package com.snowplowanalytics.snowplow.enrich.cloudutils.azure
 
 import java.net.URI
 
+import com.azure.core.http.HttpHeaderName
+import com.azure.core.http.rest.Response
+import com.azure.core.util.BinaryData
 import com.azure.identity.DefaultAzureCredentialBuilder
-import com.azure.storage.blob.{BlobServiceAsyncClient, BlobServiceClientBuilder, BlobUrlParts}
+import com.azure.storage.blob.{BlobAsyncClient, BlobServiceAsyncClient, BlobServiceClientBuilder, BlobUrlParts}
+import com.azure.storage.blob.models.{BlobRequestConditions, BlobStorageException}
 
-import blobstore.azure.AzureStore
-import blobstore.url.exception.{MultipleUrlValidationException, Throwables}
-import blobstore.url.{Authority, Path, Url}
-
-import cats.data.Validated.{Invalid, Valid}
 import cats.effect.kernel.{Async, Resource, Sync}
 import cats.implicits._
-
-import fs2.Stream
 
 import com.snowplowanalytics.snowplow.enrich.cloudutils.core._
 
 object AzureBlobClient {
 
-  def client[F[_]: Async](config: AzureStorageConfig): BlobClient[F] =
-    new BlobClient[F] {
+  def client[F[_]: Async](config: AzureStorageConfig): BlobClientFactory[F] =
+    new BlobClientFactory[F] {
       override def canDownload(uri: URI) =
         uri.toString.contains("core.windows.net")
 
-      override def mk: Resource[F, BlobClientImpl[F]] =
-        createStores(config).map { stores =>
-          new BlobClientImpl[F] {
+      override def mk: Resource[F, BlobClient[F]] =
+        createClients(config).map { clients =>
+          new BlobClient[F] {
 
-            override def download(uri: URI): Stream[F, Byte] = {
-              val inputParts = BlobUrlParts.parse(uri.toString)
-              stores.get(inputParts.getAccountName) match {
-                case None =>
-                  Stream.raiseError[F](new Exception(s"AzureStore for storage account name '${inputParts.getAccountName}' isn't found"))
-                case Some(store) =>
-                  Authority
-                    .parse(inputParts.getBlobContainerName)
-                    .map(authority => Url(inputParts.getScheme, authority, Path(inputParts.getBlobName))) match {
-                    case Valid(url) => store.get(url, 16 * 1024)
-                    case Invalid(errors) => Stream.raiseError[F](MultipleUrlValidationException(errors))
+            override def get(uri: URI): F[BlobClient.GetResult] =
+              findMatchingClient(uri, clients).flatMap { blobClient =>
+                Async[F]
+                  .fromCompletableFuture {
+                    Sync[F].delay(blobClient.downloadContentWithResponse(null, null).toFuture)
+                  }
+                  .map(processResponse)
+              }
+
+            override def getIfNeeded(uri: URI, etag: String): F[BlobClient.GetIfNeededResult] =
+              findMatchingClient(uri, clients).flatMap { blobClient =>
+                val conditions = new BlobRequestConditions().setIfNoneMatch(etag)
+
+                Async[F]
+                  .fromCompletableFuture {
+                    Sync[F].delay(blobClient.downloadContentWithResponse(null, conditions).toFuture)
+                  }
+                  .map[BlobClient.GetIfNeededResult](processResponse)
+                  .recoverWith {
+                    case bse: BlobStorageException if bse.getStatusCode === 304 =>
+                      // 304 Not Modified - etag matched
+                      Async[F].pure(BlobClient.EtagMatched)
                   }
               }
-            }
           }
         }
     }
 
-  private def createStores[F[_]: Async](config: AzureStorageConfig): Resource[F, Map[String, AzureStore[F]]] =
+  private def createClients[F[_]: Async](config: AzureStorageConfig): Resource[F, Map[String, BlobServiceAsyncClient]] =
     config.accounts
-      .map { account =>
-        createStore(account).map(store => (account.name, store))
+      .traverse { account =>
+        createClient(account).map(client => (account.name, client))
       }
-      .sequence
       .map(_.toMap)
-
-  private def createStore[F[_]: Async](account: AzureStorageConfig.Account): Resource[F, AzureStore[F]] =
-    for {
-      client <- createClient(account)
-      store <- AzureStore
-                 .builder[F](client)
-                 .build
-                 .fold(
-                   errors => Resource.eval(Sync[F].raiseError(errors.reduce(Throwables.collapsingSemigroup))),
-                   s => Resource.pure[F, AzureStore[F]](s)
-                 )
-    } yield store
 
   private def createClient[F[_]: Sync](account: AzureStorageConfig.Account): Resource[F, BlobServiceAsyncClient] =
     Resource.eval {
@@ -99,4 +93,35 @@ object AzureBlobClient {
 
   private def createStorageEndpoint(storageAccountName: String): String =
     s"https://$storageAccountName.blob.core.windows.net"
+
+  /**
+   * Selects a BlobAsyncClient from the available BlobServiceAsyncClients
+   *
+   *  The returned client is the one matching the storage account for this uri.
+   */
+  private def findMatchingClient[F[_]: Async](
+    uri: URI,
+    clients: Map[String, BlobServiceAsyncClient]
+  ): F[BlobAsyncClient] = {
+    val inputParts = BlobUrlParts.parse(uri.toString)
+    clients.get(inputParts.getAccountName) match {
+      case None =>
+        Async[F].raiseError(new IllegalStateException(s"AzureStore for storage account name '${inputParts.getAccountName}' isn't found"))
+      case Some(serviceClient) =>
+        Async[F].pure(
+          serviceClient
+            .getBlobContainerAsyncClient(inputParts.getBlobContainerName)
+            .getBlobAsyncClient(inputParts.getBlobName)
+        )
+    }
+  }
+
+  private def processResponse(response: Response[BinaryData]): BlobClient.GetResult = {
+    val content = response.getValue.toByteBuffer
+    Option(response.getHeaders.getValue(HttpHeaderName.ETAG)) match {
+      case Some(etag) => BlobClient.ContentWithEtag(content, etag)
+      case None => BlobClient.ContentNoEtag(content)
+    }
+  }
+
 }

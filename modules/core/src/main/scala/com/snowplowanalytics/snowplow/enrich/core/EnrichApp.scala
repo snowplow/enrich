@@ -26,7 +26,7 @@ import org.typelevel.log4cats.slf4j.Slf4jLogger
 import com.snowplowanalytics.snowplow.streams.Factory
 import com.snowplowanalytics.snowplow.runtime.AppInfo
 
-import com.snowplowanalytics.snowplow.enrich.cloudutils.core.BlobClient
+import com.snowplowanalytics.snowplow.enrich.cloudutils.core.BlobClientFactory
 
 abstract class EnrichApp[FactoryConfig: Decoder, SourceConfig: Decoder, SinkConfig: Decoder: OptionalDecoder, BlobClientsConfig: Decoder](
   info: AppInfo
@@ -41,7 +41,7 @@ abstract class EnrichApp[FactoryConfig: Decoder, SourceConfig: Decoder, SinkConf
     Logger[IO].debug(s"Cats Effect measured responsiveness in excess of ${metrics.starvationInterval * metrics.starvationThreshold}")
 
   type FactoryProvider = FactoryConfig => Resource[IO, Factory[IO, SourceConfig, SinkConfig]]
-  type BlobClientsProvider = BlobClientsConfig => List[BlobClient[IO]]
+  type BlobClientsProvider = BlobClientsConfig => List[BlobClientFactory[IO]]
 
   def toFactory: FactoryProvider
   def toBlobClients: BlobClientsProvider

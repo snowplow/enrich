@@ -11,7 +11,7 @@
 package com.snowplowanalytics.snowplow.enrich.core
 
 import scala.collection.JavaConverters._
-import scala.concurrent.duration.DurationInt
+import scala.concurrent.duration.{DurationInt, FiniteDuration}
 
 import java.nio.file.{Files, Path, Paths}
 import java.nio.charset.StandardCharsets
@@ -38,6 +38,11 @@ import com.snowplowanalytics.iglu.core.SelfDescribingData
 
 object Utils {
 
+  // Specs2 framework timeout - total test execution time
+  val TestTimeout: FiniteDuration = 10.minutes
+  // Stream processing timeout - should be less than TestTimeout to allow time for cleanup and assertions
+  val StreamTimeout: FiniteDuration = TestTimeout - 1.minute
+
   case class Output(
     enriched: List[Event],
     failed: List[Event],
@@ -56,7 +61,8 @@ object Utils {
     nbEnriched: Long,
     nbBad: Long,
     nbGoodDrop: Long = 0L,
-    nbBadDrop: Long = 0L
+    nbBadDrop: Long = 0L,
+    timeout: FiniteDuration = StreamTimeout
   ): IO[Output] = {
     def streams(
       ref: Ref[IO, Output],
@@ -86,7 +92,7 @@ object Utils {
     for {
       ref <- Ref.of[IO, Output](Output.empty)
       input = CollectorPayloadGen.generate[IO](nbEnriched, nbBad, nbGoodDrop, nbBadDrop)
-      _ <- streams(ref, factory, input).interruptAfter(5.minutes).compile.drain
+      _ <- streams(ref, factory, input).interruptAfter(timeout).compile.drain
       output <- ref.get
     } yield output
   }

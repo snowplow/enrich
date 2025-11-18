@@ -12,8 +12,6 @@ package com.snowplowanalytics.snowplow.enrich.kinesis
 
 import java.util.UUID
 
-import scala.concurrent.duration._
-
 import cats.effect.IO
 import cats.effect.kernel.Resource
 
@@ -22,6 +20,7 @@ import cats.effect.testing.specs2.CatsResource
 import org.specs2.mutable.SpecificationLike
 
 import com.snowplowanalytics.snowplow.enrich.core.DockerPull
+import com.snowplowanalytics.snowplow.enrich.core.Utils
 
 import com.snowplowanalytics.snowplow.enrich.kinesis.enrichments._
 
@@ -29,7 +28,7 @@ class EnrichKinesisSpec extends CatsResource[IO, Localstack] with SpecificationL
 
   import utils._
 
-  override protected val Timeout = 10.minutes
+  override protected val Timeout = Utils.TestTimeout
 
   override def beforeAll(): Unit = {
     DockerPull.pull(Containers.Images.Localstack.image, Containers.Images.Localstack.tag)

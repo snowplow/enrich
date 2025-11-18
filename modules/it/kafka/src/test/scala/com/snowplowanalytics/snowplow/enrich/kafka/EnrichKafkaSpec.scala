@@ -18,12 +18,13 @@ import cats.effect.kernel.Resource
 import cats.effect.testing.specs2.CatsResource
 
 import com.snowplowanalytics.snowplow.enrich.core.DockerPull
+import com.snowplowanalytics.snowplow.enrich.core.Utils
 
 import org.specs2.mutable.SpecificationLike
 
 class EnrichKafkaSpec extends CatsResource[IO, EnrichKafka] with SpecificationLike {
 
-  override protected val Timeout = 10.minutes
+  override protected val Timeout = Utils.TestTimeout
   override protected val ResourceTimeout = 2.minutes
 
   override def beforeAll(): Unit = {

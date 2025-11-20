@@ -28,6 +28,7 @@ import cats.effect.testing.specs2.CatsEffect
 import com.snowplowanalytics.snowplow.streams.kinesis.{
   BackoffPolicy,
   KinesisFactory,
+  KinesisFactoryConfig,
   KinesisSinkConfig,
   KinesisSinkConfigM,
   KinesisSourceConfig
@@ -50,7 +51,7 @@ object utils extends CatsEffect {
     val failedSourceConfig = sourceConfig(enrichKinesis.localstack.host, enrichKinesis.localstack.mappedPort, enrichKinesis.failedStream)
     val badSourceConfig = sourceConfig(enrichKinesis.localstack.host, enrichKinesis.localstack.mappedPort, enrichKinesis.badStream)
 
-    KinesisFactory.resource[IO].use { factory =>
+    KinesisFactory.resource[IO](KinesisFactoryConfig(None)).use { factory =>
       Utils.runEnrichPipe(
         factory,
         rawSinkConfig,

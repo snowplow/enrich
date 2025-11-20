@@ -32,7 +32,7 @@ import com.comcast.ip4s.Port
 import com.snowplowanalytics.snowplow.runtime.Metrics.StatsdConfig
 import com.snowplowanalytics.snowplow.runtime.{AcceptedLicense, ConfigParser, Retrying, Telemetry}
 
-import com.snowplowanalytics.snowplow.streams.kinesis.{BackoffPolicy, KinesisSinkConfig, KinesisSinkConfigM, KinesisSourceConfig}
+import com.snowplowanalytics.snowplow.streams.kinesis.{BackoffPolicy, KinesisSinkConfig, KinesisSinkConfigM, KinesisSourceConfig, KinesisFactoryConfig}
 
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.{adaptersSchemas, atomicFieldLimitsDefaults}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
@@ -67,17 +67,17 @@ class KinesisConfigSpec extends Specification with CatsEffect {
 
   private def assert(
     resource: String,
-    expectedResult: Either[ExitCode, Config[EmptyConfig, KinesisSourceConfig, KinesisSinkConfig, EmptyConfig]]
+    expectedResult: Either[ExitCode, Config[KinesisFactoryConfig, KinesisSourceConfig, KinesisSinkConfig, EmptyConfig]]
   ) = {
     val path = Paths.get(getClass.getResource(resource).toURI)
-    ConfigParser.configFromFile[IO, Config[EmptyConfig, KinesisSourceConfig, KinesisSinkConfig, EmptyConfig]](path).value.map { result =>
+    ConfigParser.configFromFile[IO, Config[KinesisFactoryConfig, KinesisSourceConfig, KinesisSinkConfig, EmptyConfig]](path).value.map { result =>
       result must beEqualTo(expectedResult)
     }
   }
 }
 
 object KinesisConfigSpec {
-  private val minimalConfig = Config[EmptyConfig, KinesisSourceConfig, KinesisSinkConfig, EmptyConfig](
+  private val minimalConfig = Config[KinesisFactoryConfig, KinesisSourceConfig, KinesisSinkConfig, EmptyConfig](
     license = AcceptedLicense(),
     input = KinesisSourceConfig(
       appName = "snowplow-enrich",
@@ -122,7 +122,7 @@ object KinesisConfigSpec {
         attributes = Nil
       )
     ),
-    streams = EmptyConfig(),
+    streams = KinesisFactoryConfig(awsUserAgent = None),
     cpuParallelismFraction = BigDecimal(1),
     sinkParallelismFraction = BigDecimal(2),
     monitoring = Config.Monitoring(
@@ -153,7 +153,7 @@ object KinesisConfigSpec {
     decompression = Config.Decompression(5242880, 10000000)
   )
 
-  private val referenceConfig = Config[EmptyConfig, KinesisSourceConfig, KinesisSinkConfig, EmptyConfig](
+  private val referenceConfig = Config[KinesisFactoryConfig, KinesisSourceConfig, KinesisSinkConfig, EmptyConfig](
     license = AcceptedLicense(),
     input = KinesisSourceConfig(
       appName = "snowplow-enrich",
@@ -212,7 +212,7 @@ object KinesisConfigSpec {
         attributes = Nil
       )
     ),
-    streams = EmptyConfig(),
+    streams = KinesisFactoryConfig(awsUserAgent = None),
     cpuParallelismFraction = BigDecimal(1),
     sinkParallelismFraction = BigDecimal(2),
     monitoring = Config.Monitoring(

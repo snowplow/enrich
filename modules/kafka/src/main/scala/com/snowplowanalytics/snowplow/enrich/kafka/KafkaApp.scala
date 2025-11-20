@@ -29,6 +29,6 @@ object KafkaApp extends EnrichApp[EmptyConfig, KafkaSourceConfig, KafkaSinkConfi
       List(
         AzureBlobClient.client[IO](c),
         GcsBlobClient.client[IO],
-        S3BlobClient.client[IO]
+        S3BlobClient.client[IO](S3BlobClient.Config(awsUserAgent = None))
       )
 }

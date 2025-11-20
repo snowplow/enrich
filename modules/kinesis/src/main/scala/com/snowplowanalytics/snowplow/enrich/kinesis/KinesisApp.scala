@@ -18,9 +18,9 @@ import com.snowplowanalytics.snowplow.enrich.cloudutils.aws.S3BlobClient
 
 import com.snowplowanalytics.snowplow.enrich.core.EnrichApp
 
-object KinesisApp extends EnrichApp[KinesisFactoryConfig, KinesisSourceConfig, KinesisSinkConfig, EmptyConfig](BuildInfo) {
+object KinesisApp extends EnrichApp[KinesisFactoryConfig, KinesisSourceConfig, KinesisSinkConfig, S3BlobClient.Config](BuildInfo) {
 
   override def toFactory: FactoryProvider = KinesisFactory.resource[IO](_)
 
-  override def toBlobClients: BlobClientsProvider = _ => List(S3BlobClient.client[IO])
+  override def toBlobClients: BlobClientsProvider = c => List(S3BlobClient.client[IO](c))
 }

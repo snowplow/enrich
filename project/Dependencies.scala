@@ -253,7 +253,8 @@ object Dependencies {
     )
 
     val awsUtilsDependencies = Seq(
-      s3
+      s3,
+      circeGeneric
     )
 
     val gcpUtilsDependencies = Seq(

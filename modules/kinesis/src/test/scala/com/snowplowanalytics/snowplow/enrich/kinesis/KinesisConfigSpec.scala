@@ -32,12 +32,20 @@ import com.comcast.ip4s.Port
 import com.snowplowanalytics.snowplow.runtime.Metrics.StatsdConfig
 import com.snowplowanalytics.snowplow.runtime.{AcceptedLicense, ConfigParser, Retrying, Telemetry}
 
-import com.snowplowanalytics.snowplow.streams.kinesis.{BackoffPolicy, KinesisSinkConfig, KinesisSinkConfigM, KinesisSourceConfig, KinesisFactoryConfig}
+import com.snowplowanalytics.snowplow.streams.kinesis.{
+  BackoffPolicy,
+  KinesisFactoryConfig,
+  KinesisSinkConfig,
+  KinesisSinkConfigM,
+  KinesisSourceConfig
+}
 
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.{adaptersSchemas, atomicFieldLimitsDefaults}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent.atomicFieldsByName
 import com.snowplowanalytics.snowplow.enrich.common.utils.JsonPath
+
+import com.snowplowanalytics.snowplow.enrich.cloudutils.aws.S3BlobClient
 
 import com.snowplowanalytics.snowplow.enrich.core.Config
 
@@ -67,17 +75,20 @@ class KinesisConfigSpec extends Specification with CatsEffect {
 
   private def assert(
     resource: String,
-    expectedResult: Either[ExitCode, Config[KinesisFactoryConfig, KinesisSourceConfig, KinesisSinkConfig, EmptyConfig]]
+    expectedResult: Either[ExitCode, Config[KinesisFactoryConfig, KinesisSourceConfig, KinesisSinkConfig, S3BlobClient.Config]]
   ) = {
     val path = Paths.get(getClass.getResource(resource).toURI)
-    ConfigParser.configFromFile[IO, Config[KinesisFactoryConfig, KinesisSourceConfig, KinesisSinkConfig, EmptyConfig]](path).value.map { result =>
-      result must beEqualTo(expectedResult)
-    }
+    ConfigParser
+      .configFromFile[IO, Config[KinesisFactoryConfig, KinesisSourceConfig, KinesisSinkConfig, S3BlobClient.Config]](path)
+      .value
+      .map { result =>
+        result must beEqualTo(expectedResult)
+      }
   }
 }
 
 object KinesisConfigSpec {
-  private val minimalConfig = Config[KinesisFactoryConfig, KinesisSourceConfig, KinesisSinkConfig, EmptyConfig](
+  private val minimalConfig = Config[KinesisFactoryConfig, KinesisSourceConfig, KinesisSinkConfig, S3BlobClient.Config](
     license = AcceptedLicense(),
     input = KinesisSourceConfig(
       appName = "snowplow-enrich",
@@ -148,12 +159,12 @@ object KinesisConfigSpec {
     ),
     metadata = None,
     identity = None,
-    blobClients = EmptyConfig(),
+    blobClients = S3BlobClient.Config(awsUserAgent = None),
     adaptersSchemas = adaptersSchemas,
     decompression = Config.Decompression(5242880, 10000000)
   )
 
-  private val referenceConfig = Config[KinesisFactoryConfig, KinesisSourceConfig, KinesisSinkConfig, EmptyConfig](
+  private val referenceConfig = Config[KinesisFactoryConfig, KinesisSourceConfig, KinesisSinkConfig, S3BlobClient.Config](
     license = AcceptedLicense(),
     input = KinesisSourceConfig(
       appName = "snowplow-enrich",
@@ -307,7 +318,7 @@ object KinesisConfigSpec {
         )
       )
     ),
-    blobClients = EmptyConfig(),
+    blobClients = S3BlobClient.Config(awsUserAgent = None),
     adaptersSchemas = adaptersSchemas,
     decompression = Config.Decompression(5242880, 10000000)
   )

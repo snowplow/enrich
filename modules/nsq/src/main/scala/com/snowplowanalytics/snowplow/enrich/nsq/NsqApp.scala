@@ -29,6 +29,6 @@ object NsqApp extends EnrichApp[EmptyConfig, NsqSourceConfig, NsqSinkConfig, Azu
       List(
         AzureBlobClient.client[IO](c),
         GcsBlobClient.client[IO],
-        S3BlobClient.client[IO]
+        S3BlobClient.client[IO](S3BlobClient.Config(awsUserAgent = None))
       )
 }

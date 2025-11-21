@@ -16,27 +16,20 @@ import java.nio.ByteBuffer
 import cats.implicits._
 import cats.effect.kernel.{Async, Resource, Sync}
 
-import io.circe.Decoder
-import io.circe.generic.semiauto._
-
 import software.amazon.awssdk.services.s3.S3AsyncClient
 import software.amazon.awssdk.services.s3.model.{GetObjectRequest, GetObjectResponse, S3Exception}
 import software.amazon.awssdk.awscore.defaultsmode.DefaultsMode
 import software.amazon.awssdk.core.async.AsyncResponseTransformer
-import software.amazon.awssdk.core.ResponseBytes
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption
+import software.amazon.awssdk.core.ResponseBytes
 
 import com.snowplowanalytics.snowplow.enrich.cloudutils.core._
 
 object S3BlobClient {
 
-  case class Config(awsUserAgent: Option[String])
+  val AWS_USER_AGENT = "APN/1.1 (ak035lu2m8ge2f9qx90duo3ww)"
 
-  object Config {
-    implicit val s3BlobClientConfigDecoder: Decoder[Config] = deriveDecoder[Config]
-  }
-
-  def client[F[_]: Async](config: Config): BlobClientFactory[F] =
+  def client[F[_]: Async]: BlobClientFactory[F] =
     new BlobClientFactory[F] {
       override def canDownload(uri: URI) =
         uri.getScheme === "s3"
@@ -49,7 +42,7 @@ object S3BlobClient {
                             .builder()
                             .defaultsMode(DefaultsMode.AUTO)
                             .overrideConfiguration { c =>
-                              config.awsUserAgent.foreach(ua => c.putAdvancedOption(SdkAdvancedClientOption.USER_AGENT_SUFFIX, ua))
+                              c.putAdvancedOption(SdkAdvancedClientOption.USER_AGENT_PREFIX, AWS_USER_AGENT)
                               ()
                             }
                             .build()

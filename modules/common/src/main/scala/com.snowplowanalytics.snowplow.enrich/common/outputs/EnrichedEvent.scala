@@ -249,6 +249,10 @@ class EnrichedEvent extends Serializable {
   private[enrich] var derived_contexts: List[SelfDescribingData[Json]] = Nil
   private[enrich] var pii: Option[SelfDescribingData[Json]] = None
 
+  // Flags indicating if an enrichment updated unstruct_event or contexts fields, for re-validation
+  private[enrich] var unstruct_event_got_updated = false
+  private[enrich] var contexts_got_updated = false
+
   // Specifies whether derived contexts only from JS enrichment should be used
   // and all the other derived contexts should be ignored
   private[enrich] var use_derived_contexts_from_js_enrichment_only: JBoolean = _
@@ -271,16 +275,21 @@ class EnrichedEvent extends Serializable {
     this.contexts = Option(strOrNull)
       .map { str =>
         decode[SelfDescribingData[List[SelfDescribingData[Json]]]](str) match {
-          case Right(sdj) => sdj.data
+          case Right(sdj) =>
+            contexts_got_updated = this.contexts != sdj.data
+            sdj.data
           case Left(e) => throw new IllegalArgumentException("invalid contexts json", e)
         }
       }
       .getOrElse(Nil)
 
+  // It is allowed to nullify unstruct_event field
   def setUnstruct_event(strOrNull: String): Unit =
     this.unstruct_event = Option(strOrNull).map { str =>
       decode[SelfDescribingData[SelfDescribingData[Json]]](str) match {
-        case Right(sdj) => sdj.data
+        case Right(sdj) =>
+          unstruct_event_got_updated = !this.unstruct_event.contains(sdj.data)
+          sdj.data
         case Left(e) => throw new IllegalArgumentException("invalid unstruct_event json", e)
       }
     }
@@ -313,7 +322,15 @@ object EnrichedEvent {
   private[enrich] val atomicFields: List[Field] =
     classOf[EnrichedEvent].getDeclaredFields
       .filterNot(f =>
-        Set("pii", "contexts", "unstruct_event", "derived_contexts", "use_derived_contexts_from_js_enrichment_only").contains(f.getName)
+        Set(
+          "pii",
+          "contexts",
+          "unstruct_event",
+          "derived_contexts",
+          "unstruct_event_got_updated",
+          "contexts_got_updated",
+          "use_derived_contexts_from_js_enrichment_only"
+        ).contains(f.getName)
       )
       .map { f =>
         f.setAccessible(true)

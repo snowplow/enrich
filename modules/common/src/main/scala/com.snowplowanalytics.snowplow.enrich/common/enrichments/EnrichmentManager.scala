@@ -16,7 +16,7 @@ import java.time.Instant
 import org.joda.time.DateTime
 import io.circe.Json
 import cats.{Applicative, Monad}
-import cats.data.{EitherT, IorT, NonEmptyList, OptionT, StateT}
+import cats.data.{EitherT, Ior, IorT, NonEmptyList, OptionT, StateT}
 import cats.implicits._
 import cats.effect.kernel.{Clock, Sync}
 
@@ -74,21 +74,17 @@ object EnrichmentManager {
   ): OptionIorT[F, BadRow, EnrichedEvent] = {
     def enrich(enriched: EnrichedEvent): OptionIorT[F, NonEmptyList[NonEmptyList[Failure]], List[SelfDescribingData[Json]]] =
       for {
-        extractResult <- mapAndValidateInput(
-                           raw,
-                           enriched,
-                           etlTstamp,
-                           processor,
-                           client,
-                           registryLookup,
-                           maxJsonDepth
-                         )
-                           .leftMap(NonEmptyList.one)
-                           .toOptionIorT
-        _ = {
-          enriched.contexts = extractResult.contexts
-          enriched.unstruct_event = extractResult.unstructEvent
-        }
+        validationInfo <- mapAndValidateInput(
+                            raw,
+                            enriched,
+                            etlTstamp,
+                            processor,
+                            client,
+                            registryLookup,
+                            maxJsonDepth
+                          )
+                            .leftMap(NonEmptyList.one)
+                            .toOptionIorT
         enrichmentsContexts <- runEnrichments(
                                  registry,
                                  raw,
@@ -97,20 +93,21 @@ object EnrichmentManager {
                                  Instant.ofEpochMilli(etlTstamp.getMillis)
                                )
                                  .leftMap(NonEmptyList.one)
-        validContexts <- validateEnriched(
-                           enriched,
-                           enrichmentsContexts,
-                           client,
-                           registryLookup,
-                           featureFlags.acceptInvalid,
-                           invalidCount,
-                           atomicFields,
-                           emitIncomplete,
-                           Instant.ofEpochMilli(etlTstamp.getMillis)
-                         )
-                           .leftMap(NonEmptyList.one)
-                           .toOptionIorT
-        derivedContexts = validContexts ::: extractResult.validationInfoContexts
+        derivedContexts <- validateEnriched(
+                             enriched,
+                             enrichmentsContexts,
+                             validationInfo,
+                             client,
+                             registryLookup,
+                             featureFlags.acceptInvalid,
+                             invalidCount,
+                             atomicFields,
+                             emitIncomplete,
+                             Instant.ofEpochMilli(etlTstamp.getMillis)
+                           )
+                             .leftMap(NonEmptyList.one)
+                             .leftWiden[NonEmptyList[NonEmptyList[Failure]]]
+                             .toOptionIorT
       } yield derivedContexts
 
     // derived contexts are set lastly because we want to include failure entities
@@ -184,6 +181,9 @@ object EnrichmentManager {
     enriched.derived_contexts = derivedContexts
   }
 
+  /**
+   * @return List of validation_info SDJs used to validate the input SDJs (can be empty)
+   */
   private def mapAndValidateInput[F[_]: Sync](
     raw: RawEvent,
     enrichedEvent: EnrichedEvent,
@@ -192,15 +192,21 @@ object EnrichmentManager {
     client: IgluCirceClient[F],
     registryLookup: RegistryLookup[F],
     maxJsonDepth: Int
-  ): IorT[F, NonEmptyList[Failure], IgluUtils.EventExtractResult] =
+  ): IorT[F, NonEmptyList[Failure], List[SelfDescribingData[Json]]] =
     for {
       igluInputs <- setupEnrichedEvent[F](raw, enrichedEvent, etlTstamp, processor)
                       .leftMap(NonEmptyList.one)
-      extract <-
-        IgluUtils
-          .extractAndValidateInputJsons(igluInputs, client, registryLookup, maxJsonDepth, Instant.ofEpochMilli(etlTstamp.getMillis))
-          .leftMap { l: NonEmptyList[Failure] => l }
-    } yield extract
+      sdjs <- IgluUtils
+                .parseAndValidateInput(igluInputs, client, registryLookup, maxJsonDepth, Instant.ofEpochMilli(etlTstamp.getMillis))
+                .leftMap { l: NonEmptyList[Failure] => l }
+      (maybeUnstruct, maybeContexts) = sdjs
+      _ = {
+        enrichedEvent.unstruct_event = maybeUnstruct.map(_.unstruct.sdj)
+        maybeContexts.foreach(c => enrichedEvent.contexts = c.contexts.map(_.sdj).toList)
+      }
+      unstructValidationInfo = maybeUnstruct.flatMap(_.unstruct.validationInfo.map(_.toSdj)).toList
+      contextsValidationInfo = maybeContexts.map(_.contexts.toList.flatMap(_.validationInfo.map(_.toSdj))).toList.flatten
+    } yield unstructValidationInfo ++ contextsValidationInfo
 
   /**
    * Run all the enrichments
@@ -233,9 +239,14 @@ object EnrichmentManager {
         }
     }
 
+  /**
+   * @return Valid derived contexts in the `Right`, including validation_info SDJs used for validation.
+   *   `SchemaViolation`s in the `Left`.
+   */
   private def validateEnriched[F[_]: Clock: Monad](
     enriched: EnrichedEvent,
     enrichmentsContexts: List[SelfDescribingData[Json]],
+    inputValidationInfo: List[SelfDescribingData[Json]],
     client: IgluCirceClient[F],
     registryLookup: RegistryLookup[F],
     acceptInvalid: Boolean,
@@ -243,13 +254,41 @@ object EnrichmentManager {
     atomicFields: AtomicFields,
     emitIncomplete: Boolean,
     etlTstamp: Instant
-  ): IorT[F, NonEmptyList[Failure], List[SelfDescribingData[Json]]] =
+  ): IorT[F, NonEmptyList[Failure.SchemaViolation], List[SelfDescribingData[Json]]] =
     for {
-      validContexts <- IgluUtils.validateEnrichmentsContexts[F](client, enrichmentsContexts, registryLookup, etlTstamp)
+      validContexts <- IgluUtils.validateSDJs[F](client, enrichmentsContexts, registryLookup, "derived_contexts", etlTstamp)
       _ <- AtomicFieldsLengthValidator
              .validate[F](enriched, acceptInvalid, invalidCount, atomicFields, emitIncomplete, etlTstamp)
-             .leftMap { v: Failure => NonEmptyList.one(v) }
-    } yield validContexts
+             .leftMap(NonEmptyList.one)
+      // Validate unstruct_event in case it got updated by an enrichment
+      unstructValidationInfo <- enriched.unstruct_event match {
+                                  case Some(sdj) if enriched.unstruct_event_got_updated =>
+                                    IgluUtils
+                                      .validateSDJ(client, sdj, registryLookup, "unstruct", etlTstamp)
+                                      .leftMap { e =>
+                                        enriched.unstruct_event = None // Unset if invalid
+                                        NonEmptyList.one(e)
+                                      }
+                                      .map(_.validationInfo.map(_.toSdj).toList)
+                                      .toIor
+                                      .recoverWith { case errors => IorT.fromIor[F](Ior.Both(errors, Nil)) }
+                                  case _ =>
+                                    IorT.rightT[F, NonEmptyList[Failure.SchemaViolation]](List.empty[SelfDescribingData[Json]])
+                                }
+      // Validate contexts field in case it got updated by an enrichment
+      contextsValidationInfo <- if (enriched.contexts_got_updated)
+                                  IgluUtils
+                                    .validateSDJs(client, enriched.contexts, registryLookup, "contexts", etlTstamp)
+                                    .map { valid =>
+                                      enriched.contexts = valid.map(_.sdj) // Keep only valid contexts
+                                      valid.flatMap(_.validationInfo.map(_.toSdj))
+                                    }
+                                else
+                                  IorT.rightT[F, NonEmptyList[Failure.SchemaViolation]](List.empty[SelfDescribingData[Json]])
+      validationInfo = (inputValidationInfo ++ unstructValidationInfo ++ contextsValidationInfo ++
+                           validContexts.flatMap(_.validationInfo.map(_.toSdj))).distinct
+      derivedContexts = validContexts.map(_.sdj) ++ validationInfo
+    } yield derivedContexts
 
   private[enrichments] sealed trait Accumulation extends Product with Serializable
 

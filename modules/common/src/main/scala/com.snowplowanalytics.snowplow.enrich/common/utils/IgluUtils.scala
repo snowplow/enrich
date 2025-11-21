@@ -21,7 +21,7 @@ import io.circe._
 import io.circe.syntax._
 import io.circe.generic.semiauto._
 
-import com.snowplowanalytics.iglu.client.{ClientError, IgluCirceClient}
+import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
@@ -32,144 +32,135 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.Failure
 import com.snowplowanalytics.snowplow.badrows._
 
 /**
- * Contain the functions to validate:
- *  - An unstructured event,
- *  - The input contexts of an event,
- *  - The contexts added by the enrichments.
+ * Contains the functions to validate the SDJs attached to an event:
+ *  - Unstruct event
+ *  - Contexts/entities
+ *  - Derived contexts (added by enrichments)
  */
 object IgluUtils {
 
+  case class ValidSDJ(
+    sdj: SelfDescribingData[Json],
+    validationInfo: Option[ValidationInfo]
+  )
+
+  case class Unstruct(unstruct: ValidSDJ)
+
+  case class Contexts(contexts: NonEmptyList[ValidSDJ])
+
+  case class ValidationInfo(originalSchema: SchemaKey, validatedWith: SchemaVer.Full) {
+    def toSdj: SelfDescribingData[Json] =
+      SelfDescribingData(ValidationInfo.schemaKey, (this: ValidationInfo).asJson)
+  }
+
+  object ValidationInfo {
+    val schemaKey = SchemaKey("com.snowplowanalytics.iglu", "validation_info", "jsonschema", SchemaVer.Full(1, 0, 0))
+
+    implicit val schemaVerFullEncoder: Encoder[SchemaVer.Full] =
+      Encoder.encodeString.contramap(v => v.asString)
+
+    implicit val validationInfoEncoder: Encoder[ValidationInfo] =
+      deriveEncoder[ValidationInfo]
+  }
+
   /**
-   * Extract unstructured event (if any) and input contexts (if any) from input event
-   * and validate them against their schema
-   * @param inputs Contain the input Jsons
-   * @param client Iglu client used to validate the SDJs
-   * @param raw Raw input event, used only to put in the bad row in case of problem
-   * @param processor Meta data to put in the bad row
-   * @return Every SDJ that is invalid is in the Left part of the Ior
-   *         while everything that is valid is in the Right part.
+   *  @param unstructEvent Raw string extracted from tracker payload, i.e. ue_pr or ue_px tracker field
+   *  @param contexts Raw string extracted from tracker payload, i.e. co or cx tracker field
    */
-  def extractAndValidateInputJsons[F[_]: Monad: Clock](
-    inputs: EventExtractInput,
+  case class EventExtractInput(
+    unstructEvent: Option[String],
+    contexts: Option[String]
+  )
+
+  /**
+   * Parse and validate unstruct event and contexts, if any
+   * @return `SchemaViolation`s for invalid SDJs in the `Left`.
+   * Valid unstruct event and valid contexts in the `Right`, if any
+   */
+  def parseAndValidateInput[F[_]: Monad: Clock](
+    input: EventExtractInput,
     client: IgluCirceClient[F],
     registryLookup: RegistryLookup[F],
     maxJsonDepth: Int,
     etlTstamp: Instant
-  ): IorT[F, NonEmptyList[Failure.SchemaViolation], EventExtractResult] =
+  ): IorT[F, NonEmptyList[Failure.SchemaViolation], (Option[Unstruct], Option[Contexts])] =
     for {
-      contexts <- extractAndValidateInputContexts(inputs, client, registryLookup, maxJsonDepth, etlTstamp)
-      unstruct <- extractAndValidateUnstructEvent(inputs, client, registryLookup, maxJsonDepth, etlTstamp)
-    } yield {
-      val validationInfoContexts = (contexts.flatMap(_.validationInfo) ::: unstruct.flatMap(_.validationInfo).toList).distinct
-        .map(_.toSdj)
-      EventExtractResult(contexts = contexts.map(_.sdj),
-                         unstructEvent = unstruct.map(_.sdj),
-                         validationInfoContexts = validationInfoContexts
-      )
-    }
+      unstruct <- parseAndValidateUnstruct(input.unstructEvent, client, registryLookup, maxJsonDepth, etlTstamp)
+      contexts <- parseAndValidateContexts(input.contexts, client, registryLookup, maxJsonDepth, etlTstamp)
+    } yield (unstruct, contexts)
 
   /**
-   * Extract unstructured event from event and validate against its schema
-   *  @param inputs Self-describing JSONs as the original strings
-   *  @param client Iglu client used for SDJ validation
-   *  @param field Name of the field containing the unstructured event, to put in the bad row
-   *               in case of failure
-   *  @param criterion Expected schema for the JSON containing the unstructured event
-   *  @return Valid unstructured event if the input event has one
+   * Parse and validate unstruct event, if any
+   * @return 3 cases:
+   * - Valid unstruct event: `Right` with `Unstruct` wrapping the valid SDJ
+   * - Not an unstruct event: `Right` with `None`
+   * - Invalid unstruct event: `Both` with `SchemaViolation` in the `Left` and `None` in the `Right`
    */
-  private[common] def extractAndValidateUnstructEvent[F[_]: Monad: Clock](
-    inputs: EventExtractInput,
+  private[common] def parseAndValidateUnstruct[F[_]: Monad: Clock](
+    maybeUnstruct: Option[String],
     client: IgluCirceClient[F],
     registryLookup: RegistryLookup[F],
     maxJsonDepth: Int,
-    etlTstamp: Instant,
-    field: String = "unstruct",
-    criterion: SchemaCriterion = SchemaCriterion("com.snowplowanalytics.snowplow", "unstruct_event", "jsonschema", 1, 0)
-  ): IorT[F, NonEmptyList[Failure.SchemaViolation], Option[SdjExtractResult]] =
-    inputs.unstructEvent match {
-      case Some(rawUnstructEvent) =>
+    etlTstamp: Instant
+  ): IorT[F, NonEmptyList[Failure.SchemaViolation], Option[Unstruct]] =
+    maybeUnstruct match {
+      case Some(unstructStr) =>
+        val field = "unstruct"
+        val criterion = SchemaCriterion("com.snowplowanalytics.snowplow", "unstruct_event", "jsonschema", 1, 0)
+
         val iorT = for {
-          // Validate input Json string and extract unstructured event
-          unstruct <- extractInputData(rawUnstructEvent, field, criterion, client, registryLookup, maxJsonDepth, etlTstamp)
-                        .leftMap(NonEmptyList.one)
-                        .toIor
-          // Parse Json unstructured event as SelfDescribingData[Json]
-          unstructSDJ <- parseAndValidateSDJ(unstruct, client, registryLookup, field, etlTstamp)
-        } yield unstructSDJ.some
+          // Parse input JSON string and extract unstruct event
+          json <- extractInputData(unstructStr, field, criterion, client, registryLookup, maxJsonDepth, etlTstamp)
+                    .leftMap(NonEmptyList.one)
+                    .toIor
+          // Decode unstruct_event Json as SelfDescribingData[Json] and validate it
+          valid <- decodeAndValidateSDJ(json, client, registryLookup, field, etlTstamp)
+        } yield Unstruct(valid).some
         iorT.recoverWith { case errors => IorT.fromIor[F](Ior.Both(errors, None)) }
       case None =>
-        IorT.rightT[F, NonEmptyList[Failure.SchemaViolation]](none[SdjExtractResult])
+        IorT.rightT[F, NonEmptyList[Failure.SchemaViolation]](None)
     }
 
   /**
-   * Extract list of custom contexts from event and validate each against its schema
-   *  @param inputs Raw strings extracted from the tracker payload
-   *  @param client Iglu client used for SDJ validation
-   *  @param field Name of the field containing the contexts, to put in the bad row
-   *               in case of failure
-   *  @param criterion Expected schema for the JSON containing the contexts
-   *  @return All valid contexts are in the Right while all errors are in the Left
+   * Parse and validate contexts/entities, if any
+   * @return 3 cases:
+   * - All contexts valid: `Right` with `Contexts` wrapping the valid SDJs
+   * - No context: `Right` with `None`
+   * - Some contexts invalid: `Both` with `SchemaViolation`s in the `Left` and valid contexts in the `Right`, if any
    */
-  private[common] def extractAndValidateInputContexts[F[_]: Monad: Clock](
-    inputs: EventExtractInput,
+  private[common] def parseAndValidateContexts[F[_]: Monad: Clock](
+    maybeContexts: Option[String],
     client: IgluCirceClient[F],
     registryLookup: RegistryLookup[F],
     maxJsonDepth: Int,
-    etlTstamp: Instant,
-    field: String = "contexts",
-    criterion: SchemaCriterion = SchemaCriterion("com.snowplowanalytics.snowplow", "contexts", "jsonschema", 1, 0)
-  ): IorT[F, NonEmptyList[Failure.SchemaViolation], List[SdjExtractResult]] =
-    inputs.contexts match {
-      case Some(rawContexts) =>
+    etlTstamp: Instant
+  ): IorT[F, NonEmptyList[Failure.SchemaViolation], Option[Contexts]] =
+    maybeContexts match {
+      case Some(contextsStr) =>
+        val field = "contexts"
+        val criterion = SchemaCriterion("com.snowplowanalytics.snowplow", "contexts", "jsonschema", 1, 0)
+
         val iorT = for {
-          // Validate input Json string and extract contexts
-          contexts <- extractInputData(rawContexts, field, criterion, client, registryLookup, maxJsonDepth, etlTstamp)
-                        .map(_.asArray.get.toList) // .get OK because SDJ wrapping the contexts valid
-                        .leftMap(NonEmptyList.one)
-                        .toIor
-          // Parse and validate each SDJ and merge the errors
-          contextsSdj <- contexts
-                           .traverse(
-                             parseAndValidateSDJ(_, client, registryLookup, field, etlTstamp)
-                               .map(sdj => List(sdj))
-                               .recoverWith { case errors => IorT.fromIor[F](Ior.Both(errors, Nil)) }
-                           )
-                           .map(_.flatten)
-        } yield contextsSdj
-        iorT.recoverWith { case errors => IorT.fromIor[F](Ior.Both(errors, Nil)) }
+          // Parse input JSON string and extract contexts
+          jsons <- extractInputData(contextsStr, field, criterion, client, registryLookup, maxJsonDepth, etlTstamp)
+                     .map(_.asArray.get.toList) // .get OK because SDJ wrapping the contexts valid
+                     .leftMap(NonEmptyList.one)
+                     .toIor
+          // Decode contexts Jsons as SelfDescribingData[Json] and validate them
+          valid <- jsons
+                     .traverse(
+                       decodeAndValidateSDJ(_, client, registryLookup, field, etlTstamp)
+                         .map(sdj => List(sdj))
+                         .recoverWith { case errors => IorT.fromIor[F](Ior.Both(errors, Nil)) }
+                     )
+                     .map(_.flatten.toNel.map(Contexts(_)))
+        } yield valid
+        iorT.recoverWith { case errors => IorT.fromIor[F](Ior.Both(errors, None)) }
       case None =>
-        IorT.rightT[F, NonEmptyList[Failure.SchemaViolation]](Nil)
+        IorT.rightT[F, NonEmptyList[Failure.SchemaViolation]](None)
     }
 
-  /**
-   * Validate each context added by the enrichments against its schema
-   *  @param client Iglu client used for SDJ validation
-   *  @param sdjs List of enrichments contexts to be added to the enriched event
-   *  @param raw Input event to put in the bad row if at least one context is invalid
-   *  @param processor Meta data for the bad row
-   *  @param enriched Partially enriched event to put in the bad row
-   *  @return All valid contexts are in the Right while all errors are in the Left
-   */
-  private[common] def validateEnrichmentsContexts[F[_]: Monad: Clock](
-    client: IgluCirceClient[F],
-    sdjs: List[SelfDescribingData[Json]],
-    registryLookup: RegistryLookup[F],
-    etlTstamp: Instant
-  ): IorT[F, NonEmptyList[Failure.SchemaViolation], List[SelfDescribingData[Json]]] =
-    checkList(client, sdjs, registryLookup)
-      .leftMap(
-        _.map {
-          case (sdj, clientError) =>
-            Failure.SchemaViolation(
-              schemaViolation = FailureDetails.SchemaViolation.IgluError(sdj.schema, clientError),
-              source = "derived_contexts",
-              data = sdj.data,
-              etlTstamp = etlTstamp
-            )
-        }
-      )
-
-  /** Used to extract .data for input custom contexts and input unstructured event */
+  /** Used to extract .data from input contexts and input unstruct event */
   private def extractInputData[F[_]: Monad: Clock](
     rawJson: String,
     field: String, // to put in the bad row
@@ -180,7 +171,7 @@ object IgluUtils {
     etlTstamp: Instant
   ): EitherT[F, Failure.SchemaViolation, Json] =
     for {
-      // Parse Json string with the SDJ
+      // Parse JSON string with the SDJ
       json <- JsonUtils
                 .extractJson(rawJson, maxJsonDepth)
                 .leftMap(e =>
@@ -192,7 +183,7 @@ object IgluUtils {
                   )
                 )
                 .toEitherT[F]
-      // Parse Json as SelfDescribingData[Json] (which contains the .data that we want)
+      // Decode Json as SelfDescribingData[Json] (which contains the .data that we want)
       sdj <- SelfDescribingData
                .parse(json)
                .leftMap(e =>
@@ -218,16 +209,7 @@ object IgluUtils {
                  )
                )
       // Check that the SDJ holding the .data is valid
-      _ <- check(client, sdj, registryLookup)
-             .leftMap {
-               case (schemaKey, clientError) =>
-                 Failure.SchemaViolation(
-                   schemaViolation = FailureDetails.SchemaViolation.IgluError(schemaKey, clientError),
-                   source = field,
-                   data = sdj.data,
-                   etlTstamp = etlTstamp
-                 )
-             }
+      _ <- validateSDJ(client, sdj, registryLookup, field, etlTstamp)
       // Extract .data of SelfDescribingData[Json]
       data <- EitherT.rightT[F, Failure.SchemaViolation](sdj.data)
     } yield data
@@ -236,43 +218,14 @@ object IgluUtils {
   private def validateCriterion(sdj: SelfDescribingData[Json], criterion: SchemaCriterion): Boolean =
     criterion.matches(sdj.schema)
 
-  /** Check that a SDJ is valid */
-  private def check[F[_]: Monad: Clock](
-    client: IgluCirceClient[F],
-    sdj: SelfDescribingData[Json],
-    registryLookup: RegistryLookup[F]
-  ): EitherT[F, (SchemaKey, ClientError), Option[SchemaVer.Full]] = {
-    implicit val rl = registryLookup
-    client
-      .check(sdj)
-      .leftMap((sdj.schema, _))
-  }
-
-  /**
-   * Check a list of SDJs.
-   * @return All valid SDJs are in the Right while all errors are in the Left
-   */
-  private def checkList[F[_]: Monad: Clock](
-    client: IgluCirceClient[F],
-    sdjs: List[SelfDescribingData[Json]],
-    registryLookup: RegistryLookup[F]
-  ): IorT[F, NonEmptyList[(SelfDescribingData[Json], ClientError)], List[SelfDescribingData[Json]]] =
-    sdjs.map { sdj =>
-      check(client, sdj, registryLookup)
-        .map(_ => List(sdj))
-        .leftMap(e => NonEmptyList.one((sdj, e._2)))
-        .toIor
-        .recoverWith { case errors => IorT.fromIor[F](Ior.Both(errors, Nil)) }
-    }.foldA
-
-  /** Parse a Json as a SDJ and check that it's valid */
-  private def parseAndValidateSDJ[F[_]: Monad: Clock](
+  /** Decode a Json as a SDJ and check that it's valid */
+  private def decodeAndValidateSDJ[F[_]: Monad: Clock](
     json: Json,
     client: IgluCirceClient[F],
     registryLookup: RegistryLookup[F],
     field: String,
     etlTstamp: Instant
-  ): IorT[F, NonEmptyList[Failure.SchemaViolation], SdjExtractResult] =
+  ): IorT[F, NonEmptyList[Failure.SchemaViolation], ValidSDJ] =
     for {
       sdj <- IorT
                .fromEither[F](SelfDescribingData.parse(json))
@@ -285,22 +238,57 @@ object IgluUtils {
                  )
                )
                .leftMap(NonEmptyList.one)
-      supersedingSchema <- check(client, sdj, registryLookup)
-                             .leftMap {
-                               case (schemaKey, clientError) =>
-                                 Failure.SchemaViolation(
-                                   schemaViolation = FailureDetails.SchemaViolation
-                                     .IgluError(schemaKey, clientError): FailureDetails.SchemaViolation,
-                                   source = field,
-                                   data = sdj.data,
-                                   etlTstamp = etlTstamp
-                                 )
-                             }
-                             .leftMap(NonEmptyList.one)
-                             .toIor
-      validationInfo = supersedingSchema.map(s => ValidationInfo(sdj.schema, s))
-      sdjUpdated = replaceSchemaVersion(sdj, validationInfo)
-    } yield SdjExtractResult(sdjUpdated, validationInfo)
+      valid <- validateSDJ(client, sdj, registryLookup, field, etlTstamp)
+                 .leftMap(NonEmptyList.one)
+                 .toIor
+    } yield valid
+
+  /** Check that a SDJ is valid */
+  private[enrich] def validateSDJ[F[_]: Monad: Clock](
+    client: IgluCirceClient[F],
+    sdj: SelfDescribingData[Json],
+    registryLookup: RegistryLookup[F],
+    field: String,
+    etlTstamp: Instant
+  ): EitherT[F, Failure.SchemaViolation, ValidSDJ] = {
+    implicit val rl = registryLookup
+    client
+      .check(sdj)
+      .leftMap { clientError =>
+        Failure.SchemaViolation(
+          schemaViolation = FailureDetails.SchemaViolation.IgluError(sdj.schema, clientError),
+          source = field,
+          data = sdj.data,
+          etlTstamp = etlTstamp
+        )
+      }
+      .map { supersededBy =>
+        val validationInfo = supersededBy.map(s => ValidationInfo(sdj.schema, s))
+        ValidSDJ(
+          replaceSchemaVersion(sdj, validationInfo),
+          validationInfo
+        )
+      }
+  }
+
+  /**
+   * Check that several SDJs are valid
+   * @return `SchemaViolation`s in the `Left` and valid SDJs in the `Right`, if any
+   */
+  private[common] def validateSDJs[F[_]: Monad: Clock](
+    client: IgluCirceClient[F],
+    sdjs: List[SelfDescribingData[Json]],
+    registryLookup: RegistryLookup[F],
+    field: String,
+    etlTstamp: Instant
+  ): IorT[F, NonEmptyList[Failure.SchemaViolation], List[ValidSDJ]] =
+    sdjs.map { sdj =>
+      validateSDJ(client, sdj, registryLookup, field, etlTstamp)
+        .map(List(_))
+        .leftMap(NonEmptyList.one)
+        .toIor
+        .recoverWith { case errors => IorT.fromIor[F](Ior.Both(errors, Nil)) }
+    }.foldA
 
   private def replaceSchemaVersion(
     sdj: SelfDescribingData[Json],
@@ -310,37 +298,4 @@ object IgluUtils {
       case None => sdj
       case Some(s) => sdj.copy(schema = sdj.schema.copy(version = s.validatedWith))
     }
-
-  case class ValidationInfo(originalSchema: SchemaKey, validatedWith: SchemaVer.Full) {
-    def toSdj: SelfDescribingData[Json] =
-      SelfDescribingData(ValidationInfo.schemaKey, (this: ValidationInfo).asJson)
-  }
-
-  object ValidationInfo {
-    val schemaKey = SchemaKey("com.snowplowanalytics.iglu", "validation_info", "jsonschema", SchemaVer.Full(1, 0, 0))
-
-    implicit val schemaVerFullEncoder: Encoder[SchemaVer.Full] =
-      Encoder.encodeString.contramap(v => v.asString)
-
-    implicit val validationInfoEncoder: Encoder[ValidationInfo] =
-      deriveEncoder[ValidationInfo]
-  }
-
-  case class SdjExtractResult(sdj: SelfDescribingData[Json], validationInfo: Option[ValidationInfo])
-
-  /**
-   * The inputs for the `extractAndAvalidateInputContexts` function
-   *  @param unstructEvent The raw string extracted from the tracker payload, i.e. ue_pr or ue_px tracker field
-   *  @param contexts The raw string extracted from the tracker payload, i.e. co or cx tracker field
-   */
-  case class EventExtractInput(
-    unstructEvent: Option[String],
-    contexts: Option[String]
-  )
-
-  case class EventExtractResult(
-    contexts: List[SelfDescribingData[Json]],
-    unstructEvent: Option[SelfDescribingData[Json]],
-    validationInfoContexts: List[SelfDescribingData[Json]]
-  )
 }

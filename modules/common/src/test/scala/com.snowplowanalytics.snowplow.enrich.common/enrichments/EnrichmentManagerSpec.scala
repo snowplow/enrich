@@ -411,6 +411,238 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       }
     }
 
+    // Also check that unstruct_event gets nullified
+    "return a SchemaViolations bad row containing one IgluError if JS enrichment sets an invalid unstruct_event" >> {
+      val script =
+        """
+        function process(event) {
+          const ue = JSON.parse(event.getUnstruct_event())
+          ue.data.data.foo = "bar"
+          event.setUnstruct_event(JSON.stringify(ue))
+          return []
+        }"""
+      val jsEnrich = createJsEnrichment(script)
+      val enrichmentReg = EnrichmentRegistry[IO](javascriptScript = List(jsEnrich))
+
+      val parameters = Map(
+        "e" -> "ue",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "ue_pr" ->
+          """
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data":{
+              "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+              "data": {
+                "emailAddress": "hello@world.com",
+                "emailAddress2": "foo@bar.org"
+              }
+            }
+          }"""
+      ).toOpt
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      val enriched = EnrichmentManager.enrichEvent[IO](
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent,
+        AcceptInvalid.featureFlags,
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits,
+        emitIncomplete = true,
+        SpecHelpers.DefaultMaxJsonDepth
+      )
+      enriched.value map {
+        case OptionIor.Both(
+              BadRow.SchemaViolations(
+                _,
+                BadRowFailure.SchemaViolations(
+                  _,
+                  NonEmptyList(
+                    _: FailureDetails.SchemaViolation.IgluError,
+                    Nil
+                  )
+                ),
+                _
+              ),
+              enrichedEvent
+            ) if enrichedEvent.unstruct_event.isEmpty =>
+          ok
+        case other =>
+          ko(s"[$other] is not a SchemaViolations bad row with one IgluError and enriched event with unstruct_event set to None")
+      }
+    }
+
+    // Also check that faulty context gets removed from the event
+    "return a SchemaViolations bad row containing one IgluError if JS enrichment updates one of the contexts to something invalid" >> {
+      val script =
+        """
+        function process(event) {
+          const co = JSON.parse(event.getContexts())
+          co.data[0].data.foo = "bar"
+          event.setContexts(JSON.stringify(co))
+          return []
+        }"""
+      val jsEnrich = createJsEnrichment(script)
+      val enrichmentReg = EnrichmentRegistry[IO](javascriptScript = List(jsEnrich))
+
+      val parameters = Map(
+        "e" -> "pp",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "co" ->
+          """
+          {
+            "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
+            "data": [
+              {
+                "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+                "data": {
+                  "emailAddress": "hello@world.com",
+                  "emailAddress2": "foo@bar.org"
+                }
+              },
+              {
+                "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+                "data": {
+                  "emailAddress": "another@email.com",
+                  "emailAddress2": "another2@email.com"
+                }
+              }
+            ]
+          }
+        """
+      ).toOpt
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      val enriched = EnrichmentManager.enrichEvent[IO](
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent,
+        AcceptInvalid.featureFlags,
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits,
+        emitIncomplete = true,
+        SpecHelpers.DefaultMaxJsonDepth
+      )
+      enriched.value map {
+        case OptionIor.Both(
+              BadRow.SchemaViolations(
+                _,
+                BadRowFailure.SchemaViolations(
+                  _,
+                  NonEmptyList(
+                    _: FailureDetails.SchemaViolation.IgluError,
+                    Nil
+                  )
+                ),
+                _
+              ),
+              enrichedEvent
+            ) if enrichedEvent.contexts.size == 1 =>
+          ok
+        case other =>
+          ko(s"[$other] is not a SchemaViolations bad row with one IgluError and enriched event with only one context remaining")
+      }
+    }
+
+    // Also check that unstruct_event gets nullified and that faulty context gets removed from the event
+    "return a SchemaViolations bad row containing two IgluErrors if JS enrichment sets unstruct_event and one of the contexts to something invalid" >> {
+      val script =
+        """
+        function process(event) {
+          const ue = JSON.parse(event.getUnstruct_event())
+          ue.data.data.foo = "bar"
+          event.setUnstruct_event(JSON.stringify(ue))
+          const co = JSON.parse(event.getContexts())
+          co.data[0].data.foo = "bar"
+          event.setContexts(JSON.stringify(co))
+          return []
+        }"""
+      val jsEnrich = createJsEnrichment(script)
+      val enrichmentReg = EnrichmentRegistry[IO](javascriptScript = List(jsEnrich))
+
+      val parameters = Map(
+        "e" -> "ue",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "co" ->
+          """
+          {
+            "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
+            "data": [
+              {
+                "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+                "data": {
+                  "emailAddress": "hello@world.com",
+                  "emailAddress2": "foo@bar.org"
+                }
+              },
+              {
+                "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+                "data": {
+                  "emailAddress": "another@email.com",
+                  "emailAddress2": "another2@email.com"
+                }
+              }
+            ]
+          }
+        """,
+        "ue_pr" ->
+          """
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data":{
+              "schema":"iglu:com.acme/email_sent/jsonschema/1-0-0",
+              "data": {
+                "emailAddress": "hello@world.com",
+                "emailAddress2": "foo@bar.org"
+              }
+            }
+          }"""
+      ).toOpt
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      val enriched = EnrichmentManager.enrichEvent[IO](
+        enrichmentReg,
+        client,
+        processor,
+        timestamp,
+        rawEvent,
+        AcceptInvalid.featureFlags,
+        IO.unit,
+        SpecHelpers.registryLookup,
+        atomicFieldLimits,
+        emitIncomplete = true,
+        SpecHelpers.DefaultMaxJsonDepth
+      )
+      enriched.value map {
+        case OptionIor.Both(
+              BadRow.SchemaViolations(
+                _,
+                BadRowFailure.SchemaViolations(
+                  _,
+                  NonEmptyList(
+                    _: FailureDetails.SchemaViolation.IgluError,
+                    List(_: FailureDetails.SchemaViolation.IgluError)
+                  )
+                ),
+                _
+              ),
+              enrichedEvent
+            ) if enrichedEvent.unstruct_event.isEmpty && enrichedEvent.contexts.size == 1 =>
+          ok
+        case other =>
+          ko(
+            s"[$other] is not a SchemaViolations bad row with two IgluErrors and enriched event with unstruct_event set to None and only one context remaining"
+          )
+      }
+    }
+
     "emit an EnrichedEvent if everything goes well" >> {
       val parameters = Map(
         "e" -> "ue",
@@ -1217,15 +1449,15 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
             {
               "schema":"iglu:com.snowplowanalytics.iglu/validation_info/jsonschema/1-0-0",
               "data":{
-                "originalSchema":"iglu:com.acme/superseding_example/jsonschema/1-0-0",
-                "validatedWith":"1-0-1"
+                "originalSchema":"iglu:com.acme/superseding_example/jsonschema/2-0-0",
+                "validatedWith":"2-0-1"
               }
             },
             {
               "schema":"iglu:com.snowplowanalytics.iglu/validation_info/jsonschema/1-0-0",
               "data":{
-                "originalSchema":"iglu:com.acme/superseding_example/jsonschema/2-0-0",
-                "validatedWith":"2-0-1"
+                "originalSchema":"iglu:com.acme/superseding_example/jsonschema/1-0-0",
+                "validatedWith":"1-0-1"
               }
             }
           ]

@@ -59,16 +59,14 @@ class IdentitySpec extends Specification with CatsEffect {
     val expectedContext1 = json"""
     {
       "snowplowId": ${testIdPairs(1).snowplowId},
-      "createdAt": "2023-03-03T03:03:03.333Z",
-      "merged": [$testMergedIdentity]
+      "createdAt": "2023-03-03T03:03:03.333Z"
     }
     """
 
     val expectedContext2 = json"""
     {
       "snowplowId": ${testIdPairs(2).snowplowId},
-      "createdAt": "2023-03-03T03:03:03.333Z",
-      "merged": [$testMergedIdentity]
+      "createdAt": "2023-03-03T03:03:03.333Z"
     }
     """
     val expectedKey = SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/identity/jsonschema/1-0-0").toOption.get
@@ -688,39 +686,27 @@ object IdentitySpec {
     IdPair(UUID.randomUUID.toString, UUID.randomUUID.toString)
   )
 
-  val testMergedIdentity = json"""
-    {
-      "mergedAt": "2021-01-01T01:01:01.111Z",
-      "createdAt": "2022-02-02T02:02:02.222Z",
-      "snowplowId": "21a443d6-ca28-4ac1-9440-46f90263e5bd"
-    }
-  """
-
   val mockResponseBody = json"""
   [
     {
       "createdAt": "2023-03-03T03:03:03.333Z",
       "eventId": ${testIdPairs(0).eventId},
-      "snowplowId": ${testIdPairs(0).snowplowId},
-      "merged": [$testMergedIdentity]
+      "snowplowId": ${testIdPairs(0).snowplowId}
     },
     {
       "createdAt": "2023-03-03T03:03:03.333Z",
       "eventId": ${testIdPairs(1).eventId},
-      "snowplowId": ${testIdPairs(1).snowplowId},
-      "merged": [$testMergedIdentity]
+      "snowplowId": ${testIdPairs(1).snowplowId}
     },
     {
       "createdAt": "2023-03-03T03:03:03.333Z",
       "eventId": ${testIdPairs(2).eventId},
-      "snowplowId": ${testIdPairs(2).snowplowId},
-      "merged": [$testMergedIdentity]
+      "snowplowId": ${testIdPairs(2).snowplowId}
     },
     {
       "createdAt": "2023-03-03T03:03:03.333Z",
       "eventId": ${testIdPairs(3).eventId},
-      "snowplowId": ${testIdPairs(3).snowplowId},
-      "merged": [$testMergedIdentity]
+      "snowplowId": ${testIdPairs(3).snowplowId}
     }
   ]
   """

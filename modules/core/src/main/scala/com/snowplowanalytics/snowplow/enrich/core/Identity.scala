@@ -12,7 +12,7 @@ package com.snowplowanalytics.snowplow.enrich.core
 
 import cats.effect.{Async, Sync}
 import cats.implicits._
-import io.circe.{Decoder, Json}
+import io.circe.Decoder
 import io.circe.literal._
 import io.circe.generic.semiauto._
 import org.http4s.client.{Client => Http4sClient}
@@ -39,7 +39,6 @@ object Identity {
 
   // Corresponds to BatchIdentity in identity API
   case class Identity(
-    merged: List[Json],
     createdAt: String,
     eventId: String,
     snowplowId: String
@@ -158,8 +157,7 @@ object Identity {
     val byEventId = identities.map { identity =>
       val context = json"""{
           "snowplowId": ${identity.snowplowId},
-          "createdAt": ${identity.createdAt},
-          "merged": ${identity.merged}
+          "createdAt": ${identity.createdAt}
         }"""
       val sdj = SelfDescribingData(identitySchemaKey, context)
       identity.eventId -> sdj

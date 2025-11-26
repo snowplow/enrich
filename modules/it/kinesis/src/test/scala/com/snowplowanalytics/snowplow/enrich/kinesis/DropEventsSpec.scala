@@ -12,6 +12,8 @@ package com.snowplowanalytics.snowplow.enrich.kinesis
 
 import java.util.UUID
 
+import scala.concurrent.duration._
+
 import cats.effect.IO
 import cats.effect.kernel.Resource
 
@@ -29,6 +31,7 @@ case class TestResources(localstack: Localstack, statsdAdmin: StatsdAdmin)
 
 class DropEventsSpec extends CatsResource[IO, TestResources] with SpecificationLike {
   override protected val Timeout = Utils.TestTimeout
+  override protected val ResourceTimeout = 3.minutes
 
   override def beforeAll(): Unit = {
     DockerPull.pull(Containers.Images.Localstack.image, Containers.Images.Localstack.tag)

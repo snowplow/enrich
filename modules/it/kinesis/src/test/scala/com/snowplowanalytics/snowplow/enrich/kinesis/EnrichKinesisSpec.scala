@@ -12,6 +12,8 @@ package com.snowplowanalytics.snowplow.enrich.kinesis
 
 import java.util.UUID
 
+import scala.concurrent.duration._
+
 import cats.effect.IO
 import cats.effect.kernel.Resource
 
@@ -24,11 +26,12 @@ import com.snowplowanalytics.snowplow.enrich.core.Utils
 
 import com.snowplowanalytics.snowplow.enrich.kinesis.enrichments._
 
-class EnrichKinesisSpec extends CatsResource[IO, Localstack] with SpecificationLike {
+class EnrichKinesisSpec extends CatsResource[IO, TestInfrastructure] with SpecificationLike {
 
   import utils._
 
   override protected val Timeout = Utils.TestTimeout
+  override protected val ResourceTimeout = 5.minutes
 
   override def beforeAll(): Unit = {
     DockerPull.pull(Containers.Images.Localstack.image, Containers.Images.Localstack.tag)
@@ -38,10 +41,10 @@ class EnrichKinesisSpec extends CatsResource[IO, Localstack] with SpecificationL
     super.beforeAll()
   }
 
-  override val resource: Resource[IO, Localstack] = Containers.localstack
+  override val resource: Resource[IO, TestInfrastructure] = Containers.allContainers
 
   "enrich-kinesis" should {
-    "emit the correct number of enriched events, failed events and bad rows" in withResource { localstack =>
+    "emit the correct number of enriched events, failed events and bad rows" in withResource { infrastructure =>
       val testName = "count"
       val nbEnriched = 1000L
       val nbBad = 100L
@@ -49,7 +52,7 @@ class EnrichKinesisSpec extends CatsResource[IO, Localstack] with SpecificationL
 
       Containers
         .enrich(
-          localstack,
+          infrastructure.localstack,
           configPath = "modules/it/kinesis/src/test/resources/enrich/enrich-localstack.hocon",
           testName = testName,
           enrichments = Nil,
@@ -64,19 +67,19 @@ class EnrichKinesisSpec extends CatsResource[IO, Localstack] with SpecificationL
         }
     }
 
-    "send the metrics to StatsD" in withResource { localstack =>
+    "send the metrics to StatsD" in withResource { infrastructure =>
       val testName = "statsd"
       val nbEnriched = 100L
       val nbBad = 10L
       val uuid = UUID.randomUUID().toString
 
+      val statsdHost = infrastructure.statsd.container.getHost
+      val statsdAdminPort = infrastructure.statsd.container.getMappedPort(8126)
+
       val resources = for {
-        statsd <- Containers.statsdServer(localstack.container.network)
-        statsdHost = statsd.container.getHost()
-        statsdAdminPort = statsd.container.getMappedPort(8126)
         statsdAdmin <- mkStatsdAdmin(statsdHost, statsdAdminPort)
         enrichKinesis <- Containers.enrich(
-                           localstack,
+                           infrastructure.localstack,
                            configPath = "modules/it/kinesis/src/test/resources/enrich/enrich-localstack-statsd.hocon",
                            testName = testName,
                            enrichments = Nil,
@@ -105,7 +108,7 @@ class EnrichKinesisSpec extends CatsResource[IO, Localstack] with SpecificationL
       }
     }
 
-    "run the enrichments and attach their context" in withResource { localstack =>
+    "run the enrichments and attach their context" in withResource { infrastructure =>
       val testName = "enrichments"
       val nbEnriched = 1000L
       val uuid = UUID.randomUUID().toString
@@ -119,34 +122,31 @@ class EnrichKinesisSpec extends CatsResource[IO, Localstack] with SpecificationL
 
       val enrichmentsContexts = enrichments.map(_.outputSchema)
 
-      val resources = for {
-        _ <- Containers.mysqlServer(localstack.container.network)
-        _ <- Containers.httpServer(localstack.container.network)
-        enrichKinesis <- Containers.enrich(
-                           localstack,
-                           configPath = "modules/it/kinesis/src/test/resources/enrich/enrich-localstack.hocon",
-                           testName = testName,
-                           enrichments = enrichments,
-                           uuid = uuid
-                         )
-      } yield enrichKinesis
-
-      resources.use { enrichKinesis =>
-        run(enrichKinesis, nbEnriched).map { output =>
-          output.enriched.size.toLong must beEqualTo(nbEnriched)
-          output.enriched.map { enriched =>
-            enriched.derived_contexts.data.map(_.schema) must containTheSameElementsAs(enrichmentsContexts)
-          }
-          output.failed.size.toLong must beEqualTo(0L)
-          output.bad.size.toLong must beEqualTo(0L)
-        }
-      }
-    }
-
-    "shutdown when it receives a SIGTERM" in withResource { localstack =>
       Containers
         .enrich(
-          localstack,
+          infrastructure.localstack,
+          configPath = "modules/it/kinesis/src/test/resources/enrich/enrich-localstack.hocon",
+          testName = testName,
+          enrichments = enrichments,
+          uuid = uuid
+        )
+        .use { enrichKinesis =>
+          run(enrichKinesis, nbEnriched).map { output =>
+            output.bad.foreach(badRow => println(badRow.compact))
+            output.bad.size.toLong must beEqualTo(0L)
+            output.failed.size.toLong must beEqualTo(0L)
+            output.enriched.size.toLong must beEqualTo(nbEnriched)
+            output.enriched.map { enriched =>
+              enriched.derived_contexts.data.map(_.schema) must containTheSameElementsAs(enrichmentsContexts)
+            }
+          }
+        }
+    }
+
+    "shutdown when it receives a SIGTERM" in withResource { infrastructure =>
+      Containers
+        .enrich(
+          infrastructure.localstack,
           configPath = "modules/it/kinesis/src/test/resources/enrich/enrich-localstack.hocon",
           testName = "stop",
           enrichments = Nil
@@ -154,14 +154,13 @@ class EnrichKinesisSpec extends CatsResource[IO, Localstack] with SpecificationL
         .use { enrich =>
           for {
             _ <- IO(
-                   enrich.container.container
-                     .getDockerClient()
-                     .killContainerCmd(enrich.container.container.getContainerId())
+                   enrich.container.container.getDockerClient
+                     .killContainerCmd(enrich.container.container.getContainerId)
                      .withSignal("TERM")
                      .exec()
                  )
             _ <- Containers.waitUntilStopped(enrich.container)
-          } yield enrich.container.container.isRunning() must beFalse
+          } yield enrich.container.container.isRunning must beFalse
         }
     }
   }

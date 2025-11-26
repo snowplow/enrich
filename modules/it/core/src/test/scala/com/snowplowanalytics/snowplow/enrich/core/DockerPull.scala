@@ -16,20 +16,21 @@ import com.github.dockerjava.api.model.PullResponseItem
 
 object DockerPull {
 
+  private lazy val client = DockerClientBuilder.getInstance().build()
+
   /**
-   * A blocking operation that runs on main thread to pull container image before `CatsResource` is
-   * created. This operation is then not counted towards test timeout.
+   * A blocking operation called from `beforeAll()` on the main thread to pull container images
+   * before test execution starts. This ensures pull time is not counted towards test timeout.
+   * Reuses a single Docker client across all pull operations.
    */
   def pull(image: String, tag: String): Unit =
-    DockerClientBuilder
-      .getInstance()
-      .build()
+    client
       .pullImageCmd(image)
       .withTag(tag)
       .withPlatform("linux/amd64")
       .exec(new PullImageResultCallback() {
-        override def onNext(item: PullResponseItem) = {
-          println(s"$image: ${item.getStatus()}")
+        override def onNext(item: PullResponseItem): Unit = {
+          println(s"$image: ${item.getStatus}")
           super.onNext(item)
         }
       })

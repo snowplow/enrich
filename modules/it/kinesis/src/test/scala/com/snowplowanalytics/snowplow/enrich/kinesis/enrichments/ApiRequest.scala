@@ -28,7 +28,7 @@ case object ApiRequest extends Enrichment {
             "http": {
               "method": "GET",
               "uri": "http://api",
-              "timeout": 2000,
+              "timeout": 45000,
               "authentication": {
                 "httpBasic": {
                   "username": "xxxxx",
@@ -47,7 +47,7 @@ case object ApiRequest extends Enrichment {
           ],
           "cache": {
             "size": 3000,
-            "ttl": 60
+            "ttl": 0
           }
         }
       }

@@ -6,6 +6,15 @@ on:
       - '**'
     tags-ignore:
       - '**'
+  workflow_dispatch:  # Allow manual triggering
+
+env:
+  LOCALSTACK_IMAGE: localstack/localstack:3.4.0
+  MYSQL_IMAGE: mysql:8.0.31
+  NGINX_IMAGE: nginx:1.23.2
+  STATSD_IMAGE: dblworks/statsd:v0.10.2
+  KAFKA_IMAGE: apache/kafka:4.0.0
+  NSQ_IMAGE: nsqio/nsq:v1.2.1
 
 jobs:
   unit-tests:
@@ -63,6 +72,72 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: coursier/cache-action@v6
+
+      - name: Cache localstack image
+        uses: actions/cache@v4
+        with:
+          path: /tmp/docker-images/localstack.tar
+          key: docker-${{ env.LOCALSTACK_IMAGE }}
+
+      - name: Cache mysql image
+        uses: actions/cache@v4
+        with:
+          path: /tmp/docker-images/mysql.tar
+          key: docker-${{ env.MYSQL_IMAGE }}
+
+      - name: Cache nginx image
+        uses: actions/cache@v4
+        with:
+          path: /tmp/docker-images/nginx.tar
+          key: docker-${{ env.NGINX_IMAGE }}
+
+      - name: Cache statsd image
+        uses: actions/cache@v4
+        with:
+          path: /tmp/docker-images/statsd.tar
+          key: docker-${{ env.STATSD_IMAGE }}
+
+      - name: Load or pull Docker images
+        run: |
+          mkdir -p /tmp/docker-images
+
+          # Load from cache if available, otherwise pull and save
+          if [ -f /tmp/docker-images/localstack.tar ]; then
+            echo "Loading cached localstack image..."
+            docker load -i /tmp/docker-images/localstack.tar
+          else
+            echo "Pulling localstack image..."
+            docker pull $LOCALSTACK_IMAGE
+            docker save $LOCALSTACK_IMAGE -o /tmp/docker-images/localstack.tar
+          fi
+
+          if [ -f /tmp/docker-images/mysql.tar ]; then
+            echo "Loading cached mysql image..."
+            docker load -i /tmp/docker-images/mysql.tar
+          else
+            echo "Pulling mysql image..."
+            docker pull $MYSQL_IMAGE
+            docker save $MYSQL_IMAGE -o /tmp/docker-images/mysql.tar
+          fi
+
+          if [ -f /tmp/docker-images/nginx.tar ]; then
+            echo "Loading cached nginx image..."
+            docker load -i /tmp/docker-images/nginx.tar
+          else
+            echo "Pulling nginx image..."
+            docker pull $NGINX_IMAGE
+            docker save $NGINX_IMAGE -o /tmp/docker-images/nginx.tar
+          fi
+
+          if [ -f /tmp/docker-images/statsd.tar ]; then
+            echo "Loading cached statsd image..."
+            docker load -i /tmp/docker-images/statsd.tar
+          else
+            echo "Pulling statsd image..."
+            docker pull $STATSD_IMAGE
+            docker save $STATSD_IMAGE -o /tmp/docker-images/statsd.tar
+          fi
+
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
@@ -83,6 +158,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: coursier/cache-action@v6
+
+      - name: Cache localstack image
+        uses: actions/cache@v4
+        with:
+          path: /tmp/docker-images/localstack.tar
+          key: docker-${{ env.LOCALSTACK_IMAGE }}
+
+      - name: Cache statsd image
+        uses: actions/cache@v4
+        with:
+          path: /tmp/docker-images/statsd.tar
+          key: docker-${{ env.STATSD_IMAGE }}
+
+      - name: Load or pull Docker images
+        run: |
+          mkdir -p /tmp/docker-images
+
+          if [ -f /tmp/docker-images/localstack.tar ]; then
+            echo "Loading cached localstack image..."
+            docker load -i /tmp/docker-images/localstack.tar
+          else
+            echo "Pulling localstack image..."
+            docker pull $LOCALSTACK_IMAGE
+            docker save $LOCALSTACK_IMAGE -o /tmp/docker-images/localstack.tar
+          fi
+
+          if [ -f /tmp/docker-images/statsd.tar ]; then
+            echo "Loading cached statsd image..."
+            docker load -i /tmp/docker-images/statsd.tar
+          else
+            echo "Pulling statsd image..."
+            docker pull $STATSD_IMAGE
+            docker save $STATSD_IMAGE -o /tmp/docker-images/statsd.tar
+          fi
+
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
@@ -103,6 +213,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: coursier/cache-action@v6
+
+      - name: Cache kafka image
+        uses: actions/cache@v4
+        with:
+          path: /tmp/docker-images/kafka.tar
+          key: docker-${{ env.KAFKA_IMAGE }}
+
+      - name: Load or pull Docker images
+        run: |
+          mkdir -p /tmp/docker-images
+
+          if [ -f /tmp/docker-images/kafka.tar ]; then
+            echo "Loading cached kafka image..."
+            docker load -i /tmp/docker-images/kafka.tar
+          else
+            echo "Pulling kafka image..."
+            docker pull $KAFKA_IMAGE
+            docker save $KAFKA_IMAGE -o /tmp/docker-images/kafka.tar
+          fi
+
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
@@ -119,6 +249,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: coursier/cache-action@v6
+
+      - name: Cache nsq image
+        uses: actions/cache@v4
+        with:
+          path: /tmp/docker-images/nsq.tar
+          key: docker-${{ env.NSQ_IMAGE }}
+
+      - name: Load or pull Docker images
+        run: |
+          mkdir -p /tmp/docker-images
+
+          if [ -f /tmp/docker-images/nsq.tar ]; then
+            echo "Loading cached nsq image..."
+            docker load -i /tmp/docker-images/nsq.tar
+          else
+            echo "Pulling nsq image..."
+            docker pull $NSQ_IMAGE
+            docker save $NSQ_IMAGE -o /tmp/docker-images/nsq.tar
+          fi
+
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:

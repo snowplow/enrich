@@ -40,8 +40,12 @@ object Utils {
 
   // Specs2 framework timeout - total test execution time
   val TestTimeout: FiniteDuration = 10.minutes
-  // Stream processing timeout - should be less than TestTimeout to allow time for cleanup and assertions
-  val StreamTimeout: FiniteDuration = TestTimeout - 1.minute
+  // Stream processing timeout - safety net when stream termination doesn't trigger
+  // For the case when expected events + grace period isn't reached
+  val StreamTimeout: FiniteDuration = 3.minutes
+  // Grace period -- the time after expected events are collected before terminating
+  // Allows for bursty event arrival
+  val GracePeriod: FiniteDuration = 15.seconds
 
   case class Output(
     enriched: List[Event],
@@ -89,10 +93,29 @@ object Utils {
         .drain
     }
 
+    def isComplete(ref: Ref[IO, Output]): IO[Boolean] =
+      ref.get.map { output =>
+        output.enriched.size >= nbEnriched &&
+        output.failed.size >= nbBad &&
+        output.bad.size >= nbBad
+      }
+
+    def awaitCompletion(ref: Ref[IO, Output]): IO[Unit] =
+      Stream
+        .repeatEval(IO.sleep(1.second) >> isComplete(ref))
+        .filter(identity)
+        .take(1)
+        .compile
+        .drain >> IO.sleep(GracePeriod)
+
     for {
       ref <- Ref.of[IO, Output](Output.empty)
       input = CollectorPayloadGen.generate[IO](nbEnriched, nbBad, nbGoodDrop, nbBadDrop)
-      _ <- streams(ref, factory, input).interruptAfter(timeout).compile.drain
+      _ <- streams(ref, factory, input)
+             .interruptWhen(awaitCompletion(ref).attempt)
+             .interruptAfter(timeout)
+             .compile
+             .drain
       output <- ref.get
     } yield output
   }

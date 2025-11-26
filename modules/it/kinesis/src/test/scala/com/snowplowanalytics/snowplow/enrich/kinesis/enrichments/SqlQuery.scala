@@ -48,7 +48,7 @@ case object SqlQuery extends Enrichment {
           },
           "cache": {
             "size": 3000,
-            "ttl": 60
+            "ttl": 0
           }
         }
       }

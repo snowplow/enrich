@@ -48,6 +48,13 @@ case class Localstack(
   host: String
 )
 
+case class TestInfrastructure(
+  localstack: Localstack,
+  mysql: GenericContainer,
+  http: GenericContainer,
+  statsd: GenericContainer
+)
+
 object Containers extends CatsEffect {
 
   object Images {
@@ -86,6 +93,16 @@ object Containers extends CatsEffect {
                      host = "localhost"
                    )
     } yield localstack
+
+  def allContainers: Resource[IO, TestInfrastructure] =
+    for {
+      localstack <- localstack
+      mysql <- mysqlServer(localstack.container.network)
+      http <- httpServer(localstack.container.network)
+      statsd <- statsdServer(localstack.container.network)
+      infrastructure = TestInfrastructure(localstack, mysql, http, statsd)
+      _ <- Resource.eval(verifyServicesReady(infrastructure))
+    } yield infrastructure
 
   def enrich(
     localstack: Localstack,
@@ -176,10 +193,11 @@ object Containers extends CatsEffect {
           "MYSQL_USER" -> "enricher",
           "MYSQL_PASSWORD" -> "supersecret1"
         ),
-        waitStrategy = Wait.forLogMessage(".*ready for connections.*", 1)
+        waitStrategy = Wait.forListeningPort()
       )
       container.underlyingUnsafeContainer.withNetwork(network)
       container.underlyingUnsafeContainer.withNetworkAliases("mysql")
+      container.underlyingUnsafeContainer.addExposedPort(3306)
       IO(container.start()) *> IO.pure(container)
     } { c =>
       IO(c.stop())
@@ -206,10 +224,11 @@ object Containers extends CatsEffect {
             BindMode.READ_ONLY
           )
         ),
-        waitStrategy = Wait.forLogMessage(".*start worker processes.*", 1)
+        waitStrategy = Wait.forListeningPort()
       )
       container.underlyingUnsafeContainer.withNetwork(network)
       container.underlyingUnsafeContainer.withNetworkAliases("api")
+      container.underlyingUnsafeContainer.addExposedPort(80)
       IO.blocking(container.start()) *> IO.pure(container)
     } { c =>
       IO.blocking(c.stop())
@@ -237,6 +256,73 @@ object Containers extends CatsEffect {
       retryPolicy,
       (_, _) => IO.unit
     )
+  }
+
+  /**
+   * Verifies that external services (MySQL, HTTP) are actually ready to accept connections
+   * by performing actual connectivity checks. This prevents race conditions where containers
+   * report as ready but aren't yet accepting requests reliably.
+   *
+   * @param infrastructure The test infrastructure containing all containers
+   * @return IO[Unit] that succeeds when all services are verified ready
+   */
+  def verifyServicesReady(infrastructure: TestInfrastructure): IO[Unit] = {
+    val retryPolicy = RetryPolicies.limitRetriesByCumulativeDelay(
+      30.seconds,
+      RetryPolicies.constantDelay[IO](500.millis)
+    )
+
+    def execOrFail(container: GenericContainer, command: String*): IO[Unit] =
+      IO.blocking(container.execInContainer(command: _*)).flatMap { result =>
+        if (result.getExitCode == 0) IO.unit
+        else IO.raiseError(new RuntimeException(s"Command failed with exit code ${result.getExitCode}: ${result.getStderr}"))
+      }
+
+    def checkMysql: IO[Unit] =
+      execOrFail(infrastructure.mysql, "mysqladmin", "ping", "-h", "localhost", "-uenricher", "-psupersecret1")
+
+    def checkHttp: IO[Unit] =
+      execOrFail(infrastructure.http, "curl", "-f", "-u", "xxxxx:yyyyy", "http://localhost")
+
+    def warmupMysql: IO[Unit] =
+      execOrFail(infrastructure.mysql,
+                 "mysql",
+                 "-h",
+                 "localhost",
+                 "-uenricher",
+                 "-psupersecret1",
+                 "-D",
+                 "snowplow",
+                 "-e",
+                 "SELECT * FROM coordinates LIMIT 1"
+      )
+
+    def warmupHttp: IO[Unit] =
+      execOrFail(infrastructure.http, "sh", "-c", "for i in 1 2 3; do curl -sf -u xxxxx:yyyyy http://localhost >/dev/null; done")
+
+    val checks = for {
+      _ <- checkMysql.retryingOnAllErrors(
+             policy = retryPolicy,
+             onError = (_, _) => IO.unit
+           )
+      _ <- checkHttp.retryingOnAllErrors(
+             policy = retryPolicy,
+             onError = (_, _) => IO.unit
+           )
+      _ <- warmupMysql.retryingOnAllErrors(
+             policy = retryPolicy,
+             onError = (_, _) => IO.unit
+           )
+      _ <- warmupHttp.retryingOnAllErrors(
+             policy = retryPolicy,
+             onError = (_, _) => IO.unit
+           )
+    } yield ()
+
+    checks.handleErrorWith { error =>
+      IO(System.err.println(s"Service readiness check failed: ${error.getMessage}")) >>
+        IO.raiseError(new RuntimeException("External services not ready after 30 seconds", error))
+    }
   }
 
   private def createStreams(

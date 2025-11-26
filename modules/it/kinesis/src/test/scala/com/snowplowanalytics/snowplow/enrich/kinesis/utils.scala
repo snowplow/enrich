@@ -76,14 +76,14 @@ object utils extends CatsEffect {
       streamName = streamName,
       workerIdentifier = "test-worker",
       initialPosition = KinesisSourceConfig.InitialPosition.TrimHorizon,
-      retrievalMode = KinesisSourceConfig.Retrieval.Polling(1000),
+      retrievalMode = KinesisSourceConfig.Retrieval.Polling(500),
       customEndpoint = Some(URI.create(s"http://$localstackHost:$localstackPort")),
       dynamodbCustomEndpoint = Some(URI.create(s"http://$localstackHost:$localstackPort")),
       cloudwatchCustomEndpoint = Some(URI.create(s"http://$localstackHost:$localstackPort")),
-      leaseDuration = 10.seconds,
+      leaseDuration = 5.seconds,
       maxLeasesToStealAtOneTimeFactor = BigDecimal(2),
       checkpointThrottledBackoffPolicy = BackoffPolicy(minBackoff = 100.millis, maxBackoff = 1.second),
-      debounceCheckpoints = 10.seconds
+      debounceCheckpoints = 1.second
     )
 
   def sinkConfig(

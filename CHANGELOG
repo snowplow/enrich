@@ -1,3 +1,17 @@
+6.4.0 (2025-12-12)
+------------------
+Bump libraries to address security vulnerabilities
+Remove merged list from identities responses
+Bump common-streams to 0.18.0 (#148)
+Re-validate unstruct event and contexts/entities if Javascript enrichment updated them (#149)
+Fix flaky Kinesis integration tests (#147)
+Add AWS user-agent to S3 client (#146)
+Bump common-streams to 0.17.0 (#146)
+Add rc/dev tag support for Snowman tests (#140)
+Fix flaky integration tests (#144)
+Refactor identity functionality (#135)
+Lightweight asset update check using Etags (#134)
+
 6.3.0 (2025-11-12)
 ------------------
 Add custom identifier support for Identity (#125)

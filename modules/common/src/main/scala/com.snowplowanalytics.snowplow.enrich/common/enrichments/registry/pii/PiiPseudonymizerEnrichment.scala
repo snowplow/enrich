@@ -358,10 +358,11 @@ private final case class ScrambleMapFunction(
 ) extends MapFunction {
   override def map(currentValue: AnyRef, configuration: Configuration): AnyRef =
     currentValue match {
-      case s: String =>
-        val newValue = strategy.scramble(s)
-        val _ = modifiedFields += JsonModifiedField(fieldName, s, newValue, jsonPath, schema.toSchemaUri)
-        newValue
+      case t: TextNode =>
+        val originalValue = t.asText()
+        val newValue = strategy.scramble(originalValue)
+        val _ = modifiedFields += JsonModifiedField(fieldName, originalValue, newValue, jsonPath, schema.toSchemaUri)
+        new TextNode(newValue)
       case a: ArrayNode =>
         val mapper = new ObjectMapper()
         val arr = mapper.createArrayNode()

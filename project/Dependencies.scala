@@ -39,7 +39,7 @@ object Dependencies {
     val postgresDriver = "42.7.2"
     val mysqlClient = "3.4.0"
     val hikariCP = "5.0.1"
-    val jaywayJsonpath = "2.7.0"
+    val jaywayJsonpath = "2.10.0"
     val jsonsmart = "2.5.2"
     val iabClient = "0.2.0"
     val ipaddress = "5.5.1"
@@ -50,7 +50,7 @@ object Dependencies {
     val thrift = "0.15.0"
     val httpclient = "4.5.13"
     val sprayJson = "1.3.6"
-    val netty = "4.1.125.Final"
+    val netty = "4.2.7.Final"
     val protobuf = "4.28.3"
     val nashorn = "15.6"
     val zstd = "1.5.7-4"
@@ -73,7 +73,7 @@ object Dependencies {
 
     val gcpSdk = "2.60.0"
     val awsSdk = "2.33.1"
-    val kafka = "3.9.1"
+    val kafka = "4.1.1"
     val jackson = "2.18.1"
 
     val decline = "2.4.1"
@@ -82,6 +82,8 @@ object Dependencies {
     val azureIdentity = "1.12.2"
     val azureStorageBlob = "12.25.1"
     val nimbusJoseJwt = "10.0.2"
+    val lz4 = "1.8.1"
+    val reactorNetty = "1.2.8"
     val http4s = "0.23.25"
 
     val streams = "0.18.0"
@@ -174,6 +176,8 @@ object Dependencies {
     val azureStorageBlob = "com.azure"                    % "azure-storage-blob"     % V.azureStorageBlob
     val nimbusJoseJwt = "com.nimbusds"                    % "nimbus-jose-jwt"        % V.nimbusJoseJwt
     val jacksonDfXml = "com.fasterxml.jackson.dataformat" % "jackson-dataformat-xml" % V.jackson
+    val lz4 = "org.lz4"                                   % "lz4-java"               % V.lz4
+    val reactorNetty = "io.projectreactor.netty"          % "reactor-netty-http"     % V.reactorNetty
     val http4sClient = "org.http4s"                      %% "http4s-ember-client"    % V.http4s
     val http4sDsl = "org.http4s"                         %% "http4s-dsl"             % V.http4s % Test
 
@@ -265,7 +269,8 @@ object Dependencies {
       azureStorageBlob,
       circeGeneric,
       jacksonDfXml, // for security vulnerabilities
-      nimbusJoseJwt // for security vulnerabilities
+      nimbusJoseJwt, // for security vulnerabilities
+      lz4 // for security vulnerabilities
     )
 
     val pubsubDependencies = Seq(
@@ -284,7 +289,8 @@ object Dependencies {
     )
 
     val nsqDependencies = Seq(
-      nsqSnowplow
+      nsqSnowplow,
+      reactorNetty // for security vulnerabilities
     )
 
     val itDependencies = Seq(

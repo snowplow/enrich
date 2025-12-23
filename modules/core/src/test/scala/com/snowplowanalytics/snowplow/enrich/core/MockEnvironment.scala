@@ -139,7 +139,7 @@ object MockEnvironment {
           (bad: List[Bad]) => state.update(_ :+ SentToBad(bad))
         ),
         metrics = testMetrics(state),
-        cpuParallelism = 2,
+        cpuParallelism = 1,
         sinkParallelism = 1,
         sinkMaxSize = 1024 * 1024,
         adapterRegistry = testAdapterRegistry,

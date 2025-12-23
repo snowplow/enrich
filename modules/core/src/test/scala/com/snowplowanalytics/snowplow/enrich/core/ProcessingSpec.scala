@@ -846,11 +846,11 @@ class ProcessingSpec extends Specification with CatsEffect {
                          } yield state should beEqualTo(
                            Vector(
                              Action.AddedRawCountMetric(1), // First payload processed
-                             Action.AddedRawCountMetric(1), // Second payload processed
                              Action.AddedMetadata(expectedMetadata),
                              Action.SentToEnriched(List(expectedEnriched.head)),
                              Action.AddedEnrichedCountMetric(1),
                              Action.SetE2ELatencyMetric(Duration(etlLatency.toMicros, MICROSECONDS)),
+                             Action.AddedRawCountMetric(1), // Second payload processed
                              Action.AddedMetadata(expectedMetadata),
                              Action.SentToEnriched(List(expectedEnriched(1))),
                              Action.AddedEnrichedCountMetric(1),

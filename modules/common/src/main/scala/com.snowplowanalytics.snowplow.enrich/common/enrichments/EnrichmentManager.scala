@@ -18,7 +18,7 @@ import io.circe.Json
 import cats.{Applicative, Monad}
 import cats.data.{EitherT, Ior, IorT, NonEmptyList, OptionT, StateT}
 import cats.implicits._
-import cats.effect.kernel.{Clock, Sync}
+import cats.effect.Sync
 
 import com.snowplowanalytics.refererparser._
 
@@ -243,7 +243,7 @@ object EnrichmentManager {
    * @return Valid derived contexts in the `Right`, including validation_info SDJs used for validation.
    *   `SchemaViolation`s in the `Left`.
    */
-  private def validateEnriched[F[_]: Clock: Monad](
+  private def validateEnriched[F[_]: Sync](
     enriched: EnrichedEvent,
     enrichmentsContexts: List[SelfDescribingData[Json]],
     inputValidationInfo: List[SelfDescribingData[Json]],

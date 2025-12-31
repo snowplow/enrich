@@ -31,11 +31,18 @@ import com.snowplowanalytics.snowplow.analytics.scalasdk.SnowplowEvent
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
+import com.snowplowanalytics.iglu.client.resolver.registries.{Registry, RegistryError, RegistryLookup}
+import com.snowplowanalytics.iglu.core.SchemaList
+
+import io.circe.Json
+
 import com.snowplowanalytics.snowplow.streams.TokenedEvents
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{IpLookupsEnrichment, JavascriptScriptEnrichment}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest.ApiRequestEnrichment
+import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
+import com.snowplowanalytics.snowplow.enrich.common.utils.IgluUtils
 import com.snowplowanalytics.snowplow.enrich.core.CompressionTestUtils._
 
 import MockEnvironment._
@@ -60,6 +67,7 @@ class ProcessingSpec extends Specification with CatsEffect {
     Process mixed inputs with different compression types $e12
     Split compressed batch when exceeding maxBytesInBatch limit $e13
     Emit bad rows for compressed payloads exceeding maxBytesSinglePayload limit $e14
+    Crash with IgluSystemError when Iglu Server is unavailable during schema validation $e15
   """
 
   def e1 = {
@@ -934,6 +942,40 @@ class ProcessingSpec extends Specification with CatsEffect {
     TestControl.executeEmbed(io)
   }
 
+  def e15 = {
+    // Test: Verify that IgluSystemError bubbles up when Iglu Server is unavailable
+    // This ensures the application crashes rather than creating bad rows for infrastructure issues
+    val eventId = UUID.randomUUID
+
+    // Use an event with an unstruct event that requires schema validation
+    val input = GoodBatch(List(invalidAddToCart(eventId)))
+
+    // Create a RegistryLookup that simulates server unavailability by returning RepoFailure
+    val failingRegistryLookup: RegistryLookup[IO] = new RegistryLookup[IO] {
+      def lookup(registry: Registry, schemaKey: SchemaKey): IO[Either[RegistryError, Json]] =
+        IO.pure(Left(RegistryError.RepoFailure("Simulated Iglu Server unavailability")))
+
+      def list(
+        registry: Registry,
+        vendor: String,
+        name: String,
+        model: Int
+      ): IO[Either[RegistryError, SchemaList]] =
+        IO.pure(Left(RegistryError.RepoFailure("Simulated Iglu Server unavailability")))
+    }
+
+    val io =
+      for {
+        token <- IO.unique
+        inputStream = mkGoodStream((input, token))
+        result <- runTest(etlTstamp, inputStream, registryLookup = failingRegistryLookup)(control =>
+                    Processing.stream(control.environment).compile.drain
+                  ).attempt
+      } yield result must beLeft(haveClass[IgluUtils.IgluSystemError])
+
+    TestControl.executeEmbed(io)
+  }
+
 }
 
 object ProcessingSpec {
@@ -943,7 +985,8 @@ object ProcessingSpec {
     enrichmentsConfs: List[EnrichmentConf] = Nil,
     mocks: Mocks = Mocks.default,
     exitOnJsCompileError: Boolean = true,
-    decompressionConfig: Config.Decompression = Config.Decompression(10000000, 10000000)
+    decompressionConfig: Config.Decompression = Config.Decompression(10000000, 10000000),
+    registryLookup: RegistryLookup[IO] = SpecHelpers.registryLookup
   )(
     f: MockEnvironment => IO[A]
   ): IO[A] =
@@ -954,7 +997,8 @@ object ProcessingSpec {
           enrichmentsConfs,
           mocks,
           exitOnJsCompileError,
-          decompressionConfig
+          decompressionConfig,
+          registryLookup
         )
         .use { env =>
           f(env)

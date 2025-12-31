@@ -13,7 +13,7 @@ package com.snowplowanalytics.snowplow.enrich.common
 import java.time.Instant
 
 import cats.data.{Validated, ValidatedNel}
-import cats.effect.kernel.Sync
+import cats.effect.Sync
 import cats.implicits._
 
 import org.joda.time.DateTime

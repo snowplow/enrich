@@ -1701,18 +1701,18 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               if feJson.field("failureType") === "ValidationError".asJson &&
                 feJson.field("errors") === Json.arr(
                   Json.obj(
-                    "message" := "$.emailAddress: is missing but it is required",
-                    "source" := "contexts",
-                    "path" := "$",
-                    "keyword" := "required",
-                    "targets" := List("emailAddress")
-                  ),
-                  Json.obj(
                     "message" := "$.foo: is not defined in the schema and the schema does not allow additional properties",
                     "source" := "contexts",
                     "path" := "$",
                     "keyword" := "additionalProperties",
                     "targets" := List("foo")
+                  ),
+                  Json.obj(
+                    "message" := "$.emailAddress: is missing but it is required",
+                    "source" := "contexts",
+                    "path" := "$",
+                    "keyword" := "required",
+                    "targets" := List("emailAddress")
                   )
                 ) &&
                 feJson.field("schema") === emailSentSchema.asJson &&
@@ -1798,18 +1798,18 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               if feJson.field("failureType") === "ValidationError".asJson &&
                 feJson.field("errors") === Json.arr(
                   Json.obj(
-                    "message" := "$.emailAddress: is missing but it is required",
-                    "source" := "contexts",
-                    "path" := "$",
-                    "keyword" := "required",
-                    "targets" := List("emailAddress")
-                  ),
-                  Json.obj(
                     "message" := "$.foo: is not defined in the schema and the schema does not allow additional properties",
                     "source" := "contexts",
                     "path" := "$",
                     "keyword" := "additionalProperties",
                     "targets" := List("foo")
+                  ),
+                  Json.obj(
+                    "message" := "$.emailAddress: is missing but it is required",
+                    "source" := "contexts",
+                    "path" := "$",
+                    "keyword" := "required",
+                    "targets" := List("emailAddress")
                   )
                 ) &&
                 feJson.field("schema") === emailSentSchema.asJson &&
@@ -2031,18 +2031,18 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               if feJson.field("failureType") === "ValidationError".asJson &&
                 feJson.field("errors") === Json.arr(
                   Json.obj(
-                    "message" := "$.emailAddress: is missing but it is required",
-                    "source" := "derived_contexts",
-                    "path" := "$",
-                    "keyword" := "required",
-                    "targets" := List("emailAddress")
-                  ),
-                  Json.obj(
                     "message" := "$.foo: is not defined in the schema and the schema does not allow additional properties",
                     "source" := "derived_contexts",
                     "path" := "$",
                     "keyword" := "additionalProperties",
                     "targets" := List("foo")
+                  ),
+                  Json.obj(
+                    "message" := "$.emailAddress: is missing but it is required",
+                    "source" := "derived_contexts",
+                    "path" := "$",
+                    "keyword" := "required",
+                    "targets" := List("emailAddress")
                   )
                 ) &&
                 feJson.field("schema") === emailSentSchema.asJson &&

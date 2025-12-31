@@ -173,19 +173,19 @@ object EventUtils {
           "error": "ValidationError",
           "dataReports": [
           {
-            "message": "$$.sku: is missing but it is required",
-            "path": "$$",
-            "keyword": "required",
-            "targets": [
-              "sku"
-            ]
-          },
-          {
             "message": "$$.skuu: is not defined in the schema and the schema does not allow additional properties",
             "path": "$$",
             "keyword": "additionalProperties",
             "targets": [
               "skuu"
+            ]
+          },
+          {
+            "message": "$$.sku: is missing but it is required",
+            "path": "$$",
+            "keyword": "required",
+            "targets": [
+              "sku"
             ]
           }
           ]
@@ -359,21 +359,21 @@ object EventUtils {
       "failureType" : "ValidationError",
       "errors" : [
         {
-          "message" : "$$.sku: is missing but it is required",
-          "source" : "unstruct",
-          "path" : "$$",
-          "keyword" : "required",
-          "targets" : [
-            "sku"
-          ]
-        },
-        {
           "message" : "$$.skuu: is not defined in the schema and the schema does not allow additional properties",
           "source" : "unstruct",
           "path" : "$$",
           "keyword" : "additionalProperties",
           "targets" : [
             "skuu"
+          ]
+        },
+        {
+          "message" : "$$.sku: is missing but it is required",
+          "source" : "unstruct",
+          "path" : "$$",
+          "keyword" : "required",
+          "targets" : [
+            "sku"
           ]
         }
       ],

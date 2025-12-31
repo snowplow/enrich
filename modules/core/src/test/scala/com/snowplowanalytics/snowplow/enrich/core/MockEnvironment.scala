@@ -39,6 +39,7 @@ import com.snowplowanalytics.iglu.core.SelfDescribingData
 
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.Resolver
+import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 
 import com.snowplowanalytics.snowplow.runtime.{AppHealth, AppInfo}
 import com.snowplowanalytics.snowplow.runtime.processing.Coldswap
@@ -97,7 +98,8 @@ object MockEnvironment {
     enrichmentsConfs: List[EnrichmentConf] = Nil,
     mocks: Mocks = Mocks.default,
     exitOnJsCompileError: Boolean = true,
-    decompressionConfig: Config.Decompression
+    decompressionConfig: Config.Decompression,
+    registryLookup: RegistryLookup[IO] = SpecHelpers.registryLookup
   ): Resource[IO, MockEnvironment] =
     for {
       state <- Resource.eval(Ref[IO].of(Vector.empty[Action]))
@@ -148,7 +150,7 @@ object MockEnvironment {
         enrichmentRegistry = enrichmentRegistry,
         igluClient = igluClient,
         httpClient = httpClient.mock,
-        registryLookup = SpecHelpers.registryLookup,
+        registryLookup = registryLookup,
         validation = Config.Validation(
           acceptInvalid = false,
           atomicFieldsLimits = AtomicFields.from(SpecHelpers.atomicFieldLimitsDefaults),

@@ -12,16 +12,18 @@ package com.snowplowanalytics.snowplow.enrich.common.utils
 
 import java.time.Instant
 
-import cats.Monad
 import cats.data.{EitherT, Ior, IorT, NonEmptyList}
-import cats.effect.Clock
+import cats.effect.Sync
 import cats.implicits._
+
+import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import io.circe._
 import io.circe.syntax._
 import io.circe.generic.semiauto._
 
-import com.snowplowanalytics.iglu.client.IgluCirceClient
+import com.snowplowanalytics.iglu.client.{ClientError, IgluCirceClient}
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
@@ -38,6 +40,21 @@ import com.snowplowanalytics.snowplow.badrows._
  *  - Derived contexts (added by enrichments)
  */
 object IgluUtils {
+
+  private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
+    Slf4jLogger.getLogger[F]
+
+  /**
+   * Error raised when Iglu Server is unreachable, causing the application to crash.
+   * This prevents bad rows from being created due to infrastructure issues.
+   *
+   * Thrown when `Resolver.isSystemError` returns true, which happens when schema resolution
+   * fails with RepoFailure or ClientFailure errors (server unavailability, connection issues)
+   * rather than NotFound errors (schema genuinely doesn't exist).
+   *
+   * @see com.snowplowanalytics.iglu.client.resolver.Resolver#isSystemError
+   */
+  case class IgluSystemError(message: String) extends RuntimeException(message)
 
   case class ValidSDJ(
     sdj: SelfDescribingData[Json],
@@ -77,7 +94,7 @@ object IgluUtils {
    * @return `SchemaViolation`s for invalid SDJs in the `Left`.
    * Valid unstruct event and valid contexts in the `Right`, if any
    */
-  def parseAndValidateInput[F[_]: Monad: Clock](
+  def parseAndValidateInput[F[_]: Sync](
     input: EventExtractInput,
     client: IgluCirceClient[F],
     registryLookup: RegistryLookup[F],
@@ -96,7 +113,7 @@ object IgluUtils {
    * - Not an unstruct event: `Right` with `None`
    * - Invalid unstruct event: `Both` with `SchemaViolation` in the `Left` and `None` in the `Right`
    */
-  private[common] def parseAndValidateUnstruct[F[_]: Monad: Clock](
+  private[common] def parseAndValidateUnstruct[F[_]: Sync](
     maybeUnstruct: Option[String],
     client: IgluCirceClient[F],
     registryLookup: RegistryLookup[F],
@@ -128,7 +145,7 @@ object IgluUtils {
    * - No context: `Right` with `None`
    * - Some contexts invalid: `Both` with `SchemaViolation`s in the `Left` and valid contexts in the `Right`, if any
    */
-  private[common] def parseAndValidateContexts[F[_]: Monad: Clock](
+  private[common] def parseAndValidateContexts[F[_]: Sync](
     maybeContexts: Option[String],
     client: IgluCirceClient[F],
     registryLookup: RegistryLookup[F],
@@ -161,7 +178,7 @@ object IgluUtils {
     }
 
   /** Used to extract .data from input contexts and input unstruct event */
-  private def extractInputData[F[_]: Monad: Clock](
+  private def extractInputData[F[_]: Sync](
     rawJson: String,
     field: String, // to put in the bad row
     expectedCriterion: SchemaCriterion,
@@ -219,7 +236,7 @@ object IgluUtils {
     criterion.matches(sdj.schema)
 
   /** Decode a Json as a SDJ and check that it's valid */
-  private def decodeAndValidateSDJ[F[_]: Monad: Clock](
+  private def decodeAndValidateSDJ[F[_]: Sync](
     json: Json,
     client: IgluCirceClient[F],
     registryLookup: RegistryLookup[F],
@@ -244,24 +261,33 @@ object IgluUtils {
     } yield valid
 
   /** Check that a SDJ is valid */
-  private[enrich] def validateSDJ[F[_]: Monad: Clock](
+  private[enrich] def validateSDJ[F[_]: Sync](
     client: IgluCirceClient[F],
     sdj: SelfDescribingData[Json],
     registryLookup: RegistryLookup[F],
     field: String,
     etlTstamp: Instant
   ): EitherT[F, Failure.SchemaViolation, ValidSDJ] = {
-    implicit val rl = registryLookup
+    implicit val rl: RegistryLookup[F] = registryLookup
     client
       .check(sdj)
-      .leftMap { clientError =>
+      .leftSemiflatMap {
+        case re: ClientError.ResolutionError if client.resolver.isSystemError(re) =>
+          val message = s"Could not reach Iglu Server for schema '${sdj.schema.toSchemaUri}'. " +
+            s"Check resolver configuration and ensure registries are available. " +
+            s"Resolution errors: ${re.getMessage}"
+          Logger[F].error(message) >> Sync[F].raiseError[ClientError](IgluSystemError(message))
+        case other =>
+          Sync[F].pure(other)
+      }
+      .leftMap(clientError =>
         Failure.SchemaViolation(
           schemaViolation = FailureDetails.SchemaViolation.IgluError(sdj.schema, clientError),
           source = field,
           data = sdj.data,
           etlTstamp = etlTstamp
         )
-      }
+      )
       .map { supersededBy =>
         val validationInfo = supersededBy.map(s => ValidationInfo(sdj.schema, s))
         ValidSDJ(
@@ -275,7 +301,7 @@ object IgluUtils {
    * Check that several SDJs are valid
    * @return `SchemaViolation`s in the `Left` and valid SDJs in the `Right`, if any
    */
-  private[common] def validateSDJs[F[_]: Monad: Clock](
+  private[common] def validateSDJs[F[_]: Sync](
     client: IgluCirceClient[F],
     sdjs: List[SelfDescribingData[Json]],
     registryLookup: RegistryLookup[F],

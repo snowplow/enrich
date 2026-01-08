@@ -150,7 +150,9 @@ object KinesisConfigSpec {
     identity = None,
     blobClients = EmptyConfig(),
     adaptersSchemas = adaptersSchemas,
-    decompression = Config.Decompression(5242880, 10000000)
+    decompression = Config.Decompression(5242880, 10000000),
+    http = Config.Http(Config.HttpClient(5.seconds)),
+    iglu = Config.Iglu(2, 1.second)
   )
 
   private val referenceConfig = Config[EmptyConfig, KinesisSourceConfig, KinesisSinkConfig, EmptyConfig](
@@ -309,6 +311,8 @@ object KinesisConfigSpec {
     ),
     blobClients = EmptyConfig(),
     adaptersSchemas = adaptersSchemas,
-    decompression = Config.Decompression(5242880, 10000000)
+    decompression = Config.Decompression(5242880, 10000000),
+    http = Config.Http(Config.HttpClient(5.seconds)),
+    iglu = Config.Iglu(2, 1.second)
   )
 }

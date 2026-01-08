@@ -66,7 +66,9 @@ case class Config[+Factory, +Source, +Sink, +BlobClients](
   identity: Option[Config.Identity],
   blobClients: BlobClients,
   adaptersSchemas: AdaptersSchemas,
-  decompression: Config.Decompression
+  decompression: Config.Decompression,
+  http: Config.Http,
+  iglu: Config.Iglu
 )
 
 object Config {
@@ -193,6 +195,19 @@ object Config {
   }
 
   type Identity = IdentityM[Id]
+
+  case class Http(
+    client: HttpClient
+  )
+
+  case class HttpClient(
+    requestTimeout: FiniteDuration
+  )
+
+  case class Iglu(
+    maxRetry: Int,
+    maxWait: FiniteDuration
+  )
 
   /**
    * Configures behaviour of the parser when decompressing
@@ -331,6 +346,12 @@ object Config {
       deriveConfiguredDecoder[AdaptersSchemas]
     implicit val decompressionDecoder: Decoder[Decompression] =
       deriveConfiguredDecoder[Decompression]
+    implicit val httpClientDecoder: Decoder[HttpClient] =
+      deriveConfiguredDecoder[HttpClient]
+    implicit val httpDecoder: Decoder[Http] =
+      deriveConfiguredDecoder[Http]
+    implicit val igluDecoder: Decoder[Iglu] =
+      deriveConfiguredDecoder[Iglu]
 
     deriveConfiguredDecoder[Config[Factory, Source, Sink, BlobClients]]
   }

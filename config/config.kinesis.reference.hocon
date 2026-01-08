@@ -182,8 +182,18 @@
   # -- Configuration of internal http client used for iglu resolver, alerts, telemetry and metadata
   "http": {
     "client": {
-      "maxConnectionsPerServer": 4
+      # -- Timeout for HTTP requests
+      "requestTimeout": "5 seconds"
     }
+  }
+
+  # -- Configuration for Iglu schema lookups
+  "iglu": {
+    # -- Maximum number of retries for failed Iglu requests
+    "maxRetry": 2
+
+    # -- Maximum wait time for exponential backoff between retries
+    "maxWait": "1 second"
   }
 
   "validation" : {

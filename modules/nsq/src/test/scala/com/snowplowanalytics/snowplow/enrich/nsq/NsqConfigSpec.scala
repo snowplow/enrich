@@ -140,7 +140,9 @@ object NsqConfigSpec {
     identity = None,
     blobClients = AzureStorageConfig(Nil),
     adaptersSchemas = adaptersSchemas,
-    decompression = Config.Decompression(5242880, 10000000)
+    decompression = Config.Decompression(5242880, 10000000),
+    http = Config.Http(Config.HttpClient(5.seconds)),
+    iglu = Config.Iglu(2, 1.second)
   )
 
   private val referenceConfig = Config[EmptyConfig, NsqSourceConfig, NsqSinkConfig, AzureStorageConfig](
@@ -295,6 +297,8 @@ object NsqConfigSpec {
       )
     ),
     adaptersSchemas = adaptersSchemas,
-    decompression = Config.Decompression(5242880, 10000000)
+    decompression = Config.Decompression(5242880, 10000000),
+    http = Config.Http(Config.HttpClient(5.seconds)),
+    iglu = Config.Iglu(2, 1.second)
   )
 }

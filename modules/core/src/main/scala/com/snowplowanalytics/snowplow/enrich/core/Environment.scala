@@ -123,8 +123,8 @@ object Environment {
       adapterRegistry = new AdapterRegistry(Map.empty, config.main.adaptersSchemas)
       resolver <- mkResolver[F](config.iglu)
       igluClient <- Resource.eval(IgluCirceClient.fromResolver(resolver, config.iglu.cacheSize, config.main.validation.maxJsonDepth))
-      httpClient <- HttpClient.resource[F]()
-      registryLookup = Http4sRegistryLookup(httpClient)
+      httpClient <- HttpClient.resource[F](config.main.http.client.requestTimeout)
+      registryLookup = Http4sRegistryLookup(httpClient, config.main.iglu.maxRetry, config.main.iglu.maxWait)
       enrichmentsConfs <- Resource.eval {
                             EnrichmentRegistry
                               .parse[F](config.enrichments, igluClient, false, registryLookup)

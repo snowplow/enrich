@@ -50,7 +50,7 @@ object Dependencies {
     val thrift = "0.15.0"
     val httpclient = "4.5.13"
     val sprayJson = "1.3.6"
-    val netty = "4.2.7.Final"
+    val netty = "4.2.8.Final"
     val protobuf = "4.28.3"
     val nashorn = "15.6"
     val zstd = "1.5.7-4"
@@ -82,7 +82,7 @@ object Dependencies {
     val azureIdentity = "1.12.2"
     val azureStorageBlob = "12.25.1"
     val nimbusJoseJwt = "10.0.2"
-    val lz4 = "1.8.1"
+    val lz4 = "1.10.2"
     val reactorNetty = "1.2.8"
     val http4s = "0.23.25"
 
@@ -148,12 +148,13 @@ object Dependencies {
     val sentry = "io.sentry"                        % "sentry"                        % V.sentry
     val protobuf = "com.google.protobuf"            % "protobuf-java"                 % V.protobuf
 
-    val streams = "com.snowplowanalytics"         %% "streams-core"   % V.streams
-    val kinesisSnowplow = "com.snowplowanalytics" %% "kinesis"        % V.streams
-    val pubsubSnowplow = "com.snowplowanalytics"  %% "pubsub"         % V.streams
-    val kafkaSnowplow = "com.snowplowanalytics"   %% "kafka"          % V.streams
-    val nsqSnowplow = "com.snowplowanalytics"     %% "nsq"            % V.streams
-    val runtime = "com.snowplowanalytics"         %% "runtime-common" % V.streams
+    val streams = "com.snowplowanalytics"         %% "streams-core" % V.streams
+    val kinesisSnowplow = "com.snowplowanalytics" %% "kinesis"      % V.streams
+    val pubsubSnowplow = "com.snowplowanalytics"  %% "pubsub"       % V.streams
+    val kafkaSnowplow = ("com.snowplowanalytics"  %% "kafka"        % V.streams)
+      .exclude("org.lz4", "lz4-java") // CVE-2025-12183: use at.yawk.lz4 instead
+    val nsqSnowplow = "com.snowplowanalytics" %% "nsq"            % V.streams
+    val runtime = "com.snowplowanalytics"     %% "runtime-common" % V.streams
 
     val specs2 = "org.specs2"                        %% "specs2-core"                % V.specs2            % Test
     val specs2Cats = "org.specs2"                    %% "specs2-cats"                % V.specs2Cats        % Test
@@ -165,8 +166,9 @@ object Dependencies {
     val testContainers = "com.dimafeng"              %% "testcontainers-scala-core"  % V.testcontainers    % Test
     val dockerJava = "com.github.docker-java"         % "docker-java"                % V.dockerJava        % Test
 
-    val gcs = "com.google.cloud"          % "google-cloud-storage" % V.gcpSdk
-    val kafkaClients = "org.apache.kafka" % "kafka-clients"        % V.kafka
+    val gcs = "com.google.cloud"           % "google-cloud-storage" % V.gcpSdk
+    val kafkaClients = ("org.apache.kafka" % "kafka-clients"        % V.kafka)
+      .exclude("org.lz4", "lz4-java") // CVE-2025-12183: use at.yawk.lz4 instead
 
     val declineEffect = "com.monovore"                   %% "decline-effect"         % V.decline
     val fs2 = "co.fs2"                                   %% "fs2-core"               % V.fs2
@@ -176,7 +178,7 @@ object Dependencies {
     val azureStorageBlob = "com.azure"                    % "azure-storage-blob"     % V.azureStorageBlob
     val nimbusJoseJwt = "com.nimbusds"                    % "nimbus-jose-jwt"        % V.nimbusJoseJwt
     val jacksonDfXml = "com.fasterxml.jackson.dataformat" % "jackson-dataformat-xml" % V.jackson
-    val lz4 = "org.lz4"                                   % "lz4-java"               % V.lz4
+    val lz4 = "at.yawk.lz4"                               % "lz4-java"               % V.lz4
     val reactorNetty = "io.projectreactor.netty"          % "reactor-netty-http"     % V.reactorNetty
     val http4sClient = "org.http4s"                      %% "http4s-ember-client"    % V.http4s
     val http4sDsl = "org.http4s"                         %% "http4s-dsl"             % V.http4s % Test

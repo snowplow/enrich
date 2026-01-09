@@ -250,6 +250,24 @@
       "attempts": 3
     }
 
+    # -- Circuit breaker configuration to prevent cascading failures
+    "circuitBreaker": {
+      # -- Max consecutive failures before opening the circuit
+      "maxConsecutiveFailures": 5
+      # -- Failure rate threshold (0.0-1.0) to open circuit
+      "failureRateThreshold": 0.5
+      # -- Time window to calculate failure rate
+      "failureRateWindow": "1 minute"
+      # -- Min requests needed before checking failure rate
+      "minRequestsForRateCheck": 10
+      # -- Initial backoff when circuit opens
+      "initialBackoff": "30 seconds"
+      # -- Maximum backoff duration
+      "maxBackoff": "5 minutes"
+      # -- Multiplier for exponential backoff
+      "backoffMultiplier": 2.0
+    }
+
     # -- List of identifier configurations
     "identifiers": [
       {

@@ -152,7 +152,7 @@ object Environment {
       assetRefresher <- AssetRefresher.fromEnrichmentConfs(enrichmentsConfs, blobClients, enrichmentRegistry)
       _ <- Resource.eval(assetRefresher.refreshAndOpenRegistry)
       metadata <- config.main.metadata.traverse(MetadataReporter.build[F](_, appInfo, httpClient))
-      identity = config.main.identity.map(Identity.build(_, httpClient))
+      identity <- Resource.eval(config.main.identity.traverse(Identity.build(_, httpClient)))
       _ <- Resource.eval(appHealth.beHealthyForSetup)
     } yield Environment(
       appInfo = appInfo,

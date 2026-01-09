@@ -47,42 +47,49 @@ object Identity {
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
     Slf4jLogger.getLogger[F]
 
-  def build[F[_]: Async](config: Config.Identity, httpClient: Http4sClient[F]): Api[F] = {
+  def build[F[_]: Async](config: Config.Identity, httpClient: Http4sClient[F]): F[Api[F]] = {
     val retryPolicy = RetryPolicies.fullJitter[F](config.retries.delay).join(RetryPolicies.limitRetries(config.retries.attempts - 1))
 
-    new Api[F] {
-      private def post(events: List[EventIdentifiers]): F[List[Identity]] = {
-        val request = Request[F](
-          method = Method.POST,
-          uri = config.endpoint / "identities" / "batch",
-          headers = Headers(
-            Authorization(BasicCredentials(config.username, config.password))
-          )
-        ).withEntity(events)
+    CircuitBreaker.create[F](config.circuitBreaker).map { circuitBreaker =>
+      new Api[F] {
+        private def post(events: List[EventIdentifiers]): F[List[Identity]] = {
+          val request = Request[F](
+            method = Method.POST,
+            uri = config.endpoint / "identities" / "batch",
+            headers = Headers(
+              Authorization(BasicCredentials(config.username, config.password))
+            )
+          ).withEntity(events)
 
-        httpClient
-          .expect[List[Identity]](request)
-          .retryingOnAllErrors(
-            policy = retryPolicy,
-            onError = (exception, retryDetails) =>
-              Logger[F]
-                .error(exception)(s"Error calling Identity API (${retryDetails.retriesSoFar} retries)")
-          )
+          httpClient
+            .expect[List[Identity]](request)
+            .retryingOnAllErrors(
+              policy = retryPolicy,
+              onError = (exception, retryDetails) =>
+                Logger[F]
+                  .error(exception)(s"Error calling Identity API (${retryDetails.retriesSoFar} retries)")
+            )
+        }
+
+        override def concurrency: Int =
+          (Runtime.getRuntime.availableProcessors * config.concurrencyFactor)
+            .setScale(0, BigDecimal.RoundingMode.UP)
+            .toInt
+
+        override def addIdentityContexts(events: List[EnrichedEvent]): F[Unit] =
+          for {
+            filtered <- Sync[F].delay(filter(events, config.filters))
+            eventsIdentifiers <- Sync[F].delay(filtered.flatMap(extractEventIdentifiers(_, config.identifiers)))
+            _ <- if (eventsIdentifiers.nonEmpty)
+                   circuitBreaker.protect(post(eventsIdentifiers)).flatMap {
+                     case Some(identities) =>
+                       Sync[F].delay(merge(events, identities))
+                     case None =>
+                       Logger[F].warn(s"Identity circuit breaker open, skipped enrichment for ${eventsIdentifiers.size} events")
+                   }
+                 else Sync[F].unit
+          } yield ()
       }
-
-      override def concurrency: Int =
-        (Runtime.getRuntime.availableProcessors * config.concurrencyFactor)
-          .setScale(0, BigDecimal.RoundingMode.UP)
-          .toInt
-
-      override def addIdentityContexts(events: List[EnrichedEvent]): F[Unit] =
-        for {
-          filtered <- Sync[F].delay(filter(events, config.filters))
-          eventsIdentifiers <- Sync[F].delay(filtered.flatMap(extractEventIdentifiers(_, config.identifiers)))
-          _ <- if (eventsIdentifiers.nonEmpty)
-                 post(eventsIdentifiers).flatMap(identities => Sync[F].delay(merge(events, identities)))
-               else Sync[F].unit
-        } yield ()
     }
   }
 

@@ -140,11 +140,22 @@ object Config {
     password: M[String],
     concurrencyFactor: BigDecimal,
     retries: Retrying.Config.ForTransient,
+    circuitBreaker: Identity.CircuitBreakerConfig,
     identifiers: M[List[Identity.Identifier]],
     filters: Option[Identity.Filtering.Filters]
   )
 
   object Identity {
+    case class CircuitBreakerConfig(
+      maxConsecutiveFailures: Int,
+      failureRateThreshold: Double,
+      failureRateWindow: FiniteDuration,
+      minRequestsForRateCheck: Int,
+      initialBackoff: FiniteDuration,
+      maxBackoff: FiniteDuration,
+      backoffMultiplier: Double
+    )
+
     case class Identifier(
       name: String,
       field: Identifier.Field
@@ -284,6 +295,38 @@ object Config {
           Left("endpoint, organizationId and pipelineId should all be defined to enable metadata reporting")
       }
 
+    implicit val circuitBreakerConfigDecoder: Decoder[Identity.CircuitBreakerConfig] =
+      deriveConfiguredDecoder[Identity.CircuitBreakerConfig].emap { config =>
+        val errors = List(
+          if (config.failureRateThreshold < 0.0 || config.failureRateThreshold > 1.0)
+            Some("failureRateThreshold must be between 0.0 and 1.0")
+          else None,
+          if (config.maxConsecutiveFailures <= 0)
+            Some("maxConsecutiveFailures must be positive")
+          else None,
+          if (config.minRequestsForRateCheck <= 0)
+            Some("minRequestsForRateCheck must be positive")
+          else None,
+          if (config.backoffMultiplier <= 1.0)
+            Some("backoffMultiplier must be greater than 1.0")
+          else None,
+          if (config.initialBackoff.toMillis <= 0)
+            Some("initialBackoff must be positive")
+          else None,
+          if (config.maxBackoff.toMillis <= 0)
+            Some("maxBackoff must be positive")
+          else None,
+          if (config.failureRateWindow.toMillis <= 0)
+            Some("failureRateWindow must be positive")
+          else None,
+          if (config.maxBackoff < config.initialBackoff)
+            Some("maxBackoff must be greater than or equal to initialBackoff")
+          else None
+        ).flatten
+
+        if (errors.isEmpty) Right(config)
+        else Left(s"Invalid circuit breaker configuration: ${errors.mkString(", ")}")
+      }
     implicit val identityAtomicDecoder = deriveConfiguredDecoder[Identity.Identifier.Atomic]
     implicit val identityEventDecoder = deriveConfiguredDecoder[Identity.Identifier.Event]
     implicit val identityEntityDecoder = deriveConfiguredDecoder[Identity.Identifier.Entity]
@@ -304,8 +347,8 @@ object Config {
 
     implicit val identityDecoder = deriveConfiguredDecoder[IdentityM[Option]]
       .emap[Option[Identity]] {
-        case i @ IdentityM(Some(endpoint), Some(username), Some(password), _, _, Some(identifiers), _) if identifiers.nonEmpty =>
-          Right(Some(IdentityM[Id](endpoint, username, password, i.concurrencyFactor, i.retries, identifiers, i.filters)))
+        case i @ IdentityM(Some(endpoint), Some(username), Some(password), _, _, _, Some(identifiers), _) if identifiers.nonEmpty =>
+          Right(Some(IdentityM[Id](endpoint, username, password, i.concurrencyFactor, i.retries, i.circuitBreaker, identifiers, i.filters)))
         case _ =>
           Right(None)
       }

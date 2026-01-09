@@ -253,6 +253,15 @@ object PubsubConfigSpec {
         password = "sn0wp10w",
         concurrencyFactor = BigDecimal(0.75),
         retries = Retrying.Config.ForTransient(100.millis, 3),
+        circuitBreaker = Config.Identity.CircuitBreakerConfig(
+          maxConsecutiveFailures = 5,
+          failureRateThreshold = 0.5,
+          failureRateWindow = 1.minute,
+          minRequestsForRateCheck = 10,
+          initialBackoff = 30.seconds,
+          maxBackoff = 5.minutes,
+          backoffMultiplier = 2.0
+        ),
         identifiers = List(
           Config.Identity.Identifier(
             name = "user_id",

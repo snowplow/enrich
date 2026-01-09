@@ -45,6 +45,8 @@ class IdentitySpec extends Specification with CatsEffect {
     filter out event when field is missing and operator is In $e11
     filter out event when field is missing and operator is NotIn $e12
     not query the api if no identifier can be found $e13
+    not add identity context when circuit breaker is open $e14
+    recover and add identity context after circuit closes $e15
   """
 
   def e1 = {
@@ -71,9 +73,8 @@ class IdentitySpec extends Specification with CatsEffect {
     """
     val expectedKey = SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/identity/jsonschema/1-0-0").toOption.get
 
-    val api = Identity.build(testConfig(), testHttpClient)
-
     for {
+      api <- Identity.build(testConfig(), testHttpClient)
       _ <- api.addIdentityContexts(List(e1, e2))
     } yield {
       val t1 = e1.derived_contexts must beLike {
@@ -110,7 +111,7 @@ class IdentitySpec extends Specification with CatsEffect {
 
     for {
       ref <- Ref[IO].of(List.empty[(Request[IO], String)])
-      api = Identity.build(testConfig(), new RecordingHttpClient(ref).mock)
+      api <- Identity.build(testConfig(), new RecordingHttpClient(ref).mock)
       _ <- api.addIdentityContexts(List(e))
       result <- ref.get
     } yield result must beLike {
@@ -145,7 +146,7 @@ class IdentitySpec extends Specification with CatsEffect {
 
     for {
       ref <- Ref[IO].of(List.empty[(Request[IO], String)])
-      api = Identity.build(testConfig(), new RecordingHttpClient(ref).mock)
+      api <- Identity.build(testConfig(), new RecordingHttpClient(ref).mock)
       _ <- api.addIdentityContexts(List(e))
       result <- ref.get
     } yield result must beLike {
@@ -191,7 +192,7 @@ class IdentitySpec extends Specification with CatsEffect {
 
     for {
       ref <- Ref[IO].of(List.empty[(Request[IO], String)])
-      api = Identity.build(config, new RecordingHttpClient(ref).mock)
+      api <- Identity.build(config, new RecordingHttpClient(ref).mock)
       _ <- api.addIdentityContexts(List(e))
       result <- ref.get
     } yield result must beLike {
@@ -259,7 +260,7 @@ class IdentitySpec extends Specification with CatsEffect {
 
     for {
       ref <- Ref[IO].of(List.empty[(Request[IO], String)])
-      api = Identity.build(config, new RecordingHttpClient(ref).mock)
+      api <- Identity.build(config, new RecordingHttpClient(ref).mock)
       _ <- api.addIdentityContexts(List(e))
       result <- ref.get
     } yield result must beLike {
@@ -299,7 +300,7 @@ class IdentitySpec extends Specification with CatsEffect {
 
     for {
       ref <- Ref[IO].of(List.empty[(Request[IO], String)])
-      api = Identity.build(config, new RecordingHttpClient(ref).mock)
+      api <- Identity.build(config, new RecordingHttpClient(ref).mock)
       _ <- api.addIdentityContexts(List(e))
       result <- ref.get
     } yield result must beLike {
@@ -354,7 +355,7 @@ class IdentitySpec extends Specification with CatsEffect {
 
     for {
       ref <- Ref[IO].of(List.empty[(Request[IO], String)])
-      api = Identity.build(config, new RecordingHttpClient(ref).mock)
+      api <- Identity.build(config, new RecordingHttpClient(ref).mock)
       _ <- api.addIdentityContexts(List(e1, e2))
       result <- ref.get
     } yield result must beLike {
@@ -409,7 +410,7 @@ class IdentitySpec extends Specification with CatsEffect {
 
     for {
       ref <- Ref[IO].of(List.empty[(Request[IO], String)])
-      api = Identity.build(config, new RecordingHttpClient(ref).mock)
+      api <- Identity.build(config, new RecordingHttpClient(ref).mock)
       _ <- api.addIdentityContexts(List(e1, e2))
       result <- ref.get
     } yield result must beLike {
@@ -475,7 +476,7 @@ class IdentitySpec extends Specification with CatsEffect {
 
     for {
       ref <- Ref[IO].of(List.empty[(Request[IO], String)])
-      api = Identity.build(config, new RecordingHttpClient(ref).mock)
+      api <- Identity.build(config, new RecordingHttpClient(ref).mock)
       _ <- api.addIdentityContexts(List(e1, e2))
       result <- ref.get
     } yield result must beLike {
@@ -541,7 +542,7 @@ class IdentitySpec extends Specification with CatsEffect {
 
     for {
       ref <- Ref[IO].of(List.empty[(Request[IO], String)])
-      api = Identity.build(config, new RecordingHttpClient(ref).mock)
+      api <- Identity.build(config, new RecordingHttpClient(ref).mock)
       _ <- api.addIdentityContexts(List(e1, e2, e3))
       result <- ref.get
     } yield result must beLike {
@@ -577,7 +578,7 @@ class IdentitySpec extends Specification with CatsEffect {
 
     for {
       ref <- Ref[IO].of(List.empty[(Request[IO], String)])
-      api = Identity.build(config, new RecordingHttpClient(ref).mock)
+      api <- Identity.build(config, new RecordingHttpClient(ref).mock)
       _ <- api.addIdentityContexts(List(e))
       result <- ref.get
     } yield result must beEqualTo(Nil)
@@ -610,7 +611,7 @@ class IdentitySpec extends Specification with CatsEffect {
 
     for {
       ref <- Ref[IO].of(List.empty[(Request[IO], String)])
-      api = Identity.build(config, new RecordingHttpClient(ref).mock)
+      api <- Identity.build(config, new RecordingHttpClient(ref).mock)
       _ <- api.addIdentityContexts(List(e))
       result <- ref.get
     } yield result must beEqualTo(Nil)
@@ -642,10 +643,116 @@ class IdentitySpec extends Specification with CatsEffect {
 
     for {
       ref <- Ref[IO].of(List.empty[(Request[IO], String)])
-      api = Identity.build(config, new RecordingHttpClient(ref).mock)
+      api <- Identity.build(config, new RecordingHttpClient(ref).mock)
       _ <- api.addIdentityContexts(List(e))
       result <- ref.get
     } yield result must beTypedEqualTo(Nil)
+  }
+
+  def e14 = {
+    val mockResponseBody = """[]"""
+
+    val test = for {
+      callCount <- Ref.of[IO, Int](0)
+      failingClient = Http4sClient.fromHttpApp[IO](org.http4s.HttpApp[IO] { _ =>
+                        callCount.updateAndGet(_ + 1).flatMap { count =>
+                          if (count <= 5)
+                            IO.raiseError(new Exception("API unavailable"))
+                          else
+                            Created(mockResponseBody)
+                        }
+                      })
+
+      identifiers = List(
+                      Config.Identity.Identifier("user_id", Config.Identity.Identifier.Atomic(EnrichedEvent.atomicFieldsByName("user_id")))
+                    )
+
+      cbConfig = Config.Identity.CircuitBreakerConfig(
+                   maxConsecutiveFailures = 5,
+                   failureRateThreshold = 0.5,
+                   failureRateWindow = 1.minute,
+                   minRequestsForRateCheck = 10,
+                   initialBackoff = 100.millis,
+                   maxBackoff = 5.minutes,
+                   backoffMultiplier = 2.0
+                 )
+
+      config = testConfig(
+                 identifiers = identifiers,
+                 filters = None
+               ).copy(circuitBreaker = cbConfig)
+
+      event = new EnrichedEvent()
+      _ = event.event_id = "event-123"
+      _ = event.user_id = "user-456"
+
+      api <- Identity.build(config, failingClient)
+      _ <- api.addIdentityContexts(List(event))
+      _ <- api.addIdentityContexts(List(event))
+      _ <- api.addIdentityContexts(List(event))
+      _ <- api.addIdentityContexts(List(event))
+      _ <- api.addIdentityContexts(List(event))
+      _ <- IO.sleep(50.millis)
+      _ <- api.addIdentityContexts(List(event))
+      finalCallCount <- callCount.get
+    } yield (event.derived_contexts.size, finalCallCount)
+
+    test.map {
+      case (contextCount, finalCallCount) =>
+        (contextCount must beEqualTo(0)) and (finalCallCount must beEqualTo(5))
+    }
+  }
+
+  def e15 = {
+    val mockResponseBody = """[{"createdAt":"2024-01-01T00:00:00Z","eventId":"event-123","snowplowId":"sp-123"}]"""
+
+    val test = for {
+      callCount <- Ref.of[IO, Int](0)
+      recoveringClient = Http4sClient.fromHttpApp[IO](org.http4s.HttpApp[IO] { _ =>
+                           callCount.updateAndGet(_ + 1).flatMap { count =>
+                             if (count <= 3)
+                               IO.raiseError(new Exception("API unavailable"))
+                             else
+                               Created(mockResponseBody)
+                           }
+                         })
+
+      identifiers = List(
+                      Config.Identity.Identifier("user_id", Config.Identity.Identifier.Atomic(EnrichedEvent.atomicFieldsByName("user_id")))
+                    )
+
+      cbConfig = Config.Identity.CircuitBreakerConfig(
+                   maxConsecutiveFailures = 3,
+                   failureRateThreshold = 0.5,
+                   failureRateWindow = 1.minute,
+                   minRequestsForRateCheck = 10,
+                   initialBackoff = 50.millis,
+                   maxBackoff = 5.minutes,
+                   backoffMultiplier = 2.0
+                 )
+
+      config = testConfig(
+                 identifiers = identifiers,
+                 filters = None
+               ).copy(circuitBreaker = cbConfig)
+
+      event = new EnrichedEvent()
+      _ = event.event_id = "event-123"
+      _ = event.user_id = "user-456"
+
+      api <- Identity.build(config, recoveringClient)
+      _ <- api.addIdentityContexts(List(event))
+      _ <- api.addIdentityContexts(List(event))
+      _ <- api.addIdentityContexts(List(event))
+      _ <- IO.sleep(100.millis)
+      _ <- api.addIdentityContexts(List(event))
+      finalCallCount <- callCount.get
+    } yield (event.derived_contexts.size, finalCallCount)
+
+    test.map {
+      case (contextCount, finalCallCount) =>
+        (contextCount must beEqualTo(1)) and (finalCallCount must beEqualTo(4))
+    }
   }
 }
 
@@ -754,6 +861,15 @@ object IdentitySpec {
       "test-password",
       1,
       Retrying.Config.ForTransient(100.millis, 1),
+      Config.Identity.CircuitBreakerConfig(
+        maxConsecutiveFailures = 5,
+        failureRateThreshold = 0.5,
+        failureRateWindow = 1.minute,
+        minRequestsForRateCheck = 10,
+        initialBackoff = 30.seconds,
+        maxBackoff = 5.minutes,
+        backoffMultiplier = 2.0
+      ),
       identifiers,
       filters
     )

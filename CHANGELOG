@@ -1,3 +1,13 @@
+6.5.0 (2026-01-09)
+------------------
+Upgrade dependencies (#161)
+Update sync workflow for enrich (#152)
+Add circuit breaker configuration for Identity API (#156)
+Bump iglu-scala-client to 4.2.0 (#159)
+Add configurable Iglu settings for faster failure (#158)
+Crash on Iglu Server unavailability instead of creating bad rows (#157)
+Fix flaky ProcessingSpec (#154)
+
 6.4.0 (2025-12-12)
 ------------------
 Bump libraries to address security vulnerabilities

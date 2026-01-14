@@ -32,7 +32,14 @@ import com.comcast.ip4s.Port
 import com.snowplowanalytics.snowplow.runtime.Metrics.StatsdConfig
 import com.snowplowanalytics.snowplow.runtime.{AcceptedLicense, ConfigParser, Retrying, Telemetry}
 
-import com.snowplowanalytics.snowplow.streams.kinesis.{BackoffPolicy, KinesisSinkConfig, KinesisSinkConfigM, KinesisSourceConfig}
+import com.snowplowanalytics.snowplow.streams.kinesis.{
+  BackoffPolicy,
+  KinesisHttpSourceConfig,
+  KinesisSinkConfig,
+  KinesisSinkConfigM,
+  KinesisSourceConfig
+}
+import com.snowplowanalytics.snowplow.streams.http.HttpSourceConfigM
 
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers.{adaptersSchemas, atomicFieldLimitsDefaults}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
@@ -47,6 +54,7 @@ class KinesisConfigSpec extends Specification with CatsEffect {
   Config parse should be able to parse
     minimal kinesis config $minimal
     reference kinesis config $reference
+    config with http section $http
   """
 
   private def minimal =
@@ -65,33 +73,50 @@ class KinesisConfigSpec extends Specification with CatsEffect {
       )
     )
 
+  private def http = {
+    val expected = KinesisConfigSpec.minimalConfig.copy(
+      input = KinesisConfigSpec.minimalConfig.input.copy(
+        http = Some(HttpSourceConfigM[Id](port = Port.fromInt(8000).get))
+      )
+    )
+    assert(
+      resource = "/config.kinesis.http.test.hocon",
+      expectedResult = Right(expected)
+    )
+  }
+
   private def assert(
     resource: String,
-    expectedResult: Either[ExitCode, Config[EmptyConfig, KinesisSourceConfig, KinesisSinkConfig, EmptyConfig]]
+    expectedResult: Either[ExitCode, Config[EmptyConfig, KinesisHttpSourceConfig, KinesisSinkConfig, EmptyConfig]]
   ) = {
     val path = Paths.get(getClass.getResource(resource).toURI)
-    ConfigParser.configFromFile[IO, Config[EmptyConfig, KinesisSourceConfig, KinesisSinkConfig, EmptyConfig]](path).value.map { result =>
-      result must beEqualTo(expectedResult)
+    ConfigParser.configFromFile[IO, Config[EmptyConfig, KinesisHttpSourceConfig, KinesisSinkConfig, EmptyConfig]](path).value.map {
+      result =>
+        result must beEqualTo(expectedResult)
     }
   }
 }
 
 object KinesisConfigSpec {
-  private val minimalConfig = Config[EmptyConfig, KinesisSourceConfig, KinesisSinkConfig, EmptyConfig](
+  private val minimalConfig = Config[EmptyConfig, KinesisHttpSourceConfig, KinesisSinkConfig, EmptyConfig](
     license = AcceptedLicense(),
-    input = KinesisSourceConfig(
-      appName = "snowplow-enrich",
-      streamName = "snowplow-collector-payloads",
-      workerIdentifier = "testWorkerId",
-      initialPosition = KinesisSourceConfig.InitialPosition.Latest,
-      retrievalMode = KinesisSourceConfig.Retrieval.Polling(1000),
-      customEndpoint = None,
-      dynamodbCustomEndpoint = None,
-      cloudwatchCustomEndpoint = None,
-      leaseDuration = 10.seconds,
-      maxLeasesToStealAtOneTimeFactor = BigDecimal(2),
-      checkpointThrottledBackoffPolicy = BackoffPolicy(minBackoff = 100.millis, maxBackoff = 1.second),
-      debounceCheckpoints = 10.seconds
+    input = KinesisHttpSourceConfig(
+      kinesis = KinesisSourceConfig(
+        appName = "snowplow-enrich",
+        streamName = "snowplow-collector-payloads",
+        workerIdentifier = "testWorkerId",
+        initialPosition = KinesisSourceConfig.InitialPosition.Latest,
+        retrievalMode = KinesisSourceConfig.Retrieval.Polling(1000),
+        customEndpoint = None,
+        dynamodbCustomEndpoint = None,
+        cloudwatchCustomEndpoint = None,
+        leaseDuration = 10.seconds,
+        maxLeasesToStealAtOneTimeFactor = BigDecimal(2),
+        checkpointThrottledBackoffPolicy = BackoffPolicy(minBackoff = 100.millis, maxBackoff = 1.second),
+        debounceCheckpoints = 10.seconds,
+        maxRetries = 10
+      ),
+      http = None
     ),
     output = Config.Output(
       good = Config.SinkWithMetadata(
@@ -155,21 +180,25 @@ object KinesisConfigSpec {
     iglu = Config.Iglu(2, 1.second)
   )
 
-  private val referenceConfig = Config[EmptyConfig, KinesisSourceConfig, KinesisSinkConfig, EmptyConfig](
+  private val referenceConfig = Config[EmptyConfig, KinesisHttpSourceConfig, KinesisSinkConfig, EmptyConfig](
     license = AcceptedLicense(),
-    input = KinesisSourceConfig(
-      appName = "snowplow-enrich",
-      streamName = "snowplow-collector-payloads",
-      workerIdentifier = "testWorkerId",
-      initialPosition = KinesisSourceConfig.InitialPosition.TrimHorizon,
-      retrievalMode = KinesisSourceConfig.Retrieval.Polling(1000),
-      customEndpoint = None,
-      dynamodbCustomEndpoint = None,
-      cloudwatchCustomEndpoint = None,
-      leaseDuration = 10.seconds,
-      maxLeasesToStealAtOneTimeFactor = BigDecimal(2),
-      checkpointThrottledBackoffPolicy = BackoffPolicy(minBackoff = 100.millis, maxBackoff = 1.second),
-      debounceCheckpoints = 10.seconds
+    input = KinesisHttpSourceConfig(
+      kinesis = KinesisSourceConfig(
+        appName = "snowplow-enrich",
+        streamName = "snowplow-collector-payloads",
+        workerIdentifier = "testWorkerId",
+        initialPosition = KinesisSourceConfig.InitialPosition.TrimHorizon,
+        retrievalMode = KinesisSourceConfig.Retrieval.Polling(1000),
+        customEndpoint = None,
+        dynamodbCustomEndpoint = None,
+        cloudwatchCustomEndpoint = None,
+        leaseDuration = 10.seconds,
+        maxLeasesToStealAtOneTimeFactor = BigDecimal(2),
+        checkpointThrottledBackoffPolicy = BackoffPolicy(minBackoff = 100.millis, maxBackoff = 1.second),
+        debounceCheckpoints = 10.seconds,
+        maxRetries = 10
+      ),
+      http = None
     ),
     output = Config.Output(
       good = Config.SinkWithMetadata(

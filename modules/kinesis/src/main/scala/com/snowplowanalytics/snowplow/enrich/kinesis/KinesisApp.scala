@@ -12,13 +12,13 @@ package com.snowplowanalytics.snowplow.enrich.kinesis
 
 import cats.effect.IO
 
-import com.snowplowanalytics.snowplow.streams.kinesis.{KinesisFactory, KinesisSinkConfig, KinesisSourceConfig}
+import com.snowplowanalytics.snowplow.streams.kinesis.{KinesisFactory, KinesisHttpSourceConfig, KinesisSinkConfig}
 
 import com.snowplowanalytics.snowplow.enrich.cloudutils.aws.S3BlobClient
 
 import com.snowplowanalytics.snowplow.enrich.core.EnrichApp
 
-object KinesisApp extends EnrichApp[EmptyConfig, KinesisSourceConfig, KinesisSinkConfig, EmptyConfig](BuildInfo) {
+object KinesisApp extends EnrichApp[EmptyConfig, KinesisHttpSourceConfig, KinesisSinkConfig, EmptyConfig](BuildInfo) {
 
   override def toFactory: FactoryProvider = _ => KinesisFactory.resource[IO]
 

@@ -1,0 +1,24 @@
+{
+  "license": {
+    "accept": true
+  }
+
+  "input": {
+    "kinesis": {
+      "streamName": "snowplow-collector-payloads"
+    }
+    "http": {
+      "port": 8000
+    }
+  }
+
+  "output": {
+    "good": {
+      "streamName": "snowplow-enriched"
+    }
+
+    "bad": {
+      "streamName": "snowplow-bad"
+    }
+  }
+}

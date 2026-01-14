@@ -28,6 +28,7 @@ import cats.effect.testing.specs2.CatsEffect
 import com.snowplowanalytics.snowplow.streams.kinesis.{
   BackoffPolicy,
   KinesisFactory,
+  KinesisHttpSourceConfig,
   KinesisSinkConfig,
   KinesisSinkConfigM,
   KinesisSourceConfig
@@ -70,19 +71,23 @@ object utils extends CatsEffect {
     localstackPort: Int,
     streamName: String
   ) =
-    KinesisSourceConfig(
-      appName = UUID.randomUUID().toString,
-      streamName = streamName,
-      workerIdentifier = "test-worker",
-      initialPosition = KinesisSourceConfig.InitialPosition.TrimHorizon,
-      retrievalMode = KinesisSourceConfig.Retrieval.Polling(500),
-      customEndpoint = Some(URI.create(s"http://$localstackHost:$localstackPort")),
-      dynamodbCustomEndpoint = Some(URI.create(s"http://$localstackHost:$localstackPort")),
-      cloudwatchCustomEndpoint = Some(URI.create(s"http://$localstackHost:$localstackPort")),
-      leaseDuration = 5.seconds,
-      maxLeasesToStealAtOneTimeFactor = BigDecimal(2),
-      checkpointThrottledBackoffPolicy = BackoffPolicy(minBackoff = 100.millis, maxBackoff = 1.second),
-      debounceCheckpoints = 1.second
+    KinesisHttpSourceConfig(
+      kinesis = KinesisSourceConfig(
+        appName = UUID.randomUUID().toString,
+        streamName = streamName,
+        workerIdentifier = "test-worker",
+        initialPosition = KinesisSourceConfig.InitialPosition.TrimHorizon,
+        retrievalMode = KinesisSourceConfig.Retrieval.Polling(500),
+        customEndpoint = Some(URI.create(s"http://$localstackHost:$localstackPort")),
+        dynamodbCustomEndpoint = Some(URI.create(s"http://$localstackHost:$localstackPort")),
+        cloudwatchCustomEndpoint = Some(URI.create(s"http://$localstackHost:$localstackPort")),
+        leaseDuration = 5.seconds,
+        maxLeasesToStealAtOneTimeFactor = BigDecimal(2),
+        checkpointThrottledBackoffPolicy = BackoffPolicy(minBackoff = 100.millis, maxBackoff = 1.second),
+        debounceCheckpoints = 1.second,
+        maxRetries = 10
+      ),
+      http = None
     )
 
   def sinkConfig(

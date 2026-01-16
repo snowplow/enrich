@@ -77,7 +77,7 @@ object utils extends CatsEffect {
         streamName = streamName,
         workerIdentifier = "test-worker",
         initialPosition = KinesisSourceConfig.InitialPosition.TrimHorizon,
-        retrievalMode = KinesisSourceConfig.Retrieval.Polling(500),
+        retrievalMode = KinesisSourceConfig.Retrieval.Polling(500, 200.millis),
         customEndpoint = Some(URI.create(s"http://$localstackHost:$localstackPort")),
         dynamodbCustomEndpoint = Some(URI.create(s"http://$localstackHost:$localstackPort")),
         cloudwatchCustomEndpoint = Some(URI.create(s"http://$localstackHost:$localstackPort")),
@@ -85,7 +85,8 @@ object utils extends CatsEffect {
         maxLeasesToStealAtOneTimeFactor = BigDecimal(2),
         checkpointThrottledBackoffPolicy = BackoffPolicy(minBackoff = 100.millis, maxBackoff = 1.second),
         debounceCheckpoints = 1.second,
-        maxRetries = 10
+        maxRetries = 10,
+        apiCallAttemptTimeout = 15.seconds
       ),
       http = None
     )

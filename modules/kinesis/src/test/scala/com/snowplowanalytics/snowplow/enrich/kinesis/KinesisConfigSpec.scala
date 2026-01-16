@@ -106,7 +106,7 @@ object KinesisConfigSpec {
         streamName = "snowplow-collector-payloads",
         workerIdentifier = "testWorkerId",
         initialPosition = KinesisSourceConfig.InitialPosition.Latest,
-        retrievalMode = KinesisSourceConfig.Retrieval.Polling(1000),
+        retrievalMode = KinesisSourceConfig.Retrieval.Polling(750, 200.millis),
         customEndpoint = None,
         dynamodbCustomEndpoint = None,
         cloudwatchCustomEndpoint = None,
@@ -114,7 +114,8 @@ object KinesisConfigSpec {
         maxLeasesToStealAtOneTimeFactor = BigDecimal(2),
         checkpointThrottledBackoffPolicy = BackoffPolicy(minBackoff = 100.millis, maxBackoff = 1.second),
         debounceCheckpoints = 10.seconds,
-        maxRetries = 10
+        maxRetries = 10,
+        apiCallAttemptTimeout = 15.seconds
       ),
       http = None
     ),
@@ -189,7 +190,7 @@ object KinesisConfigSpec {
         streamName = "snowplow-collector-payloads",
         workerIdentifier = "testWorkerId",
         initialPosition = KinesisSourceConfig.InitialPosition.TrimHorizon,
-        retrievalMode = KinesisSourceConfig.Retrieval.Polling(1000),
+        retrievalMode = KinesisSourceConfig.Retrieval.Polling(750, 200.millis),
         customEndpoint = None,
         dynamodbCustomEndpoint = None,
         cloudwatchCustomEndpoint = None,
@@ -197,7 +198,8 @@ object KinesisConfigSpec {
         maxLeasesToStealAtOneTimeFactor = BigDecimal(2),
         checkpointThrottledBackoffPolicy = BackoffPolicy(minBackoff = 100.millis, maxBackoff = 1.second),
         debounceCheckpoints = 10.seconds,
-        maxRetries = 10
+        maxRetries = 10,
+        apiCallAttemptTimeout = 15.seconds
       ),
       http = None
     ),

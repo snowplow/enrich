@@ -29,7 +29,10 @@
       "type": "Polling"
 
       # -- Only used if retrieval mode is type Polling. How many events the client may fetch in a single poll
-      "maxRecords": 1000
+      "maxRecords": 750
+
+      # -- Only used if retrieval mode is type Polling. Idle time between GetRecords requests.
+      "idleTimeBetweenReads": "200 millis"
     }
 
     # -- Name of this KCL worker used in the DynamoDB lease table

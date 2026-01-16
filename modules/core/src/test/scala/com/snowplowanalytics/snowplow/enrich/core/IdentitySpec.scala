@@ -95,11 +95,13 @@ class IdentitySpec extends Specification with CatsEffect {
     e.domain_userid = "test-domain-user-id"
     e.network_userid = "test-network-user-id"
     e.user_id = "test-user-id"
+    e.derived_tstamp = "2024-01-16 10:30:45.123"
 
     val expectedRequestBody = json"""
       [
         {
           "eventId": ${e.event_id},
+          "derivedTimestamp": ${e.derived_tstamp},
           "identifiers": {
             "user_id": ${e.user_id},
             "domain_userid": ${e.domain_userid},
@@ -137,6 +139,7 @@ class IdentitySpec extends Specification with CatsEffect {
       [
         {
           "eventId": ${e.event_id},
+          "derivedTimestamp": null,
           "identifiers": {
             "domain_userid": ${e.domain_userid}
           }
@@ -159,6 +162,7 @@ class IdentitySpec extends Specification with CatsEffect {
     val e = new EnrichedEvent()
     e.event_id = UUID.randomUUID.toString
     e.user_id = "test-user-id"
+    e.derived_tstamp = "2024-01-16 14:25:30.456"
 
     val testEntityData = json"""{"customId": "custom-123"}"""
     val testEntitySchema = SchemaKey("com.test", "user_context", "jsonschema", SchemaVer.Full(1, 0, 0))
@@ -182,6 +186,7 @@ class IdentitySpec extends Specification with CatsEffect {
       [
         {
           "eventId": ${e.event_id},
+          "derivedTimestamp": ${e.derived_tstamp},
           "identifiers": {
             "user_id": ${e.user_id},
             "custom_id": "custom-123"
@@ -247,6 +252,7 @@ class IdentitySpec extends Specification with CatsEffect {
       [
         {
           "eventId": ${e.event_id},
+          "derivedTimestamp": null,
           "identifiers": {
             "default_custom_id": "id-from-first",
             "first_custom_id": "id-from-first",
@@ -291,6 +297,7 @@ class IdentitySpec extends Specification with CatsEffect {
       [
         {
           "eventId": ${e.event_id},
+          "derivedTimestamp": null,
           "identifiers": {
             "event_user_id": "event-user-123"
           }
@@ -346,6 +353,7 @@ class IdentitySpec extends Specification with CatsEffect {
       [
         {
           "eventId": ${e1.event_id},
+          "derivedTimestamp": null,
           "identifiers": {
             "user_id": ${e1.user_id}
           }
@@ -401,6 +409,7 @@ class IdentitySpec extends Specification with CatsEffect {
       [
         {
           "eventId": ${e1.event_id},
+          "derivedTimestamp": null,
           "identifiers": {
             "user_id": ${e1.user_id}
           }
@@ -424,11 +433,13 @@ class IdentitySpec extends Specification with CatsEffect {
     e1.event_id = UUID.randomUUID.toString
     e1.app_id = "allowed_app"
     e1.user_id = ""
+    e1.derived_tstamp = "2024-01-16 09:15:22.789"
 
     val e2 = new EnrichedEvent()
     e2.event_id = UUID.randomUUID.toString
     e2.app_id = "blocked_app"
     e2.user_id = "test-user"
+    e2.derived_tstamp = "2024-01-16 09:15:23.001"
 
     val config = testConfig(
       identifiers = List(
@@ -461,12 +472,14 @@ class IdentitySpec extends Specification with CatsEffect {
       [
         {
           "eventId": ${e1.event_id},
+          "derivedTimestamp": ${e1.derived_tstamp},
           "identifiers": {
             "user_id": ${e1.user_id}
           }
         },
         {
           "eventId": ${e2.event_id},
+          "derivedTimestamp": ${e2.derived_tstamp},
           "identifiers": {
             "user_id": ${e2.user_id}
           }
@@ -527,12 +540,14 @@ class IdentitySpec extends Specification with CatsEffect {
       [
         {
           "eventId": ${e2.event_id},
+          "derivedTimestamp": null,
           "identifiers": {
             "user_id": ${e2.user_id}
           }
         },
         {
           "eventId": ${e3.event_id},
+          "derivedTimestamp": null,
           "identifiers": {
             "user_id": ${e3.user_id}
           }

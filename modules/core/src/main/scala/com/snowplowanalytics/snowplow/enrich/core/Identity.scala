@@ -35,7 +35,11 @@ object Identity {
     def addIdentityContexts(events: List[EnrichedEvent]): F[Unit]
   }
 
-  case class EventIdentifiers(eventId: String, identifiers: Map[String, String])
+  case class EventIdentifiers(
+    eventId: String,
+    derivedTimestamp: Option[String],
+    identifiers: Map[String, String]
+  )
 
   // Corresponds to BatchIdentity in identity API
   case class Identity(
@@ -153,6 +157,7 @@ object Identity {
       Some(
         EventIdentifiers(
           event.event_id,
+          Option(event.derived_tstamp),
           values
         )
       )

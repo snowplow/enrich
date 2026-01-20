@@ -19,6 +19,7 @@ import io.circe._
 import io.circe.syntax._
 
 import javax.script._
+import org.openjdk.nashorn.api.scripting.{ClassFilter, NashornScriptEngineFactory}
 
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
@@ -62,12 +63,21 @@ object JavascriptScriptEnrichment extends ParseableEnrichment {
     schemaKey: SchemaKey,
     rawFunction: String,
     params: JsonObject,
-    exitOnCompileError: Boolean
+    exitOnCompileError: Boolean,
+    allowedJavaClasses: Set[String]
   ): Either[String, JavascriptScriptEnrichment] =
     Either
       .catchNonFatal {
-        val engine = new ScriptEngineManager()
-          .getEngineByName("nashorn")
+        val classFilter: ClassFilter = className =>
+          allowedJavaClasses.exists { pattern =>
+            if (pattern.endsWith("*")) {
+              val prefix = pattern.dropRight(1)
+              className.startsWith(prefix)
+            } else
+              className == pattern
+          }
+        val engine = new NashornScriptEngineFactory()
+          .getScriptEngine(classFilter)
           .asInstanceOf[ScriptEngine with Invocable with Compilable]
         val stringified = rawFunction + s"""
           var getJavascriptContexts = function() {

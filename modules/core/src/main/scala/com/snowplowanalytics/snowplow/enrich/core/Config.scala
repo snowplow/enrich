@@ -60,6 +60,7 @@ case class Config[+Factory, +Source, +Sink, +BlobClients](
   sinkParallelismFraction: BigDecimal,
   monitoring: Config.Monitoring,
   assetsUpdatePeriod: FiniteDuration,
+  jsAllowedJavaClasses: Set[String],
   validation: Config.Validation,
   telemetry: Telemetry.Config,
   metadata: Option[Config.Metadata],

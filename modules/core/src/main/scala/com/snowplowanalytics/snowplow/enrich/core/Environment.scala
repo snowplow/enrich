@@ -145,10 +145,14 @@ object Environment {
                                  Resource.pure[F, CommonHttpClient[F]](CommonHttpClient.noop[F])
                              }
       sqlEC <- SqlExecutionContext.mk
-      enrichmentRegistry <-
-        Coldswap.make(
-          mkEnrichmentRegistry(enrichmentsConfs, apiEnrichmentClient, sqlEC, config.main.validation.exitOnJsCompileError)
-        )
+      enrichmentRegistry <- Coldswap.make(
+                              mkEnrichmentRegistry(enrichmentsConfs,
+                                                   apiEnrichmentClient,
+                                                   sqlEC,
+                                                   config.main.validation.exitOnJsCompileError,
+                                                   config.main.jsAllowedJavaClasses
+                              )
+                            )
       assetRefresher <- AssetRefresher.fromEnrichmentConfs(enrichmentsConfs, blobClients, enrichmentRegistry)
       _ <- Resource.eval(assetRefresher.refreshAndOpenRegistry)
       metadata <- config.main.metadata.traverse(MetadataReporter.build[F](_, appInfo, httpClient))
@@ -216,7 +220,8 @@ object Environment {
     enrichmentsConfs: List[EnrichmentConf],
     apiEnrichmentHttpClient: CommonHttpClient[F],
     sqlEC: ExecutionContext,
-    exitOnJsCompileError: Boolean
+    exitOnJsCompileError: Boolean,
+    jsAllowedJavaClasses: Set[String]
   ): Resource[F, EnrichmentRegistry[F]] =
     for {
       maybeRegistry <- Resource.eval {
@@ -225,7 +230,8 @@ object Environment {
                              enrichmentsConfs,
                              apiEnrichmentHttpClient,
                              sqlEC,
-                             exitOnJsCompileError
+                             exitOnJsCompileError,
+                             jsAllowedJavaClasses
                            )
                            .value
                        }

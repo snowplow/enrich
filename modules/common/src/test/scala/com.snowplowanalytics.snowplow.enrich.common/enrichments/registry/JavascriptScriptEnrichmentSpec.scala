@@ -51,6 +51,15 @@ class JavascriptScriptEnrichmentSpec extends Specification {
   Javascript enrichment should fail if the unstruct_event is set to invalid json     $e18
   Javascript enrichment should fail if the contexts field is set to invalid json     $e19
   Javascript enrichment should run successfully with Java packages                   $e20
+  Class filtering should block "new <class>" when class is not in allow list         $e21
+  Class filtering should allow "new <class>" when class is in allow list             $e22
+  Class filtering should block "Java.type(<class>)" when class is not in allow list  $e23
+  Class filtering should allow "Java.type(<class>)" when class is in allow list      $e24
+  Class filtering should block static methods when class is not in allow list        $e25
+  Class filtering should allow static methods when class in allow list               $e26
+  Class filtering should allow classes resulting from using allowed classes          $e27
+  Wildcard pattern "*" should allow all classes                                      $e28
+  Wildcard pattern "java.net.*" should allow URL and URI classes                     $e29
   """
 
   def e1_1 =
@@ -59,7 +68,7 @@ class JavascriptScriptEnrichmentSpec extends Specification {
     }
 
   def e1_2 =
-    JavascriptScriptEnrichment.create(schemaKey, "[", JsonObject.empty, exitOnCompileError = true) must beLike {
+    JavascriptScriptEnrichment.create(schemaKey, "[", JsonObject.empty, exitOnCompileError = true, Set.empty) must beLike {
       case Left(msg) if msg.contains("Error compiling") => ok
     }
 
@@ -442,7 +451,23 @@ class JavascriptScriptEnrichmentSpec extends Specification {
         }"""
       )
 
-    JavascriptScriptEnrichment.create(schemaKey, function, JsonObject.empty, exitOnCompileError = true) match {
+    val allowedClasses = Set(
+      "java.lang.String",
+      "java.util.ArrayList",
+      "java.util.Base64",
+      "java.io.BufferedReader",
+      "java.io.InputStreamReader",
+      "java.io.OutputStreamWriter",
+      "java.net.URI",
+      "java.net.URL",
+      "java.net.URLDecoder",
+      "java.net.URLEncoder",
+      "java.nio.charset.StandardCharsets",
+      "java.security.MessageDigest",
+      "org.apache.commons.codec.digest.DigestUtils"
+    )
+
+    JavascriptScriptEnrichment.create(schemaKey, function, JsonObject.empty, exitOnCompileError = true, allowedClasses) match {
       case Left(e) => ko(s"Error while creating the JS enrichment: $e")
       case Right(js) =>
         js.process(enriched, List.empty, SpecHelpers.DefaultMaxJsonDepth) match {
@@ -450,6 +475,155 @@ class JavascriptScriptEnrichmentSpec extends Specification {
             c must beEqualTo(expected)
           case Result.Failure(f) => ko(s"Error during the execution of the JS enrichment: ${f.message}")
         }
+    }
+  }
+
+  def e21 = {
+    val function = s"""
+      function process(event) {
+        var url = new java.net.URL("http://example.com");
+        return [];
+      }"""
+    createJsEnrichment(function, allowedJavaClasses = Set.empty, exitOnCompileError = false)
+      .process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beLike {
+      case Result.Failure(FailureDetails.EnrichmentFailure(_, FailureDetails.EnrichmentFailureMessage.Simple(msg)))
+          if msg.contains("java.lang.ClassNotFoundException") && msg.contains("java.net.URL") =>
+        ok
+    }
+  }
+
+  def e22 = {
+    val function = s"""
+      function process(event) {
+        var url = new java.net.URL("http://example.com");
+        return [{ schema: "iglu:com.test/url/jsonschema/1-0-0", data: { host: url.getHost() } }];
+      }"""
+    val expected = SelfDescribingData(
+      SchemaKey("com.test", "url", "jsonschema", SchemaVer.Full(1, 0, 0)),
+      json"""{"host": "example.com"}"""
+    )
+    createJsEnrichment(function, allowedJavaClasses = Set("java.net.URL"))
+      .process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beLike {
+      case Result.Success(List(c), false) => c must beEqualTo(expected)
+    }
+  }
+
+  def e23 = {
+    val function = s"""
+      function process(event) {
+        var URLClass = Java.type("java.net.URL");
+        var url = new URLClass("http://example.com");
+        return [];
+      }"""
+    createJsEnrichment(function, allowedJavaClasses = Set.empty, exitOnCompileError = false)
+      .process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beLike {
+      case Result.Failure(FailureDetails.EnrichmentFailure(_, FailureDetails.EnrichmentFailureMessage.Simple(msg)))
+          if msg.contains("java.lang.ClassNotFoundException") && msg.contains("java.net.URL") =>
+        ok
+    }
+  }
+
+  def e24 = {
+    val function = s"""
+      function process(event) {
+        var URLClass = Java.type("java.net.URL");
+        var url = new URLClass("http://example.com");
+        return [{ schema: "iglu:com.test/url/jsonschema/1-0-0", data: { host: url.getHost() } }];
+      }"""
+    val expected = SelfDescribingData(
+      SchemaKey("com.test", "url", "jsonschema", SchemaVer.Full(1, 0, 0)),
+      json"""{"host": "example.com"}"""
+    )
+    createJsEnrichment(function, allowedJavaClasses = Set("java.net.URL"))
+      .process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beLike {
+      case Result.Success(List(c), false) => c must beEqualTo(expected)
+    }
+  }
+
+  def e25 = {
+    val function = s"""
+      function process(event) {
+        var hash = org.apache.commons.codec.digest.DigestUtils.md5Hex("test");
+        return [];
+      }"""
+    createJsEnrichment(function, allowedJavaClasses = Set.empty, exitOnCompileError = false)
+      .process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beLike {
+      case Result.Failure(FailureDetails.EnrichmentFailure(_, FailureDetails.EnrichmentFailureMessage.Simple(msg)))
+          if msg.contains("java.lang.ClassNotFoundException") && msg.contains("org.apache.commons.codec.digest.DigestUtils") =>
+        ok
+    }
+  }
+
+  def e26 = {
+    val function = s"""
+      function process(event) {
+        var hash = org.apache.commons.codec.digest.DigestUtils.md5Hex("test");
+        return [{ schema: "iglu:com.test/hash/jsonschema/1-0-0", data: { md5: hash } }];
+      }"""
+    val expected = SelfDescribingData(
+      SchemaKey("com.test", "hash", "jsonschema", SchemaVer.Full(1, 0, 0)),
+      json"""{"md5": "098f6bcd4621d373cade4e832627b4f6"}"""
+    )
+    createJsEnrichment(function, allowedJavaClasses = Set("org.apache.commons.codec.digest.DigestUtils"))
+      .process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beLike {
+      case Result.Success(List(c), false) => c must beEqualTo(expected)
+    }
+  }
+
+  def e27 = {
+    val function = s"""
+      function process(event) {
+        // the resulting java.net.URLConnection is not explicitly allowed
+        var conn = new java.net.URL("http://localhost:9999").openConnection();
+        return [{ schema: "iglu:com.test/url/jsonschema/1-0-0", data: { host: conn.getURL().getHost() } }];
+      }"""
+    val expected = SelfDescribingData(
+      SchemaKey("com.test", "url", "jsonschema", SchemaVer.Full(1, 0, 0)),
+      json"""{"host": "localhost"}"""
+    )
+    createJsEnrichment(function, allowedJavaClasses = Set("java.net.URL"))
+      .process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beLike {
+      case Result.Success(List(c), false) => c must beEqualTo(expected)
+    }
+  }
+
+  def e28 = {
+    val function = s"""
+      function process(event) {
+        var url = new java.net.URL("http://example.com");
+        var hash = org.apache.commons.codec.digest.DigestUtils.md5Hex("test");
+        return [{
+          schema: "iglu:com.test/wildcard/jsonschema/1-0-0",
+          data: { host: url.getHost(), md5: hash }
+        }];
+      }"""
+    val expected = SelfDescribingData(
+      SchemaKey("com.test", "wildcard", "jsonschema", SchemaVer.Full(1, 0, 0)),
+      json"""{"host": "example.com", "md5": "098f6bcd4621d373cade4e832627b4f6"}"""
+    )
+    createJsEnrichment(function, allowedJavaClasses = Set("*"))
+      .process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beLike {
+      case Result.Success(List(c), false) => c must beEqualTo(expected)
+    }
+  }
+
+  def e29 = {
+    val function = s"""
+      function process(event) {
+        var url = new java.net.URL("http://example.com");
+        var uri = new java.net.URI("http://example.com/path");
+        return [{
+          schema: "iglu:com.test/netclasses/jsonschema/1-0-0",
+          data: { host: url.getHost(), path: uri.getPath() }
+        }];
+      }"""
+    val expected = SelfDescribingData(
+      SchemaKey("com.test", "netclasses", "jsonschema", SchemaVer.Full(1, 0, 0)),
+      json"""{"host": "example.com", "path": "/path"}"""
+    )
+    createJsEnrichment(function, allowedJavaClasses = Set("java.net.*"))
+      .process(buildEnriched(), List.empty, SpecHelpers.DefaultMaxJsonDepth) must beLike {
+      case Result.Success(List(c), false) => c must beEqualTo(expected)
     }
   }
 
@@ -474,7 +648,8 @@ object JavascriptScriptEnrichmentSpec {
     rawFunction: String,
     schemaKey: SchemaKey = schemaKey,
     params: JsonObject = JsonObject.empty,
-    exitOnCompileError: Boolean = true
+    exitOnCompileError: Boolean = true,
+    allowedJavaClasses: Set[String] = Set.empty
   ): JavascriptScriptEnrichment =
-    JavascriptScriptEnrichment.create(schemaKey, rawFunction, params, exitOnCompileError).toOption.get
+    JavascriptScriptEnrichment.create(schemaKey, rawFunction, params, exitOnCompileError, allowedJavaClasses).toOption.get
 }

@@ -135,6 +135,7 @@ object KafkaConfigSpec {
       healthProbe = Config.HealthProbe(port = Port.fromInt(8000).get, unhealthyLatency = 2.minutes)
     ),
     assetsUpdatePeriod = 7.days,
+    jsAllowedJavaClasses = Set("*"),
     validation = Config.Validation(
       acceptInvalid = false,
       atomicFieldsLimits = AtomicFields.from(atomicFieldLimitsDefaults),
@@ -247,6 +248,7 @@ object KafkaConfigSpec {
       )
     ),
     assetsUpdatePeriod = 7.days,
+    jsAllowedJavaClasses = Set("*"),
     validation = Config.Validation(
       acceptInvalid = false,
       atomicFieldsLimits = AtomicFields.from(atomicFieldLimitsDefaults ++ Map("app_id" -> 5, "mkt_clickid" -> 100000)),

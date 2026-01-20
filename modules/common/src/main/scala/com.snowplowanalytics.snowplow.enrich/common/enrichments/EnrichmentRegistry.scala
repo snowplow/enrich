@@ -108,7 +108,8 @@ object EnrichmentRegistry {
     confs: List[EnrichmentConf],
     apiEnrichmentClient: HttpClient[F],
     sqlEC: ExecutionContext,
-    exitOnJsCompileError: Boolean
+    exitOnJsCompileError: Boolean,
+    jsAllowedJavaClasses: Set[String]
   ): EitherT[F, String, EnrichmentRegistry[F]] =
     confs.foldLeft(EitherT.pure[F, String](EnrichmentRegistry[F]())) { (er, e) =>
       e match {
@@ -144,7 +145,10 @@ object EnrichmentRegistry {
             registry <- er
           } yield registry.copy(ipLookups = enrichment.some)
         case c: JavascriptScriptConf =>
-          er.subflatMap(v => c.enrichment(exitOnJsCompileError).map(e => v.copy(javascriptScript = v.javascriptScript :+ e)))
+          er.subflatMap(v =>
+            c.enrichment(exitOnJsCompileError, jsAllowedJavaClasses)
+              .map(e => v.copy(javascriptScript = v.javascriptScript :+ e))
+          )
         case c: RefererParserConf =>
           for {
             enrichment <- c.enrichment[F]

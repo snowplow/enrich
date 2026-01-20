@@ -199,8 +199,8 @@ object EnrichmentConf {
     rawFunction: String,
     params: JsonObject
   ) extends EnrichmentConf {
-    def enrichment(exitOnJsCompileError: Boolean): Either[String, JavascriptScriptEnrichment] =
-      JavascriptScriptEnrichment.create(schemaKey, rawFunction, params, exitOnJsCompileError)
+    def enrichment(exitOnJsCompileError: Boolean, allowedJavaClasses: Set[String]): Either[String, JavascriptScriptEnrichment] =
+      JavascriptScriptEnrichment.create(schemaKey, rawFunction, params, exitOnJsCompileError, allowedJavaClasses)
   }
 
   final case class RefererParserConf(

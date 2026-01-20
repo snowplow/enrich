@@ -997,6 +997,7 @@ object ProcessingSpec {
           enrichmentsConfs,
           mocks,
           exitOnJsCompileError,
+          Set.empty,
           decompressionConfig,
           registryLookup
         )

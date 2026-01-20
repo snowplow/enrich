@@ -98,6 +98,7 @@ object MockEnvironment {
     enrichmentsConfs: List[EnrichmentConf] = Nil,
     mocks: Mocks = Mocks.default,
     exitOnJsCompileError: Boolean = true,
+    jsAllowedJavaClasses: Set[String] = Set.empty,
     decompressionConfig: Config.Decompression,
     registryLookup: RegistryLookup[IO] = SpecHelpers.registryLookup
   ): Resource[IO, MockEnvironment] =
@@ -112,7 +113,8 @@ object MockEnvironment {
                                 enrichmentsConfs,
                                 apiEnrichmentClient,
                                 sqlEC,
-                                exitOnJsCompileError
+                                exitOnJsCompileError,
+                                jsAllowedJavaClasses
                               )
                             )
       assetRefresher <- AssetRefresher.fromEnrichmentConfs(enrichmentsConfs, blobClients, enrichmentRegistry)

@@ -26,7 +26,7 @@ case object Javascript extends Enrichment {
     generator.init(new java.security.SecureRandom())
     const key = generator.generateKey()
 
-    const iv = java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 16)
+    const iv = new (Java.type("byte[]"))(16)
     new java.security.SecureRandom().nextBytes(iv)
 
     cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, key, new javax.crypto.spec.IvParameterSpec(iv))

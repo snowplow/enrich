@@ -29,6 +29,14 @@
     }
   }
 
+  "jsAllowedJavaClasses": [
+    "javax.crypto.Cipher",
+    "javax.crypto.KeyGenerator",
+    "javax.crypto.spec.IvParameterSpec",
+    "java.security.SecureRandom",
+    "java.lang.String"
+  ]
+
   "telemetry": {
     "disable": true
   }

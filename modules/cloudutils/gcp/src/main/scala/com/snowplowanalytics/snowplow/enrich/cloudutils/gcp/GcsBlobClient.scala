@@ -16,7 +16,7 @@ import java.nio.ByteBuffer
 import cats.implicits._
 import cats.effect.kernel.{Async, Resource, Sync}
 
-import com.google.cloud.storage.{BlobId, Storage, StorageException, StorageOptions}
+import com.google.cloud.storage.{Blob, BlobId, Storage, StorageException, StorageOptions}
 import com.google.cloud.BaseServiceException
 
 import com.snowplowanalytics.snowplow.enrich.cloudutils.core._
@@ -38,7 +38,7 @@ object GcsBlobClient {
             val blobId = parseGcsUri(uri)
 
             val io: F[BlobClient.GetResult] = for {
-              blob <- Sync[F].blocking(service.get(blobId))
+              blob <- getBlob(service, blobId)
               generation = blob.getGeneration
               content <- downloadContent(service, blobId, generation)
             } yield processBlobContent(blob, content)
@@ -50,7 +50,7 @@ object GcsBlobClient {
             val blobId = parseGcsUri(uri)
 
             val io: F[BlobClient.GetIfNeededResult] = for {
-              blob <- Sync[F].blocking(service.get(blobId))
+              blob <- getBlob(service, blobId)
               currentEtag = Option(blob.getEtag)
               result <- currentEtag match {
                           case Some(currentEtag) if currentEtag === etag =>
@@ -74,6 +74,14 @@ object GcsBlobClient {
     val blobName = uri.getPath.stripPrefix("/")
     BlobId.of(bucket, blobName)
   }
+
+  private def getBlob[F[_]: Sync](service: Storage, blobId: BlobId): F[Blob] =
+    Sync[F]
+      .blocking(Option(service.get(blobId)))
+      .flatMap {
+        case None => Sync[F].raiseError(new Exception(s"Requested blob ${blobId.toGsUtilUri} is not found"))
+        case Some(blob) => Sync[F].pure(blob)
+      }
 
   private def downloadContent[F[_]: Sync](
     service: Storage,

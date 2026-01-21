@@ -1,3 +1,11 @@
+6.6.0 (2026-01-21)
+------------------
+Kinesis source: set idleTimeBetweenReads default to 200.millis for polling (#164)
+Fix URI failure for referer parser enrichment on Azure  (#168)
+Raise exception when requested GCS blob does not exist (#167)
+Sandbox the JavaScript enrichment (#166)
+Enrich Kinesis: use common-streams HTTP source if configured (#163)
+
 6.5.0 (2026-01-09)
 ------------------
 Upgrade dependencies (#161)

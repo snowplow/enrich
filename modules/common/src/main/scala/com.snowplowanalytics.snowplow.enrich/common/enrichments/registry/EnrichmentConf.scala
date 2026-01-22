@@ -256,4 +256,13 @@ object EnrichmentConf {
   final case class CrossNavigationConf(schemaKey: SchemaKey) extends EnrichmentConf {
     def enrichment: CrossNavigationEnrichment = CrossNavigationEnrichment(schemaKey)
   }
+
+  final case class EventSpecConf(
+    schemaKey: SchemaKey,
+    eventSpecsFile: (URI, String)
+  ) extends EnrichmentConf {
+    override val filesToCache: List[(URI, String)] = List(eventSpecsFile)
+    def enrichment[F[_]: Sync]: EitherT[F, String, EventSpecEnrichment] =
+      EventSpecEnrichment.create[F](eventSpecsFile._2)
+  }
 }

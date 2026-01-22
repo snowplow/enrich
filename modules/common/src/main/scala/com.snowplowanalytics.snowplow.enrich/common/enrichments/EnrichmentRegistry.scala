@@ -167,6 +167,11 @@ object EnrichmentRegistry {
           } yield registry.copy(weather = enrichment.some)
         case c: YauaaConf => er.map(_.copy(yauaa = c.enrichment.some))
         case c: CrossNavigationConf => er.map(_.copy(crossNavigation = c.enrichment.some))
+        case c: EventSpecConf =>
+          for {
+            enrichment <- c.enrichment[F]
+            registry <- er
+          } yield registry.copy(eventSpec = enrichment.some)
       }
     }
 
@@ -232,6 +237,8 @@ object EnrichmentRegistry {
             IabEnrichment.parse(enrichmentConfig, schemaKey, localMode).map(_.some)
           case "cross_navigation_config" =>
             CrossNavigationEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
+          case "event_spec_enrichment_config" =>
+            EventSpecEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
           case _ =>
             Option.empty[EnrichmentConf].validNel // Enrichment is not recognized
         }
@@ -257,5 +264,6 @@ final case class EnrichmentRegistry[F[_]](
   userAgentUtils: Option[UserAgentUtilsEnrichment] = None,
   weather: Option[WeatherEnrichment[F]] = None,
   yauaa: Option[YauaaEnrichment] = None,
-  crossNavigation: Option[CrossNavigationEnrichment] = None
+  crossNavigation: Option[CrossNavigationEnrichment] = None,
+  eventSpec: Option[EventSpecEnrichment] = None
 )

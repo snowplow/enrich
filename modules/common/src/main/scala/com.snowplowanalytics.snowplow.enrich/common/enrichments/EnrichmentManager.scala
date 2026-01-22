@@ -418,6 +418,7 @@ object EnrichmentManager {
       _       <- apiContexts                                                        // Derive some contexts with custom API Request enrichment
       _       <- anonIp[F](registry.anonIp)                                         // Anonymize the IP
       _       <- piiTransform[F](registry.piiPseudonymizer, raw.context.headers)    // Run PII pseudonymization
+      _       <- getEventSpecContext[F](registry.eventSpec, maxJsonDepth)           // Run Event Spec Inference enrichment
       // format: on
     } yield ()
 
@@ -943,6 +944,15 @@ object EnrichmentManager {
             modifiedDerivedContexts.asRight
           case None =>
             derivedContexts.asRight
+        }
+    }
+
+  def getEventSpecContext[F[_]: Applicative](eventSpecEnrichment: Option[EventSpecEnrichment], maxJsonDepth: Int): EStateT[F, Unit] =
+    EStateT.fromEither {
+      case (event, _) =>
+        eventSpecEnrichment match {
+          case Some(ese) => ese.inferEventSpec(event, maxJsonDepth).asRight
+          case None => List.empty[SelfDescribingData[Json]].asRight
         }
     }
 }

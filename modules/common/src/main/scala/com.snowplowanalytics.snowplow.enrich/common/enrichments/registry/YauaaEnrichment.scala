@@ -76,6 +76,8 @@ object YauaaEnrichment extends ParseableEnrichment {
 final case class YauaaEnrichment(cacheSize: Option[Int]) {
   import YauaaEnrichment.decapitalize
 
+  private val leadingWhitespacePattern = "^\\s+".r
+
   private val uaa: UserAgentAnalyzer = {
     val a = UserAgentAnalyzer
       .newBuilder()
@@ -106,7 +108,7 @@ final case class YauaaEnrichment(cacheSize: Option[Int]) {
         val headerMap = headers
           .map(_.split(": ", 2))
           .collect {
-            case Array(key, value) => key -> value.replaceAll("^\\s+", "")
+            case Array(key, value) => key -> leadingWhitespacePattern.replaceFirstIn(value, "")
           }
           .toMap ++ Map("User-Agent" -> userAgent)
         val parsedUA = uaa.parse(headerMap.asJava)

@@ -15,6 +15,7 @@ import java.util.concurrent.TimeUnit
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
+import scala.util.matching.Regex
 
 import cats.data.EitherT
 
@@ -160,7 +161,7 @@ object EnrichmentConf {
 
   final case class HttpHeaderExtractorConf(
     schemaKey: SchemaKey,
-    headersPattern: String
+    headersPattern: Regex
   ) extends EnrichmentConf {
     def enrichment: HttpHeaderExtractorEnrichment = HttpHeaderExtractorEnrichment(headersPattern)
   }

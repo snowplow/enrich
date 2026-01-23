@@ -1323,7 +1323,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         }"""
       val enrichmentReg = EnrichmentRegistry[IO](
         javascriptScript = List(createJsEnrichment(script)),
-        httpHeaderExtractor = Some(HttpHeaderExtractorEnrichment(".*"))
+        httpHeaderExtractor = Some(HttpHeaderExtractorEnrichment(".*".r))
       )
 
       val parameters = Map(
@@ -2937,7 +2937,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       val jsEnrichList = scripts.map(s => createJsEnrichment(s))
       val enrichmentReg = EnrichmentRegistry[IO](
         javascriptScript = jsEnrichList,
-        httpHeaderExtractor = Some(HttpHeaderExtractorEnrichment(".*"))
+        httpHeaderExtractor = Some(HttpHeaderExtractorEnrichment(".*".r))
       )
 
       val headerContext = context.copy(headers = List("X-Tract-Me: moo"))

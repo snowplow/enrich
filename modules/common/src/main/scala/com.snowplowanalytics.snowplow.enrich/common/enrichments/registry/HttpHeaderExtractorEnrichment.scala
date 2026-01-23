@@ -10,6 +10,8 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
+import scala.util.matching.Regex
+
 import cats.data.ValidatedNel
 import cats.syntax.either._
 
@@ -46,20 +48,20 @@ object HttpHeaderExtractorEnrichment extends ParseableEnrichment {
     (for {
       _ <- isParseable(config, schemaKey)
       headersPattern <- CirceUtils.extract[String](config, "parameters", "headersPattern").toEither
-    } yield HttpHeaderExtractorConf(schemaKey, headersPattern)).toValidatedNel
+    } yield HttpHeaderExtractorConf(schemaKey, headersPattern.r)).toValidatedNel
 }
 
 /**
  * Enrichment extracting certain headers from headers.
- * @param headersPattern Names of the headers to be extracted
+ * @param headersPattern Compiled regex pattern for headers to extract
  */
-final case class HttpHeaderExtractorEnrichment(headersPattern: String) {
+final case class HttpHeaderExtractorEnrichment(headersPattern: Regex) {
   case class Header(name: String, value: String)
 
   def extract(headers: List[String]): List[SelfDescribingData[Json]] = {
     val httpHeaders = headers.flatMap { header =>
       header.split(":", 2) match {
-        case Array(name, value) if name.matches(headersPattern) =>
+        case Array(name, value) if headersPattern.pattern.matcher(name).matches() =>
           Some(Header(name, value))
         case _ => None
       }

@@ -469,7 +469,7 @@ object EnrichmentManager {
   ): Unit =
     useragent match {
       case Some(ua) =>
-        val s = ua.replaceAll("(\\r|\\n)", "").replaceAll("\\t", "    ")
+        val s = CU.TabPattern.replaceAllIn(CU.NewlinePattern.replaceAllIn(ua, ""), "    ")
         event.useragent = s
       case None => () // No fields updated
     }

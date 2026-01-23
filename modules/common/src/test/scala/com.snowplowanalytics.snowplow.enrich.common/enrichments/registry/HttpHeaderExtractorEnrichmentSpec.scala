@@ -31,7 +31,7 @@ class HttpHeaderExtractorEnrichmentSpec extends Specification {
         json"""{"name":"X-Forwarded-For","value":"129.78.138.66, 129.78.64.103"}"""
       )
     )
-    HttpHeaderExtractorEnrichment("X-Forwarded-For")
+    HttpHeaderExtractorEnrichment("X-Forwarded-For".r)
       .extract(List("X-Forwarded-For: 129.78.138.66, 129.78.64.103")) must_== expected
   }
 
@@ -42,11 +42,11 @@ class HttpHeaderExtractorEnrichmentSpec extends Specification {
         json"""{"name":"Accept","value":"text/html"}"""
       )
     )
-    HttpHeaderExtractorEnrichment(".*").extract(List("Accept: text/html")) must_== expected
+    HttpHeaderExtractorEnrichment(".*".r).extract(List("Accept: text/html")) must_== expected
   }
 
   def e3 = {
     val expected = List.empty[Json]
-    HttpHeaderExtractorEnrichment(".*").extract(Nil) must_== expected
+    HttpHeaderExtractorEnrichment(".*".r).extract(Nil) must_== expected
   }
 }

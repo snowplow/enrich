@@ -50,6 +50,11 @@ import com.snowplowanalytics.snowplow.enrich.common.QueryStringParameters
 object ConversionUtils {
   private val UrlSafeBase64 = new Base64(true) // true means "url safe"
 
+  private[common] val TabPattern = "\\t".r
+  private[common] val NewlinePattern = "(\\r|\\n)".r
+  private val ControlCharPattern = "\\p{Cntrl}".r
+  private val DoubleEncodedPctPattern = "%25([0-9a-fA-F][0-9a-fA-F])".r
+
   /** Simple case class wrapper around the components of a URI. */
   final case class UriComponents(
     // Required
@@ -109,7 +114,7 @@ object ConversionUtils {
    */
   def fixTabsNewlines(str: String): Option[String] =
     Option(str)
-      .map(_.replaceAll("\\t", "    ").replaceAll("\\p{Cntrl}", ""))
+      .map(s => ControlCharPattern.replaceAllIn(TabPattern.replaceAllIn(s, "    "), ""))
       .flatMap {
         case "" => None
         case other => Some(other)
@@ -205,7 +210,7 @@ object ConversionUtils {
       // TODO: potentially switch to using fixTabsNewlines too to avoid duplication
       val s = Option(str).getOrElse("")
       val d = URLDecoder.decode(s, enc.toString)
-      d.replaceAll("(\\r|\\n)", "").replaceAll("\\t", "    ").asRight
+      TabPattern.replaceAllIn(NewlinePattern.replaceAllIn(d, ""), "    ").asRight
     } catch {
       case NonFatal(e) => s"Exception URL-decoding (encoding $enc): ${e.getMessage}".asLeft
     }
@@ -232,7 +237,7 @@ object ConversionUtils {
    * @return the String with %s now single-encoded
    */
   def singleEncodePcts(str: String): String =
-    str.replaceAll("%25([0-9a-fA-F][0-9a-fA-F])", "%$1") // Decode %25XX to %XX
+    DoubleEncodedPctPattern.replaceAllIn(str, "%$1") // Decode %25XX to %XX
 
   /**
    * Decode double-encoded percents, then percent decode

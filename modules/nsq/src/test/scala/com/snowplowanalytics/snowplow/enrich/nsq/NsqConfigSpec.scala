@@ -27,7 +27,7 @@ import org.http4s.Uri
 import com.comcast.ip4s.Port
 
 import com.snowplowanalytics.snowplow.runtime.Metrics.StatsdConfig
-import com.snowplowanalytics.snowplow.runtime.{AcceptedLicense, ConfigParser, Retrying, Telemetry}
+import com.snowplowanalytics.snowplow.runtime.{AcceptedLicense, ConfigParser, Retrying, Sentry, Telemetry}
 
 import com.snowplowanalytics.snowplow.streams.nsq.{BackoffPolicy, NsqSinkConfig, NsqSinkConfigM, NsqSourceConfig}
 
@@ -210,7 +210,7 @@ object NsqConfigSpec {
           )
         )
       ),
-      sentry = Some(Config.SentryM[Id](dsn = "https://public@sentry.example.com/1", tags = Map("myTag" -> "xyz"))),
+      sentry = Some(Sentry.ConfigM[Id](dsn = "https://public@sentry.example.com/1", environment = None, tags = Map("myTag" -> "xyz"))),
       healthProbe = Config.HealthProbe(
         port = Port.fromInt(8000).get,
         unhealthyLatency = 2.minutes

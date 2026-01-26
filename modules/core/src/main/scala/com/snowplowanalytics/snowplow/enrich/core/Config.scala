@@ -43,7 +43,7 @@ import com.snowplowanalytics.iglu.client.resolver.Resolver.ResolverConfig
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
-import com.snowplowanalytics.snowplow.runtime.{AcceptedLicense, Metrics => CommonMetrics, Retrying, Telemetry}
+import com.snowplowanalytics.snowplow.runtime.{AcceptedLicense, Metrics => CommonMetrics, Retrying, Telemetry, Sentry}
 import com.snowplowanalytics.snowplow.runtime.HealthProbe.decoders._
 
 import com.snowplowanalytics.snowplow.enrich.common.adapters._
@@ -103,18 +103,11 @@ object Config {
     statsd: Option[CommonMetrics.StatsdConfig]
   )
 
-  case class SentryM[M[_]](
-    dsn: M[String],
-    tags: Map[String, String]
-  )
-
-  type Sentry = SentryM[Id]
-
   case class HealthProbe(port: Port, unhealthyLatency: FiniteDuration)
 
   case class Monitoring(
     metrics: Metrics,
-    sentry: Option[Sentry],
+    sentry: Option[Sentry.Config],
     healthProbe: HealthProbe
   )
 
@@ -261,13 +254,6 @@ object Config {
       metadata <- deriveConfiguredDecoder[SinkMetadata]
     } yield sink.map(SinkWithMetadata(_, metadata.maxRecordSize, metadata.partitionKey, metadata.attributes))
     implicit val outputDecoder = deriveConfiguredDecoder[Output[Sink]]
-    implicit val sentryDecoder = deriveConfiguredDecoder[SentryM[Option]]
-      .map[Option[Sentry]] {
-        case SentryM(Some(dsn), tags) =>
-          Some(SentryM[Id](dsn, tags))
-        case SentryM(None, _) =>
-          None
-      }
     implicit val metricsDecoder = deriveConfiguredDecoder[Metrics]
     implicit val healthProbeDecoder = deriveConfiguredDecoder[HealthProbe]
     implicit val monitoringDecoder = deriveConfiguredDecoder[Monitoring]

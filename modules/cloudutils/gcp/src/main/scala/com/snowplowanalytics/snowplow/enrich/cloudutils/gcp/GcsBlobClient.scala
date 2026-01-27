@@ -70,7 +70,7 @@ object GcsBlobClient {
     }
 
   private def parseGcsUri(uri: URI): BlobId = {
-    val bucket = uri.getHost
+    val bucket = uri.getRawAuthority
     val blobName = uri.getPath.stripPrefix("/")
     BlobId.of(bucket, blobName)
   }

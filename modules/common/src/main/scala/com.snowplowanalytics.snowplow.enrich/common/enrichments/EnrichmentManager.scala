@@ -504,10 +504,11 @@ object EnrichmentManager {
           enrichment <- OptionT.fromOption[F](ipLookups)
           ip <- OptionT.fromOption[F](Option(event.user_ipaddress))
           result <- OptionT.liftF(enrichment.extractIpInformation(ip))
-        } yield result
+          asnContext = enrichment.getAsnContext(result)
+        } yield (result, asnContext)
 
         ipLookup.value.map {
-          case Some(lookup) =>
+          case Some((lookup, asnContext)) =>
             lookup.ipLocation.flatMap(_.toOption).foreach { loc =>
               event.geo_country = loc.countryCode
               event.geo_region = loc.region.orNull
@@ -530,7 +531,7 @@ object EnrichmentManager {
             lookup.connectionType.flatMap(_.toOption).foreach { ct =>
               event.ip_netspeed = ct
             }
-            Nil.asRight
+            asnContext.toList.asRight
           case None =>
             Nil.asRight
         }

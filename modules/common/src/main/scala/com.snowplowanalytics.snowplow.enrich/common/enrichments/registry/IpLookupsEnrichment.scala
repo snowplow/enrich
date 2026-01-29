@@ -18,10 +18,11 @@ import cats.implicits._
 import cats.effect.kernel.Sync
 
 import io.circe._
+import io.circe.syntax._
 
 import inet.ipaddr.HostName
 
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey}
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
 
 import com.snowplowanalytics.maxmind.iplookups._
 import com.snowplowanalytics.maxmind.iplookups.model._
@@ -33,6 +34,8 @@ import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
 object IpLookupsEnrichment extends ParseableEnrichment {
   override val supportedSchema =
     SchemaCriterion("com.snowplowanalytics.snowplow", "ip_lookups", "jsonschema", 2, 0)
+
+  val asnSchema = SchemaKey("com.snowplowanalytics.snowplow", "asn", "jsonschema", SchemaVer.Full(1, 0, 0))
 
   /**
    * Creates an IpLookupsConf from a Json.
@@ -120,6 +123,17 @@ final case class IpLookupsEnrichment[F[_]](ipLookups: IpLookups[F]) {
    */
   def extractIpInformation(ip: String): F[IpLookupResult] =
     ipLookups.performLookups(Either.catchNonFatal(new HostName(ip).toAddress).fold(_ => ip, addr => addr.toString))
+
+  def getAsnContext(ipLookupResult: IpLookupResult): Option[SelfDescribingData[Json]] =
+    ipLookupResult.asn.flatMap(_.toOption).flatMap { asn =>
+      asn.autonomousSystemNumber.map { n =>
+        val asnJson = Json.obj(
+          "number" := n,
+          "organization" := asn.autonomousSystemOrganization
+        )
+        SelfDescribingData(IpLookupsEnrichment.asnSchema, asnJson)
+      }
+    }
 }
 
 private[enrichments] final case class IpLookupsDatabase(

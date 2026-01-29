@@ -48,6 +48,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{
   CrossNavigationEnrichment,
   HttpHeaderExtractorEnrichment,
   IabEnrichment,
+  IpLookupsEnrichment,
   JavascriptScriptEnrichment,
   YauaaEnrichment
 }
@@ -2741,6 +2742,222 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         case OptionIor.Both(_: BadRow.SchemaViolations, enriched) if Option(enriched.v_tracker).isEmpty => ok
         case other => ko(s"[$other] is not a SchemaViolations bad row and an enriched event without tracker version")
       }
+    }
+  }
+
+  "IP lookup enrichment" should {
+
+    def ipLookupCommonTest(
+      ipLookupsConfJson: Json,
+      expectedOutput: Map[String, EnrichedEvent => MatchResult[Any]]
+    ) = {
+      val ipLookupsConf = IpLookupsEnrichment
+        .parse(
+          ipLookupsConfJson,
+          SchemaKey(
+            "com.snowplowanalytics.snowplow",
+            "ip_lookups",
+            "jsonschema",
+            SchemaVer.Full(2, 0, 0)
+          ),
+          localMode = true
+        )
+        .toOption
+        .get
+
+      val parameters = Map(
+        "e" -> "pp",
+        "tv" -> "js-0.13.1",
+        "p" -> "web"
+      ).toOpt
+
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+
+      ipLookupsConf.enrichment[IO].flatMap { ipLookupsEnrichment =>
+        val enrichmentReg = EnrichmentRegistry[IO](ipLookups = ipLookupsEnrichment.some)
+
+        def test(rawEvent: RawEvent, ip: String) = {
+          val enriched = EnrichmentManager.enrichEvent[IO](
+            enrichmentReg,
+            client,
+            processor,
+            timestamp,
+            rawEvent,
+            AcceptInvalid.featureFlags,
+            IO.unit,
+            SpecHelpers.registryLookup,
+            atomicFieldLimits,
+            emitFailed,
+            SpecHelpers.DefaultMaxJsonDepth
+          )
+          enriched.value.map {
+            case OptionIor.Right(event) =>
+              expectedOutput(ip)(event)
+            case other =>
+              ko(s"[$other] is not an enriched event")
+          }
+        }
+
+        expectedOutput.keys.toList
+          .map { ip =>
+            val updatedRawEvent = rawEvent.copy(parameters = parameters.updated("ip", ip.some))
+            test(updatedRawEvent, ip)
+          }
+          .sequence
+          .map(_.reduce(_ and _))
+      }
+    }
+
+    "add ASN derived context when ISP database is given" >> {
+      val ipLookupsConf = json"""{
+          "name": "ip_lookups",
+          "vendor": "com.snowplowanalytics.snowplow",
+          "enabled": true,
+          "parameters": {
+            "geo": {
+              "database": "GeoIP2-City-Test.mmdb",
+              "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
+            },
+            "isp": {
+              "database": "GeoIP2-ISP-Test.mmdb",
+              "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
+            },
+            "domain": {
+              "database": "GeoIP2-Domain-Test.mmdb",
+              "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
+            },
+            "connectionType": {
+              "database": "GeoIP2-Connection-Type-Test.mmdb",
+              "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
+            }
+          }
+        }"""
+
+      val expectedOutput = Map(
+        "67.43.156.1" -> { event: EnrichedEvent =>
+          event.user_ipaddress must beEqualTo("67.43.156.1")
+          event.geo_country must beEqualTo("BT")
+          event.geo_region must beNull
+          event.geo_zipcode must beNull
+          event.geo_latitude must beEqualTo(27.5)
+          event.geo_longitude must beEqualTo(90.5)
+          event.geo_region_name must beNull
+          event.geo_timezone must beEqualTo("Asia/Thimphu")
+          event.ip_isp must beEqualTo("Loud Packet")
+          event.ip_organization must beEqualTo("zudoarichikito_")
+          event.ip_domain must beEqualTo("shoesfin.NET")
+          event.ip_netspeed must beEqualTo("Cellular")
+          event.derived_contexts must beEqualTo(
+            List(
+              SelfDescribingData(
+                schema = IpLookupsEnrichment.asnSchema,
+                data = json"""{
+                "number": 35908,
+                "organization": null
+              }"""
+              )
+            )
+          )
+        },
+        "18.11.120.0" -> { event: EnrichedEvent =>
+          event.user_ipaddress must beEqualTo("18.11.120.0")
+          event.geo_country must beNull
+          event.geo_region must beNull
+          event.geo_zipcode must beNull
+          event.geo_latitude must beNull
+          event.geo_longitude must beNull
+          event.geo_region_name must beNull
+          event.geo_timezone must beNull
+          event.ip_isp must beEqualTo("Massachusetts Institute of Technology")
+          event.ip_organization must beEqualTo("Massachusetts Institute of Technology")
+          event.ip_domain must beNull
+          event.ip_netspeed must beNull
+          event.derived_contexts must beEqualTo(
+            List(
+              SelfDescribingData(
+                schema = IpLookupsEnrichment.asnSchema,
+                data = json"""{
+                "number": 3,
+                "organization": "Massachusetts Institute of Technology"
+              }"""
+              )
+            )
+          )
+        },
+        "8.33.20.1" -> { event: EnrichedEvent =>
+          event.user_ipaddress must beEqualTo("8.33.20.1")
+          event.geo_country must beNull
+          event.geo_region must beNull
+          event.geo_zipcode must beNull
+          event.geo_latitude must beNull
+          event.geo_longitude must beNull
+          event.geo_region_name must beNull
+          event.geo_timezone must beNull
+          event.ip_isp must beEqualTo("Level 3 Communications")
+          event.ip_organization must beEqualTo("Level 3 Communications")
+          event.ip_domain must beNull
+          event.ip_netspeed must beNull
+          event.derived_contexts must beEmpty
+        },
+        "192.0.2.0" -> { event: EnrichedEvent =>
+          event.user_ipaddress must beEqualTo("192.0.2.0")
+          event.geo_country must beNull
+          event.geo_region must beNull
+          event.geo_zipcode must beNull
+          event.geo_latitude must beNull
+          event.geo_longitude must beNull
+          event.geo_region_name must beNull
+          event.geo_timezone must beNull
+          event.ip_isp must beNull
+          event.ip_organization must beNull
+          event.ip_domain must beNull
+          event.ip_netspeed must beNull
+          event.derived_contexts must beEmpty
+        }
+      )
+      ipLookupCommonTest(ipLookupsConf, expectedOutput)
+    }
+
+    "not add ASN derived context when ISP database is not given" >> {
+      val ipLookupsConf = json"""{
+          "name": "ip_lookups",
+          "vendor": "com.snowplowanalytics.snowplow",
+          "enabled": true,
+          "parameters": {
+            "geo": {
+              "database": "GeoIP2-City-Test.mmdb",
+              "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
+            },
+            "domain": {
+              "database": "GeoIP2-Domain-Test.mmdb",
+              "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
+            },
+            "connectionType": {
+              "database": "GeoIP2-Connection-Type-Test.mmdb",
+              "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
+            }
+          }
+        }"""
+
+      val expectedOutput = Map(
+        "67.43.156.1" -> { event: EnrichedEvent =>
+          event.user_ipaddress must beEqualTo("67.43.156.1")
+          event.derived_contexts must beEmpty
+        },
+        "18.11.120.0" -> { event: EnrichedEvent =>
+          event.user_ipaddress must beEqualTo("18.11.120.0")
+          event.derived_contexts must beEmpty
+        },
+        "8.33.20.1" -> { event: EnrichedEvent =>
+          event.user_ipaddress must beEqualTo("8.33.20.1")
+          event.derived_contexts must beEmpty
+        },
+        "192.0.2.0" -> { event: EnrichedEvent =>
+          event.user_ipaddress must beEqualTo("192.0.2.0")
+          event.derived_contexts must beEmpty
+        }
+      )
+      ipLookupCommonTest(ipLookupsConf, expectedOutput)
     }
   }
 

@@ -22,7 +22,7 @@ import io.circe.literal._
 import org.specs2.Specification
 import org.specs2.matcher.DataTables
 
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 
 import com.snowplowanalytics.maxmind.iplookups.model.IpLocation
 
@@ -32,6 +32,7 @@ class IpLookupsEnrichmentSpec extends Specification with DataTables with CatsEff
   extractIpInformation should correctly extract location data from IP addresses where possible $e1
   extractIpInformation should correctly extract ISP data from IP addresses where possible      $e2
   extractIpInformation should return result with left's when IP address is invalid oversized string $e3
+  getAsnContext should correctly extract ASN context from IpLookupResult                       $e4
   """
 
   // When testing, localMode is set to true, so the URIs are ignored and the databases are loaded from test/resources
@@ -43,11 +44,11 @@ class IpLookupsEnrichmentSpec extends Specification with DataTables with CatsEff
       "enabled": true,
       "parameters": {
         "geo": {
-          "database": "GeoIP2-City.mmdb",
+          "database": "GeoIP2-City-Test.mmdb",
           "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
         },
         "isp": {
-          "database": "GeoIP2-ISP.mmdb",
+          "database": "GeoIP2-ISP-Test.mmdb",
           "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
         }
       }
@@ -123,5 +124,22 @@ class IpLookupsEnrichmentSpec extends Specification with DataTables with CatsEff
       result <- ipLookup.extractIpInformation(oversized)
     } yield result.ipLocation must beLike {
       case Some(Left(_)) => ok
+    }
+
+  def e4 =
+    for {
+      ipLookup <- config.enrichment[IO]
+      result <- ipLookup.extractIpInformation("18.11.120.0")
+      asnContext = ipLookup.getAsnContext(result)
+    } yield {
+      val expected = SelfDescribingData(
+        schema = IpLookupsEnrichment.asnSchema,
+        data = json"""{
+          "number": 3,
+          "organization": "Massachusetts Institute of Technology"
+        }"""
+      ).some
+
+      asnContext must beEqualTo(expected)
     }
 }

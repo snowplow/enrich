@@ -30,10 +30,6 @@ import org.specs2.matcher.ValidatedMatchers
 import com.snowplowanalytics.iglu.core._
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
-import com.snowplowanalytics.iglu.client.IgluCirceClient
-import com.snowplowanalytics.iglu.client.resolver.Resolver
-import com.snowplowanalytics.iglu.client.resolver.registries.Registry
-
 import com.snowplowanalytics.snowplow.badrows.{BadRow, Processor}
 
 import com.snowplowanalytics.snowplow.enrich.common.{EtlPipeline, SpecHelpers}
@@ -1003,35 +999,27 @@ object PiiPseudonymizerEnrichmentSpec {
       context
     )
     val input = collectorPayload.validNel
-    val regConf = Registry.Config(
-      "test-schema",
-      0,
-      List("com.snowplowanalytics.snowplow", "com.acme", "com.mailgun")
-    )
-    val reg = Registry.Embedded(regConf, path = "/iglu-schemas")
-    for {
-      client <- IgluCirceClient.fromResolver[IO](Resolver[IO](List(reg), None), cacheSize = 0, maxJsonDepth = 40)
-      result <- EtlPipeline
-                  .processEvents[IO](
-                    new AdapterRegistry[IO](Map.empty[(String, String), RemoteAdapter[IO]], adaptersSchemas),
-                    enrichmentReg,
-                    client,
-                    Processor("spark", "0.0.0"),
-                    new DateTime(1500000000L),
-                    input,
-                    AcceptInvalid.featureFlags,
-                    IO.unit,
-                    SpecHelpers.registryLookup,
-                    AtomicFields.from(Map.empty),
-                    emitFailed,
-                    SpecHelpers.DefaultMaxJsonDepth
-                  )
-    } yield result.map {
-      case OptionIor.Left(e) => Left(e)
-      case OptionIor.Right(e) => Right(e)
-      case OptionIor.Both(l, _) => Left(l)
-      case OptionIor.None => throw new Exception("None isn't expected here")
-    }
+    EtlPipeline
+      .processEvents[IO](
+        new AdapterRegistry[IO](Map.empty[(String, String), RemoteAdapter[IO]], adaptersSchemas),
+        enrichmentReg,
+        SpecHelpers.client,
+        Processor("spark", "0.0.0"),
+        new DateTime(1500000000L),
+        input,
+        AcceptInvalid.featureFlags,
+        IO.unit,
+        SpecHelpers.registryLookup,
+        AtomicFields.from(Map.empty),
+        emitFailed,
+        SpecHelpers.DefaultMaxJsonDepth
+      )
+      .map(_.map {
+        case OptionIor.Left(e) => Left(e)
+        case OptionIor.Right(e) => Right(e)
+        case OptionIor.Both(l, _) => Left(l)
+        case OptionIor.None => throw new Exception("None isn't expected here")
+      })
   }
 
   val ipEnrichment = {
@@ -1039,11 +1027,11 @@ object PiiPseudonymizerEnrichmentSpec {
       "enabled": true,
       "parameters": {
         "geo": {
-          "database": "GeoIP2-City.mmdb",
+          "database": "GeoIP2-City-Test.mmdb",
           "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
         },
         "isp": {
-          "database": "GeoIP2-ISP.mmdb",
+          "database": "GeoIP2-ISP-Test.mmdb",
           "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
         }
       }

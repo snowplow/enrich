@@ -23,7 +23,8 @@ object MetadataSpec extends Specification {
     Extract empty metadata for an empty event $e1
     Extract all relevant fields when set on a single event $e2
     Extract extract entities from contexts field and derived_contexts field $e3
-    Extract scenarioId if present $e4
+    Extract scenarioId from contexts if present $e4a
+    Extract scenarioId from derived_contexts if present $e4a
     Extract null as scenario id if scenario context is present with no id $e5
   Metadata.extractsForBatch with a batch of many events should:
     Increment the `count` when multiple events yield the same `MetadataEvent` $e6
@@ -93,13 +94,38 @@ object MetadataSpec extends Specification {
     result must beEqualTo(Map(expectedKey -> expectedValue))
   }
 
-  def e4 = {
+  def e4a = {
     val contextKey1 = SchemaKey.fromUri("iglu:myvendor/mycontext1/jsonschema/1-0-42").toOption.get
     val contextKey2 = SchemaKey.fromUri("iglu:myvendor/mycontext2/jsonschema/1-0-42").toOption.get
     val contextKey3 = SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/event_specification/jsonschema/1-0-0").toOption.get
 
     val input = new EnrichedEvent
     input.contexts = List(
+      SelfDescribingData(contextKey1, json"""{"x": "y"}"""),
+      SelfDescribingData(contextKey2, json"""{"x": "y"}"""),
+      SelfDescribingData(contextKey3, json"""{"id": "18056e39-6147-4824-bd67-5f6f6f7e18ee"}""")
+    )
+
+    val expectedKey = Metadata.MetadataEvent(
+      schema = None,
+      source = None,
+      tracker = None,
+      platform = None,
+      scenarioId = Some("18056e39-6147-4824-bd67-5f6f6f7e18ee")
+    )
+    val expectedValue = Metadata.EntitiesAndCount(Set(contextKey1, contextKey2, contextKey3), 1)
+
+    val result = Metadata.extractsForBatch(List(input))
+    result must beEqualTo(Map(expectedKey -> expectedValue))
+  }
+
+  def e4b = {
+    val contextKey1 = SchemaKey.fromUri("iglu:myvendor/mycontext1/jsonschema/1-0-42").toOption.get
+    val contextKey2 = SchemaKey.fromUri("iglu:myvendor/mycontext2/jsonschema/1-0-42").toOption.get
+    val contextKey3 = SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/event_specification/jsonschema/1-0-0").toOption.get
+
+    val input = new EnrichedEvent
+    input.derived_contexts = List(
       SelfDescribingData(contextKey1, json"""{"x": "y"}"""),
       SelfDescribingData(contextKey2, json"""{"x": "y"}"""),
       SelfDescribingData(contextKey3, json"""{"id": "18056e39-6147-4824-bd67-5f6f6f7e18ee"}""")

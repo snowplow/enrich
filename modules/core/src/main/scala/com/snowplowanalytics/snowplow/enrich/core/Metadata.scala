@@ -76,7 +76,7 @@ object Metadata {
     sdjs.map(_.schema).toSet
 
   private def extractScenarioId(event: EnrichedEvent): Option[String] =
-    event.contexts.collectFirst {
+    (event.contexts.view ++ event.derived_contexts.view).collectFirst {
       case sdj if sdj.schema.vendor === eventSpecSchemaVendor && sdj.schema.name === eventSpecSchemaName =>
         sdj.data.hcursor.downField("id").as[String] match {
           case Right(scenarioId) =>

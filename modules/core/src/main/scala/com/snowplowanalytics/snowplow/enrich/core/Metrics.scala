@@ -53,13 +53,11 @@ object Metrics {
         KVMetric.CountRaw(raw),
         KVMetric.CountEnriched(enriched),
         KVMetric.CountFailed(failed),
-        KVMetric.CountIncomplete(failed),
         KVMetric.CountBad(bad),
         KVMetric.CountDropped(dropped),
         KVMetric.Latency(latency)
       ) ++ invalid.map(KVMetric.CountInvalid(_)) ++
-        e2eLatency.map(KVMetric.E2ELatency(_)) ++
-        e2eLatency.map(KVMetric.LegacyLatency(_))
+        e2eLatency.map(KVMetric.E2ELatency(_))
   }
 
   private object State {
@@ -135,20 +133,6 @@ object Metrics {
 
     final case class E2ELatency(d: FiniteDuration) extends CommonMetrics.KVMetric {
       val key = "e2e_latency_millis"
-      val value = d.toMillis.toString
-      val metricType = CommonMetrics.MetricType.Gauge
-    }
-
-    // Legacy metrics
-
-    final case class CountIncomplete(v: Int) extends CommonMetrics.KVMetric {
-      val key = "incomplete"
-      val value = v.toString
-      val metricType = CommonMetrics.MetricType.Count
-    }
-
-    final case class LegacyLatency(d: FiniteDuration) extends CommonMetrics.KVMetric {
-      val key = "latency"
       val value = d.toMillis.toString
       val metricType = CommonMetrics.MetricType.Gauge
     }

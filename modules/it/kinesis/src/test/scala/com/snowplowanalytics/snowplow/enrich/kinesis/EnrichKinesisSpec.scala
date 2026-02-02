@@ -100,10 +100,9 @@ class EnrichKinesisSpec extends CatsResource[IO, TestInfrastructure] with Specif
             counters must contain(s"'snowplow.enrich.raw;env=$uuid': ${nbEnriched + nbBad}")
             counters must contain(s"'snowplow.enrich.good;env=$uuid': $nbEnriched")
             counters must contain(s"'snowplow.enrich.failed;env=$uuid': $nbBad")
-            counters must contain(s"'snowplow.enrich.incomplete;env=$uuid': $nbBad")
             counters must contain(s"'snowplow.enrich.bad;env=$uuid': $nbBad")
             counters must contain(s"'snowplow.enrich.dropped;env=$uuid': 0")
-            gauges must contain(s"'snowplow.enrich.latency;env=$uuid': ")
+            gauges must contain(s"'snowplow.enrich.e2e_latency_millis;env=$uuid': ")
           }
       }
     }

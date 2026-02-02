@@ -56,8 +56,8 @@ object EnrichmentManager {
    * @param featureFlags The feature flags available in the current version of Enrich
    * @param invalidCount Function to increment the count of invalid events
    * @return Right(EnrichedEvent) if everything went well.
-   *         Left(BadRow) if something went wrong and incomplete events are not enabled.
-   *         Both(BadRow, EnrichedEvent) if something went wrong but incomplete events are enabled.
+   *         Left(BadRow) if something went wrong and failed events are not enabled.
+   *         Both(BadRow, EnrichedEvent) if something went wrong but failed events are enabled.
    */
   def enrichEvent[F[_]: Sync](
     registry: EnrichmentRegistry[F],
@@ -69,7 +69,7 @@ object EnrichmentManager {
     invalidCount: F[Unit],
     registryLookup: RegistryLookup[F],
     atomicFields: AtomicFields,
-    emitIncomplete: Boolean,
+    emitFailed: Boolean,
     maxJsonDepth: Int
   ): OptionIorT[F, BadRow, EnrichedEvent] = {
     def enrich(enriched: EnrichedEvent): OptionIorT[F, NonEmptyList[NonEmptyList[Failure]], List[SelfDescribingData[Json]]] =
@@ -102,7 +102,7 @@ object EnrichmentManager {
                              featureFlags.acceptInvalid,
                              invalidCount,
                              atomicFields,
-                             emitIncomplete,
+                             emitFailed,
                              Instant.ofEpochMilli(etlTstamp.getMillis)
                            )
                              .leftMap(NonEmptyList.one)
@@ -130,11 +130,11 @@ object EnrichmentManager {
                    }
                    .map(_ => enrichedEvent)
       } yield
-        if (emitIncomplete)
+        if (emitFailed)
           result
         else
-          // if emitIncomplete is false, we don't need right side of
-          // Both which is for incomplete event therefore we just return
+          // if emitFailed is false, we don't need right side of
+          // Both which is for failed event therefore we just return
           // its left side
           result match {
             case OptionIor.Both(l, _) => OptionIor.Left(l)
@@ -252,13 +252,13 @@ object EnrichmentManager {
     acceptInvalid: Boolean,
     invalidCount: F[Unit],
     atomicFields: AtomicFields,
-    emitIncomplete: Boolean,
+    emitFailed: Boolean,
     etlTstamp: Instant
   ): IorT[F, NonEmptyList[Failure.SchemaViolation], List[SelfDescribingData[Json]]] =
     for {
       validContexts <- IgluUtils.validateSDJs[F](client, enrichmentsContexts, registryLookup, "derived_contexts", etlTstamp)
       _ <- AtomicFieldsLengthValidator
-             .validate[F](enriched, acceptInvalid, invalidCount, atomicFields, emitIncomplete, etlTstamp)
+             .validate[F](enriched, acceptInvalid, invalidCount, atomicFields, emitFailed, etlTstamp)
              .leftMap(NonEmptyList.one)
       // Validate unstruct_event in case it got updated by an enrichment
       unstructValidationInfo <- enriched.unstruct_event match {

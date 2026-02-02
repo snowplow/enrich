@@ -1023,7 +1023,7 @@ object PiiPseudonymizerEnrichmentSpec {
                     IO.unit,
                     SpecHelpers.registryLookup,
                     AtomicFields.from(Map.empty),
-                    emitIncomplete,
+                    emitFailed,
                     SpecHelpers.DefaultMaxJsonDepth
                   )
     } yield result.map {

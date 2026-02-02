@@ -17,7 +17,7 @@ import cats.Monoid
  * We created this type to be able to represent dropped events as well.
  * OptionIor.Left => bad row
  * OptionIor.Right => enriched event
- * OptionIor.Both => incomplete event
+ * OptionIor.Both => failed event
  * OptionIor.None => dropped event
  */
 sealed trait OptionIor[+A, +B] extends Product with Serializable {

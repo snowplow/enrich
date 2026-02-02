@@ -61,7 +61,7 @@ object EtlPipeline {
     invalidCount: F[Unit],
     registryLookup: RegistryLookup[F],
     atomicFields: AtomicFields,
-    emitIncomplete: Boolean,
+    emitFailed: Boolean,
     maxJsonDepth: Int
   ): F[List[OptionIor[BadRow, EnrichedEvent]]] =
     input match {
@@ -82,7 +82,7 @@ object EtlPipeline {
                     invalidCount,
                     registryLookup,
                     atomicFields,
-                    emitIncomplete,
+                    emitFailed,
                     maxJsonDepth
                   )
                   .value

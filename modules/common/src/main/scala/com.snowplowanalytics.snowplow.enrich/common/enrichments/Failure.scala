@@ -28,7 +28,7 @@ import com.snowplowanalytics.iglu.core.circe.implicits.schemaKeyCirceJsonEncoder
 
 /**
  * Represents a failure encountered during enrichment of the event.
- * Failure entities will be attached to incomplete events as derived contexts.
+ * Failure entities will be attached to failed events as derived contexts.
  */
 sealed trait Failure {
   def etlTstamp: Instant

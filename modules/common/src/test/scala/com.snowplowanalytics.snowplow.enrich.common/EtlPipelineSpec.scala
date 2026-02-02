@@ -72,7 +72,7 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
                     IO.unit,
                     SpecHelpers.registryLookup,
                     AtomicFields.from(Map.empty),
-                    emitIncomplete,
+                    emitFailed,
                     SpecHelpers.DefaultMaxJsonDepth
                   )
     } yield output must be like {
@@ -100,7 +100,7 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
                     IO.unit,
                     SpecHelpers.registryLookup,
                     AtomicFields.from(Map.empty),
-                    emitIncomplete,
+                    emitFailed,
                     SpecHelpers.DefaultMaxJsonDepth
                   )
     } yield output must be like {
@@ -124,7 +124,7 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
                     IO.unit,
                     SpecHelpers.registryLookup,
                     AtomicFields.from(Map.empty),
-                    emitIncomplete,
+                    emitFailed,
                     SpecHelpers.DefaultMaxJsonDepth
                   )
     } yield output must be like {

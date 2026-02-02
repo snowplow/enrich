@@ -156,7 +156,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
             IO.unit,
             SpecHelpers.registryLookup,
             atomicFieldLimits,
-            emitIncomplete,
+            emitFailed,
             SpecHelpers.DefaultMaxJsonDepth
           )
           enriched.value map { result =>
@@ -200,7 +200,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete,
+        emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value map {
@@ -239,7 +239,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete,
+        emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value map {
@@ -280,7 +280,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           IO.unit,
           SpecHelpers.registryLookup,
           atomicFieldLimits,
-          emitIncomplete,
+          emitFailed,
           SpecHelpers.DefaultMaxJsonDepth
         )
         .value
@@ -334,7 +334,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete,
+        emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value map {
@@ -389,7 +389,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete,
+        emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value map {
@@ -452,7 +452,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete = true,
+        emitFailed = true,
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value map {
@@ -527,7 +527,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete = true,
+        emitFailed = true,
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value map {
@@ -617,7 +617,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete = true,
+        emitFailed = true,
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value map {
@@ -687,7 +687,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete,
+        emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
@@ -763,7 +763,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete,
+        emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
@@ -839,7 +839,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete,
+        emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
@@ -915,7 +915,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete,
+        emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
@@ -991,7 +991,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete,
+        emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
@@ -1073,7 +1073,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete,
+        emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
@@ -1106,7 +1106,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               IO.unit,
               SpecHelpers.registryLookup,
               atomicFieldLimits,
-              emitIncomplete,
+              emitFailed,
               SpecHelpers.DefaultMaxJsonDepth
             )
             enriched.value.map {
@@ -1141,7 +1141,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               IO.unit,
               SpecHelpers.registryLookup,
               atomicFieldLimits,
-              emitIncomplete,
+              emitFailed,
               SpecHelpers.DefaultMaxJsonDepth
             )
             enriched.value.map {
@@ -1185,7 +1185,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               IO.unit,
               SpecHelpers.registryLookup,
               atomicFieldLimits,
-              emitIncomplete,
+              emitFailed,
               SpecHelpers.DefaultMaxJsonDepth
             )
             enriched.value.map {
@@ -1215,7 +1215,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete,
+        emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
@@ -1244,7 +1244,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete,
+        emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
@@ -1272,7 +1272,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete,
+        emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
@@ -1301,7 +1301,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete,
+        emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
@@ -1343,7 +1343,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete,
+        emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
@@ -1389,7 +1389,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete,
+        emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
@@ -1547,7 +1547,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete,
+        emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
 
@@ -1564,7 +1564,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       }
     }
 
-    "remove the invalid unstructured event and enrich the event if emitIncomplete is set to true" >> {
+    "remove the invalid unstructured event and enrich the event if emitFailed is set to true" >> {
       val script =
         s"""
         function process(event) {
@@ -1639,7 +1639,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete = true,
+        emitFailed = true,
         SpecHelpers.DefaultMaxJsonDepth
       )
 
@@ -1653,7 +1653,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       }
     }
 
-    "remove the invalid context and enrich the event if emitIncomplete is set to true" >> {
+    "remove the invalid context and enrich the event if emitFailed is set to true" >> {
       val script =
         s"""
         function process(event) {
@@ -1732,7 +1732,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete = true,
+        emitFailed = true,
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
@@ -1745,7 +1745,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       }
     }
 
-    "remove one invalid context (out of 2) and enrich the event if emitIncomplete is set to true" >> {
+    "remove one invalid context (out of 2) and enrich the event if emitFailed is set to true" >> {
       val script =
         s"""
         function process(event) {
@@ -1829,7 +1829,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete = true,
+        emitFailed = true,
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
@@ -1842,7 +1842,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       }
     }
 
-    "return the enriched event after an enrichment exception if emitIncomplete is set to true" >> {
+    "return the enriched event after an enrichment exception if emitFailed is set to true" >> {
       val script =
         s"""
         function process(event) {
@@ -1896,7 +1896,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete = true,
+        emitFailed = true,
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
@@ -1908,7 +1908,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       }
     }
 
-    "return a SchemaViolations bad row in the Left in case of both a schema violation and an enrichment failure if emitIncomplete is set to true" >> {
+    "return a SchemaViolations bad row in the Left in case of both a schema violation and an enrichment failure if emitFailed is set to true" >> {
       val script =
         s"""
         function process(event) {
@@ -1974,7 +1974,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete = true,
+        emitFailed = true,
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
@@ -1983,7 +1983,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       }
     }
 
-    "remove an invalid enrichment context and return the enriched event if emitIncomplete is set to true" >> {
+    "remove an invalid enrichment context and return the enriched event if emitFailed is set to true" >> {
       val invalidContextData =
         """
           {
@@ -2061,7 +2061,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete = true,
+        emitFailed = true,
         SpecHelpers.DefaultMaxJsonDepth
       )
       enriched.value.map {
@@ -2073,7 +2073,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       }
     }
 
-    "return a bad row that contains validation errors only from ue if there is validation error in both ue and derived contexts when emitIncomplete is set to true" >> {
+    "return a bad row that contains validation errors only from ue if there is validation error in both ue and derived contexts when emitFailed is set to true" >> {
       val invalidContext =
         """
           {
@@ -2124,7 +2124,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         IO.unit,
         SpecHelpers.registryLookup,
         atomicFieldLimits,
-        emitIncomplete = true,
+        emitFailed = true,
         SpecHelpers.DefaultMaxJsonDepth
       )
       def expectedDerivedContexts(enriched: EnrichedEvent): Boolean =
@@ -2627,7 +2627,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           IO.unit,
           SpecHelpers.registryLookup,
           atomicFieldLimits,
-          emitIncomplete,
+          emitFailed,
           SpecHelpers.DefaultMaxJsonDepth
         )
         .value
@@ -2659,7 +2659,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           IO.unit,
           SpecHelpers.registryLookup,
           atomicFieldLimits,
-          emitIncomplete,
+          emitFailed,
           SpecHelpers.DefaultMaxJsonDepth
         )
         .value
@@ -2695,7 +2695,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           IO.unit,
           SpecHelpers.registryLookup,
           atomicFieldLimits,
-          emitIncomplete,
+          emitFailed,
           SpecHelpers.DefaultMaxJsonDepth
         )
         .value
@@ -2721,7 +2721,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         }
     }
 
-    "remove an oversized atomic field if emitIncomplete is set to true" >> {
+    "remove an oversized atomic field if emitFailed is set to true" >> {
       val enriched = EnrichmentManager
         .enrichEvent[IO](
           enrichmentReg,
@@ -2733,7 +2733,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           IO.unit,
           SpecHelpers.registryLookup,
           atomicFieldLimits,
-          emitIncomplete = true,
+          emitFailed = true,
           SpecHelpers.DefaultMaxJsonDepth
         )
 
@@ -2808,7 +2808,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       matcher: OptionIor[BadRow, EnrichedEvent] => MatchResult[Any] = defaultMatcher,
       script: String = defaultScript,
       parameters: Map[String, Option[String]] = defaultParameters,
-      emitIncomplete: Boolean = false,
+      emitFailed: Boolean = false,
       collectorName: String = source.name
     ) = {
       val jsEnrich = createJsEnrichment(script)
@@ -2826,7 +2826,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           IO.unit,
           SpecHelpers.registryLookup,
           atomicFieldLimits,
-          emitIncomplete,
+          emitFailed,
           SpecHelpers.DefaultMaxJsonDepth
         )
         .value
@@ -2864,8 +2864,8 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       commonDropTest(parameters = fatBody)
     }
 
-    "drop event that should end up as incomplete event normally when emitIncomplete is true" >> {
-      commonDropTest(parameters = fatBody, emitIncomplete = true)
+    "drop event that should end up as failed event normally when emitFailed is true" >> {
+      commonDropTest(parameters = fatBody, emitFailed = true)
     }
 
     "drop event with multiple failures" >> {
@@ -2893,7 +2893,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       )
     }
 
-    "drop event with multiple failures when emitIncomplete is true" >> {
+    "drop event with multiple failures when emitFailed is true" >> {
       commonDropTest(
         parameters = Map(
           "e" -> "ue",
@@ -2915,7 +2915,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           }"""
         ).toOpt,
         collectorName = "",
-        emitIncomplete = true
+        emitFailed = true
       )
     }
   }
@@ -2931,7 +2931,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       matcher: OptionIor[BadRow, EnrichedEvent] => MatchResult[Any],
       scripts: List[String],
       parameters: Map[String, Option[String]] = defaultParameters,
-      emitIncomplete: Boolean = false,
+      emitFailed: Boolean = false,
       collectorName: String = source.name
     ) = {
       val jsEnrichList = scripts.map(s => createJsEnrichment(s))
@@ -2953,7 +2953,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           IO.unit,
           SpecHelpers.registryLookup,
           atomicFieldLimits,
-          emitIncomplete,
+          emitFailed,
           SpecHelpers.DefaultMaxJsonDepth
         )
         .value

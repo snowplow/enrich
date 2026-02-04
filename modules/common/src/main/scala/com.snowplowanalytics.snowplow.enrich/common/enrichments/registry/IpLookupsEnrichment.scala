@@ -56,14 +56,16 @@ object IpLookupsEnrichment extends ParseableEnrichment {
           getArgumentFromName(c, "geo").sequence,
           getArgumentFromName(c, "isp").sequence,
           getArgumentFromName(c, "domain").sequence,
-          getArgumentFromName(c, "connectionType").sequence
-        ).mapN { (geo, isp, domain, connection) =>
+          getArgumentFromName(c, "connectionType").sequence,
+          getArgumentFromName(c, "asn").sequence
+        ).mapN { (geo, isp, domain, connection, asn) =>
           IpLookupsConf(
             schemaKey,
             file(geo, localMode),
             file(isp, localMode),
             file(domain, localMode),
-            file(connection, localMode)
+            file(connection, localMode),
+            file(asn, localMode)
           )
         }.toEither
       }
@@ -100,14 +102,16 @@ object IpLookupsEnrichment extends ParseableEnrichment {
     geoFilePath: Option[String],
     ispFilePath: Option[String],
     domainFilePath: Option[String],
-    connectionFilePath: Option[String]
+    connectionFilePath: Option[String],
+    asnFilePath: Option[String]
   ): F[IpLookupsEnrichment[F]] =
     CreateIpLookups[F]
       .createFromFilenames(
-        geoFilePath,
-        ispFilePath,
-        domainFilePath,
-        connectionFilePath,
+        geoFile = geoFilePath,
+        ispFile = ispFilePath,
+        domainFile = domainFilePath,
+        connectionTypeFile = connectionFilePath,
+        asnFile = asnFilePath,
         memCache = true,
         lruCacheSize = 20000
       )
@@ -125,14 +129,12 @@ final case class IpLookupsEnrichment[F[_]](ipLookups: IpLookups[F]) {
     ipLookups.performLookups(Either.catchNonFatal(new HostName(ip).toAddress).fold(_ => ip, addr => addr.toString))
 
   def getAsnContext(ipLookupResult: IpLookupResult): Option[SelfDescribingData[Json]] =
-    ipLookupResult.asn.flatMap(_.toOption).flatMap { asn =>
-      asn.autonomousSystemNumber.map { n =>
-        val asnJson = Json.obj(
-          "number" := n,
-          "organization" := asn.autonomousSystemOrganization
-        )
-        SelfDescribingData(IpLookupsEnrichment.asnSchema, asnJson)
-      }
+    ipLookupResult.asn.flatMap(_.toOption).map { asn =>
+      val asnJson = Json.obj(
+        "number" := asn.autonomousSystemNumber,
+        "organization" := asn.autonomousSystemOrganization
+      )
+      SelfDescribingData(IpLookupsEnrichment.asnSchema, asnJson)
     }
 }
 

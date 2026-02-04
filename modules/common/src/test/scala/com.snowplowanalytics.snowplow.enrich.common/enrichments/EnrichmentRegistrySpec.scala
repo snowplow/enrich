@@ -10,6 +10,8 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments
 
+import java.net.URI
+
 import org.specs2.Specification
 
 import cats.effect.IO
@@ -17,6 +19,8 @@ import cats.effect.testing.specs2.CatsEffect
 
 import io.circe.Json
 import io.circe.literal._
+
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.utils.ConversionUtils
@@ -30,6 +34,7 @@ class EnrichmentRegistrySpec extends Specification with CatsEffect {
   EnrichmentRegistry should parse array of enrichments with single JS enrichment correctly $singleJSEnrichment
   EnrichmentRegistry should parse array of enrichments with multiple JS enrichments correctly $multipleJSEnrichments
   EnrichmentRegistry should parse JS enrichment with config field correctly $jsEnrichmentWithConfig
+  EnrichmentRegistry should parse IP lookup enrichment correctly $ipLookupEnrichment
   """
 
   def noJSEnrichment =
@@ -104,6 +109,71 @@ class EnrichmentRegistrySpec extends Specification with CatsEffect {
         jsConfs.size must beEqualTo(1)
       }
   }
+
+  def ipLookupEnrichment =
+    EnrichmentRegistry
+      .parse[IO](
+        enrichmentConfig(),
+        SpecHelpers.client,
+        localMode = false,
+        SpecHelpers.registryLookup
+      )
+      .map { res =>
+        val result = res.getOrElse(List.empty).filter {
+          case _: EnrichmentConf.IpLookupsConf => true
+          case _ => false
+        }
+        val schemaKey = SchemaKey(
+          "com.snowplowanalytics.snowplow",
+          "ip_lookups",
+          "jsonschema",
+          SchemaVer.Full(2, 0, 1)
+        )
+        val expected = EnrichmentConf.IpLookupsConf(
+          schemaKey,
+          Some(
+            (
+              new URI(
+                "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind/GeoIP2-City.mmdb"
+              ),
+              "./ip_geo"
+            )
+          ),
+          Some(
+            (
+              new URI(
+                "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind/GeoIP2-ISP.mmdb"
+              ),
+              "./ip_isp"
+            )
+          ),
+          Some(
+            (
+              new URI(
+                "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind/GeoIP2-Domain.mmdb"
+              ),
+              "./ip_domain"
+            )
+          ),
+          Some(
+            (
+              new URI(
+                "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind/GeoIP2-Connection-Type.mmdb"
+              ),
+              "./ip_connectionType"
+            )
+          ),
+          Some(
+            (
+              new URI(
+                "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind/GeoLite2-ASN.mmdb"
+              ),
+              "./ip_asn"
+            )
+          )
+        )
+        result must beEqualTo(List(expected))
+      }
 }
 
 object EnrichmentRegistrySpec {
@@ -195,6 +265,36 @@ object EnrichmentRegistrySpec {
             "internalDomains": ["www.subdomain1.snowplowanalytics.com"],
             "database": "referer-tests.json",
             "uri": "http://snowplow.com"
+          }
+        }
+      },
+      {
+        "schema": "iglu:com.snowplowanalytics.snowplow/ip_lookups/jsonschema/2-0-1",
+        "data": {
+          "name": "ip_lookups",
+          "vendor": "com.snowplowanalytics.snowplow",
+          "enabled": true,
+          "parameters": {
+            "geo": {
+              "database": "GeoIP2-City.mmdb",
+              "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
+            },
+            "isp": {
+              "database": "GeoIP2-ISP.mmdb",
+              "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
+            },
+            "domain": {
+              "database": "GeoIP2-Domain.mmdb",
+              "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
+            },
+            "connectionType": {
+              "database": "GeoIP2-Connection-Type.mmdb",
+              "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
+            },
+            "asn": {
+              "database": "GeoLite2-ASN.mmdb",
+              "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
+            }
           }
         }
       }

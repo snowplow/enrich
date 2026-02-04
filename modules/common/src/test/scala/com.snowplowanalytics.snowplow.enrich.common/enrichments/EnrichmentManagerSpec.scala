@@ -2758,7 +2758,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
             "com.snowplowanalytics.snowplow",
             "ip_lookups",
             "jsonschema",
-            SchemaVer.Full(2, 0, 0)
+            SchemaVer.Full(2, 0, 1)
           ),
           localMode = true
         )
@@ -2808,7 +2808,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       }
     }
 
-    "add ASN derived context when ISP database is given" >> {
+    "add ASN derived context when only ISP database is given" >> {
       val ipLookupsConf = json"""{
           "name": "ip_lookups",
           "vendor": "com.snowplowanalytics.snowplow",
@@ -2918,7 +2918,183 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       ipLookupCommonTest(ipLookupsConf, expectedOutput)
     }
 
-    "not add ASN derived context when ISP database is not given" >> {
+    "add ASN derived context when only ASN database is given" >> {
+      val ipLookupsConf = json"""{
+          "name": "ip_lookups",
+          "vendor": "com.snowplowanalytics.snowplow",
+          "enabled": true,
+          "parameters": {
+            "geo": {
+              "database": "GeoIP2-City-Test.mmdb",
+              "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
+            },
+            "domain": {
+              "database": "GeoIP2-Domain-Test.mmdb",
+              "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
+            },
+            "connectionType": {
+              "database": "GeoIP2-Connection-Type-Test.mmdb",
+              "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
+            },
+            "asn": {
+              "database": "GeoLite2-ASN-Test.mmdb",
+              "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
+            }
+          }
+        }"""
+
+      val expectedOutput = Map(
+        "67.43.156.0" -> { event: EnrichedEvent =>
+          event.user_ipaddress must beEqualTo("67.43.156.0")
+          event.geo_country must beEqualTo("BT")
+          event.geo_region must beNull
+          event.geo_zipcode must beNull
+          event.geo_latitude must beEqualTo(27.5)
+          event.geo_longitude must beEqualTo(90.5)
+          event.geo_region_name must beNull
+          event.geo_timezone must beEqualTo("Asia/Thimphu")
+          event.ip_isp must beNull
+          event.ip_organization must beNull
+          event.ip_domain must beEqualTo("shoesfin.NET")
+          event.ip_netspeed must beEqualTo("Cellular")
+          event.derived_contexts must beEqualTo(
+            List(
+              SelfDescribingData(
+                schema = IpLookupsEnrichment.asnSchema,
+                data = json"""{
+                "number": 35908,
+                "organization": null
+              }"""
+              )
+            )
+          )
+        },
+        "18.11.120.0" -> { event: EnrichedEvent =>
+          event.user_ipaddress must beEqualTo("18.11.120.0")
+          event.geo_country must beNull
+          event.geo_region must beNull
+          event.geo_zipcode must beNull
+          event.geo_latitude must beNull
+          event.geo_longitude must beNull
+          event.geo_region_name must beNull
+          event.geo_timezone must beNull
+          event.ip_isp must beNull
+          event.ip_organization must beNull
+          event.ip_domain must beNull
+          event.ip_netspeed must beNull
+          event.derived_contexts must beEqualTo(
+            List(
+              SelfDescribingData(
+                schema = IpLookupsEnrichment.asnSchema,
+                data = json"""{
+                "number": 3,
+                "organization": "Massachusetts Institute of Technology"
+              }"""
+              )
+            )
+          )
+        },
+        "8.33.20.1" -> { event: EnrichedEvent =>
+          event.user_ipaddress must beEqualTo("8.33.20.1")
+          event.geo_country must beNull
+          event.geo_region must beNull
+          event.geo_zipcode must beNull
+          event.geo_latitude must beNull
+          event.geo_longitude must beNull
+          event.geo_region_name must beNull
+          event.geo_timezone must beNull
+          event.ip_isp must beNull
+          event.ip_organization must beNull
+          event.ip_domain must beNull
+          event.ip_netspeed must beNull
+          event.derived_contexts must beEmpty
+        },
+        "192.0.2.0" -> { event: EnrichedEvent =>
+          event.user_ipaddress must beEqualTo("192.0.2.0")
+          event.geo_country must beNull
+          event.geo_region must beNull
+          event.geo_zipcode must beNull
+          event.geo_latitude must beNull
+          event.geo_longitude must beNull
+          event.geo_region_name must beNull
+          event.geo_timezone must beNull
+          event.ip_isp must beNull
+          event.ip_organization must beNull
+          event.ip_domain must beNull
+          event.ip_netspeed must beNull
+          event.derived_contexts must beEmpty
+        }
+      )
+      ipLookupCommonTest(ipLookupsConf, expectedOutput)
+    }
+
+    "add ASN derived context when both ISP and ASN databases are given" >> {
+      val ipLookupsConf = json"""{
+          "name": "ip_lookups",
+          "vendor": "com.snowplowanalytics.snowplow",
+          "enabled": true,
+          "parameters": {
+            "isp": {
+              "database": "GeoIP2-ISP-Test.mmdb",
+              "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
+            },
+            "asn": {
+              "database": "GeoLite2-ASN-Test.mmdb",
+              "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
+            }
+          }
+        }"""
+
+      val expectedOutput = Map(
+        "67.43.156.1" -> { event: EnrichedEvent =>
+          event.user_ipaddress must beEqualTo("67.43.156.1")
+          event.ip_isp must beEqualTo("Loud Packet")
+          event.ip_organization must beEqualTo("zudoarichikito_")
+          event.derived_contexts must beEqualTo(
+            List(
+              SelfDescribingData(
+                schema = IpLookupsEnrichment.asnSchema,
+                data = json"""{
+                "number": 35908,
+                "organization": null
+              }"""
+              )
+            )
+          )
+        },
+        "18.11.120.0" -> { event: EnrichedEvent =>
+          event.user_ipaddress must beEqualTo("18.11.120.0")
+          event.ip_isp must beEqualTo("Massachusetts Institute of Technology")
+          event.ip_organization must beEqualTo("Massachusetts Institute of Technology")
+          event.derived_contexts must beEqualTo(
+            List(
+              SelfDescribingData(
+                schema = IpLookupsEnrichment.asnSchema,
+                data = json"""{
+                "number": 3,
+                "organization": "Massachusetts Institute of Technology"
+              }"""
+              )
+            )
+          )
+        },
+        "8.33.20.1" -> { event: EnrichedEvent =>
+          event.user_ipaddress must beEqualTo("8.33.20.1")
+          event.ip_isp must beEqualTo("Level 3 Communications")
+          event.ip_organization must beEqualTo("Level 3 Communications")
+          event.derived_contexts must beEmpty
+        },
+        "192.0.2.0" -> { event: EnrichedEvent =>
+          event.user_ipaddress must beEqualTo("192.0.2.0")
+          event.ip_isp must beNull
+          event.ip_organization must beNull
+          event.derived_contexts must beEmpty
+        }
+      )
+      ipLookupCommonTest(ipLookupsConf, expectedOutput)
+    }
+
+    "not add ASN derived context when neither ISP or ASN database is given" >> {
       val ipLookupsConf = json"""{
           "name": "ip_lookups",
           "vendor": "com.snowplowanalytics.snowplow",

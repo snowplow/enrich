@@ -79,6 +79,10 @@ class EnrichmentConfigsSpec extends Specification with ValidatedMatchers with Da
           "isp": {
             "database": "GeoIP2-ISP.mmdb",
             "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
+          },
+          "asn": {
+            "database": "GeoLite2-ASN.mmdb",
+            "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
           }
         }
       }"""
@@ -86,7 +90,7 @@ class EnrichmentConfigsSpec extends Specification with ValidatedMatchers with Da
         "com.snowplowanalytics.snowplow",
         "ip_lookups",
         "jsonschema",
-        SchemaVer.Full(2, 0, 0)
+        SchemaVer.Full(2, 0, 1)
       )
       val expected = IpLookupsConf(
         schemaKey,
@@ -107,7 +111,15 @@ class EnrichmentConfigsSpec extends Specification with ValidatedMatchers with Da
           )
         ),
         None,
-        None
+        None,
+        Some(
+          (
+            new URI(
+              "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind/GeoLite2-ASN.mmdb"
+            ),
+            "./ip_asn"
+          )
+        )
       )
 
       val result = IpLookupsEnrichment.parse(ipToGeoJson, schemaKey, false)

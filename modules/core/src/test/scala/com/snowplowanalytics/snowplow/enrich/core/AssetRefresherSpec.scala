@@ -43,7 +43,7 @@ class AssetRefresherSpec extends Specification with CatsEffect {
   """
 
   def e1 = {
-    val enrichmentConf = ipLookupsConf("foo", "foo", "foo", "foo") // An IPLookupsConf with same prefix for all 4 URIs
+    val enrichmentConf = ipLookupsConf("foo", "foo", "foo", "foo", "foo") // An IPLookupsConf with same prefix for all 5 URIs
     testResources.use {
       case (coldswap, state) =>
         val blobClients = blobClientsForTests(state, TestBlobClientConfig())
@@ -58,10 +58,16 @@ class AssetRefresherSpec extends Specification with CatsEffect {
                   Action.GettingUri(uri2),
                   Action.GettingUri(uri3),
                   Action.GettingUri(uri4),
+                  Action.GettingUri(uri5),
                   Action.OpenedEnrichmentRegistry
                 ) =>
-              (List(uri1, uri2, uri3, uri4) must contain(
-                allOf("foo://example.com/connection", "foo://example.com/domain", "foo://example.com/isp", "foo://example.com/geo")
+              (List(uri1, uri2, uri3, uri4, uri5) must contain(
+                allOf("foo://example.com/connection",
+                      "foo://example.com/domain",
+                      "foo://example.com/isp",
+                      "foo://example.com/geo",
+                      "foo://example.com/asn"
+                )
               ))
           }
         }
@@ -69,7 +75,7 @@ class AssetRefresherSpec extends Specification with CatsEffect {
   }
 
   def e2 = {
-    val enrichmentConf = ipLookupsConf("foo", "bar", "baz", "qux") // An IPLookupsConf with different prefix for all 4 URIs
+    val enrichmentConf = ipLookupsConf("foo", "bar", "baz", "qux", "bat") // An IPLookupsConf with different prefix for all 5 URIs
     testResources.use {
       case (coldswap, state) =>
         val blobClients = blobClientsForTests(state, TestBlobClientConfig())
@@ -83,15 +89,22 @@ class AssetRefresherSpec extends Specification with CatsEffect {
                   Action.OpenedBlobClient(p2),
                   Action.OpenedBlobClient(p3),
                   Action.OpenedBlobClient(p4),
+                  Action.OpenedBlobClient(p5),
                   Action.GettingUri(uri1),
                   Action.GettingUri(uri2),
                   Action.GettingUri(uri3),
                   Action.GettingUri(uri4),
+                  Action.GettingUri(uri5),
                   Action.OpenedEnrichmentRegistry
                 ) =>
-              (List(p1, p2, p3, p4) must contain(allOf("foo", "bar", "baz", "qux"))) and
-                (List(uri1, uri2, uri3, uri4) must contain(
-                  allOf("foo://example.com/connection", "bar://example.com/domain", "baz://example.com/isp", "qux://example.com/geo")
+              (List(p1, p2, p3, p4, p5) must contain(allOf("foo", "bar", "baz", "qux", "bat"))) and
+                (List(uri1, uri2, uri3, uri4, uri5) must contain(
+                  allOf("foo://example.com/connection",
+                        "bar://example.com/domain",
+                        "baz://example.com/isp",
+                        "qux://example.com/geo",
+                        "bat://example.com/asn"
+                  )
                 ))
           }
         }
@@ -99,7 +112,7 @@ class AssetRefresherSpec extends Specification with CatsEffect {
   }
 
   def e3 = {
-    val enrichmentConf = ipLookupsConf("foo", "foo", "foo", "foo") // An IPLookupsConf with same prefix for all 4 URIs
+    val enrichmentConf = ipLookupsConf("foo", "foo", "foo", "foo", "foo") // An IPLookupsConf with same prefix for all 5 URIs
     testResources.use {
       case (coldswap, state) =>
         val blobClients = blobClientsForTests(state, TestBlobClientConfig(randomizeContent = false, returnEtags = true))
@@ -115,14 +128,21 @@ class AssetRefresherSpec extends Specification with CatsEffect {
                   Action.GettingUri(_),
                   Action.GettingUri(_),
                   Action.GettingUri(_),
+                  Action.GettingUri(_),
                   Action.OpenedEnrichmentRegistry,
                   Action.GettingUriIfNeeded(uri1, ConsistentTestEtag),
                   Action.GettingUriIfNeeded(uri2, ConsistentTestEtag),
                   Action.GettingUriIfNeeded(uri3, ConsistentTestEtag),
-                  Action.GettingUriIfNeeded(uri4, ConsistentTestEtag)
+                  Action.GettingUriIfNeeded(uri4, ConsistentTestEtag),
+                  Action.GettingUriIfNeeded(uri5, ConsistentTestEtag)
                 ) =>
-              (List(uri1, uri2, uri3, uri4) must contain(
-                allOf("foo://example.com/connection", "foo://example.com/domain", "foo://example.com/isp", "foo://example.com/geo")
+              (List(uri1, uri2, uri3, uri4, uri5) must contain(
+                allOf("foo://example.com/connection",
+                      "foo://example.com/domain",
+                      "foo://example.com/isp",
+                      "foo://example.com/geo",
+                      "foo://example.com/asn"
+                )
               ))
           }
         }
@@ -130,7 +150,7 @@ class AssetRefresherSpec extends Specification with CatsEffect {
   }
 
   def e4 = {
-    val enrichmentConf = ipLookupsConf("foo", "foo", "foo", "foo") // An IPLookupsConf with same prefix for all 4 URIs
+    val enrichmentConf = ipLookupsConf("foo", "foo", "foo", "foo", "foo") // An IPLookupsConf with same prefix for all 5 URIs
     testResources.use {
       case (coldswap, state) =>
         val blobClients = blobClientsForTests(state, TestBlobClientConfig(randomizeContent = true, returnEtags = true))
@@ -146,7 +166,9 @@ class AssetRefresherSpec extends Specification with CatsEffect {
                   Action.GettingUri(_),
                   Action.GettingUri(_),
                   Action.GettingUri(_),
+                  Action.GettingUri(_),
                   Action.OpenedEnrichmentRegistry,
+                  Action.GettingUriIfNeeded(_, _),
                   Action.GettingUriIfNeeded(_, _),
                   Action.GettingUriIfNeeded(_, _),
                   Action.GettingUriIfNeeded(_, _),
@@ -161,7 +183,7 @@ class AssetRefresherSpec extends Specification with CatsEffect {
   }
 
   def e5 = {
-    val enrichmentConf = ipLookupsConf("foo", "foo", "foo", "foo") // An IPLookupsConf with same prefix for all 4 URIs
+    val enrichmentConf = ipLookupsConf("foo", "foo", "foo", "foo", "foo") // An IPLookupsConf with same prefix for all 5 URIs
     testResources.use {
       case (coldswap, state) =>
         val blobClients = blobClientsForTests(state, TestBlobClientConfig(randomizeContent = false, returnEtags = false))
@@ -177,14 +199,21 @@ class AssetRefresherSpec extends Specification with CatsEffect {
                   Action.GettingUri(_),
                   Action.GettingUri(_),
                   Action.GettingUri(_),
+                  Action.GettingUri(_),
                   Action.OpenedEnrichmentRegistry,
                   Action.GettingUri(uri1),
                   Action.GettingUri(uri2),
                   Action.GettingUri(uri3),
-                  Action.GettingUri(uri4)
+                  Action.GettingUri(uri4),
+                  Action.GettingUri(uri5)
                 ) =>
-              (List(uri1, uri2, uri3, uri4) must contain(
-                allOf("foo://example.com/connection", "foo://example.com/domain", "foo://example.com/isp", "foo://example.com/geo")
+              (List(uri1, uri2, uri3, uri4, uri5) must contain(
+                allOf("foo://example.com/connection",
+                      "foo://example.com/domain",
+                      "foo://example.com/isp",
+                      "foo://example.com/geo",
+                      "foo://example.com/asn"
+                )
               ))
           }
         }
@@ -192,7 +221,7 @@ class AssetRefresherSpec extends Specification with CatsEffect {
   }
 
   def e6 = {
-    val enrichmentConf = ipLookupsConf("foo", "foo", "foo", "foo") // An IPLookupsConf with same prefix for all 4 URIs
+    val enrichmentConf = ipLookupsConf("foo", "foo", "foo", "foo", "foo") // An IPLookupsConf with same prefix for all 5 URIs
     testResources.use {
       case (coldswap, state) =>
         val blobClients = blobClientsForTests(state, TestBlobClientConfig(randomizeContent = true, returnEtags = false))
@@ -210,16 +239,23 @@ class AssetRefresherSpec extends Specification with CatsEffect {
                     Action.GettingUri(_),
                     Action.GettingUri(_),
                     Action.GettingUri(_),
+                    Action.GettingUri(_),
                     Action.OpenedEnrichmentRegistry,
                     Action.GettingUri(uri1),
                     Action.GettingUri(uri2),
                     Action.GettingUri(uri3),
                     Action.GettingUri(uri4),
+                    Action.GettingUri(uri5),
                     Action.ClosedEnrichmentRegistry,
                     Action.OpenedEnrichmentRegistry
                   ) =>
-                (List(uri1, uri2, uri3, uri4) must contain(
-                  allOf("foo://example.com/connection", "foo://example.com/domain", "foo://example.com/isp", "foo://example.com/geo")
+                (List(uri1, uri2, uri3, uri4, uri5) must contain(
+                  allOf("foo://example.com/connection",
+                        "foo://example.com/domain",
+                        "foo://example.com/isp",
+                        "foo://example.com/geo",
+                        "foo://example.com/asn"
+                  )
                 ))
             }
           }
@@ -252,7 +288,7 @@ object AssetRefresherSpec {
    */
   case class TestBlobClientConfig(randomizeContent: Boolean = false, returnEtags: Boolean = true)
 
-  /** A list of 4 blob clients, each of which is able to download from a different uri-prefix */
+  /** A list of 5 blob clients, each of which is able to download from a different uri-prefix */
   def blobClientsForTests(
     state: Ref[IO, Vector[Action]],
     config: TestBlobClientConfig
@@ -261,21 +297,24 @@ object AssetRefresherSpec {
       new TestBlobClientFactory("foo", state, config),
       new TestBlobClientFactory("bar", state, config),
       new TestBlobClientFactory("baz", state, config),
-      new TestBlobClientFactory("qux", state, config)
+      new TestBlobClientFactory("qux", state, config),
+      new TestBlobClientFactory("bat", state, config)
     )
 
   def ipLookupsConf(
     prefix1: String,
     prefix2: String,
     prefix3: String,
-    prefix4: String
+    prefix4: String,
+    prefix5: String
   ): IpLookupsConf =
     IpLookupsConf(
-      schemaKey = SchemaKey("com.snowplowanalytics.snowplow", "ip_lookups", "jsonschema", SchemaVer.Full(1, 0, 0)),
+      schemaKey = SchemaKey("com.snowplowanalytics.snowplow", "ip_lookups", "jsonschema", SchemaVer.Full(2, 0, 1)),
       connectionTypeFile = Some(URI.create(s"$prefix1://example.com/connection") -> "connection-type-file"),
       domainFile = Some(URI.create(s"$prefix2://example.com/domain") -> "domain-file"),
       ispFile = Some(URI.create(s"$prefix3://example.com/isp") -> "isp-file"),
-      geoFile = Some(URI.create(s"$prefix4://example.com/geo") -> "geo-file")
+      geoFile = Some(URI.create(s"$prefix4://example.com/geo") -> "geo-file"),
+      asnFile = Some(URI.create(s"$prefix5://example.com/asn") -> "asn-file")
     )
 
   def testResources: Resource[IO, (Coldswap[IO, EnrichmentRegistry[IO]], Ref[IO, Vector[Action]])] =

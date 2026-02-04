@@ -1,5 +1,5 @@
 {
-	"schema": "iglu:com.snowplowanalytics.snowplow/ip_lookups/jsonschema/2-0-0",
+	"schema": "iglu:com.snowplowanalytics.snowplow/ip_lookups/jsonschema/2-0-1",
 
 	"data": {
 

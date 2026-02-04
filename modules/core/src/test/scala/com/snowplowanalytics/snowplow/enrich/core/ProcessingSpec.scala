@@ -537,7 +537,7 @@ class ProcessingSpec extends Specification with CatsEffect {
           "com.snowplowanalytics.snowplow",
           "ip_lookups",
           "jsonschema",
-          SchemaVer.Full(2, 0, 0)
+          SchemaVer.Full(2, 0, 1)
         ),
         false
       )

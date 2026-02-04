@@ -182,16 +182,18 @@ object EnrichmentConf {
     geoFile: Option[(URI, String)],
     ispFile: Option[(URI, String)],
     domainFile: Option[(URI, String)],
-    connectionTypeFile: Option[(URI, String)]
+    connectionTypeFile: Option[(URI, String)],
+    asnFile: Option[(URI, String)]
   ) extends EnrichmentConf {
     override val filesToCache: List[(URI, String)] =
-      List(geoFile, ispFile, domainFile, connectionTypeFile).flatten
+      List(geoFile, ispFile, domainFile, connectionTypeFile, asnFile).flatten
     def enrichment[F[_]: Async]: F[IpLookupsEnrichment[F]] =
       IpLookupsEnrichment.create[F](
         geoFile.map(_._2),
         ispFile.map(_._2),
         domainFile.map(_._2),
-        connectionTypeFile.map(_._2)
+        connectionTypeFile.map(_._2),
+        asnFile.map(_._2)
       )
   }
 

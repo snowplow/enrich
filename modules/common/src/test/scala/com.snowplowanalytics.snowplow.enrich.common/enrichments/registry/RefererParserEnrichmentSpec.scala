@@ -37,35 +37,37 @@ class RefererParserEnrichmentSpec extends Specification with DataTables with Cat
   def is = s2"""
   parsing referer URIs should work                     $e1
   tabs and newlines in search terms should be replaced $e2
+  referers from the config file should be used         $e3
+  referers can be an empty section in the config file  $e4
+  wrong referers section in the config file should fail with helpful message $e5
   """
 
   val PageHost = "www.snowplowanalytics.com"
   def e1 =
     "SPEC NAME" || "REFERER URI" | "REFERER" |
-      "Google search" !! "http://www.google.com/search?q=gateway+oracle+cards+denise+linn&hl=en&client=safari" ! SearchReferer(
-        Medium.Search,
+      "Google search" !! "http://www.google.com/search?q=gateway+oracle+cards+denise+linn&hl=en&client=safari" ! ExternalReferer(
+        "search",
         "Google",
         Some("gateway oracle cards denise linn")
       ) |
-      "Facebook social" !! "http://www.facebook.com/l.php?u=http%3A%2F%2Fwww.psychicbazaar.com&h=yAQHZtXxS&s=1" ! SocialReferer(
-        Medium.Social,
-        "Facebook"
+      "Facebook social" !! "http://www.facebook.com/l.php?u=http%3A%2F%2Fwww.psychicbazaar.com&h=yAQHZtXxS&s=1" ! ExternalReferer(
+        "social",
+        "Facebook",
+        None
       ) |
-      "Yahoo! Mail" !! "http://36ohk6dgmcd1n-c.c.yom.mail.yahoo.net/om/api/1.0/openmail.app.invoke/36ohk6dgmcd1n/11/1.0.35/us/en-US/view.html/0" ! EmailReferer(
-        Medium.Email,
-        "Yahoo! Mail"
+      "Yahoo! Mail" !! "http://36ohk6dgmcd1n-c.c.yom.mail.yahoo.net/om/api/1.0/openmail.app.invoke/36ohk6dgmcd1n/11/1.0.35/us/en-US/view.html/0" ! ExternalReferer(
+        "email",
+        "Yahoo! Mail",
+        None
       ) |
-      "ChatGPT" !! "https://www.chatgpt.com" ! ChatbotReferer(
-        Medium.Chatbot,
-        "ChatGPT"
+      "ChatGPT" !! "https://www.chatgpt.com" ! ExternalReferer(
+        "chatbot",
+        "ChatGPT",
+        None
       ) |
-      "Internal referer" !! "https://www.snowplowanalytics.com/account/profile" ! InternalReferer(
-        Medium.Internal
-      ) |
-      "Custom referer" !! "https://www.internaldomain.com/path" ! InternalReferer(Medium.Internal) |
-      "Unknown referer" !! "http://www.spyfu.com/domain.aspx?d=3897225171967988459" ! UnknownReferer(
-        Medium.Unknown
-      ) |> { (_, refererUri, referer) =>
+      "Internal referer" !! "https://www.snowplowanalytics.com/account/profile" ! InternalReferer |
+      "Custom referer" !! "https://www.internaldomain.com/path" ! InternalReferer |
+      "Unknown referer" !! "http://www.spyfu.com/domain.aspx?d=3897225171967988459" ! UnknownReferer |> { (_, refererUri, referer) =>
       (for {
         c <- EitherT.fromEither[IO](
                RefererParserEnrichment
@@ -84,7 +86,7 @@ class RefererParserEnrichmentSpec extends Specification with DataTables with Cat
                      "com.snowplowanalytics.snowplow",
                      "referer_parser",
                      "jsonschema",
-                     SchemaVer.Full(2, 0, 0)
+                     SchemaVer.Full(2, 0, 1)
                    ),
                    true
                  )
@@ -119,7 +121,7 @@ class RefererParserEnrichmentSpec extends Specification with DataTables with Cat
                    "com.snowplowanalytics.snowplow",
                    "referer_parser",
                    "jsonschema",
-                   SchemaVer.Full(2, 0, 0)
+                   SchemaVer.Full(2, 0, 1)
                  ),
                  true
                )
@@ -136,11 +138,139 @@ class RefererParserEnrichmentSpec extends Specification with DataTables with Cat
     } yield res).value.map(_ must beRight.like {
       case o =>
         o must beSome(
-          SearchReferer(
-            Medium.Search,
+          ExternalReferer(
+            "search",
             "Google",
             Some("gateway    oracle    cards    denise    linn")
           )
         )
     })
+
+  def e3 =
+    (for {
+      c <- EitherT.fromEither[IO](
+             RefererParserEnrichment
+               .parse(
+                 json"""{
+            "name": "referer_parser",
+            "vendor": "com.snowplowanalytics.snowplow",
+            "enabled": true,
+            "parameters": {
+              "internalDomains": [],
+              "uri": "http://snowplow.com",
+              "database": "referer-tests.json",
+              "referrers": {
+                "search": {
+                  "MyDomain": {
+                    "domains": [
+                      "acme.com"
+                    ]
+                  }
+                }
+              }
+            }
+          }""",
+                 SchemaKey(
+                   "com.snowplowanalytics.snowplow",
+                   "referer_parser",
+                   "jsonschema",
+                   SchemaVer.Full(2, 0, 1)
+                 ),
+                 true
+               )
+               .toEither
+               .leftMap(_.head)
+           )
+      e <- c.enrichment[IO]
+      res = e.extractRefererDetails(
+              new URI(
+                "http://www.acme.com?whatever"
+              ),
+              PageHost
+            )
+    } yield res).value.map(_ must beRight.like {
+      case o =>
+        o must beSome(
+          ExternalReferer(
+            "search",
+            "MyDomain",
+            None
+          )
+        )
+    })
+
+  def e4 =
+    (for {
+      c <- EitherT.fromEither[IO](
+             RefererParserEnrichment
+               .parse(
+                 json"""{
+            "name": "referer_parser",
+            "vendor": "com.snowplowanalytics.snowplow",
+            "enabled": true,
+            "parameters": {
+              "internalDomains": [],
+              "uri": "http://snowplow.com",
+              "database": "referer-tests.json",
+              "referrers": {}
+            }
+          }""",
+                 SchemaKey(
+                   "com.snowplowanalytics.snowplow",
+                   "referer_parser",
+                   "jsonschema",
+                   SchemaVer.Full(2, 0, 1)
+                 ),
+                 true
+               )
+               .toEither
+               .leftMap(_.head)
+           )
+      e <- c.enrichment[IO]
+      res = e.extractRefererDetails(
+              new URI(
+                "http://www.google.com/search?q=%0Agateway%09oracle%09cards%09denise%09linn&hl=en&client=safari"
+              ),
+              PageHost
+            )
+    } yield res).value.map(_ must beRight.like {
+      case o =>
+        o must beSome(
+          ExternalReferer(
+            "search",
+            "Google",
+            Some("gateway    oracle    cards    denise    linn")
+          )
+        )
+    })
+
+  def e5 =
+    (for {
+      c <- EitherT.fromEither[IO](
+             RefererParserEnrichment
+               .parse(
+                 json"""{
+            "name": "referer_parser",
+            "vendor": "com.snowplowanalytics.snowplow",
+            "enabled": true,
+            "parameters": {
+              "internalDomains": [],
+              "uri": "http://snowplow.com",
+              "database": "referer-tests.json",
+              "referrers": "not_an_object"
+            }
+          }""",
+                 SchemaKey(
+                   "com.snowplowanalytics.snowplow",
+                   "referer_parser",
+                   "jsonschema",
+                   SchemaVer.Full(2, 0, 1)
+                 ),
+                 true
+               )
+               .toEither
+               .leftMap(_.head)
+           )
+      e <- c.enrichment[IO]
+    } yield e).value.map(_ must beEqualTo(Left("Can't decode referers: Referers json must be an object")))
 }

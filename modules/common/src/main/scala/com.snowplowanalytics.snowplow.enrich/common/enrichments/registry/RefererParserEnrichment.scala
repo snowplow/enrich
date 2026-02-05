@@ -55,7 +55,13 @@ object RefererParserEnrichment extends ParseableEnrichment {
                 (uri, db, domains)
               }.toEither
       source <- getDatabaseUri(conf._1, conf._2).leftMap(NonEmptyList.one)
-    } yield RefererParserConf(schemaKey, file(source, conf._2, localFile, localMode), conf._3)).toValidated
+      maybeReferers = c.hcursor.downField("parameters").downField("referrers").focus
+      referers <- maybeReferers.fold(Map.empty[String, RefererLookup].asRight[NonEmptyList[String]]) { json =>
+                    ParseReferers
+                      .loadJson(json)
+                      .leftMap(e => NonEmptyList.one(s"Can't decode referers: ${e.getMessage}"))
+                  }
+    } yield RefererParserConf(schemaKey, file(source, conf._2, localFile, localMode), conf._3, referers)).toValidated
 
   private def file(
     uri: URI,
@@ -68,8 +74,12 @@ object RefererParserEnrichment extends ParseableEnrichment {
     else
       (uri, localFile)
 
-  def create[F[_]: Sync](filePath: String, internalDomains: List[String]): EitherT[F, String, RefererParserEnrichment] =
-    EitherT(CreateParser[F].create(filePath))
+  def create[F[_]: Sync](
+    filePath: String,
+    internalDomains: List[String],
+    referers: Map[String, RefererLookup]
+  ): EitherT[F, String, RefererParserEnrichment] =
+    EitherT(CreateParser[F].create(filePath, referers))
       .leftMap(_.getMessage)
       .map(p => RefererParserEnrichment(p, internalDomains))
 }
@@ -89,9 +99,9 @@ final case class RefererParserEnrichment(parser: Parser, domains: List[String]) 
    */
   def extractRefererDetails(uri: URI, pageHost: String): Option[Referer] =
     parser.parse(uri, Option(pageHost), domains).map {
-      case SearchReferer(m, s, t) =>
+      case ExternalReferer(m, s, t) =>
         val fixedTerm = t.flatMap(CU.fixTabsNewlines)
-        SearchReferer(m, s, fixedTerm)
-      case o => o
+        ExternalReferer(m, s, fixedTerm)
+      case other => other
     }
 }

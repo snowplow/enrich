@@ -1,5 +1,5 @@
 {
-	"schema": "iglu:com.snowplowanalytics.snowplow/referer_parser/jsonschema/2-0-0",
+	"schema": "iglu:com.snowplowanalytics.snowplow/referer_parser/jsonschema/2-0-1",
 
 	"data": {
 
@@ -9,7 +9,31 @@
 		"parameters": {
 			"internalDomains": [],
 			"database": "referers-latest.json",
-      			"uri": "https://s3-eu-west-1.amazonaws.com/snowplow-hosted-assets/third-party/referer-parser/"
+			"uri": "https://s3-eu-west-1.amazonaws.com/snowplow-hosted-assets/third-party/referer-parser/",
+			"referrers": {
+				"search": {
+					"Search website 1": {
+						"domains": [
+							"search.acme.com"
+						],
+						"parameters": [
+							"q"
+						]
+					},
+					"Search website 2": {
+						"domains": [
+							"search.acmebis.com"
+						]
+					}
+				},
+				"social": {
+					"Social website": {
+						"domains": [
+							"social.acme.com"
+						]
+					}
+				}
+			}
 		}
 	}
 }

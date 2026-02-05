@@ -29,6 +29,8 @@ import com.snowplowanalytics.iglu.core.SchemaKey
 
 import com.snowplowanalytics.forex.model.AccountType
 
+import com.snowplowanalytics.refererparser.RefererLookup
+
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest.{ApiRequestEnrichment, HttpApi}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.{Rdbms, SqlQueryEnrichment}
 import com.snowplowanalytics.snowplow.enrich.common.utils.HttpClient
@@ -222,11 +224,12 @@ object EnrichmentConf {
   final case class RefererParserConf(
     schemaKey: SchemaKey,
     refererDatabase: (URI, String),
-    internalDomains: List[String]
+    internalDomains: List[String],
+    referers: Map[String, RefererLookup] = Map.empty
   ) extends EnrichmentConf {
     override val filesToCache: List[(URI, String)] = List(refererDatabase)
     def enrichment[F[_]: Sync]: EitherT[F, String, RefererParserEnrichment] =
-      RefererParserEnrichment.create[F](refererDatabase._2, internalDomains)
+      RefererParserEnrichment.create[F](refererDatabase._2, internalDomains, referers)
   }
 
   final case class UaParserConf(schemaKey: SchemaKey, uaDatabase: Option[(URI, String)]) extends EnrichmentConf {

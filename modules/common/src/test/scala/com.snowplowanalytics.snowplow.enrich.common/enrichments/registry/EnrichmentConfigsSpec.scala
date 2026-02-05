@@ -181,7 +181,7 @@ class EnrichmentConfigsSpec extends Specification with ValidatedMatchers with Da
         "com.snowplowanalytics.snowplow",
         "referer_parser",
         "jsonschema",
-        SchemaVer.Full(2, 0, 0)
+        SchemaVer.Full(2, 0, 1)
       )
       val expected = RefererParserConf(
         schemaKey,

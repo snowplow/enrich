@@ -1,3 +1,18 @@
+6.7.0 (2026-02-10)
+------------------
+Bump common-streams to 0.21.0
+Add support for dedicated ASN database in IP lookup enrichment (#179)
+Create derived context from extracted ASN fields in IP lookup enrichment (#176)
+Replace unbounded queue with Ref in MetadataReporter (#182)
+Add derived timestamp to Identity API requests (#165)
+Rename incomplete event(s) to failed event(s) everywhere
+Stop emitting legacy metrics incomplete and latency
+Metadata should extract scenario id from derived contexts (#175)
+Use Sentry class from common-streams (#172)
+Support GCS bucket names containing underscores (#174)
+Compile regexes once (#171)
+Event spec enrichment (#151)
+
 6.6.0 (2026-01-21)
 ------------------
 Kinesis source: set idleTimeBetweenReads default to 200.millis for polling (#164)

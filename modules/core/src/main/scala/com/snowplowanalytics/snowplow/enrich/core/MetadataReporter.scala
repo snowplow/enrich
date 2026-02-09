@@ -12,8 +12,7 @@ package com.snowplowanalytics.snowplow.enrich.core
 
 import cats.Show
 import cats.implicits._
-import cats.effect.std.{Queue, QueueSource}
-import cats.effect.{Async, Resource, Sync}
+import cats.effect.{Async, Ref, Resource, Sync}
 import cats.effect.implicits._
 import fs2.{Chunk, Pipe, Stream}
 import org.http4s.client.Client
@@ -64,35 +63,27 @@ object MetadataReporter {
     httpClient: Client[F]
   ): Resource[F, MetadataReporter[F]] =
     for {
-      queue <- Resource.eval(Queue.unbounded[F, Option[Metadata.Aggregates]])
-      fiber <- Resource.eval(stream(config, appInfo, httpClient, queue).compile.drain.start)
-      _ <- Resource.onFinalize(queue.offer(None).void >> fiber.joinWithUnit)
+      ref <- Resource.eval(Ref.of[F, Metadata.Aggregates](Map.empty))
+      _ <- stream(config, appInfo, httpClient, ref).compile.drain.background
     } yield new MetadataReporter[F] {
       def add(aggregates: Metadata.Aggregates): F[Unit] =
-        queue.offer(Some(aggregates))
+        ref.update(_ |+| aggregates)
     }
 
   private def stream[F[_]: Async](
     config: Config.Metadata,
     appInfo: AppInfo,
     httpClient: Client[F],
-    queue: QueueSource[F, Option[Metadata.Aggregates]]
+    ref: Ref[F, Metadata.Aggregates]
   ): Stream[F, Nothing] =
     Stream
-      .fromQueueNoneTerminated(queue)
-      .through(BatchUp.withTimeout[F, Metadata.Aggregates, Metadata.Aggregates](Long.MaxValue, config.interval))
-      .prefetch
+      .fixedRate[F](config.interval)
+      .evalMap(_ => ref.getAndSet(Map.empty))
+      .filter(_.nonEmpty)
       .through(toTrackerProtocolJsonStrings(config, appInfo))
       .through(batchUpTrackerProtocolEvents(config))
       .evalMap(report(config, httpClient, _))
       .drain
-
-  private implicit def aggregateBatchable: BatchUp.Batchable[Metadata.Aggregates, Metadata.Aggregates] =
-    new BatchUp.Batchable[Metadata.Aggregates, Metadata.Aggregates] {
-      def weightOf(a: Metadata.Aggregates): Long = 0L
-      def single(a: Metadata.Aggregates): Metadata.Aggregates = a
-      def combine(b: Metadata.Aggregates, a: Metadata.Aggregates): Metadata.Aggregates = b |+| a
-    }
 
   private implicit def stringifiedBatchable: BatchUp.Batchable[String, List[String]] =
     new BatchUp.Batchable[String, List[String]] {

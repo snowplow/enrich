@@ -35,6 +35,7 @@ class MetadataReporterSpec extends Specification with CatsEffect {
 
   def is = s2"""
   The MetadataReporter should:
+    Not send any http requests when there are no aggregates $e0
     Send valid metadata events at the correct intervals $e1
     Batch up identical aggregates into a single tracker event $e2
     Batch up non-identical aggregates into a single http request $e3
@@ -43,6 +44,24 @@ class MetadataReporterSpec extends Specification with CatsEffect {
     Correctly json-escape special characters $e6
     Recover from http errors and never crash $e7
   """
+
+  def e0 = {
+
+    val resources = for {
+      httpClient <- Resource.eval(mockHttpClient)
+      _ <- MetadataReporter.build(testConfig, testAppInfo, httpClient.mock)
+    } yield httpClient.results
+
+    val run = resources.use { ref =>
+      IO.sleep(1.day) >> ref.get
+    }
+
+    val assertions = run.map { results =>
+      results must beEmpty
+    }
+
+    TestControl.executeEmbed(assertions)
+  }
 
   // A test that sees two metadata events separated by 42 minutes (longer than the reporting period)
   def e1 = {
@@ -116,16 +135,16 @@ class MetadataReporterSpec extends Specification with CatsEffect {
           List(
             haveCorrectUri,
             haveTrackedEventCount(1),
-            beSentAt(Instant.parse("1970-01-01T00:47:00.00Z")),
-            containTrackedEvent(expectedEvent(periodStart = "1970-01-01T00:42:00Z", periodEnd = "1970-01-01T00:47:00Z"), expectedContext)
+            beSentAt(Instant.parse("1970-01-01T00:45:00.00Z")),
+            containTrackedEvent(expectedEvent(periodStart = "1970-01-01T00:40:00Z", periodEnd = "1970-01-01T00:45:00Z"), expectedContext)
           ).reduce(_ and _)
         )
         val t2 = httpRequest2 must (
           List(
             haveCorrectUri,
             haveTrackedEventCount(1),
-            beSentAt(Instant.parse("1970-01-01T01:29:00.00Z")),
-            containTrackedEvent(expectedEvent(periodStart = "1970-01-01T01:24:00Z", periodEnd = "1970-01-01T01:29:00Z"), expectedContext)
+            beSentAt(Instant.parse("1970-01-01T01:25:00.00Z")),
+            containTrackedEvent(expectedEvent(periodStart = "1970-01-01T01:20:00Z", periodEnd = "1970-01-01T01:25:00Z"), expectedContext)
           ).reduce(_ and _)
         )
 
@@ -167,8 +186,8 @@ class MetadataReporterSpec extends Specification with CatsEffect {
           "platform": "myplatform",
           "scenario_id": "myscenario",
           "eventVolume": $expectedEventVolume,
-          "periodStart": "1970-01-01T00:42:00Z",
-          "periodEnd": "1970-01-01T00:47:00Z"
+          "periodStart": "1970-01-01T00:40:00Z",
+          "periodEnd": "1970-01-01T00:45:00Z"
         }
       }
     }
@@ -210,7 +229,7 @@ class MetadataReporterSpec extends Specification with CatsEffect {
         httpRequest1 must List(
           haveCorrectUri,
           haveTrackedEventCount(1),
-          beSentAt(Instant.parse("1970-01-01T00:47:00.00Z")),
+          beSentAt(Instant.parse("1970-01-01T00:45:00.00Z")),
           containTrackedEvent(expectedEvent, expectedContext)
         ).reduce(_ and _)
       case other => ko(s"Expected 1 http request, got ${other.size} http requests")
@@ -247,8 +266,8 @@ class MetadataReporterSpec extends Specification with CatsEffect {
           "platform": "myplatform",
           "scenario_id": "myscenario",
           "eventVolume": 42,
-          "periodStart": "1970-01-01T00:42:00Z",
-          "periodEnd": "1970-01-01T00:47:00Z"
+          "periodStart": "1970-01-01T00:40:00Z",
+          "periodEnd": "1970-01-01T00:45:00Z"
         }
       }
     }
@@ -290,7 +309,7 @@ class MetadataReporterSpec extends Specification with CatsEffect {
         httpRequest1 must List(
           haveCorrectUri,
           haveTrackedEventCount(2),
-          beSentAt(Instant.parse("1970-01-01T00:47:00.00Z")),
+          beSentAt(Instant.parse("1970-01-01T00:45:00.00Z")),
           containTrackedEvent(expectedEvent(appId = "myapp1"), expectedContext),
           containTrackedEvent(expectedEvent(appId = "myapp2"), expectedContext)
         ).reduce(_ and _)
@@ -333,8 +352,8 @@ class MetadataReporterSpec extends Specification with CatsEffect {
           "platform": "myplatform",
           "scenario_id": "myscenario",
           "eventVolume": 42,
-          "periodStart": "1970-01-01T00:42:00Z",
-          "periodEnd": "1970-01-01T00:47:00Z"
+          "periodStart": "1970-01-01T00:40:00Z",
+          "periodEnd": "1970-01-01T00:45:00Z"
         }
       }
     }
@@ -375,7 +394,7 @@ class MetadataReporterSpec extends Specification with CatsEffect {
           List(
             haveCorrectUri,
             haveTrackedEventCount(1),
-            beSentAt(Instant.parse("1970-01-01T00:47:00.00Z")),
+            beSentAt(Instant.parse("1970-01-01T00:45:00.00Z")),
             containTrackedEvent(expectedEvent("mysource1"), expectedContext)
           ).reduce(_ and _)
         )
@@ -383,7 +402,7 @@ class MetadataReporterSpec extends Specification with CatsEffect {
           List(
             haveCorrectUri,
             haveTrackedEventCount(1),
-            beSentAt(Instant.parse("1970-01-01T00:47:00.00Z")),
+            beSentAt(Instant.parse("1970-01-01T00:45:00.00Z")),
             containTrackedEvent(expectedEvent("mysource2"), expectedContext)
           ).reduce(_ and _)
         )
@@ -391,7 +410,7 @@ class MetadataReporterSpec extends Specification with CatsEffect {
           List(
             haveCorrectUri,
             haveTrackedEventCount(1),
-            beSentAt(Instant.parse("1970-01-01T00:47:00.00Z")),
+            beSentAt(Instant.parse("1970-01-01T00:45:00.00Z")),
             containTrackedEvent(expectedEvent("mysource3"), expectedContext)
           ).reduce(_ and _)
         )
@@ -431,8 +450,8 @@ class MetadataReporterSpec extends Specification with CatsEffect {
           "platform": "myplatform",
           "scenario_id": "myscenario",
           "eventVolume": 42,
-          "periodStart": "1970-01-01T00:42:00Z",
-          "periodEnd": "1970-01-01T00:47:00Z"
+          "periodStart": "1970-01-01T00:40:00Z",
+          "periodEnd": "1970-01-01T00:45:00Z"
         }
       }
     }
@@ -484,7 +503,7 @@ class MetadataReporterSpec extends Specification with CatsEffect {
         httpRequest1 must List(
           haveCorrectUri,
           haveTrackedEventCount(2),
-          beSentAt(Instant.parse("1970-01-01T00:47:00.00Z")),
+          beSentAt(Instant.parse("1970-01-01T00:45:00.00Z")),
           containTrackedEvent(expectedEvent(appId = "myapp1"), expectedContext),
           containTrackedEvent(expectedEvent(appId = "myapp2"), expectedContext)
         ).reduce(_ and _)
@@ -526,8 +545,8 @@ class MetadataReporterSpec extends Specification with CatsEffect {
           "platform": "myplatform",
           "scenario_id": "scenario{,\"}:;[']",
           "eventVolume": 42,
-          "periodStart": "1970-01-01T00:42:00Z",
-          "periodEnd": "1970-01-01T00:47:00Z"
+          "periodStart": "1970-01-01T00:40:00Z",
+          "periodEnd": "1970-01-01T00:45:00Z"
         }
       }
     }
@@ -568,7 +587,7 @@ class MetadataReporterSpec extends Specification with CatsEffect {
           List(
             haveCorrectUri,
             haveTrackedEventCount(1),
-            beSentAt(Instant.parse("1970-01-01T00:47:00.00Z")),
+            beSentAt(Instant.parse("1970-01-01T00:45:00.00Z")),
             containTrackedEvent(expectedEvent, expectedContext)
           ).reduce(_ and _)
         )
@@ -627,7 +646,7 @@ class MetadataReporterSpec extends Specification with CatsEffect {
           List(
             haveCorrectUri,
             haveTrackedEventCount(1),
-            beSentAt(Instant.parse("1970-01-02T01:29:00.00Z"))
+            beSentAt(Instant.parse("1970-01-02T01:25:00.00Z"))
           ).reduce(_ and _)
         )
       case other => ko(s"Expected 1 http request, got ${other.size} http requests")

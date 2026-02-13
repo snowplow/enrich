@@ -576,20 +576,20 @@ object EnrichmentManager {
     }
 
   // Fetch IAB enrichment context (before anonymizing the IP address).
-  // IAB enrichment is called only if the IP is v4 (and after removing the port if any)
-  // and if the user agent is defined.
+  // The timestamp is required; the user agent and IP are optional but at least one must be
+  // defined (the IAB library rejects null for both simultaneously).
   def getIabContext[F[_]: Applicative](iabEnrichment: Option[IabEnrichment]): EStateT[F, Unit] =
     EStateT.fromEither {
       case (event, _) =>
         val result = for {
           iab <- iabEnrichment
-          useragent <- Option(event.useragent).filter(_.trim.nonEmpty)
-          ipString <- Option(event.user_ipaddress)
-          ip <- CU.extractInetAddress(ipString)
           tstamp <- Option(event.derived_tstamp).map(EventEnrichments.fromTimestamp)
+          useragent = Option(event.useragent).filter(_.trim.nonEmpty).orNull
+          ip = Option(event.user_ipaddress).flatMap(CU.extractInetAddress).orNull
+          if useragent != null || ip != null
         } yield iab.getIabContext(useragent, ip, tstamp)
 
-        result.sequence.bimap(NonEmptyList.one(_), _.toList)
+        result.sequence.bimap(NonEmptyList.one, _.toList)
     }
 
   def anonIp[F[_]: Applicative](anonIp: Option[AnonIpEnrichment]): EStateT[F, Unit] =

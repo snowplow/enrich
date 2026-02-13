@@ -2475,7 +2475,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
   }
 
   "getIabContext" should {
-    "return no context if useragent is null" >> {
+    "return context if useragent is null but IP is valid" >> {
       val input = new EnrichedEvent()
       input.setUser_ipaddress("127.0.0.1")
       input.setDerived_tstamp("2010-06-30 01:20:01.000")
@@ -2487,11 +2487,11 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
                     .runS(inputState)
       } yield result must beLike {
         case acc: EnrichmentManager.Accumulation.Enriched =>
-          (acc.errors must beEmpty) and (acc.contexts must beEmpty)
+          (acc.errors must beEmpty) and (acc.contexts must not beEmpty)
       }
     }
 
-    "return no context if user_ipaddress is null" >> {
+    "return context if user_ipaddress is null" >> {
       val input = new EnrichedEvent()
       input.setUseragent("Firefox")
       input.setDerived_tstamp("2010-06-30 01:20:01.000")
@@ -2503,7 +2503,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
                     .runS(inputState)
       } yield result must beLike {
         case acc: EnrichmentManager.Accumulation.Enriched =>
-          (acc.errors must beEmpty) and (acc.contexts must beEmpty)
+          (acc.errors must beEmpty) and (acc.contexts must not beEmpty)
       }
     }
 
@@ -2523,7 +2523,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       }
     }
 
-    "return no context if user_ipaddress is invalid" >> {
+    "return context if user_ipaddress is invalid" >> {
       val input = new EnrichedEvent()
       input.setUser_ipaddress("invalid")
       input.setUseragent("Firefox")
@@ -2536,11 +2536,11 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
                     .runS(inputState)
       } yield result must beLike {
         case acc: EnrichmentManager.Accumulation.Enriched =>
-          (acc.errors must beEmpty) and (acc.contexts must beEmpty)
+          (acc.errors must beEmpty) and (acc.contexts must not beEmpty)
       }
     }
 
-    "return no context if user_ipaddress is hostname (don't try to resovle it)" >> {
+    "return context if user_ipaddress is hostname (don't try to resolve it)" >> {
       val input = new EnrichedEvent()
       input.setUser_ipaddress("localhost")
       input.setUseragent("Firefox")
@@ -2553,7 +2553,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
                     .runS(inputState)
       } yield result must beLike {
         case acc: EnrichmentManager.Accumulation.Enriched =>
-          (acc.errors must beEmpty) and (acc.contexts must beEmpty)
+          (acc.errors must beEmpty) and (acc.contexts must not beEmpty)
       }
     }
 
@@ -2571,6 +2571,42 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       } yield result must beLike {
         case acc: EnrichmentManager.Accumulation.Enriched =>
           (acc.errors must beEmpty) and (acc.contexts must not beEmpty)
+      }
+    }
+
+    "return context if user_ipaddress is 'unknown'" >> {
+      val expected = SelfDescribingData(
+        SchemaKey("com.iab.snowplow", "spiders_and_robots", "jsonschema", SchemaVer.Full(1, 0, 0)),
+        json"""{"spiderOrRobot": true, "category": "SPIDER_OR_ROBOT", "reason": "FAILED_UA_INCLUDE", "primaryImpact": "UNKNOWN"}"""
+      )
+      val input = new EnrichedEvent()
+      input.setUser_ipaddress("unknown")
+      input.setUseragent("Firefox")
+      input.setDerived_tstamp("2010-06-30 01:20:01.000")
+      val inputState = EnrichmentManager.Accumulation.Enriched(input, Nil, Nil)
+      for {
+        iab <- iabEnrichment
+        result <- EnrichmentManager
+                    .getIabContext[IO](Some(iab))
+                    .runS(inputState)
+      } yield result must beLike {
+        case acc: EnrichmentManager.Accumulation.Enriched =>
+          (acc.errors must beEmpty) and (acc.contexts must beEqualTo(List(expected)))
+      }
+    }
+
+    "return no context if both useragent and user_ipaddress are null" >> {
+      val input = new EnrichedEvent()
+      input.setDerived_tstamp("2010-06-30 01:20:01.000")
+      val inputState = EnrichmentManager.Accumulation.Enriched(input, Nil, Nil)
+      for {
+        iab <- iabEnrichment
+        result <- EnrichmentManager
+                    .getIabContext[IO](Some(iab))
+                    .runS(inputState)
+      } yield result must beLike {
+        case acc: EnrichmentManager.Accumulation.Enriched =>
+          (acc.errors must beEmpty) and (acc.contexts must beEmpty)
       }
     }
   }

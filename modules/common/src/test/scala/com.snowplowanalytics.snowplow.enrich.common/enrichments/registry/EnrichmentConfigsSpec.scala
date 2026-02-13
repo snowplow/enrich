@@ -481,7 +481,56 @@ class EnrichmentConfigsSpec extends Specification with ValidatedMatchers with Da
         (
           new URI("https://example.com/include_current.txt"),
           "./iab_includeUseragentFile"
-        )
+        ),
+        Nil,
+        Nil
+      )
+      val result = IabEnrichment.parse(iabJson, schemaKey, false)
+      result must beValid(expected)
+    }
+
+    "successfully parse custom user agent lists" in {
+      val iabJson = json"""{
+        "enabled": true,
+        "parameters": {
+          "ipFile": {
+            "database": "ip_exclude_current_cidr.txt",
+            "uri": "https://example.com/"
+          },
+          "excludeUseragentFile": {
+            "database": "exclude_current.txt",
+            "uri": "https://example.com"
+          },
+          "includeUseragentFile": {
+             "database": "include_current.txt",
+             "uri": "https://example.com/"
+          },
+          "excludeUseragents": ["BadBot", "Scraper"],
+          "includeUseragents": ["TrustedBot", "InternalMonitor"]
+        }
+      }"""
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow.enrichments",
+        "iab_spiders_and_robots_enrichment",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 1)
+      )
+      val expected = IabConf(
+        schemaKey,
+        (
+          new URI("https://example.com/ip_exclude_current_cidr.txt"),
+          "./iab_ipFile"
+        ),
+        (
+          new URI("https://example.com/exclude_current.txt"),
+          "./iab_excludeUseragentFile"
+        ),
+        (
+          new URI("https://example.com/include_current.txt"),
+          "./iab_includeUseragentFile"
+        ),
+        List("BadBot", "Scraper"),
+        List("TrustedBot", "InternalMonitor")
       )
       val result = IabEnrichment.parse(iabJson, schemaKey, false)
       result must beValid(expected)

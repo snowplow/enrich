@@ -170,11 +170,13 @@ object EnrichmentConf {
     schemaKey: SchemaKey,
     ipFile: (URI, String),
     excludeUaFile: (URI, String),
-    includeUaFile: (URI, String)
+    includeUaFile: (URI, String),
+    excludeUseragents: List[String],
+    includeUseragents: List[String]
   ) extends EnrichmentConf {
     override val filesToCache: List[(URI, String)] = List(ipFile, excludeUaFile, includeUaFile)
     def enrichment[F[_]: Sync]: F[IabEnrichment] =
-      IabEnrichment.create[F](schemaKey, ipFile._2, excludeUaFile._2, includeUaFile._2)
+      IabEnrichment.create[F](schemaKey, ipFile._2, excludeUaFile._2, includeUaFile._2, excludeUseragents, includeUseragents)
   }
 
   final case class IpLookupsConf(

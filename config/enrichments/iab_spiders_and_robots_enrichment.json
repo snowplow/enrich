@@ -1,5 +1,5 @@
 {
-    "schema": "iglu:com.snowplowanalytics.snowplow.enrichments/iab_spiders_and_robots_enrichment/jsonschema/1-0-0",
+    "schema": "iglu:com.snowplowanalytics.snowplow.enrichments/iab_spiders_and_robots_enrichment/jsonschema/1-0-1",
 
     "data": {
 
@@ -18,7 +18,9 @@
             "includeUseragentFile": {
                 "database": "include_current.txt",
                 "uri": "s3://my-private-bucket/iab"
-            }
+            },
+            "excludeUseragents": [],
+            "includeUseragents": []
         }
     }
 }

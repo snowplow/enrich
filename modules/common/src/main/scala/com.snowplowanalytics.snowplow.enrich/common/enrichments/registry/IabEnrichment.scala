@@ -13,6 +13,8 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 import java.io.File
 import java.net.{InetAddress, URI}
 
+import scala.jdk.CollectionConverters._
+
 import cats.data.{NonEmptyList, ValidatedNel}
 
 import cats.effect.Sync
@@ -60,13 +62,17 @@ object IabEnrichment extends ParseableEnrichment {
         (
           getIabDbFromName(c, "ipFile"),
           getIabDbFromName(c, "excludeUseragentFile"),
-          getIabDbFromName(c, "includeUseragentFile")
-        ).mapN { (ip, exclude, include) =>
+          getIabDbFromName(c, "includeUseragentFile"),
+          getIabUAListFromName(c, "excludeUseragents"),
+          getIabUAListFromName(c, "includeUseragents")
+        ).mapN { (ip, exclude, include, excludeUseragents, includeUseragents) =>
           IabConf(
             schemaKey,
             file(ip, localMode),
             file(exclude, localMode),
-            file(include, localMode)
+            file(include, localMode),
+            excludeUseragents,
+            includeUseragents
           )
         }.toEither
       }
@@ -96,15 +102,26 @@ object IabEnrichment extends ParseableEnrichment {
     } yield IabDatabase(name, uri, uriAndDb._2)).toValidated
   }
 
+  private def getIabUAListFromName(config: Json, name: String): ValidatedNel[String, List[String]] =
+    CirceUtils.extract[Option[List[String]]](config, "parameters", name).map(_.getOrElse(Nil)).toValidatedNel
+
   def create[F[_]: Sync](
     schemaKey: SchemaKey,
     ipFile: String,
     excludeUaFile: String,
-    includeUaFile: String
+    includeUaFile: String,
+    excludeUseragents: List[String],
+    includeUseragents: List[String]
   ): F[IabEnrichment] =
     Sync[F]
       .delay {
-        new IabClient(new File(ipFile), new File(excludeUaFile), new File(includeUaFile))
+        new IabClient(
+          new File(ipFile),
+          new File(excludeUaFile),
+          new File(includeUaFile),
+          excludeUseragents.asJava,
+          includeUseragents.asJava
+        )
       }
       .map(IabEnrichment(schemaKey, _))
 }

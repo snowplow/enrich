@@ -26,7 +26,7 @@ import io.circe.generic.semiauto._
 import com.snowplowanalytics.iglu.client.{ClientError, IgluCirceClient}
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
+import com.snowplowanalytics.iglu.core.{ParseError, SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.Failure
@@ -260,6 +260,9 @@ object IgluUtils {
                  .toIor
     } yield valid
 
+  // Matches the VARCHAR column size used for vendor, name, and format in Iglu Server's database.
+  private val MaxSchemaFieldLength = 128
+
   /** Check that a SDJ is valid */
   private[enrich] def validateSDJ[F[_]: Sync](
     client: IgluCirceClient[F],
@@ -269,33 +272,55 @@ object IgluUtils {
     etlTstamp: Instant
   ): EitherT[F, Failure.SchemaViolation, ValidSDJ] = {
     implicit val rl: RegistryLookup[F] = registryLookup
-    client
-      .check(sdj)
-      .leftSemiflatMap {
-        case re: ClientError.ResolutionError if client.resolver.isSystemError(re) =>
-          val message = s"Could not reach Iglu Server for schema '${sdj.schema.toSchemaUri}'. " +
-            s"Check resolver configuration and ensure registries are available. " +
-            s"Resolution errors: ${re.getMessage}"
-          Logger[F].error(message) >> Sync[F].raiseError[ClientError](IgluSystemError(message))
-        case other =>
-          Sync[F].pure(other)
-      }
-      .leftMap(clientError =>
-        Failure.SchemaViolation(
-          schemaViolation = FailureDetails.SchemaViolation.IgluError(sdj.schema, clientError),
-          source = field,
-          data = sdj.data,
-          etlTstamp = etlTstamp
-        )
-      )
-      .map { supersededBy =>
-        val validationInfo = supersededBy.map(s => ValidationInfo(sdj.schema, s))
-        ValidSDJ(
-          replaceSchemaVersion(sdj, validationInfo),
-          validationInfo
-        )
-      }
+    for {
+      _ <- validateSchemaFieldLength(sdj, sdj.schema.vendor, field, etlTstamp)
+      _ <- validateSchemaFieldLength(sdj, sdj.schema.name, field, etlTstamp)
+      _ <- validateSchemaFieldLength(sdj, sdj.schema.format, field, etlTstamp)
+      result <- client
+                  .check(sdj)
+                  .leftSemiflatMap {
+                    case re: ClientError.ResolutionError if client.resolver.isSystemError(re) =>
+                      val message = s"Could not reach Iglu Server for schema '${sdj.schema.toSchemaUri}'. " +
+                        s"Check resolver configuration and ensure registries are available. " +
+                        s"Resolution errors: ${re.getMessage}"
+                      Logger[F].error(message) >> Sync[F].raiseError[ClientError](IgluSystemError(message))
+                    case other =>
+                      Sync[F].pure(other)
+                  }
+                  .leftMap(clientError =>
+                    Failure.SchemaViolation(
+                      schemaViolation = FailureDetails.SchemaViolation.IgluError(sdj.schema, clientError),
+                      source = field,
+                      data = sdj.data,
+                      etlTstamp = etlTstamp
+                    )
+                  )
+                  .map { supersededBy =>
+                    val validationInfo = supersededBy.map(s => ValidationInfo(sdj.schema, s))
+                    ValidSDJ(
+                      replaceSchemaVersion(sdj, validationInfo),
+                      validationInfo
+                    )
+                  }
+    } yield result
   }
+
+  private def validateSchemaFieldLength[F[_]: Sync](
+    sdj: SelfDescribingData[Json],
+    value: String,
+    source: String,
+    etlTstamp: Instant
+  ): EitherT[F, Failure.SchemaViolation, Unit] =
+    EitherT.cond[F](
+      value.length <= MaxSchemaFieldLength,
+      (),
+      Failure.SchemaViolation(
+        schemaViolation = FailureDetails.SchemaViolation.NotIglu(sdj.normalize, ParseError.InvalidIgluUri),
+        source = source,
+        data = sdj.data,
+        etlTstamp = etlTstamp
+      )
+    )
 
   /**
    * Check that several SDJs are valid

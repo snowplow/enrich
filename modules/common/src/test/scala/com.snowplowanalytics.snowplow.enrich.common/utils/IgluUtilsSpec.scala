@@ -21,7 +21,7 @@ import io.circe.syntax._
 
 import cats.data.{Ior, NonEmptyList}
 
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+import com.snowplowanalytics.iglu.core.{ParseError, SchemaKey, SchemaVer}
 
 import com.snowplowanalytics.iglu.client.ClientError.{ResolutionError, ValidationError}
 
@@ -959,6 +959,74 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
             ko(
               s"[$other] isn't one ValidationError and one context with schema $emailSentSchema"
             )
+        }
+    }
+
+    "return a NotIglu error if a context has a schema vendor exceeding 128 characters" >> {
+      val longVendor = "a" * 129
+      val longVendorContext = s"""{
+        "schema": "iglu:$longVendor/email_sent/jsonschema/1-0-0",
+        "data": {"emailAddress": "hello@world.com", "emailAddress2": "foo@bar.org"}
+      }"""
+
+      IgluUtils
+        .parseAndValidateContexts(
+          Some(buildInputContexts(List(longVendorContext))),
+          SpecHelpers.client,
+          SpecHelpers.registryLookup,
+          SpecHelpers.DefaultMaxJsonDepth,
+          SpecHelpers.etlTstamp
+        )
+        .value
+        .map {
+          case Ior.Both(
+                NonEmptyList(
+                  Failure.SchemaViolation(
+                    FailureDetails.SchemaViolation.NotIglu(_, ParseError.InvalidIgluUri),
+                    `contextsFieldName`,
+                    _,
+                    _
+                  ),
+                  Nil
+                ),
+                None
+              ) =>
+            ok
+          case other => ko(s"[$other] is not a NotIglu error with InvalidIgluUri")
+        }
+    }
+
+    "return a NotIglu error if a context has a schema name exceeding 128 characters" >> {
+      val longName = "a" * 129
+      val longNameContext = s"""{
+        "schema": "iglu:com.acme/$longName/jsonschema/1-0-0",
+        "data": {"emailAddress": "hello@world.com", "emailAddress2": "foo@bar.org"}
+      }"""
+
+      IgluUtils
+        .parseAndValidateContexts(
+          Some(buildInputContexts(List(longNameContext))),
+          SpecHelpers.client,
+          SpecHelpers.registryLookup,
+          SpecHelpers.DefaultMaxJsonDepth,
+          SpecHelpers.etlTstamp
+        )
+        .value
+        .map {
+          case Ior.Both(
+                NonEmptyList(
+                  Failure.SchemaViolation(
+                    FailureDetails.SchemaViolation.NotIglu(_, ParseError.InvalidIgluUri),
+                    `contextsFieldName`,
+                    _,
+                    _
+                  ),
+                  Nil
+                ),
+                None
+              ) =>
+            ok
+          case other => ko(s"[$other] is not a NotIglu error with InvalidIgluUri")
         }
     }
 

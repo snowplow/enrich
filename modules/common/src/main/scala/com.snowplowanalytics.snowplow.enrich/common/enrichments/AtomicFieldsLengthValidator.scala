@@ -16,7 +16,7 @@ import org.slf4j.LoggerFactory
 
 import cats.Monad
 import cats.data.Validated.{Invalid, Valid}
-import cats.data.{Ior, IorT, NonEmptyList}
+import cats.data.{NonEmptyList, WriterT}
 import cats.implicits._
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields.LimitedAtomicField
@@ -38,17 +38,17 @@ object AtomicFieldsLengthValidator {
     atomicFields: AtomicFields,
     emitFailed: Boolean,
     etlTstamp: Instant
-  ): IorT[F, Failure.SchemaViolation, Unit] =
-    IorT {
+  ): WriterT[F, List[Failure.SchemaViolation], Unit] =
+    WriterT {
       atomicFields.value
         .map(validateField(event, _, emitFailed).toValidatedNel)
         .combineAll match {
         case Invalid(errors) if acceptInvalid =>
-          handleAcceptableErrors(invalidCount, event, errors) *> Monad[F].pure(Ior.Right(()))
+          handleAcceptableErrors(invalidCount, event, errors).as((Nil, ()))
         case Invalid(errors) =>
-          Monad[F].pure(Ior.Both(AtomicFields.errorsToSchemaViolation(errors, etlTstamp), ()))
+          Monad[F].pure((List(AtomicFields.errorsToSchemaViolation(errors, etlTstamp)), ()))
         case Valid(()) =>
-          Monad[F].pure(Ior.Right(()))
+          Monad[F].pure((Nil, ()))
       }
     }
 

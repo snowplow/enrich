@@ -12,7 +12,7 @@ package com.snowplowanalytics.snowplow.enrich.common.utils
 
 import java.time.Instant
 
-import cats.data.{EitherT, Ior, IorT, NonEmptyList}
+import cats.data.{EitherT, NonEmptyList, WriterT}
 import cats.effect.Sync
 import cats.implicits._
 
@@ -91,8 +91,7 @@ object IgluUtils {
 
   /**
    * Parse and validate unstruct event and contexts, if any
-   * @return `SchemaViolation`s for invalid SDJs in the `Left`.
-   * Valid unstruct event and valid contexts in the `Right`, if any
+   * @return `SchemaViolation`s accumulated in the log. Valid unstruct event and valid contexts in the value.
    */
   def parseAndValidateInput[F[_]: Sync](
     input: EventExtractInput,
@@ -100,7 +99,7 @@ object IgluUtils {
     registryLookup: RegistryLookup[F],
     maxJsonDepth: Int,
     etlTstamp: Instant
-  ): IorT[F, NonEmptyList[Failure.SchemaViolation], (Option[Unstruct], Option[Contexts])] =
+  ): WriterT[F, List[Failure.SchemaViolation], (Option[Unstruct], Option[Contexts])] =
     for {
       unstruct <- parseAndValidateUnstruct(input.unstructEvent, client, registryLookup, maxJsonDepth, etlTstamp)
       contexts <- parseAndValidateContexts(input.contexts, client, registryLookup, maxJsonDepth, etlTstamp)
@@ -108,10 +107,7 @@ object IgluUtils {
 
   /**
    * Parse and validate unstruct event, if any
-   * @return 3 cases:
-   * - Valid unstruct event: `Right` with `Unstruct` wrapping the valid SDJ
-   * - Not an unstruct event: `Right` with `None`
-   * - Invalid unstruct event: `Both` with `SchemaViolation` in the `Left` and `None` in the `Right`
+   * @return `SchemaViolation`s accumulated in the log. Valid unstruct event in the value, or None if absent/invalid.
    */
   private[common] def parseAndValidateUnstruct[F[_]: Sync](
     maybeUnstruct: Option[String],
@@ -119,31 +115,30 @@ object IgluUtils {
     registryLookup: RegistryLookup[F],
     maxJsonDepth: Int,
     etlTstamp: Instant
-  ): IorT[F, NonEmptyList[Failure.SchemaViolation], Option[Unstruct]] =
+  ): WriterT[F, List[Failure.SchemaViolation], Option[Unstruct]] =
     maybeUnstruct match {
       case Some(unstructStr) =>
         val field = "unstruct"
         val criterion = SchemaCriterion("com.snowplowanalytics.snowplow", "unstruct_event", "jsonschema", 1, 0)
 
-        val iorT = for {
-          // Parse input JSON string and extract unstruct event
-          json <- extractInputData(unstructStr, field, criterion, client, registryLookup, maxJsonDepth, etlTstamp)
-                    .leftMap(NonEmptyList.one)
-                    .toIor
-          // Decode unstruct_event Json as SelfDescribingData[Json] and validate it
-          valid <- decodeAndValidateSDJ(json, client, registryLookup, field, etlTstamp)
-        } yield Unstruct(valid).some
-        iorT.recoverWith { case errors => IorT.fromIor[F](Ior.Both(errors, None)) }
+        WriterT {
+          val result = for {
+            json <- extractInputData(unstructStr, field, criterion, client, registryLookup, maxJsonDepth, etlTstamp)
+            valid <- decodeAndValidateSDJ(json, client, registryLookup, field, etlTstamp)
+          } yield Unstruct(valid).some
+
+          result.value.map {
+            case Right(unstruct) => (Nil, unstruct)
+            case Left(error) => (List(error), None)
+          }
+        }
       case None =>
-        IorT.rightT[F, NonEmptyList[Failure.SchemaViolation]](None)
+        WriterT(Sync[F].pure((List.empty[Failure.SchemaViolation], Option.empty[Unstruct])))
     }
 
   /**
    * Parse and validate contexts/entities, if any
-   * @return 3 cases:
-   * - All contexts valid: `Right` with `Contexts` wrapping the valid SDJs
-   * - No context: `Right` with `None`
-   * - Some contexts invalid: `Both` with `SchemaViolation`s in the `Left` and valid contexts in the `Right`, if any
+   * @return `SchemaViolation`s accumulated in the log. Valid contexts in the value, or None if absent/all invalid.
    */
   private[common] def parseAndValidateContexts[F[_]: Sync](
     maybeContexts: Option[String],
@@ -151,30 +146,28 @@ object IgluUtils {
     registryLookup: RegistryLookup[F],
     maxJsonDepth: Int,
     etlTstamp: Instant
-  ): IorT[F, NonEmptyList[Failure.SchemaViolation], Option[Contexts]] =
+  ): WriterT[F, List[Failure.SchemaViolation], Option[Contexts]] =
     maybeContexts match {
       case Some(contextsStr) =>
         val field = "contexts"
         val criterion = SchemaCriterion("com.snowplowanalytics.snowplow", "contexts", "jsonschema", 1, 0)
 
-        val iorT = for {
-          // Parse input JSON string and extract contexts
-          jsons <- extractInputData(contextsStr, field, criterion, client, registryLookup, maxJsonDepth, etlTstamp)
-                     .map(_.asArray.get.toList) // .get OK because SDJ wrapping the contexts valid
-                     .leftMap(NonEmptyList.one)
-                     .toIor
-          // Decode contexts Jsons as SelfDescribingData[Json] and validate them
-          valid <- jsons
-                     .traverse(
-                       decodeAndValidateSDJ(_, client, registryLookup, field, etlTstamp)
-                         .map(sdj => List(sdj))
-                         .recoverWith { case errors => IorT.fromIor[F](Ior.Both(errors, Nil)) }
-                     )
-                     .map(_.flatten.toNel.map(Contexts(_)))
-        } yield valid
-        iorT.recoverWith { case errors => IorT.fromIor[F](Ior.Both(errors, None)) }
+        WriterT {
+          extractInputData(contextsStr, field, criterion, client, registryLookup, maxJsonDepth, etlTstamp).value.flatMap {
+            case Left(error) =>
+              Sync[F].pure((List(error), Option.empty[Contexts]))
+            case Right(json) =>
+              val jsons = json.asArray.get.toList // .get OK because SDJ wrapping the contexts is valid
+              jsons
+                .traverse(decodeAndValidateSDJ(_, client, registryLookup, field, etlTstamp).value)
+                .map { results =>
+                  val (errors, valids) = results.separate
+                  (errors, valids.toNel.map(Contexts(_)))
+                }
+          }
+        }
       case None =>
-        IorT.rightT[F, NonEmptyList[Failure.SchemaViolation]](None)
+        WriterT(Sync[F].pure((List.empty[Failure.SchemaViolation], Option.empty[Contexts])))
     }
 
   /** Used to extract .data from input contexts and input unstruct event */
@@ -242,11 +235,11 @@ object IgluUtils {
     registryLookup: RegistryLookup[F],
     field: String,
     etlTstamp: Instant
-  ): IorT[F, NonEmptyList[Failure.SchemaViolation], ValidSDJ] =
+  ): EitherT[F, Failure.SchemaViolation, ValidSDJ] =
     for {
-      sdj <- IorT
+      sdj <- EitherT
                .fromEither[F](SelfDescribingData.parse(json))
-               .leftMap[Failure.SchemaViolation](e =>
+               .leftMap(e =>
                  Failure.SchemaViolation(
                    schemaViolation = FailureDetails.SchemaViolation.NotIglu(json, e),
                    source = field,
@@ -254,10 +247,7 @@ object IgluUtils {
                    etlTstamp = etlTstamp
                  )
                )
-               .leftMap(NonEmptyList.one)
       valid <- validateSDJ(client, sdj, registryLookup, field, etlTstamp)
-                 .leftMap(NonEmptyList.one)
-                 .toIor
     } yield valid
 
   // Matches the VARCHAR column size used for vendor, name, and format in Iglu Server's database.
@@ -324,7 +314,7 @@ object IgluUtils {
 
   /**
    * Check that several SDJs are valid
-   * @return `SchemaViolation`s in the `Left` and valid SDJs in the `Right`, if any
+   * @return `SchemaViolation`s accumulated in the log. Valid SDJs in the value.
    */
   private[common] def validateSDJs[F[_]: Sync](
     client: IgluCirceClient[F],
@@ -332,14 +322,14 @@ object IgluUtils {
     registryLookup: RegistryLookup[F],
     field: String,
     etlTstamp: Instant
-  ): IorT[F, NonEmptyList[Failure.SchemaViolation], List[ValidSDJ]] =
-    sdjs.map { sdj =>
-      validateSDJ(client, sdj, registryLookup, field, etlTstamp)
-        .map(List(_))
-        .leftMap(NonEmptyList.one)
-        .toIor
-        .recoverWith { case errors => IorT.fromIor[F](Ior.Both(errors, Nil)) }
-    }.foldA
+  ): WriterT[F, List[Failure.SchemaViolation], List[ValidSDJ]] =
+    WriterT {
+      sdjs
+        .traverse { sdj =>
+          validateSDJ(client, sdj, registryLookup, field, etlTstamp).value
+        }
+        .map(_.separate)
+    }
 
   private def replaceSchemaVersion(
     sdj: SelfDescribingData[Json],

@@ -10,8 +10,6 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.utils
 
-import cats.Monoid
-
 /**
  * OptionIor is a variant of Ior that can represent non-existence of both A and B.
  * We created this type to be able to represent dropped events as well.
@@ -20,36 +18,7 @@ import cats.Monoid
  * OptionIor.Both => failed event
  * OptionIor.None => dropped event
  */
-sealed trait OptionIor[+A, +B] extends Product with Serializable {
-  def fold[C](
-    fa: A => C,
-    fb: B => C,
-    fab: (A, B) => C
-  )(
-    implicit C: Monoid[C]
-  ): C =
-    this match {
-      case OptionIor.Left(a) => fa(a)
-      case OptionIor.Right(b) => fb(b)
-      case OptionIor.Both(a, b) => fab(a, b)
-      case OptionIor.None => Monoid[C].empty
-    }
-
-  def bimap[C, D](fa: A => C, fb: B => D): OptionIor[C, D] =
-    this match {
-      case OptionIor.Left(a) => OptionIor.Left(fa(a))
-      case OptionIor.Right(b) => OptionIor.Right(fb(b))
-      case OptionIor.Both(a, b) => OptionIor.Both(fa(a), fb(b))
-      case OptionIor.None => OptionIor.None
-    }
-
-  def map[D](f: B => D): OptionIor[A, D] = bimap(identity, f)
-
-  def leftMap[C](f: A => C): OptionIor[C, B] = bimap(f, identity)
-
-  def merge[AA >: A](implicit ev: B <:< AA, AA: Monoid[AA]): AA =
-    fold(identity, ev, (a, b) => AA.combine(a, b))
-}
+sealed trait OptionIor[+A, +B] extends Product with Serializable
 
 object OptionIor {
   final case class Left[+A](a: A) extends OptionIor[A, Nothing]

@@ -160,7 +160,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
             emitFailed,
             SpecHelpers.DefaultMaxJsonDepth
           )
-          enriched.value map { result =>
+          enriched map { result =>
             result must beLike {
               case OptionIor.Right(e: EnrichedEvent) =>
                 checkFn(e)
@@ -204,7 +204,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
-      enriched.value map {
+      enriched map {
         case OptionIor.Left(_: BadRow.SchemaViolations) => ok
         case other => ko(s"[$other] is not a SchemaViolations bad row")
       }
@@ -243,7 +243,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
-      enriched.value map {
+      enriched map {
         case OptionIor.Left(_: BadRow.SchemaViolations) => ok
         case other => ko(s"[$other] is not a SchemaViolations bad row")
       }
@@ -284,7 +284,6 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           emitFailed,
           SpecHelpers.DefaultMaxJsonDepth
         )
-        .value
         .map {
           case OptionIor.Left(
                 BadRow.SchemaViolations(
@@ -338,7 +337,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
-      enriched.value map {
+      enriched map {
         case OptionIor.Left(
               BadRow.EnrichmentFailures(
                 _,
@@ -393,7 +392,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
-      enriched.value map {
+      enriched map {
         case OptionIor.Left(
               BadRow.SchemaViolations(
                 _,
@@ -456,7 +455,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         emitFailed = true,
         SpecHelpers.DefaultMaxJsonDepth
       )
-      enriched.value map {
+      enriched map {
         case OptionIor.Both(
               BadRow.SchemaViolations(
                 _,
@@ -531,7 +530,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         emitFailed = true,
         SpecHelpers.DefaultMaxJsonDepth
       )
-      enriched.value map {
+      enriched map {
         case OptionIor.Both(
               BadRow.SchemaViolations(
                 _,
@@ -621,7 +620,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         emitFailed = true,
         SpecHelpers.DefaultMaxJsonDepth
       )
-      enriched.value map {
+      enriched map {
         case OptionIor.Both(
               BadRow.SchemaViolations(
                 _,
@@ -691,7 +690,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
-      enriched.value.map {
+      enriched.map {
         case OptionIor.Right(_) => ok
         case other => ko(s"[$other] is not an enriched event")
       }
@@ -767,7 +766,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
-      enriched.value.map {
+      enriched.map {
         case OptionIor.Right(_) => ok
         case other => ko(s"[$other] is not an enriched event")
       }
@@ -843,7 +842,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
-      enriched.value.map {
+      enriched.map {
         case OptionIor.Right(_) => ok
         case other => ko(s"[$other] is not an enriched event")
       }
@@ -919,7 +918,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
-      enriched.value.map {
+      enriched.map {
         case OptionIor.Left(_) => ok
         case other => ko(s"[$other] is not a bad row")
       }
@@ -995,7 +994,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
-      enriched.value.map {
+      enriched.map {
         case OptionIor.Left(_) => ok
         case other => ko(s"[$other] is not a bad row")
       }
@@ -1077,7 +1076,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
-      enriched.value.map {
+      enriched.map {
         case OptionIor.Left(_) => ok
         case other => ko(s"[$other] is not a bad row")
       }
@@ -1110,7 +1109,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               emitFailed,
               SpecHelpers.DefaultMaxJsonDepth
             )
-            enriched.value.map {
+            enriched.map {
               case OptionIor.Right(_) => ok
               case other => ko(s"[$other] is not an enriched event")
             }
@@ -1145,7 +1144,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               emitFailed,
               SpecHelpers.DefaultMaxJsonDepth
             )
-            enriched.value.map {
+            enriched.map {
               case OptionIor.Right(_) => ok
               case other => ko(s"[$other] is not an enriched event")
             }
@@ -1189,7 +1188,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               emitFailed,
               SpecHelpers.DefaultMaxJsonDepth
             )
-            enriched.value.map {
+            enriched.map {
               case OptionIor.Right(enriched) => enriched.se_value.toString must_== expected
               case other => ko(s"[$other] is not an enriched event")
             }
@@ -1219,7 +1218,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
-      enriched.value.map {
+      enriched.map {
         case OptionIor.Right(enriched) =>
           enriched.useragent must_== qs_ua
           enriched.getDerived_contexts() must contain("\"agentName\":\"Firefox\"")
@@ -1248,7 +1247,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
-      enriched.value.map {
+      enriched.map {
         case OptionIor.Right(enriched) => enriched.useragent must_== "header-useragent"
         case other => ko(s"[$other] is not an enriched event")
       }
@@ -1276,7 +1275,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
-      enriched.value.map {
+      enriched.map {
         case OptionIor.Right(enriched) => enriched.useragent must_== ua
         case other => ko(s"[$other] is not an enriched event")
       }
@@ -1305,7 +1304,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
-      enriched.value.map {
+      enriched.map {
         case OptionIor.Right(enriched) =>
           enriched.useragent must_== qs_ua
           enriched.getDerived_contexts() must contain("\"agentName\":\"%1$S\"")
@@ -1347,7 +1346,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
-      enriched.value.map {
+      enriched.map {
         case OptionIor.Right(enriched) => enriched.app_id must_== "moo"
         case other => ko(s"[$other] is not an enriched event")
       }
@@ -1393,7 +1392,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         emitFailed,
         SpecHelpers.DefaultMaxJsonDepth
       )
-      enriched.value.map {
+      enriched.map {
         case OptionIor.Right(enriched) =>
           enriched.app_id must_== "test_app_id"
           enriched.platform must_== "test_platform"
@@ -1552,7 +1551,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         SpecHelpers.DefaultMaxJsonDepth
       )
 
-      enriched.value.map {
+      enriched.map {
         case OptionIor.Right(enriched) =>
           val p = EnrichedEvent.toPartiallyEnrichedEvent(enriched)
           val contextsJson = jparse(p.contexts.get).toOption.get
@@ -1644,7 +1643,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         SpecHelpers.DefaultMaxJsonDepth
       )
 
-      enriched.value.map {
+      enriched.map {
         case OptionIor.Both(_: BadRow.SchemaViolations, enriched)
             if enriched.unstruct_event.isEmpty &&
               enriched.contexts.map(_.schema) === List(clientSessionSchema) &&
@@ -1736,7 +1735,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         emitFailed = true,
         SpecHelpers.DefaultMaxJsonDepth
       )
-      enriched.value.map {
+      enriched.map {
         case OptionIor.Both(_: BadRow.SchemaViolations, enriched)
             if enriched.contexts.isEmpty &&
               enriched.unstruct_event.map(_.schema) === Some(clientSessionSchema) &&
@@ -1833,7 +1832,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         emitFailed = true,
         SpecHelpers.DefaultMaxJsonDepth
       )
-      enriched.value.map {
+      enriched.map {
         case OptionIor.Both(_: BadRow.SchemaViolations, enriched)
             if enriched.unstruct_event.map(_.schema) === Some(clientSessionSchema) &&
               enriched.contexts.map(_.schema) === List(clientSessionSchema) &&
@@ -1900,7 +1899,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         emitFailed = true,
         SpecHelpers.DefaultMaxJsonDepth
       )
-      enriched.value.map {
+      enriched.map {
         case OptionIor.Both(_: BadRow.EnrichmentFailures, enriched)
             if enriched.unstruct_event.map(_.schema) === Some(clientSessionSchema) &&
               expectedDerivedContexts(enriched) =>
@@ -1978,7 +1977,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         emitFailed = true,
         SpecHelpers.DefaultMaxJsonDepth
       )
-      enriched.value.map {
+      enriched.map {
         case OptionIor.Both(_: BadRow.SchemaViolations, enriched) if expectedDerivedContexts(enriched) => ok
         case other => ko(s"[$other] doesn't have a SchemaViolations bad row in the Left")
       }
@@ -2065,7 +2064,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         emitFailed = true,
         SpecHelpers.DefaultMaxJsonDepth
       )
-      enriched.value.map {
+      enriched.map {
         case OptionIor.Both(_: BadRow.SchemaViolations, enriched)
             if enriched.unstruct_event.map(_.schema) === Some(clientSessionSchema) &&
               expectedDerivedContexts(enriched) =>
@@ -2145,7 +2144,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           case _ => false
         }
 
-      enriched.value.map {
+      enriched.map {
         case OptionIor.Both(badRow, enriched)
             if enriched.unstruct_event.isEmpty &&
               expectedDerivedContexts(enriched) &&
@@ -2667,7 +2666,6 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           emitFailed,
           SpecHelpers.DefaultMaxJsonDepth
         )
-        .value
         .map {
           case OptionIor.Left(
                 BadRow.SchemaViolations(
@@ -2699,7 +2697,6 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           emitFailed,
           SpecHelpers.DefaultMaxJsonDepth
         )
-        .value
         .map {
           case OptionIor.Right(_) => ok
           case other => ko(s"[$other] is not an enriched event")
@@ -2735,7 +2732,6 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           emitFailed,
           SpecHelpers.DefaultMaxJsonDepth
         )
-        .value
         .map {
           case OptionIor.Left(
                 BadRow.SchemaViolations(
@@ -2774,7 +2770,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           SpecHelpers.DefaultMaxJsonDepth
         )
 
-      enriched.value.map {
+      enriched.map {
         case OptionIor.Both(_: BadRow.SchemaViolations, enriched) if Option(enriched.v_tracker).isEmpty => ok
         case other => ko(s"[$other] is not a SchemaViolations bad row and an enriched event without tracker version")
       }
@@ -2826,7 +2822,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
             emitFailed,
             SpecHelpers.DefaultMaxJsonDepth
           )
-          enriched.value.map {
+          enriched.map {
             case OptionIor.Right(event) =>
               expectedOutput(ip)(event)
             case other =>
@@ -3188,29 +3184,23 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       etlTstamp
     )
     val emailSentSDJ = SelfDescribingData.parse[Json](jparse(emailSent).toOption.get).toOption.get
-    "set derived contexts correctly if enrichment result is OptionIor.Left" >> {
+    "set derived contexts correctly if enrichment result has only failures" >> {
       val enriched = new EnrichedEvent()
-      val enrichmentResult = OptionIor.Left(NonEmptyList.of(NonEmptyList.of(sv, ef), NonEmptyList.of(sv, ef)))
-      EnrichmentManager.setDerivedContexts(enriched, enrichmentResult, processor)
+      EnrichmentManager.setDerivedContexts(enriched, List[Failure](sv, ef, sv, ef), Nil, processor)
       val schemas = enriched.derived_contexts.map(_.schema)
       schemas.size must beEqualTo(4)
       forall(schemas)(s => s must beEqualTo(Failure.failureSchemaKey))
     }
-    "set derived contexts correctly if enrichment result is OptionIor.Right" >> {
+    "set derived contexts correctly if enrichment result has only contexts" >> {
       val enriched = new EnrichedEvent()
-      val enrichmentResult = OptionIor.Right(List(emailSentSDJ, emailSentSDJ))
-      EnrichmentManager.setDerivedContexts(enriched, enrichmentResult, processor)
+      EnrichmentManager.setDerivedContexts(enriched, Nil, List(emailSentSDJ, emailSentSDJ), processor)
       val schemas = enriched.derived_contexts.map(_.schema)
       schemas.size must beEqualTo(2)
       forall(schemas)(s => s must beEqualTo(emailSentSchema))
     }
-    "set derived contexts correctly if enrichment result is OptionIor.Both" >> {
+    "set derived contexts correctly if enrichment result has both failures and contexts" >> {
       val enriched = new EnrichedEvent()
-      val enrichmentResult = OptionIor.Both(
-        NonEmptyList.of(NonEmptyList.of(sv, ef), NonEmptyList.of(sv, ef)),
-        List(emailSentSDJ, emailSentSDJ)
-      )
-      EnrichmentManager.setDerivedContexts(enriched, enrichmentResult, processor)
+      EnrichmentManager.setDerivedContexts(enriched, List[Failure](sv, ef, sv, ef), List(emailSentSDJ, emailSentSDJ), processor)
       val schemas = enriched.derived_contexts.map(_.schema)
       schemas.size must beEqualTo(6)
       schemas.count(_ === Failure.failureSchemaKey) must beEqualTo(4)
@@ -3258,7 +3248,6 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           emitFailed,
           SpecHelpers.DefaultMaxJsonDepth
         )
-        .value
         .map(matcher)
     }
 
@@ -3385,7 +3374,6 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           emitFailed,
           SpecHelpers.DefaultMaxJsonDepth
         )
-        .value
         .map(matcher)
     }
 

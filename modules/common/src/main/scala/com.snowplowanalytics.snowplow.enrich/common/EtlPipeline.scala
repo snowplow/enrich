@@ -85,7 +85,6 @@ object EtlPipeline {
                     emitFailed,
                     maxJsonDepth
                   )
-                  .value
               }
             case Validated.Invalid(badRow) =>
               Sync[F].pure(List(OptionIor.Left(badRow)))

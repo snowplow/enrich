@@ -19,10 +19,7 @@ import io.circe.parser.parse
 import io.circe.Json
 import io.circe.syntax._
 
-import cats.data.{Ior, NonEmptyList}
-
 import com.snowplowanalytics.iglu.core.{ParseError, SchemaKey, SchemaVer}
-
 import com.snowplowanalytics.iglu.client.ClientError.{ResolutionError, ValidationError}
 
 import com.snowplowanalytics.snowplow.badrows._
@@ -136,9 +133,9 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
                                   SpecHelpers.DefaultMaxJsonDepth,
                                   SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Right(None) => ok
+          case (Nil, None) => ok
           case other => ko(s"[$other] is not a success with None")
         }
     }
@@ -151,12 +148,11 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
                                   SpecHelpers.DefaultMaxJsonDepth,
                                   SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Both(
-                NonEmptyList(
-                  Failure.SchemaViolation(_: FailureDetails.SchemaViolation.NotJson, `unstructFieldName`, `jsonNotJson`, _),
-                  _
+          case (
+                List(
+                  Failure.SchemaViolation(_: FailureDetails.SchemaViolation.NotJson, `unstructFieldName`, `jsonNotJson`, _)
                 ),
                 None
               ) =>
@@ -175,10 +171,10 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
                                   SpecHelpers.DefaultMaxJsonDepth,
                                   SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Both(
-                NonEmptyList(Failure.SchemaViolation(_: FailureDetails.SchemaViolation.NotIglu, `unstructFieldName`, `json`, _), _),
+          case (
+                List(Failure.SchemaViolation(_: FailureDetails.SchemaViolation.NotIglu, `unstructFieldName`, `json`, _)),
                 None
               ) =>
             ok
@@ -196,12 +192,11 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
                                   SpecHelpers.DefaultMaxJsonDepth,
                                   SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Both(
-                NonEmptyList(
-                  Failure.SchemaViolation(_: FailureDetails.SchemaViolation.CriterionMismatch, `unstructFieldName`, `json`, _),
-                  _
+          case (
+                List(
+                  Failure.SchemaViolation(_: FailureDetails.SchemaViolation.CriterionMismatch, `unstructFieldName`, `json`, _)
                 ),
                 None
               ) =>
@@ -221,13 +216,11 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
                                   SpecHelpers.DefaultMaxJsonDepth,
                                   SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Both(NonEmptyList(
-                          Failure.SchemaViolation(_: FailureDetails.SchemaViolation.NotJson, `unstructFieldName`, `ueJson`, _),
-                          _
-                        ),
-                        None
+          case (
+                List(Failure.SchemaViolation(_: FailureDetails.SchemaViolation.NotJson, `unstructFieldName`, `ueJson`, _)),
+                None
               ) =>
             ok
           case other => ko(s"[$other] is not an error with NotJson")
@@ -245,16 +238,13 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
                                   SpecHelpers.DefaultMaxJsonDepth,
                                   SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Both(NonEmptyList(Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError),
-                                                             `unstructFieldName`,
-                                                             `ueJson`,
-                                                             _
-                                     ),
-                                     _
-                        ),
-                        None
+          case (
+                List(
+                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError), `unstructFieldName`, `ueJson`, _)
+                ),
+                None
               ) =>
             ok
           case other => ko(s"[$other] is not expected one")
@@ -271,12 +261,11 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
                                   SpecHelpers.DefaultMaxJsonDepth,
                                   SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Both(
-                NonEmptyList(
-                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError), `unstructFieldName`, `json`, _),
-                  _
+          case (
+                List(
+                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError), `unstructFieldName`, `json`, _)
                 ),
                 None
               ) =>
@@ -295,12 +284,11 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
                                   SpecHelpers.DefaultMaxJsonDepth,
                                   SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Both(
-                NonEmptyList(
-                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ResolutionError), `unstructFieldName`, `json`, _),
-                  _
+          case (
+                List(
+                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ResolutionError), `unstructFieldName`, `json`, _)
                 ),
                 None
               ) =>
@@ -317,10 +305,10 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
                                   SpecHelpers.DefaultMaxJsonDepth,
                                   SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Right(Some(Unstruct(ValidSDJ(sdj, None)))) if sdj.schema == emailSentSchema => ok
-          case Ior.Right(Some(s)) =>
+          case (Nil, Some(Unstruct(ValidSDJ(sdj, None)))) if sdj.schema == emailSentSchema => ok
+          case (Nil, Some(s)) =>
             ko(
               s"unstructured event's schema [${s.unstruct.sdj.schema}] does not match expected schema [${emailSentSchema}]"
             )
@@ -338,11 +326,11 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
                                   SpecHelpers.DefaultMaxJsonDepth,
                                   SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Right(Some(Unstruct(ValidSDJ(sdj, Some(`expectedValidationInfo`))))) if sdj.schema == supersedingExampleSchema101 =>
+          case (Nil, Some(Unstruct(ValidSDJ(sdj, Some(`expectedValidationInfo`))))) if sdj.schema == supersedingExampleSchema101 =>
             ok
-          case Ior.Right(Some(s)) =>
+          case (Nil, Some(s)) =>
             ko(
               s"unstructured event's schema [${s.unstruct.sdj.schema}] does not match expected schema [${supersedingExampleSchema101}]"
             )
@@ -357,11 +345,11 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
                                   SpecHelpers.DefaultMaxJsonDepth,
                                   SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Right(Some(Unstruct(ValidSDJ(sdj, Some(`expectedValidationInfo`))))) if sdj.schema == supersedingExampleSchema101 =>
+          case (Nil, Some(Unstruct(ValidSDJ(sdj, Some(`expectedValidationInfo`))))) if sdj.schema == supersedingExampleSchema101 =>
             ok
-          case Ior.Right(Some(s)) =>
+          case (Nil, Some(s)) =>
             ko(
               s"unstructured event's schema [${s.unstruct.sdj.schema}] does not match expected schema [${supersedingExampleSchema101}]"
             )
@@ -380,12 +368,11 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
                                   SpecHelpers.DefaultMaxJsonDepth,
                                   SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Both(
-                NonEmptyList(
-                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError), `unstructFieldName`, `json`, _),
-                  _
+          case (
+                List(
+                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError), `unstructFieldName`, `json`, _)
                 ),
                 None
               ) =>
@@ -404,9 +391,9 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
                                   SpecHelpers.DefaultMaxJsonDepth,
                                   SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Right(None) => ok
+          case (Nil, None) => ok
           case other => ko(s"[$other] is not a success with an empty list")
         }
     }
@@ -419,12 +406,10 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
                                   SpecHelpers.DefaultMaxJsonDepth,
                                   SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Both(
-                NonEmptyList(Failure.SchemaViolation(_: FailureDetails.SchemaViolation.NotJson, `contextsFieldName`, `jsonNotJson`, _),
-                             Nil
-                ),
+          case (
+                List(Failure.SchemaViolation(_: FailureDetails.SchemaViolation.NotJson, `contextsFieldName`, `jsonNotJson`, _)),
                 None
               ) =>
             ok
@@ -442,10 +427,10 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
                                   SpecHelpers.DefaultMaxJsonDepth,
                                   SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Both(
-                NonEmptyList(Failure.SchemaViolation(_: FailureDetails.SchemaViolation.NotIglu, `contextsFieldName`, `json`, _), Nil),
+          case (
+                List(Failure.SchemaViolation(_: FailureDetails.SchemaViolation.NotIglu, `contextsFieldName`, `json`, _)),
                 None
               ) =>
             ok
@@ -463,13 +448,13 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
                                   SpecHelpers.DefaultMaxJsonDepth,
                                   SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Both(NonEmptyList(
-                          Failure.SchemaViolation(_: FailureDetails.SchemaViolation.CriterionMismatch, `contextsFieldName`, `json`, _),
-                          Nil
-                        ),
-                        None
+          case (
+                List(
+                  Failure.SchemaViolation(_: FailureDetails.SchemaViolation.CriterionMismatch, `contextsFieldName`, `json`, _)
+                ),
+                None
               ) =>
             ok
           case other => ko(s"[$other] is not an error with CriterionMismatch")
@@ -488,12 +473,11 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
                                   SpecHelpers.DefaultMaxJsonDepth,
                                   SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Both(
-                NonEmptyList(
-                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError), `contextsFieldName`, `json`, _),
-                  Nil
+          case (
+                List(
+                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError), `contextsFieldName`, `json`, _)
                 ),
                 None
               ) =>
@@ -512,12 +496,11 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
                                   SpecHelpers.DefaultMaxJsonDepth,
                                   SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Both(
-                NonEmptyList(
-                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError), `contextsFieldName`, `json`, _),
-                  Nil
+          case (
+                List(
+                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError), `contextsFieldName`, `json`, _)
                 ),
                 None
               ) =>
@@ -536,12 +519,11 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
                                   SpecHelpers.DefaultMaxJsonDepth,
                                   SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Both(
-                NonEmptyList(
-                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ResolutionError), `contextsFieldName`, `json`, _),
-                  Nil
+          case (
+                List(
+                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ResolutionError), `contextsFieldName`, `json`, _)
                 ),
                 None
               ) =>
@@ -562,23 +544,22 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
           SpecHelpers.DefaultMaxJsonDepth,
           SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Both(NonEmptyList(
-                          Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError),
-                                                  `contextsFieldName`,
-                                                  `invalidEmailSentJson`,
-                                                  _
-                          ),
-                          List(
-                            Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ResolutionError),
-                                                    `contextsFieldName`,
-                                                    `noSchemaJson`,
-                                                    _
-                            )
-                          )
-                        ),
-                        None
+          case (
+                List(
+                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError),
+                                          `contextsFieldName`,
+                                          `invalidEmailSentJson`,
+                                          _
+                  ),
+                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ResolutionError),
+                                          `contextsFieldName`,
+                                          `noSchemaJson`,
+                                          _
+                  )
+                ),
+                None
               ) =>
             ok
           case other => ko(s"[$other] is not one ValidationError and one ResolutionError")
@@ -596,13 +577,13 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
           SpecHelpers.DefaultMaxJsonDepth,
           SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Both(NonEmptyList(
-                          Failure.SchemaViolation(_: FailureDetails.SchemaViolation.IgluError, `contextsFieldName`, `noSchemaJson`, _),
-                          Nil
-                        ),
-                        Some(Contexts(contexts))
+          case (
+                List(
+                  Failure.SchemaViolation(_: FailureDetails.SchemaViolation.IgluError, `contextsFieldName`, `noSchemaJson`, _)
+                ),
+                Some(Contexts(contexts))
               ) if contexts.head.sdj.schema == emailSentSchema =>
             ok
           case other => ko(s"[$other] is not one IgluError and one SDJ with schema $emailSentSchema")
@@ -618,9 +599,9 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
           SpecHelpers.DefaultMaxJsonDepth,
           SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Right(Some(Contexts(contexts)))
+          case (Nil, Some(Contexts(contexts)))
               if contexts.size == 2 && contexts.forall(c => c.sdj.schema == emailSentSchema && c.validationInfo.isEmpty) =>
             ok
           case other =>
@@ -636,9 +617,9 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
                                   SpecHelpers.DefaultMaxJsonDepth,
                                   SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Right(Some(Contexts(contexts))) if contexts.size == 1 && contexts.forall(_.sdj.schema == clientSessionSchema) =>
+          case (Nil, Some(Contexts(contexts))) if contexts.size == 1 && contexts.forall(_.sdj.schema == clientSessionSchema) =>
             ok
           case other =>
             ko(s"[$other] is not 1 SDJ with expected schema [${clientSessionSchema.toSchemaUri}]")
@@ -654,9 +635,9 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
           SpecHelpers.DefaultMaxJsonDepth,
           SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Right(Some(Contexts(contexts))) if contexts.size == 2 && contexts.forall(_.sdj.schema == supersedingExampleSchema101) =>
+          case (Nil, Some(Contexts(contexts))) if contexts.size == 2 && contexts.forall(_.sdj.schema == supersedingExampleSchema101) =>
             ok
           case other =>
             ko(s"[$other] is not 2 SDJs with expected schema [${supersedingExampleSchema101.toSchemaUri}]")
@@ -674,12 +655,11 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
                                   SpecHelpers.DefaultMaxJsonDepth,
                                   SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Both(
-                NonEmptyList(
-                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError), `contextsFieldName`, `json`, _),
-                  Nil
+          case (
+                List(
+                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError), `contextsFieldName`, `json`, _)
                 ),
                 None
               ) =>
@@ -698,15 +678,15 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
 
       IgluUtils
         .validateSDJs(SpecHelpers.client, contexts, SpecHelpers.registryLookup, derivedContextsFieldName, SpecHelpers.etlTstamp)
-        .value
+        .run
         .map {
-          case Ior.Both(
-                NonEmptyList(Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError),
-                                                     `derivedContextsFieldName`,
-                                                     `json`,
-                                                     _
-                             ),
-                             Nil
+          case (
+                List(
+                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError),
+                                          `derivedContextsFieldName`,
+                                          `json`,
+                                          _
+                  )
                 ),
                 Nil
               ) =>
@@ -725,23 +705,21 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
 
       IgluUtils
         .validateSDJs(SpecHelpers.client, contexts, SpecHelpers.registryLookup, derivedContextsFieldName, SpecHelpers.etlTstamp)
-        .value
+        .run
         .map {
-          case Ior.Both(NonEmptyList(
-                          Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError),
-                                                  `derivedContextsFieldName`,
-                                                  `invalidEmailSentJson`,
-                                                  _
-                          ),
-                          List(
-                            Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ResolutionError),
-                                                    `derivedContextsFieldName`,
-                                                    `noSchemaJson`,
-                                                    _
-                            )
-                          )
-                        ),
-                        Nil
+          case (List(
+                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError),
+                                          `derivedContextsFieldName`,
+                                          `invalidEmailSentJson`,
+                                          _
+                  ),
+                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ResolutionError),
+                                          `derivedContextsFieldName`,
+                                          `noSchemaJson`,
+                                          _
+                  )
+                ),
+                Nil
               ) =>
             ok
           case other => ko(s"[$other] is not one ValidationError and one ResolutionError")
@@ -757,17 +735,16 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
 
       IgluUtils
         .validateSDJs(SpecHelpers.client, contexts, SpecHelpers.registryLookup, derivedContextsFieldName, SpecHelpers.etlTstamp)
-        .value
+        .run
         .map {
-          case Ior.Both(NonEmptyList(
-                          Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError),
-                                                  `derivedContextsFieldName`,
-                                                  `invalidEmailSentJson`,
-                                                  _
-                          ),
-                          Nil
-                        ),
-                        List(valid)
+          case (List(
+                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError),
+                                          `derivedContextsFieldName`,
+                                          `invalidEmailSentJson`,
+                                          _
+                  )
+                ),
+                List(valid)
               ) if valid.sdj.schema == emailSentSchema =>
             ok
           case other => ko(s"[$other] is not one ValidationError and one SDJ with schema $emailSentSchema")
@@ -782,9 +759,9 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
 
       IgluUtils
         .validateSDJs(SpecHelpers.client, contexts, SpecHelpers.registryLookup, derivedContextsFieldName, SpecHelpers.etlTstamp)
-        .value
+        .run
         .map {
-          case Ior.Right(List(valid1, valid2)) if valid1.sdj.schema == emailSentSchema && valid2.sdj.schema == emailSentSchema => ok
+          case (Nil, List(valid1, valid2)) if valid1.sdj.schema == emailSentSchema && valid2.sdj.schema == emailSentSchema => ok
           case other => ko(s"[$other] doesn't contain 2 valid contexts with schema $emailSentSchema")
         }
     }
@@ -802,15 +779,9 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
           SpecHelpers.DefaultMaxJsonDepth,
           SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Both(
-                NonEmptyList(
-                  _: Failure.SchemaViolation,
-                  Nil
-                ),
-                (None, None)
-              ) =>
+          case (List(_: Failure.SchemaViolation), (None, None)) =>
             ok
           case other => ko(s"[$other] isn't an error with SchemaViolation")
         }
@@ -827,15 +798,9 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
           SpecHelpers.DefaultMaxJsonDepth,
           SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Both(
-                NonEmptyList(
-                  _: Failure.SchemaViolation,
-                  Nil
-                ),
-                (None, None)
-              ) =>
+          case (List(_: Failure.SchemaViolation), (None, None)) =>
             ok
           case other => ko(s"[$other] isn't an error with SchemaViolation")
         }
@@ -853,15 +818,9 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
           SpecHelpers.DefaultMaxJsonDepth,
           SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Both(
-                NonEmptyList(
-                  _: Failure.SchemaViolation,
-                  List(_: Failure.SchemaViolation)
-                ),
-                (None, None)
-              ) =>
+          case (List(_: Failure.SchemaViolation, _: Failure.SchemaViolation), (None, None)) =>
             ok
           case other => ko(s"[$other] isn't 2 errors with SchemaViolation")
         }
@@ -881,9 +840,9 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
           SpecHelpers.DefaultMaxJsonDepth,
           SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Right((Some(Unstruct(unstruct)), Some(Contexts(contexts))))
+          case (Nil, (Some(Unstruct(unstruct)), Some(Contexts(contexts))))
               if contexts.size == 2
                 && (List(unstruct.sdj) ++ contexts.toList.map(_.sdj)).forall(_.schema == emailSentSchema) =>
             ok
@@ -894,7 +853,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         }
     }
 
-    "return the SchemaViolation of the invalid context in the Left and the extracted unstructured event in the Right" >> {
+    "return the SchemaViolation of the invalid context in the log and the extracted unstructured event in the value" >> {
       val invalidEmailSentJson = invalidEmailSentData.toJson
       val input = IgluUtils.EventExtractInput(unstructEvent = Some(buildUnstruct(emailSent1)),
                                               contexts = Some(buildInputContexts(List(invalidEmailSent)))
@@ -908,16 +867,14 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
           SpecHelpers.DefaultMaxJsonDepth,
           SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Both(
-                NonEmptyList(Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError),
-                                                     `contextsFieldName`,
-                                                     `invalidEmailSentJson`,
-                                                     _
-                             ),
-                             _
-                ),
+          case (
+                Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError),
+                                        `contextsFieldName`,
+                                        `invalidEmailSentJson`,
+                                        _
+                ) :: _,
                 (Some(Unstruct(unstruct)), None)
               ) if unstruct.sdj.schema == emailSentSchema =>
             ok
@@ -928,7 +885,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         }
     }
 
-    "return the SchemaViolation of the invalid unstructured event in the Left and the valid context in the Right" >> {
+    "return the SchemaViolation of the invalid unstructured event in the log and the valid context in the value" >> {
       val invalidEmailSentJson = invalidEmailSentData.toJson
       val input = IgluUtils.EventExtractInput(unstructEvent = Some(buildUnstruct(invalidEmailSent)),
                                               contexts = Some(buildInputContexts(List(emailSent1)))
@@ -942,16 +899,14 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
           SpecHelpers.DefaultMaxJsonDepth,
           SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Both(
-                NonEmptyList(Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError),
-                                                     `unstructFieldName`,
-                                                     `invalidEmailSentJson`,
-                                                     _
-                             ),
-                             _
-                ),
+          case (
+                Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError),
+                                        `unstructFieldName`,
+                                        `invalidEmailSentJson`,
+                                        _
+                ) :: _,
                 (None, Some(Contexts(contexts)))
               ) if contexts.size == 1 && contexts.head.sdj.schema == emailSentSchema =>
             ok
@@ -977,18 +932,14 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
           SpecHelpers.DefaultMaxJsonDepth,
           SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Both(
-                NonEmptyList(
-                  Failure.SchemaViolation(
-                    FailureDetails.SchemaViolation.NotIglu(_, ParseError.InvalidIgluUri),
-                    `contextsFieldName`,
-                    _,
-                    _
-                  ),
-                  Nil
-                ),
+          case (
+                Failure.SchemaViolation(FailureDetails.SchemaViolation.NotIglu(_, ParseError.InvalidIgluUri),
+                                        `contextsFieldName`,
+                                        _,
+                                        _
+                ) :: Nil,
                 None
               ) =>
             ok
@@ -1011,18 +962,14 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
           SpecHelpers.DefaultMaxJsonDepth,
           SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Both(
-                NonEmptyList(
-                  Failure.SchemaViolation(
-                    FailureDetails.SchemaViolation.NotIglu(_, ParseError.InvalidIgluUri),
-                    `contextsFieldName`,
-                    _,
-                    _
-                  ),
-                  Nil
-                ),
+          case (
+                Failure.SchemaViolation(FailureDetails.SchemaViolation.NotIglu(_, ParseError.InvalidIgluUri),
+                                        `contextsFieldName`,
+                                        _,
+                                        _
+                ) :: Nil,
                 None
               ) =>
             ok
@@ -1048,9 +995,9 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
           SpecHelpers.DefaultMaxJsonDepth,
           SpecHelpers.etlTstamp
         )
-        .value
+        .run
         .map {
-          case Ior.Right((Some(Unstruct(unstruct)), Some(Contexts(contexts))))
+          case (Nil, (Some(Unstruct(unstruct)), Some(Contexts(contexts))))
               if contexts.size == 2
                 && contexts.toList.count(_.sdj.schema == supersedingExampleSchema101) == 2
                 && contexts.toList.map(_.validationInfo.get).forall(_ == expectedValidationInfo)

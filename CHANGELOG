@@ -1,3 +1,11 @@
+6.8.0 (2026-02-18)
+------------------
+Bump scala-maxmind-iplookups to 0.9.1 (#193)
+Use FileOutputStream instead of NIO FileChannel for asset writes (#192)
+Use WriterT in for-comprehensions to accumulate errors (#185)
+Add support for custom user agent lists in IAB enrichment (#178)
+Execute IAB enrichment even if the IP is unknown (#186)
+
 6.7.1 (2026-02-16)
 ------------------
 Validate schema key field lengths before calling Iglu Server (#188)

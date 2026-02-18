@@ -56,7 +56,7 @@ object Dependencies {
     val zstd = "1.5.7-4"
 
     val refererParser = "2.1.0"
-    val maxmindIplookups = "0.9.0"
+    val maxmindIplookups = "0.9.1"
     val circe = "0.14.3"
     val circeOptics = "0.14.1"
     val circeJackson = "0.14.0"

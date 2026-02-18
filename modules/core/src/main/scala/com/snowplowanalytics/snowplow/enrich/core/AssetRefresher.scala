@@ -10,6 +10,7 @@
  */
 package com.snowplowanalytics.snowplow.enrich.core
 
+import java.io.{FileOutputStream, OutputStream}
 import java.net.URI
 import java.nio.ByteBuffer
 import java.nio.file.{FileSystems, Path => NioPath}
@@ -26,7 +27,6 @@ import cats.effect.implicits._
 
 import retry.{RetryDetails, RetryPolicies, RetryPolicy, retryingOnSomeErrors}
 
-import fs2.io.file.{Files, Path}
 import fs2.hashing.{HashAlgorithm, Hashing}
 import fs2.{Chunk, Stream}
 
@@ -197,10 +197,14 @@ object AssetRefresher {
       .lastOrError
       .map(_.toString)
 
+  // Uses writeOutputStream with FileOutputStream instead of NIO FileChannel (e.g. fs2
+  // Files.writeAll) to avoid off-heap memory growth. FileChannel.write(heapByteBuffer)
+  // allocates a temporary direct ByteBuffer in a thread-local cache
+  // (sun.nio.ch.Util$BufferCache) that is never released.
   private def writeToPath[F[_]: Async](path: NioPath, content: ByteBuffer): F[Unit] =
     Stream
       .chunk(Chunk.byteBuffer(content))
-      .through(Files.forAsync[F].writeAll(Path.fromNioPath(path)))
+      .through(fs2.io.writeOutputStream(Sync[F].blocking[OutputStream](new FileOutputStream(path.toFile))))
       .compile
       .drain
 

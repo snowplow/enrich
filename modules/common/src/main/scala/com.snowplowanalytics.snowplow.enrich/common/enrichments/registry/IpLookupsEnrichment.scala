@@ -35,7 +35,7 @@ object IpLookupsEnrichment extends ParseableEnrichment {
   override val supportedSchema =
     SchemaCriterion("com.snowplowanalytics.snowplow", "ip_lookups", "jsonschema", 2, 0)
 
-  val asnSchema = SchemaKey("com.snowplowanalytics.snowplow", "asn", "jsonschema", SchemaVer.Full(1, 0, 0))
+  val asnSchema = SchemaKey("com.snowplowanalytics.snowplow", "asn", "jsonschema", SchemaVer.Full(1, 0, 1))
 
   /**
    * Creates an IpLookupsConf from a Json.
@@ -116,6 +116,16 @@ object IpLookupsEnrichment extends ParseableEnrichment {
         lruCacheSize = 20000
       )
       .map(i => IpLookupsEnrichment(i))
+
+  def makeAsnContext(
+    asn: Long,
+    organization: Option[String],
+    likelyBot: Option[Boolean] = None
+  ): SelfDescribingData[Json] = {
+    val fields = ("number" := asn) :: organization.map("organization" := _).toList ++ likelyBot.map("likelyBot" := _).toList
+    val json = Json.obj(fields: _*)
+    SelfDescribingData(asnSchema, json)
+  }
 }
 
 final case class IpLookupsEnrichment[F[_]](ipLookups: IpLookups[F]) {
@@ -130,11 +140,7 @@ final case class IpLookupsEnrichment[F[_]](ipLookups: IpLookups[F]) {
 
   def getAsnContext(ipLookupResult: IpLookupResult): Option[SelfDescribingData[Json]] =
     ipLookupResult.asn.flatMap(_.toOption).map { asn =>
-      val asnJson = Json.obj(
-        "number" := asn.autonomousSystemNumber,
-        "organization" := asn.autonomousSystemOrganization
-      )
-      SelfDescribingData(IpLookupsEnrichment.asnSchema, asnJson)
+      IpLookupsEnrichment.makeAsnContext(asn.autonomousSystemNumber, asn.autonomousSystemOrganization)
     }
 }
 

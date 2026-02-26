@@ -144,6 +144,11 @@ object EnrichmentRegistry {
             enrichment <- EitherT.right(c.enrichment[F])
             registry <- er
           } yield registry.copy(ipLookups = enrichment.some)
+        case c: AsnLookupsConf =>
+          for {
+            enrichment <- c.enrichment[F]
+            registry <- er
+          } yield registry.copy(asnLookups = enrichment.some)
         case c: JavascriptScriptConf =>
           er.subflatMap(v =>
             c.enrichment(exitOnJsCompileError, jsAllowedJavaClasses)
@@ -193,6 +198,8 @@ object EnrichmentRegistry {
         schemaKey.name match {
           case "ip_lookups" =>
             IpLookupsEnrichment.parse(enrichmentConfig, schemaKey, localMode).map(_.some)
+          case "asn_lookups" =>
+            AsnLookupsEnrichment.parse(enrichmentConfig, schemaKey, localMode).map(_.some)
           case "anon_ip" =>
             AnonIpEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
           case "referer_parser" =>
@@ -258,6 +265,7 @@ final case class EnrichmentRegistry[F[_]](
   httpHeaderExtractor: Option[HttpHeaderExtractorEnrichment] = None,
   iab: Option[IabEnrichment] = None,
   ipLookups: Option[IpLookupsEnrichment[F]] = None,
+  asnLookups: Option[AsnLookupsEnrichment] = None,
   javascriptScript: List[JavascriptScriptEnrichment] = Nil,
   refererParser: Option[RefererParserEnrichment] = None,
   uaParser: Option[UaParserEnrichment[F]] = None,

@@ -376,7 +376,8 @@ object EnrichmentManager {
       _       <- getWeatherContext[F](registry.weather)                             // Fetch weather context
       _       <- getYauaaContext[F](registry.yauaa, raw.context.headers)            // Runs YAUAA enrichment (gets info thanks to user agent)
       _       <- extractSchemaFields[F]                                             // Extract the event vendor/name/format/version
-      _       <- geoLocation[F](registry.ipLookups)                                 // Execute IP lookup enrichment
+      _       <- ipLookups[F](registry.ipLookups)                                 // Execute IP lookup enrichment
+      _       <- asnLookups[F](registry.asnLookups)                                 // Check ASN against bot lists
       _       <- registry.javascriptScript.traverse(                                // Execute the JavaScript scripting enrichment
                    getJsScript[F](_, raw.context.headers, maxJsonDepth)
                  )
@@ -463,7 +464,7 @@ object EnrichmentManager {
   // If our IpToGeo enrichment is enabled, get the geo-location from the IP address
   // enrichment doesn't fail to maintain the previous approach where failures were suppressed
   // c.f. https://github.com/snowplow/snowplow/issues/351
-  def geoLocation[F[_]: Monad](ipLookups: Option[IpLookupsEnrichment[F]]): EStateT[F, Unit] =
+  def ipLookups[F[_]: Monad](ipLookups: Option[IpLookupsEnrichment[F]]): EStateT[F, Unit] =
     EStateT.fromEitherF {
       case (event, _) =>
         val ipLookup = for {
@@ -501,6 +502,25 @@ object EnrichmentManager {
           case None =>
             Nil.asRight
         }
+    }
+
+  // Check if ASN belongs to cloud, managed hosting, colo facilities, etc. and adds likelyBot field to ASN context if that's the case
+  def asnLookups[F[_]: Monad](asnLookupsEnrichment: Option[AsnLookupsEnrichment]): EStateT[F, Unit] =
+    EStateT {
+      case Accumulation.Enriched(event, errors, contexts) =>
+        val updatedContexts = asnLookupsEnrichment.fold(contexts) { enrichment =>
+          contexts.map { context =>
+            if (context.schema == IpLookupsEnrichment.asnSchema)
+              enrichment
+                .lookupAsn(context, Option(event.platform))
+                .getOrElse(context)
+            else
+              context
+          }
+        }
+        Monad[F].pure((Accumulation.Enriched(event, errors, updatedContexts), ()))
+      case Accumulation.Dropped =>
+        Monad[F].pure((Accumulation.Dropped, ()))
     }
 
   // Potentially update the page_url and set the page URL components

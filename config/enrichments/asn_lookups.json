@@ -1,0 +1,24 @@
+{
+  "schema": "iglu:com.snowplowanalytics.snowplow/asn_lookups/jsonschema/1-0-0",
+  "data": {
+    "name": "asn_lookups",
+    "vendor": "com.snowplowanalytics.snowplow.enrichments",
+    "enabled": true,
+    "parameters": {
+      "botAsnsFile": {
+        "uri": "http://my-self-hosted-assets.example.com/asns",
+        "database": "bad-asn-list.csv"
+      },
+      "botAsns": [
+        {
+          "asn": 123,
+          "name": "ASN 123"
+        },
+        {
+          "asn": 456
+        }
+      ],
+      "bypassPlatforms": [ "srv" ]
+    }
+  }
+}

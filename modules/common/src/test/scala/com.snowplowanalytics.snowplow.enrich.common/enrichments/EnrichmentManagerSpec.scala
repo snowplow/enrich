@@ -45,6 +45,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii.{
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.{AtomicError, OptionIor}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{
+  AsnLookupsEnrichment,
   CrossNavigationEnrichment,
   HttpHeaderExtractorEnrichment,
   IabEnrichment,
@@ -2884,8 +2885,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               SelfDescribingData(
                 schema = IpLookupsEnrichment.asnSchema,
                 data = json"""{
-                "number": 35908,
-                "organization": null
+                "number": 35908
               }"""
               )
             )
@@ -2994,8 +2994,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               SelfDescribingData(
                 schema = IpLookupsEnrichment.asnSchema,
                 data = json"""{
-                "number": 35908,
-                "organization": null
+                "number": 35908
               }"""
               )
             )
@@ -3087,8 +3086,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
               SelfDescribingData(
                 schema = IpLookupsEnrichment.asnSchema,
                 data = json"""{
-                "number": 35908,
-                "organization": null
+                "number": 35908
               }"""
               )
             )
@@ -3166,6 +3164,264 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         }
       )
       ipLookupCommonTest(ipLookupsConf, expectedOutput)
+    }
+  }
+
+  "ASN lookups enrichment" should {
+    "mark ASN context as bot when ASN is in bot list" >> {
+      val ipLookupsConf = IpLookupsEnrichment
+        .parse(
+          json"""{
+            "name": "ip_lookups",
+            "vendor": "com.snowplowanalytics.snowplow",
+            "enabled": true,
+            "parameters": {
+              "isp": {
+                "database": "GeoIP2-ISP-Test.mmdb",
+                "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
+              }
+            }
+          }""",
+          SchemaKey(
+            "com.snowplowanalytics.snowplow",
+            "ip_lookups",
+            "jsonschema",
+            SchemaVer.Full(2, 0, 0)
+          ),
+          localMode = true
+        )
+        .toOption
+        .get
+
+      val asnLookupsConf = AsnLookupsEnrichment
+        .parse(
+          json"""{
+            "name": "asn_lookups",
+            "vendor": "com.snowplowanalytics.snowplow.enrichments",
+            "enabled": true,
+            "parameters": {
+              "botAsns": [
+                {"asn": 35908, "entity": "Loud Packet"}
+              ]
+            }
+          }""",
+          SchemaKey(
+            "com.snowplowanalytics.snowplow.enrichments",
+            "asn_lookups",
+            "jsonschema",
+            SchemaVer.Full(1, 0, 0)
+          ),
+          localMode = false
+        )
+        .toOption
+        .get
+
+      val parameters = Map(
+        "e" -> "pp",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "ip" -> "67.43.156.1"
+      ).toOpt
+
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+
+      for {
+        ipLookup <- ipLookupsConf.enrichment[IO]
+        asnLookup <- asnLookupsConf.enrichment[IO].value
+        registry = EnrichmentRegistry[IO](ipLookups = Some(ipLookup), asnLookups = asnLookup.toOption)
+        output <- EnrichmentManager.enrichEvent[IO](
+                    registry,
+                    client,
+                    processor,
+                    timestamp,
+                    rawEvent,
+                    AcceptInvalid.featureFlags,
+                    IO.unit,
+                    SpecHelpers.registryLookup,
+                    atomicFieldLimits,
+                    false,
+                    SpecHelpers.DefaultMaxJsonDepth
+                  )
+      } yield output must beLike {
+        case OptionIor.Right(out: EnrichedEvent) =>
+          out.derived_contexts must beLike {
+            case List(asnContext) =>
+              (asnContext.schema must beEqualTo(IpLookupsEnrichment.asnSchema)) and
+                (asnContext.data.hcursor.get[Long]("number") must beRight(35908L)) and
+                (asnContext.data.hcursor.get[Boolean]("likelyBot") must beRight(true))
+          }
+      }
+    }
+
+    "not mark ASN context as bot (likelyBot=false) when ASN is not in bot list" >> {
+      val ipLookupsConf = IpLookupsEnrichment
+        .parse(
+          json"""{
+            "name": "ip_lookups",
+            "vendor": "com.snowplowanalytics.snowplow",
+            "enabled": true,
+            "parameters": {
+              "isp": {
+                "database": "GeoIP2-ISP-Test.mmdb",
+                "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
+              }
+            }
+          }""",
+          SchemaKey(
+            "com.snowplowanalytics.snowplow",
+            "ip_lookups",
+            "jsonschema",
+            SchemaVer.Full(2, 0, 0)
+          ),
+          localMode = true
+        )
+        .toOption
+        .get
+
+      val asnLookupsConf = AsnLookupsEnrichment
+        .parse(
+          json"""{
+            "name": "asn_lookups",
+            "vendor": "com.snowplowanalytics.snowplow.enrichments",
+            "enabled": true,
+            "parameters": {
+              "botAsns": [
+                {"asn": 9999, "entity": "Some other ASN"}
+              ]
+            }
+          }""",
+          SchemaKey(
+            "com.snowplowanalytics.snowplow.enrichments",
+            "asn_lookups",
+            "jsonschema",
+            SchemaVer.Full(1, 0, 0)
+          ),
+          localMode = false
+        )
+        .toOption
+        .get
+
+      val parameters = Map(
+        "e" -> "pp",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "ip" -> "67.43.156.1"
+      ).toOpt
+
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+
+      for {
+        ipLookup <- ipLookupsConf.enrichment[IO]
+        asnLookup <- asnLookupsConf.enrichment[IO].value
+        registry = EnrichmentRegistry[IO](ipLookups = Some(ipLookup), asnLookups = asnLookup.toOption)
+        output <- EnrichmentManager.enrichEvent[IO](
+                    registry,
+                    client,
+                    processor,
+                    timestamp,
+                    rawEvent,
+                    AcceptInvalid.featureFlags,
+                    IO.unit,
+                    SpecHelpers.registryLookup,
+                    atomicFieldLimits,
+                    false,
+                    SpecHelpers.DefaultMaxJsonDepth
+                  )
+      } yield output must beLike {
+        case OptionIor.Right(out: EnrichedEvent) =>
+          out.derived_contexts must beLike {
+            case List(asnContext) =>
+              (asnContext.schema must beEqualTo(IpLookupsEnrichment.asnSchema)) and
+                (asnContext.data.hcursor.get[Long]("number") must beRight(35908L)) and
+                (asnContext.data.hcursor.get[Boolean]("likelyBot") must beRight(false))
+          }
+      }
+    }
+
+    "not enrich ASN context when platform is in bypass list" >> {
+      val ipLookupsConf = IpLookupsEnrichment
+        .parse(
+          json"""{
+            "name": "ip_lookups",
+            "vendor": "com.snowplowanalytics.snowplow",
+            "enabled": true,
+            "parameters": {
+              "isp": {
+                "database": "GeoIP2-ISP-Test.mmdb",
+                "uri": "http://snowplow-hosted-assets.s3.amazonaws.com/third-party/maxmind"
+              }
+            }
+          }""",
+          SchemaKey(
+            "com.snowplowanalytics.snowplow",
+            "ip_lookups",
+            "jsonschema",
+            SchemaVer.Full(2, 0, 0)
+          ),
+          localMode = true
+        )
+        .toOption
+        .get
+
+      val asnLookupsConf = AsnLookupsEnrichment
+        .parse(
+          json"""{
+            "name": "asn_lookups",
+            "vendor": "com.snowplowanalytics.snowplow.enrichments",
+            "enabled": true,
+            "parameters": {
+              "botAsns": [
+                {"asn": 35908, "entity": "Loud Packet"}
+              ],
+              "bypassPlatforms": ["srv"]
+            }
+          }""",
+          SchemaKey(
+            "com.snowplowanalytics.snowplow.enrichments",
+            "asn_lookups",
+            "jsonschema",
+            SchemaVer.Full(1, 0, 0)
+          ),
+          localMode = false
+        )
+        .toOption
+        .get
+
+      val parameters = Map(
+        "e" -> "pp",
+        "tv" -> "js-0.13.1",
+        "p" -> "srv",
+        "ip" -> "67.43.156.1"
+      ).toOpt
+
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+
+      for {
+        ipLookup <- ipLookupsConf.enrichment[IO]
+        asnLookup <- asnLookupsConf.enrichment[IO].value
+        registry = EnrichmentRegistry[IO](ipLookups = Some(ipLookup), asnLookups = asnLookup.toOption)
+        output <- EnrichmentManager.enrichEvent[IO](
+                    registry,
+                    client,
+                    processor,
+                    timestamp,
+                    rawEvent,
+                    AcceptInvalid.featureFlags,
+                    IO.unit,
+                    SpecHelpers.registryLookup,
+                    atomicFieldLimits,
+                    false,
+                    SpecHelpers.DefaultMaxJsonDepth
+                  )
+      } yield output must beLike {
+        case OptionIor.Right(out: EnrichedEvent) =>
+          out.derived_contexts must beLike {
+            case List(asnContext) =>
+              (asnContext.schema must beEqualTo(IpLookupsEnrichment.asnSchema)) and
+                (asnContext.data.hcursor.get[Long]("number") must beRight(35908L)) and
+                (asnContext.data.hcursor.keys.toList.flatten must not(contain("likelyBot")))
+          }
+      }
     }
   }
 

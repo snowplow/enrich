@@ -66,6 +66,6 @@ trait ParseableEnrichment {
       .stringToUri(uri + (if (uri.endsWith("/")) "" else "/") + database)
       .flatMap {
         case Some(u) => u.asRight
-        case None => "URI to IAB file must be provided".asLeft
+        case None => s"URI $uri to database file $database must be provided".asLeft
       }
 }

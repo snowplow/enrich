@@ -199,6 +199,17 @@ object EnrichmentConf {
       )
   }
 
+  final case class AsnLookupsConf(
+    schemaKey: SchemaKey,
+    botAsnsFile: Option[(URI, String)],
+    botAsns: Set[Long],
+    bypassPlatforms: Set[String]
+  ) extends EnrichmentConf {
+    override val filesToCache: List[(URI, String)] = botAsnsFile.toList
+    def enrichment[F[_]: Sync]: EitherT[F, String, AsnLookupsEnrichment] =
+      AsnLookupsEnrichment.create[F](botAsnsFile.map(_._2), botAsns, bypassPlatforms)
+  }
+
   final case class JavascriptScriptConf(
     schemaKey: SchemaKey,
     rawFunction: String,

@@ -67,6 +67,42 @@ class EnrichmentConfigsSpec extends Specification with ValidatedMatchers with Da
     }
   }
 
+  "Parsing a valid asn_lookups enrichment JSON" should {
+    "successfully construct an AsnLookupsConf case class" in {
+      val config = json"""{
+        "name": "asn_lookups",
+        "vendor": "com.snowplowanalytics.snowplow.enrichments",
+        "enabled": true,
+        "parameters": {
+          "botAsnsFile": {
+            "uri": "http://example.com",
+            "database": "bad-asn-list.csv"
+          },
+          "botAsns": [
+            {"asn": 1234, "name": "Test Entity"}
+          ],
+          "bypassPlatforms": ["srv", "cnsl"]
+        }
+      }"""
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow.enrichments",
+        "asn_lookups",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+
+      val result = AsnLookupsEnrichment.parse(config, schemaKey, localMode = false)
+      result must beValid(
+        EnrichmentConf.AsnLookupsConf(
+          schemaKey,
+          Some((new java.net.URI("http://example.com/bad-asn-list.csv"), "./asn_bad-asn-list.csv")),
+          Set(1234L),
+          Set("srv", "cnsl")
+        )
+      )
+    }
+  }
+
   "Parsing a valid ip_lookups enrichment JSON" should {
     "successfully construct a GeoIpEnrichment case class" in {
       val ipToGeoJson = json"""{

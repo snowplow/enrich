@@ -27,6 +27,53 @@ lazy val common = project
   .settings(commonBuildSettings)
   .settings(libraryDependencies ++= commonDependencies)
   .settings(excludeDependencies ++= exclusions)
+  .settings(
+    igluUris := Seq(
+      // Core event schemas
+      "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
+      "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1",
+      "iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-0",
+      "iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-1",
+      "iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-2",
+      "iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-3",
+      "iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-4",
+      "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+      // Enrichment config schemas
+      "iglu:com.snowplowanalytics.snowplow/anon_ip/jsonschema/1-0-0",
+      "iglu:com.snowplowanalytics.snowplow/anon_ip/jsonschema/1-0-1",
+      "iglu:com.snowplowanalytics.snowplow/campaign_attribution/jsonschema/1-0-0",
+      "iglu:com.snowplowanalytics.snowplow/campaign_attribution/jsonschema/1-0-1",
+      "iglu:com.snowplowanalytics.snowplow/cookie_extractor_config/jsonschema/1-0-0",
+      "iglu:com.snowplowanalytics.snowplow/currency_conversion_config/jsonschema/1-0-0",
+      "iglu:com.snowplowanalytics.snowplow/enrichments/jsonschema/1-0-0",
+      "iglu:com.snowplowanalytics.snowplow/event_fingerprint_config/jsonschema/1-0-0",
+      "iglu:com.snowplowanalytics.snowplow/event_fingerprint_config/jsonschema/1-0-1",
+      "iglu:com.snowplowanalytics.snowplow/ip_lookups/jsonschema/2-0-0",
+      "iglu:com.snowplowanalytics.snowplow/ip_lookups/jsonschema/2-0-1",
+      "iglu:com.snowplowanalytics.snowplow/javascript_script_config/jsonschema/1-0-0",
+      "iglu:com.snowplowanalytics.snowplow/javascript_script_config/jsonschema/1-0-1",
+      "iglu:com.snowplowanalytics.snowplow/referer_parser/jsonschema/2-0-0",
+      "iglu:com.snowplowanalytics.snowplow/referer_parser/jsonschema/2-0-1",
+      "iglu:com.snowplowanalytics.snowplow/ua_parser_config/jsonschema/1-0-0",
+      "iglu:com.snowplowanalytics.snowplow/ua_parser_config/jsonschema/1-0-1",
+      "iglu:com.snowplowanalytics.snowplow/user_agent_utils_config/jsonschema/1-0-0",
+      "iglu:com.snowplowanalytics.snowplow.enrichments/api_request_enrichment_config/jsonschema/1-0-0",
+      "iglu:com.snowplowanalytics.snowplow.enrichments/api_request_enrichment_config/jsonschema/1-0-1",
+      "iglu:com.snowplowanalytics.snowplow.enrichments/api_request_enrichment_config/jsonschema/1-0-2",
+      "iglu:com.snowplowanalytics.snowplow.enrichments/asn_lookups/jsonschema/1-0-0",
+      "iglu:com.snowplowanalytics.snowplow.enrichments/bot_detection_enrichment_config/jsonschema/1-0-0",
+      "iglu:com.snowplowanalytics.snowplow.enrichments/cross_navigation_config/jsonschema/1-0-0",
+      "iglu:com.snowplowanalytics.snowplow.enrichments/http_header_extractor_config/jsonschema/1-0-0",
+      "iglu:com.snowplowanalytics.snowplow.enrichments/iab_spiders_and_robots_enrichment/jsonschema/1-0-0",
+      "iglu:com.snowplowanalytics.snowplow.enrichments/iab_spiders_and_robots_enrichment/jsonschema/1-0-1",
+      "iglu:com.snowplowanalytics.snowplow.enrichments/pii_enrichment_config/jsonschema/2-0-0",
+      "iglu:com.snowplowanalytics.snowplow.enrichments/pii_enrichment_config/jsonschema/2-0-1",
+      "iglu:com.snowplowanalytics.snowplow.enrichments/sql_query_enrichment_config/jsonschema/1-0-0",
+      "iglu:com.snowplowanalytics.snowplow.enrichments/sql_query_enrichment_config/jsonschema/1-0-1",
+      "iglu:com.snowplowanalytics.snowplow.enrichments/weather_enrichment_config/jsonschema/1-0-0",
+      "iglu:com.snowplowanalytics.snowplow.enrichments/yauaa_enrichment_config/jsonschema/1-0-0"
+    )
+  )
 
 lazy val core = project
   .in(file("modules/core"))

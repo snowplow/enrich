@@ -1,0 +1,13 @@
+{
+  "schema": "iglu:com.snowplowanalytics.snowplow.enrichments/bot_detection_enrichment_config/jsonschema/1-0-0",
+  "data": {
+    "name": "bot_detection_enrichment_config",
+    "vendor": "com.snowplowanalytics.snowplow.enrichments",
+    "enabled": true,
+    "parameters": {
+      "useYauaa": true,
+      "useIab": true,
+      "useAsnLookups": false
+    }
+  }
+}

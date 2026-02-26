@@ -276,6 +276,15 @@ object EnrichmentConf {
     def enrichment: CrossNavigationEnrichment = CrossNavigationEnrichment(schemaKey)
   }
 
+  final case class BotDetectionConf(
+    schemaKey: SchemaKey,
+    useYauaa: Boolean,
+    useIab: Boolean,
+    useAsnLookups: Boolean
+  ) extends EnrichmentConf {
+    def enrichment: BotDetectionEnrichment = BotDetectionEnrichment(useYauaa, useIab, useAsnLookups)
+  }
+
   final case class EventSpecConf(
     schemaKey: SchemaKey,
     eventSpecsFile: (URI, String)

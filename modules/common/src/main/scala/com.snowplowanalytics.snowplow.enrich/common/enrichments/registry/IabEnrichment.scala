@@ -105,6 +105,9 @@ object IabEnrichment extends ParseableEnrichment {
   private def getIabUAListFromName(config: Json, name: String): ValidatedNel[String, List[String]] =
     CirceUtils.extract[Option[List[String]]](config, "parameters", name).map(_.getOrElse(Nil)).toValidatedNel
 
+  val outputSchema: SchemaKey =
+    SchemaKey("com.iab.snowplow", "spiders_and_robots", "jsonschema", SchemaVer.Full(1, 0, 0))
+
   def create[F[_]: Sync](
     schemaKey: SchemaKey,
     ipFile: String,
@@ -132,8 +135,6 @@ object IabEnrichment extends ParseableEnrichment {
  * @param iabClient worker object
  */
 final case class IabEnrichment(schemaKey: SchemaKey, iabClient: IabClient) {
-  val outputSchema =
-    SchemaKey("com.iab.snowplow", "spiders_and_robots", "jsonschema", SchemaVer.Full(1, 0, 0))
   private val enrichmentInfo =
     FailureDetails.EnrichmentInformation(schemaKey, "iab-spiders-and-robots").some
 
@@ -178,7 +179,7 @@ final case class IabEnrichment(schemaKey: SchemaKey, iabClient: IabClient) {
     accurateAt: DateTime
   ): Either[FailureDetails.EnrichmentFailure, SelfDescribingData[Json]] =
     performCheck(userAgent, ipAddress, accurateAt).map { iab =>
-      SelfDescribingData(outputSchema, iab.asJson)
+      SelfDescribingData(IabEnrichment.outputSchema, iab.asJson)
     }
 }
 

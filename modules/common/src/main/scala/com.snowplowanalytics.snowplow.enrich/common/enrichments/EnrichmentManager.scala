@@ -376,8 +376,9 @@ object EnrichmentManager {
       _       <- getWeatherContext[F](registry.weather)                             // Fetch weather context
       _       <- getYauaaContext[F](registry.yauaa, raw.context.headers)            // Runs YAUAA enrichment (gets info thanks to user agent)
       _       <- extractSchemaFields[F]                                             // Extract the event vendor/name/format/version
-      _       <- ipLookups[F](registry.ipLookups)                                 // Execute IP lookup enrichment
+      _       <- ipLookups[F](registry.ipLookups)                                   // Execute IP lookup enrichment
       _       <- asnLookups[F](registry.asnLookups)                                 // Check ASN against bot lists
+      _       <- getBotDetectionContext[F](registry.botDetection)                   // Consolidated bot detection from YAUAA, IAB, ASN
       _       <- registry.javascriptScript.traverse(                                // Execute the JavaScript scripting enrichment
                    getJsScript[F](_, raw.context.headers, maxJsonDepth)
                  )
@@ -921,6 +922,19 @@ object EnrichmentManager {
             modifiedDerivedContexts.asRight
           case None =>
             derivedContexts.asRight
+        }
+    }
+
+  def getBotDetectionContext[F[_]: Applicative](
+    botDetection: Option[BotDetectionEnrichment]
+  ): EStateT[F, Unit] =
+    EStateT.fromEither {
+      case (_, derivedContexts) =>
+        botDetection match {
+          case Some(enrichment) =>
+            enrichment.getBotDetectionContext(derivedContexts).asRight
+          case None =>
+            Nil.asRight
         }
     }
 

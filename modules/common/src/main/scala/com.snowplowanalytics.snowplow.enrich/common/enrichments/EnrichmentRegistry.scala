@@ -172,6 +172,7 @@ object EnrichmentRegistry {
           } yield registry.copy(weather = enrichment.some)
         case c: YauaaConf => er.map(_.copy(yauaa = c.enrichment.some))
         case c: CrossNavigationConf => er.map(_.copy(crossNavigation = c.enrichment.some))
+        case c: BotDetectionConf => er.map(_.copy(botDetection = c.enrichment.some))
         case c: EventSpecConf =>
           for {
             enrichment <- c.enrichment[F]
@@ -244,6 +245,8 @@ object EnrichmentRegistry {
             IabEnrichment.parse(enrichmentConfig, schemaKey, localMode).map(_.some)
           case "cross_navigation_config" =>
             CrossNavigationEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
+          case "bot_detection_enrichment_config" =>
+            BotDetectionEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
           case "event_spec_enrichment_config" =>
             EventSpecEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
           case _ =>
@@ -273,5 +276,6 @@ final case class EnrichmentRegistry[F[_]](
   weather: Option[WeatherEnrichment[F]] = None,
   yauaa: Option[YauaaEnrichment] = None,
   crossNavigation: Option[CrossNavigationEnrichment] = None,
+  botDetection: Option[BotDetectionEnrichment] = None,
   eventSpec: Option[EventSpecEnrichment] = None
 )

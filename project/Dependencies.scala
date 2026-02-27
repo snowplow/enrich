@@ -50,7 +50,7 @@ object Dependencies {
     val thrift = "0.15.0"
     val httpclient = "4.5.13"
     val sprayJson = "1.3.6"
-    val netty = "4.2.9.Final"
+    val netty = "4.2.10.Final"
     val protobuf = "4.28.3"
     val nashorn = "15.6"
     val zstd = "1.5.7-4"
@@ -82,7 +82,7 @@ object Dependencies {
     val azureIdentity = "1.18.2"
     val azureStorageBlob = "12.33.0"
     val nimbusJoseJwt = "10.0.2"
-    val lz4 = "1.10.2"
+    val lz4 = "1.10.3"
     val reactorNetty = "1.2.8"
     val http4s = "0.23.25"
 
@@ -144,6 +144,7 @@ object Dependencies {
     val sprayJson = "io.spray"                     %% "spray-json"                    % V.sprayJson
     val nettyAll = "io.netty"                       % "netty-all"                     % V.netty
     val nettyCodec = "io.netty"                     % "netty-codec"                   % V.netty
+    val nettyCodecHttp = "io.netty"                 % "netty-codec-http"              % V.netty
     val slf4j = "org.slf4j"                         % "slf4j-simple"                  % V.slf4j
     val sentry = "io.sentry"                        % "sentry"                        % V.sentry
     val protobuf = "com.google.protobuf"            % "protobuf-java"                 % V.protobuf
@@ -224,6 +225,7 @@ object Dependencies {
       sprayJson,
       nettyAll,
       nettyCodec,
+      nettyCodecHttp,
       protobuf,
       specs2,
       specs2Cats,

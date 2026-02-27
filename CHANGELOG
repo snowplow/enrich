@@ -1,3 +1,12 @@
+6.9.0 (2026-03-02)
+------------------
+Bump libraries to address security vulnerabilities
+Add example bot detection enrichment config (#197)
+Embed Iglu schemas in common module (#195)
+Add bot detection enrichment (#187)
+Referer parser enrichment: make it possible to pass some custom referers along with the file (#180)
+Add asn_lookups enrichment (#190)
+
 6.8.0 (2026-02-18)
 ------------------
 Bump scala-maxmind-iplookups to 0.9.1 (#193)

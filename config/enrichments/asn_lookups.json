@@ -1,5 +1,5 @@
 {
-  "schema": "iglu:com.snowplowanalytics.snowplow/asn_lookups/jsonschema/1-0-0",
+  "schema": "iglu:com.snowplowanalytics.snowplow.enrichments/asn_lookups/jsonschema/1-0-0",
   "data": {
     "name": "asn_lookups",
     "vendor": "com.snowplowanalytics.snowplow.enrichments",

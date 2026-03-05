@@ -101,7 +101,8 @@ object Environment {
       sourceAndAck <- factory.source(config.main.input)
       sourceReporter = sourceAndAck.isHealthy(config.main.monitoring.healthProbe.unhealthyLatency).map(_.showIfUnhealthy)
       appHealth <- Resource.eval(AppHealth.init[F, String, RuntimeService](List(sourceReporter)))
-      _ <- HealthProbe.resource(config.main.monitoring.healthProbe.port, appHealth)
+      metrics <- Metrics.build(config.main.monitoring.metrics, sourceAndAck)
+      _ <- HealthProbe.resource(config.main.monitoring.healthProbe.port, appHealth, metrics.scrape)
       enrichedSink <- factory.sink(config.main.output.good.sink).onError {
                         case _ => Resource.eval(appHealth.beUnhealthyForRuntimeService(RuntimeService.EnrichedSink))
                       }
@@ -115,7 +116,6 @@ object Environment {
       badSink <- factory.sink(config.main.output.bad.sink).onError {
                    case _ => Resource.eval(appHealth.beUnhealthyForRuntimeService(RuntimeService.BadSink))
                  }
-      metrics <- Resource.eval(Metrics.build(config.main.monitoring.metrics))
       cpuParallelism = chooseCpuParallelism(config.main)
       sinkParallelism = chooseSinkParallelism(config.main)
       adapterRegistry = new AdapterRegistry(Map.empty, config.main.adaptersSchemas)

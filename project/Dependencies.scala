@@ -86,7 +86,7 @@ object Dependencies {
     val reactorNetty = "1.2.8"
     val http4s = "0.23.25"
 
-    val streams = "0.21.0"
+    val streams = "0.22.0-M2"
 
     val specs2 = "4.20.3"
     val specs2Cats = "4.20.3"

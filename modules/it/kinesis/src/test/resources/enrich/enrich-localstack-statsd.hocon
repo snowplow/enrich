@@ -40,6 +40,9 @@
         }
         "prefix": "snowplow.enrich."
       }
+      "prometheus": {
+        "tags": {}
+      }
     }
   }
 

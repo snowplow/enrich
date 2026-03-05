@@ -26,7 +26,7 @@ import org.http4s.Uri
 
 import com.comcast.ip4s.Port
 
-import com.snowplowanalytics.snowplow.runtime.Metrics.StatsdConfig
+import com.snowplowanalytics.snowplow.runtime.Metrics.{PrometheusConfig, StatsdConfig}
 import com.snowplowanalytics.snowplow.runtime.{AcceptedLicense, ConfigParser, Retrying, Sentry, Telemetry}
 
 import com.snowplowanalytics.snowplow.streams.kafka.{KafkaSinkConfig, KafkaSinkConfigM, KafkaSourceConfig}
@@ -130,7 +130,7 @@ object KafkaConfigSpec {
     cpuParallelismFraction = BigDecimal(1),
     sinkParallelismFraction = BigDecimal(2),
     monitoring = Config.Monitoring(
-      metrics = Config.Metrics(None),
+      metrics = Config.Metrics(None, PrometheusConfig(Map.empty)),
       sentry = None,
       healthProbe = Config.HealthProbe(port = Port.fromInt(8000).get, unhealthyLatency = 2.minutes)
     ),
@@ -239,7 +239,8 @@ object KafkaConfigSpec {
             period = 1.minute,
             prefix = "snowplow.enrich"
           )
-        )
+        ),
+        prometheus = PrometheusConfig(Map("env" -> "prod"))
       ),
       sentry = Some(Sentry.ConfigM[Id](dsn = "https://public@sentry.example.com/1", environment = None, tags = Map("myTag" -> "xyz"))),
       healthProbe = Config.HealthProbe(

@@ -10,14 +10,15 @@
  */
 package com.snowplowanalytics.snowplow.enrich.core
 
-import scala.concurrent.duration.{Duration, FiniteDuration}
+import scala.concurrent.duration.FiniteDuration
 
 import cats.implicits._
 
-import cats.effect.kernel.{Async, Ref, Sync}
+import cats.effect.kernel.{Async, Resource, Sync}
 
 import fs2.Stream
 
+import com.snowplowanalytics.snowplow.streams.SourceAndAck
 import com.snowplowanalytics.snowplow.runtime.{Metrics => CommonMetrics}
 
 trait Metrics[F[_]] {
@@ -30,111 +31,35 @@ trait Metrics[F[_]] {
   def setLatency(latency: FiniteDuration): F[Unit]
   def setE2ELatency(latency: FiniteDuration): F[Unit]
 
+  def scrape: F[String]
   def report: Stream[F, Nothing]
 }
 
 object Metrics {
 
-  def build[F[_]: Async](config: Config.Metrics): F[Metrics[F]] =
-    Ref[F].of(State.empty).map(impl(config, _))
+  def build[F[_]: Async](config: Config.Metrics, sourceAndAck: SourceAndAck[F]): Resource[F, Metrics[F]] =
+    CommonMetrics.build(config.statsd, config.prometheus).evalMap { entries =>
+      for {
+        raw <- entries.counter("raw")
+        enriched <- entries.counter("good")
+        failed <- entries.counter("failed")
+        bad <- entries.counter("bad")
+        dropped <- entries.counter("dropped")
+        invalid <- entries.counter("invalid_enriched")
+        latency <- entries.timer("latency_millis", sourceAndAck.currentStreamLatency)
+        e2eLatency <- entries.timer("e2e_latency_millis", Sync[F].pure(None))
+      } yield new Metrics[F] {
+        def addRaw(count: Int): F[Unit] = raw.add(count.toLong)
+        def addEnriched(count: Int): F[Unit] = enriched.add(count.toLong)
+        def addFailed(count: Int): F[Unit] = failed.add(count.toLong)
+        def addBad(count: Int): F[Unit] = bad.add(count.toLong)
+        def addDropped(count: Int): F[Unit] = dropped.add(count.toLong)
+        def addInvalid(count: Int): F[Unit] = invalid.add(count.toLong)
+        def setLatency(l: FiniteDuration): F[Unit] = latency.record(l)
+        def setE2ELatency(l: FiniteDuration): F[Unit] = e2eLatency.record(l)
 
-  private case class State(
-    raw: Int,
-    enriched: Int,
-    failed: Int,
-    bad: Int,
-    dropped: Int,
-    invalid: Option[Int], // optional because `validation.acceptInvalid` can be false
-    latency: FiniteDuration,
-    e2eLatency: Option[FiniteDuration]
-  ) extends CommonMetrics.State {
-    def toKVMetrics: List[CommonMetrics.KVMetric] =
-      List(
-        KVMetric.CountRaw(raw),
-        KVMetric.CountEnriched(enriched),
-        KVMetric.CountFailed(failed),
-        KVMetric.CountBad(bad),
-        KVMetric.CountDropped(dropped),
-        KVMetric.Latency(latency)
-      ) ++ invalid.map(KVMetric.CountInvalid(_)) ++
-        e2eLatency.map(KVMetric.E2ELatency(_))
-  }
-
-  private object State {
-    def empty: State = State(0, 0, 0, 0, 0, None, Duration.Zero, None)
-  }
-
-  private def impl[F[_]: Async](config: Config.Metrics, ref: Ref[F, State]): Metrics[F] =
-    new CommonMetrics[F, State](ref, Sync[F].pure(State.empty), config.statsd) with Metrics[F] {
-      def addRaw(count: Int): F[Unit] =
-        ref.update(s => s.copy(raw = s.raw + count))
-      def addEnriched(count: Int): F[Unit] =
-        ref.update(s => s.copy(enriched = s.enriched + count))
-      def addFailed(count: Int): F[Unit] =
-        ref.update(s => s.copy(failed = s.failed + count))
-      def addBad(count: Int): F[Unit] =
-        ref.update(s => s.copy(bad = s.bad + count))
-      def addDropped(count: Int): F[Unit] =
-        ref.update(s => s.copy(dropped = s.dropped + count))
-      def addInvalid(count: Int): F[Unit] =
-        ref.update(s => s.copy(invalid = s.invalid |+| Some(count)))
-      def setLatency(latency: FiniteDuration): F[Unit] =
-        ref.update(s => s.copy(latency = s.latency.max(latency)))
-      def setE2ELatency(e2eLatency: FiniteDuration): F[Unit] =
-        ref.update { s =>
-          val newLatency = s.e2eLatency.fold(e2eLatency)(_.max(e2eLatency))
-          s.copy(e2eLatency = Some(newLatency))
-        }
+        def scrape: F[String] = entries.scrape
+        def report: Stream[F, Nothing] = entries.report
+      }
     }
-
-  private object KVMetric {
-
-    final case class CountRaw(v: Int) extends CommonMetrics.KVMetric {
-      val key = "raw"
-      val value = v.toString
-      val metricType = CommonMetrics.MetricType.Count
-    }
-
-    final case class CountEnriched(v: Int) extends CommonMetrics.KVMetric {
-      val key = "good"
-      val value = v.toString
-      val metricType = CommonMetrics.MetricType.Count
-    }
-
-    final case class CountFailed(v: Int) extends CommonMetrics.KVMetric {
-      val key = "failed"
-      val value = v.toString
-      val metricType = CommonMetrics.MetricType.Count
-    }
-
-    final case class CountBad(v: Int) extends CommonMetrics.KVMetric {
-      val key = "bad"
-      val value = v.toString
-      val metricType = CommonMetrics.MetricType.Count
-    }
-
-    final case class CountDropped(v: Int) extends CommonMetrics.KVMetric {
-      val key = "dropped"
-      val value = v.toString
-      val metricType = CommonMetrics.MetricType.Count
-    }
-
-    final case class CountInvalid(v: Int) extends CommonMetrics.KVMetric {
-      val key = "invalid_enriched"
-      val value = v.toString
-      val metricType = CommonMetrics.MetricType.Count
-    }
-
-    final case class Latency(d: FiniteDuration) extends CommonMetrics.KVMetric {
-      val key = "latency_millis"
-      val value = d.toMillis.toString
-      val metricType = CommonMetrics.MetricType.Gauge
-    }
-
-    final case class E2ELatency(d: FiniteDuration) extends CommonMetrics.KVMetric {
-      val key = "e2e_latency_millis"
-      val value = d.toMillis.toString
-      val metricType = CommonMetrics.MetricType.Gauge
-    }
-  }
 }

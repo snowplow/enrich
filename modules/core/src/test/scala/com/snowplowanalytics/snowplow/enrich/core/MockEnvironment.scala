@@ -269,6 +269,8 @@ object MockEnvironment {
       def setE2ELatency(e2eLatency: FiniteDuration): IO[Unit] =
         ref.update(_ :+ SetE2ELatencyMetric(e2eLatency))
 
+      def scrape: IO[String] = IO.pure("")
+
       def report: Stream[IO, Nothing] = Stream.never[IO]
     }
 

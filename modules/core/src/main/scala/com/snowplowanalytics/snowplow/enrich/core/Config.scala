@@ -100,7 +100,8 @@ object Config {
   )
 
   case class Metrics(
-    statsd: Option[CommonMetrics.StatsdConfig]
+    statsd: Option[CommonMetrics.StatsdConfig],
+    prometheus: CommonMetrics.PrometheusConfig
   )
 
   case class HealthProbe(port: Port, unhealthyLatency: FiniteDuration)

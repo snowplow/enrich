@@ -157,6 +157,14 @@
         # -- Prefix used for the metric name when sending to statsd
         "prefix": "snowplow.enrich"
       }
+
+      # -- Expose metrics via prometheus, scraped from the /metrics endpoint
+      "prometheus": {
+        # -- Map of key/value pairs to be used as common tags on all metrics
+        "tags": {
+          "env": "prod"
+        }
+      }
     }
 
     # -- Report unexpected runtime exceptions to Sentry

@@ -1010,7 +1010,70 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
             )
         }
     }
+
+    "return an IgluError with ValidationError if the unstruct event has schema version 1--" >>
+      assertUnstructValidationError("iglu:com.acme/test_event/jsonschema/1--")
+
+    "return a NotIglu error with InvalidSchemaVer if the unstruct event has schema version 1-0-000000" >>
+      assertUnstructInvalidSchemaVer("1-0-000000")
+
+    "return a NotIglu error with InvalidSchemaVer if the unstruct event has schema version 1-000000-0" >>
+      assertUnstructInvalidSchemaVer("1-000000-0")
+
+    "return a NotIglu error with InvalidSchemaVer if the unstruct event has schema version 0000000-0-0" >>
+      assertUnstructInvalidSchemaVer("0000000-0-0")
+
+    "return a NotIglu error with InvalidSchemaVer if the unstruct event has schema version 0-0-0" >>
+      assertUnstructInvalidSchemaVer("0-0-0")
+
+    "return a NotIglu error with InvalidSchemaVer if the unstruct event has schema version 123456789123456789-0-0" >>
+      assertUnstructInvalidSchemaVer("123456789123456789-0-0")
+
+    "return an IgluError with ValidationError if the unstruct event has extra slashes in schema URI" >>
+      assertUnstructValidationError("iglu:test1/test2/test3///test4/jsonschema/1-0-0")
+
+    "return an IgluError with ValidationError if the unstruct event has invalid characters in schema URI" >>
+      assertUnstructValidationError("iglu:test1#test2/test3;test4/test5=test6/jsonschema/1-0-0")
+
   }
+
+  private def assertUnstructValidationError(schemaUri: String) =
+    IgluUtils
+      .parseAndValidateUnstruct(
+        Some(buildUnstruct(s"""{"schema": "$schemaUri", "data": {"field_1": "value_1"}}""")),
+        SpecHelpers.client,
+        SpecHelpers.registryLookup,
+        SpecHelpers.DefaultMaxJsonDepth,
+        SpecHelpers.etlTstamp
+      )
+      .run
+      .map {
+        case (List(Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError), `unstructFieldName`, _, _)),
+              None
+            ) =>
+          ok
+        case other => ko(s"[$other] is not a ValidationError for $schemaUri")
+      }
+
+  private def assertUnstructInvalidSchemaVer(version: String) =
+    IgluUtils
+      .parseAndValidateUnstruct(
+        Some(buildUnstruct(s"""{"schema": "iglu:com.acme/test_event/jsonschema/$version", "data": {"field_1": "value_1"}}""")),
+        SpecHelpers.client,
+        SpecHelpers.registryLookup,
+        SpecHelpers.DefaultMaxJsonDepth,
+        SpecHelpers.etlTstamp
+      )
+      .run
+      .map {
+        case (List(
+                Failure.SchemaViolation(FailureDetails.SchemaViolation.NotIglu(_, ParseError.InvalidSchemaVer), `unstructFieldName`, _, _)
+              ),
+              None
+            ) =>
+          ok
+        case other => ko(s"[$other] is not a NotIglu with InvalidSchemaVer for version $version")
+      }
 }
 
 object IgluUtilsSpec {

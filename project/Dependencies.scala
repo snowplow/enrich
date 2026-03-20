@@ -78,7 +78,7 @@ object Dependencies {
 
     val decline = "2.4.1"
     val fs2 = "3.10.2"
-    val catsEffect = "3.5.4"
+    val catsEffect = "3.7.0"
     val azureIdentity = "1.18.2"
     val azureStorageBlob = "12.33.0"
     val nimbusJoseJwt = "10.0.2"
@@ -161,6 +161,7 @@ object Dependencies {
     val specs2Cats = "org.specs2"                    %% "specs2-cats"                % V.specs2Cats        % Test
     val specs2Scalacheck = "org.specs2"              %% "specs2-scalacheck"          % V.specs2            % Test
     val specs2Mock = "org.specs2"                    %% "specs2-mock"                % V.specs2            % Test
+    val catsEffect = "org.typelevel"                 %% "cats-effect"                % V.catsEffect
     val specs2CE = "org.typelevel"                   %% "cats-effect-testing-specs2" % V.specs2CE          % Test
     val catsEffectTestkit = "org.typelevel"          %% "cats-effect-testkit"        % V.catsEffect        % Test
     val parserCombinators = "org.scala-lang.modules" %% "scala-parser-combinators"   % V.parserCombinators % Test
@@ -238,6 +239,7 @@ object Dependencies {
     )
 
     val coreDependencies = Seq(
+      catsEffect,
       circeLiteral,
       declineEffect,
       igluClientHttp4s,

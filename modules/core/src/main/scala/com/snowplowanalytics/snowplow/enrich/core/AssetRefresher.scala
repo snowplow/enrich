@@ -33,50 +33,48 @@ import fs2.{Chunk, Stream}
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
-import com.snowplowanalytics.snowplow.runtime.processing.Coldswap
-
 import com.snowplowanalytics.snowplow.enrich.cloudutils.core._
 
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 
 class AssetRefresher[F[_]: Async](
-  atomicCell: AtomicCell[F, List[AssetRefresher.Asset[F]]],
-  coldswap: Coldswap[F, EnrichmentRegistry[F]]
+  atomicCell: AtomicCell[F, List[AssetRefresher.EnrichmentAssetGroup[F]]]
 ) {
   import AssetRefresher._
 
   /**
-   * Checks for updated enrichment assets and reloads the enrichment registry if any changed.
+   * Checks for updated enrichment assets and reloads affected enrichments if any changed.
    *
-   * Downloads all assets in parallel using conditional requests (If-None-Match with etags or MD5 comparison).
+   * Downloads all assets in parallel per group. For each group, if any asset in the group
+   * has changed, the group's `onUpdate` callback is invoked to hot-swap that enrichment.
+   * Any failure — whether downloading assets or invoking `onUpdate` — is logged and then
+   * re-raised, crashing the application.
    * Assets that haven't changed return 304 Not Modified without downloading content.
-   * If any asset has changed, closes and reopens the enrichment registry with the new assets.
-   * If no assets changed, the registry continues running with existing assets.
    */
-  def refreshAndOpenRegistry: F[Unit] =
-    atomicCell.evalUpdate { assets =>
-      if (assets.nonEmpty)
-        assets
-          .parTraverse(downloadAsset(_))
-          .flatMap {
-            case newStatuses =>
-              val hadUpdate = assets.zip(newStatuses).exists {
-                case (asset, newStatus) => asset.status =!= newStatus
+  def refresh: F[Unit] =
+    atomicCell.evalUpdate { groups =>
+      groups.traverse { group =>
+        group.assets
+          .parTraverse(downloadAsset(group.name, _))
+          .flatMap { newStatuses =>
+            val hadUpdate = group.assets.zip(newStatuses).exists {
+              case (asset, newStatus) => asset.status =!= newStatus
+            }
+            if (hadUpdate) {
+              val newAssets = group.assets.zip(newStatuses).map {
+                case (asset, newStatus) => asset.copy(status = newStatus)
               }
-              if (hadUpdate) {
-                val newAssets = assets.zip(newStatuses).map {
-                  case (asset, newStatus) => asset.copy(status = newStatus)
-                }
-                for {
-                  _ <- coldswap.closed.use_
-                  _ <- Logger[F].info("Opening Enrichment registry for new downloaded assets")
-                  _ <- coldswap.opened.use_
-                } yield newAssets
-              } else
-                assets.pure[F]
+              Logger[F].info(s"Assets changed for enrichment ${group.name}, invoking hot-swap") >>
+                group.onUpdate
+                  .onError {
+                    case err =>
+                      Logger[F].error(err)(s"Failed to hot-swap enrichment ${group.name} after asset update")
+                  }
+                  .as(group.copy(assets = newAssets))
+            } else
+              group.pure[F]
           }
-      else coldswap.opened.use_.as(assets)
+      }
     }
 }
 
@@ -86,26 +84,26 @@ object AssetRefresher {
    * Tracks the download status of an enrichment asset.
    * Used to determine if the asset needs to be re-downloaded.
    */
-  private sealed trait AssetStatus
+  private[core] sealed trait AssetStatus
 
   /**
    * Asset has not been downloaded yet.
    * Initial state before first download attempt.
    */
-  private case object NotDownloaded extends AssetStatus
+  private[core] case object NotDownloaded extends AssetStatus
 
   /**
    * Asset has been successfully downloaded.
    * Contains a value (etag or MD5) for detecting future changes.
    */
-  private sealed trait AssetSuccessfulStatus extends AssetStatus
+  private[core] sealed trait AssetSuccessfulStatus extends AssetStatus
 
   /**
    * Asset downloaded with an etag from the blob storage service.
    * The etag enables efficient conditional requests (If-None-Match) on subsequent downloads.
    * Most blob storage backends (S3, GCS, Azure) provide etags.
    */
-  private case class Etag(value: String) extends AssetSuccessfulStatus
+  private[core] case class Etag(value: String) extends AssetSuccessfulStatus
 
   /**
    * Asset downloaded without an etag.
@@ -113,52 +111,111 @@ object AssetRefresher {
    * Used when the blob storage backend does not provide etags (e.g., plain HTTP servers).
    * Less efficient than etag-based detection since the entire file must be downloaded to compare.
    */
-  private case class Md5(value: String) extends AssetSuccessfulStatus
+  private[core] case class Md5(value: String) extends AssetSuccessfulStatus
 
   private implicit def assetStatusEq: Eq[AssetStatus] = Eq.fromUniversalEquals
 
-  private case class Asset[F[_]](
+  private[core] case class Asset[F[_]](
     client: BlobClient[F],
     uri: URI,
     localPath: NioPath,
     status: AssetStatus
   )
 
+  /**
+   * A group of assets belonging to a single enrichment, plus a callback to invoke when any
+   * of the assets in the group changes.
+   */
+  private[core] case class EnrichmentAssetGroup[F[_]](
+    name: String,
+    assets: List[Asset[F]],
+    onUpdate: F[Unit]
+  )
+
+  /**
+   * The result of the initial asset download phase.
+   * Carries the downloaded asset groups (with up-to-date status) and the blob clients so
+   * they can be reused for subsequent refreshes.
+   * Private to `core` so it is only visible within `AssetRefresher` and `Environment`.
+   */
+  private[core] case class DownloadedAssets[F[_]](
+    groups: List[DownloadedGroup[F]]
+  )
+
+  /**
+   * A group with its assets already downloaded and status updated, but without an `onUpdate`
+   * callback yet. The callback is wired in `ManagedEnrichmentRegistry.build`.
+   */
+  private[core] case class DownloadedGroup[F[_]](
+    conf: EnrichmentConf.WithAssets,
+    assets: List[Asset[F]]
+  )
+
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
     Slf4jLogger.getLogger[F]
 
-  def fromEnrichmentConfs[F[_]: Async](
+  def initialDownload[F[_]: Async](
     enrichmentConfs: List[EnrichmentConf],
-    blobClients: List[BlobClientFactory[F]],
-    coldswap: Coldswap[F, EnrichmentRegistry[F]]
-  ): Resource[F, AssetRefresher[F]] = {
-    val filesToDownload = enrichmentConfs.flatMap(_.filesToCache)
-    val groupedByClientF = Foldable[List].foldM(filesToDownload, Map.empty[BlobClientFactory[F], List[(URI, NioPath)]]) {
-      case (acc, (uri, localPath)) =>
-        blobClients.find(_.canDownload(uri)) match {
-          case Some(client) =>
-            Async[F].pure(Map(client -> List(uri -> FileSystems.getDefault.getPath(localPath))) |+| acc)
-          case None =>
-            Async[F].raiseError[Map[BlobClientFactory[F], List[(URI, NioPath)]]] {
-              new IllegalStateException(s"No blob client available to download $uri")
-            }
-        }
-    }
+    blobClients: List[BlobClientFactory[F]]
+  ): Resource[F, DownloadedAssets[F]] = {
+
+    val confsWithAssets = enrichmentConfs.collect { case c: EnrichmentConf.WithAssets => c }
+
+    type FileGroup = List[(BlobClientFactory[F], URI, NioPath)]
+
+    // For each conf, build the list of (uri, localPath) pairs, resolved against a blob client.
+    val groupsF: F[List[(EnrichmentConf.WithAssets, FileGroup)]] =
+      confsWithAssets.traverse { conf =>
+        Foldable[List]
+          .foldM[F, (URI, String), FileGroup](conf.filesToCache, List.empty) {
+            case (acc, (uri, localPath)) =>
+              blobClients.find(_.canDownload(uri)) match {
+                case Some(factory) =>
+                  Async[F].pure(((factory, uri, FileSystems.getDefault.getPath(localPath))) :: acc)
+                case None =>
+                  Async[F].raiseError[FileGroup](
+                    new IllegalStateException(s"No blob client available to download $uri")
+                  )
+              }
+          }
+          .map(conf -> _)
+      }
 
     for {
-      groupedByClient <- Resource.eval(groupedByClientF)
-      assets <- groupedByClient.toList
-                  .traverse {
-                    case (client, toDownload) =>
-                      client.mk.map { client =>
-                        toDownload.map {
-                          case (uri, localPath) => Asset(client, uri, localPath, NotDownloaded)
-                        }
+      groups <- Resource.eval(groupsF)
+
+      // Instantiate blob clients per-factory (reuse instances across files that share a client).
+      // We deduplicate factories and allocate each as a Resource so they're properly finalised.
+      allFactories = groups.flatMap(_._2.map(_._1)).distinct
+      factoryInstances <- allFactories
+                            .traverse(factory => factory.mk.map(client => factory -> client))
+                            .map(_.toMap)
+
+      // Build initial Asset instances with NotDownloaded status.
+      initialGroups = groups.map {
+                        case (conf, files) =>
+                          val assets = files.map {
+                            case (factory, uri, localPath) =>
+                              Asset[F](factoryInstances(factory), uri, localPath, NotDownloaded)
+                          }
+                          DownloadedGroup[F](conf, assets)
                       }
-                  }
-                  .map(_.flatten)
-      atomicCell <- Resource.eval(AtomicCell[F].of(assets))
-    } yield new AssetRefresher(atomicCell, coldswap)
+
+      // Download all assets, updating statuses.
+      downloadedGroups <- Resource.eval {
+                            initialGroups.parTraverse { group =>
+                              group.assets
+                                .parTraverse(downloadAsset(group.conf.schemaKey.name, _))
+                                .map(newStatuses =>
+                                  group.copy(
+                                    assets = group.assets.zip(newStatuses).map {
+                                      case (asset, newStatus) => asset.copy(status = newStatus)
+                                    }
+                                  )
+                                )
+                            }
+                          }
+    } yield DownloadedAssets(downloadedGroups)
   }
 
   def updateStream[F[_]: Async](
@@ -167,10 +224,10 @@ object AssetRefresher {
   ): Stream[F, Nothing] =
     Stream
       .fixedDelay[F](refreshPeriod)
-      .evalTap(_ => assetRefresher.refreshAndOpenRegistry)
+      .evalTap(_ => assetRefresher.refresh)
       .drain
 
-  private def downloadAsset[F[_]: Async](asset: Asset[F]): F[AssetSuccessfulStatus] = {
+  private def downloadAsset[F[_]: Async](name: String, asset: Asset[F]): F[AssetSuccessfulStatus] = {
     val io = asset match {
       case Asset(client, uri, localPath, NotDownloaded | Md5(_)) =>
         Logger[F].debug(s"Fetching asset from $uri") >>
@@ -186,7 +243,7 @@ object AssetRefresher {
               processDownloadedContent(uri, localPath, result)
           }
     }
-    retryingOnSomeErrors(retryPolicy[F], worthRetrying[F], onError[F])(io)
+    retryingOnSomeErrors(retryPolicy[F], worthRetrying[F], onError[F](name, _, _))(io)
   }
 
   private def getMd5[F[_]: Async](content: ByteBuffer): F[String] =
@@ -237,14 +294,20 @@ object AssetRefresher {
       case NonFatal(_) => Applicative[F].pure(false)
     }
 
-  private def onError[F[_]: Sync](error: Throwable, retryDetails: RetryDetails): F[Unit] =
+  private def onError[F[_]: Sync](
+    name: String,
+    error: Throwable,
+    retryDetails: RetryDetails
+  ): F[Unit] =
     if (retryDetails.givingUp)
-      Logger[F].error(show"Failed to download an asset after ${retryDetails.retriesSoFar} retries: ${error.getMessage}. Aborting")
+      Logger[F].error(
+        show"Failed to download an asset for enrichment $name after ${retryDetails.retriesSoFar} retries: ${error.getMessage}. Aborting"
+      )
     else if (retryDetails.retriesSoFar === 0)
-      Logger[F].warn(show"Failed to download an asset: ${error.getMessage}. Retrying")
+      Logger[F].warn(show"Failed to download an asset for enrichment $name: ${error.getMessage}. Retrying")
     else
       Logger[F].warn(
-        show"Failed to download an asset after ${retryDetails.retriesSoFar} retries: ${error.getMessage}. " +
+        show"Failed to download an asset for enrichment $name after ${retryDetails.retriesSoFar} retries: ${error.getMessage}. " +
           show"Retrying in ${retryDetails.upcomingDelay}"
       )
 }

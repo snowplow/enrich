@@ -42,7 +42,6 @@ import com.snowplowanalytics.iglu.client.resolver.Resolver
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 
 import com.snowplowanalytics.snowplow.runtime.{AppHealth, AppInfo}
-import com.snowplowanalytics.snowplow.runtime.processing.Coldswap
 import com.snowplowanalytics.snowplow.streams.{
   EventProcessingConfig,
   EventProcessor,
@@ -108,17 +107,22 @@ object MockEnvironment {
       blobClients = List(HttpBlobClient.wrapHttp4sClient(httpClient.mock))
       apiEnrichmentClient = CommonHttpClient.fromHttp4sClient[IO](httpClient.mock)
       sqlEC <- SqlExecutionContext.mk[IO]
-      enrichmentRegistry <- Coldswap.make(
-                              Environment.mkEnrichmentRegistry[IO](
-                                enrichmentsConfs,
-                                apiEnrichmentClient,
-                                sqlEC,
-                                exitOnJsCompileError,
-                                jsAllowedJavaClasses
-                              )
-                            )
-      assetRefresher <- AssetRefresher.fromEnrichmentConfs(enrichmentsConfs, blobClients, enrichmentRegistry)
-      _ <- Resource.eval(assetRefresher.refreshAndOpenRegistry)
+      managedRegistry <- ManagedEnrichmentRegistry
+                           .build[IO](
+                             enrichmentsConfs,
+                             blobClients,
+                             apiEnrichmentClient,
+                             sqlEC,
+                             exitOnJsCompileError,
+                             jsAllowedJavaClasses
+                           )
+                           .flatMap {
+                             case Right(r) => Resource.pure[IO, ManagedEnrichmentRegistry[IO]](r)
+                             case Left(error) =>
+                               Resource.raiseError[IO, ManagedEnrichmentRegistry[IO], Throwable](
+                                 new IllegalArgumentException(s"Can't build enrichments registry: $error")
+                               )
+                           }
       igluClient <- Resource.eval(IgluCirceClient.fromResolver(Resolver[IO](Nil, None), 0, 40))
     } yield {
       val env = Environment(
@@ -147,9 +151,7 @@ object MockEnvironment {
         sinkParallelism = 1,
         sinkMaxSize = 1024 * 1024,
         adapterRegistry = testAdapterRegistry,
-        assetRefresher = assetRefresher,
-        blobClients = blobClients,
-        enrichmentRegistry = enrichmentRegistry,
+        enrichmentRegistry = managedRegistry,
         igluClient = igluClient,
         httpClient = httpClient.mock,
         registryLookup = registryLookup,

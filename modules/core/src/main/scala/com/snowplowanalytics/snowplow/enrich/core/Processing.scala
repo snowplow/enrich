@@ -42,7 +42,7 @@ object Processing {
   def stream[F[_]: Async](env: Environment[F]): Stream[F, Nothing] =
     env.source
       .stream(EventProcessingConfig(EventProcessingConfig.NoWindowing, env.metrics.setLatency), eventProcessor(env))
-      .concurrently(AssetRefresher.updateStream(env.assetRefresher, env.assetsUpdatePeriod))
+      .concurrently(env.enrichmentRegistry.refreshStream(env.assetsUpdatePeriod))
 
   private def eventProcessor[F[_]: Async](
     env: Environment[F]
@@ -129,7 +129,7 @@ object Processing {
       )
 
     in.parEvalMap(env.cpuParallelism) { parsed =>
-      env.enrichmentRegistry.opened
+      env.enrichmentRegistry.snapshot
         .use { enrRegistry =>
           parsed.collectorPayloads
             .parUnorderedTraverse { payload =>

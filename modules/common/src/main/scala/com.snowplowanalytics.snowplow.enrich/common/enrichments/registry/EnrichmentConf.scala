@@ -39,15 +39,17 @@ sealed trait EnrichmentConf {
 
   /** Iglu schema key to identify the enrichment in bad row, some enrichments don't use it */
   def schemaKey: SchemaKey
-
-  /**
-   * List of files, such as local DBs that need to be downloaded and distributed across workers
-   * First element of pair is URI to download file from, second is a local path to store it in
-   */
-  def filesToCache: List[(URI, String)] = Nil
 }
 
 object EnrichmentConf {
+
+  /**
+   * Sub-type of `EnrichmentConf` for enrichments that download file assets to local disk.
+   * First element of each pair is the URI to download from, second is the local path to store it.
+   */
+  sealed trait WithAssets extends EnrichmentConf {
+    def filesToCache: List[(URI, String)]
+  }
 
   final case class ApiRequestConf(
     schemaKey: SchemaKey,
@@ -175,7 +177,7 @@ object EnrichmentConf {
     includeUaFile: (URI, String),
     excludeUseragents: List[String],
     includeUseragents: List[String]
-  ) extends EnrichmentConf {
+  ) extends WithAssets {
     override val filesToCache: List[(URI, String)] = List(ipFile, excludeUaFile, includeUaFile)
     def enrichment[F[_]: Sync]: F[IabEnrichment] =
       IabEnrichment.create[F](schemaKey, ipFile._2, excludeUaFile._2, includeUaFile._2, excludeUseragents, includeUseragents)
@@ -188,7 +190,7 @@ object EnrichmentConf {
     domainFile: Option[(URI, String)],
     connectionTypeFile: Option[(URI, String)],
     asnFile: Option[(URI, String)]
-  ) extends EnrichmentConf {
+  ) extends WithAssets {
     override val filesToCache: List[(URI, String)] =
       List(geoFile, ispFile, domainFile, connectionTypeFile, asnFile).flatten
     def enrichment[F[_]: Async]: F[IpLookupsEnrichment[F]] =
@@ -206,7 +208,7 @@ object EnrichmentConf {
     botAsnsFile: Option[(URI, String)],
     botAsns: Set[Long],
     bypassPlatforms: Set[String]
-  ) extends EnrichmentConf {
+  ) extends WithAssets {
     override val filesToCache: List[(URI, String)] = botAsnsFile.toList
     def enrichment[F[_]: Sync]: EitherT[F, String, AsnLookupsEnrichment] =
       AsnLookupsEnrichment.create[F](botAsnsFile.map(_._2), botAsns, bypassPlatforms)
@@ -226,13 +228,13 @@ object EnrichmentConf {
     refererDatabase: (URI, String),
     internalDomains: List[String],
     referers: Map[String, RefererLookup] = Map.empty
-  ) extends EnrichmentConf {
+  ) extends WithAssets {
     override val filesToCache: List[(URI, String)] = List(refererDatabase)
     def enrichment[F[_]: Sync]: EitherT[F, String, RefererParserEnrichment] =
       RefererParserEnrichment.create[F](refererDatabase._2, internalDomains, referers)
   }
 
-  final case class UaParserConf(schemaKey: SchemaKey, uaDatabase: Option[(URI, String)]) extends EnrichmentConf {
+  final case class UaParserConf(schemaKey: SchemaKey, uaDatabase: Option[(URI, String)]) extends WithAssets {
     override val filesToCache: List[(URI, String)] = List(uaDatabase).flatten
     def enrichment[F[_]: Async]: EitherT[F, String, UaParserEnrichment[F]] =
       UaParserEnrichment.create[F](
@@ -288,7 +290,7 @@ object EnrichmentConf {
   final case class EventSpecConf(
     schemaKey: SchemaKey,
     eventSpecsFile: (URI, String)
-  ) extends EnrichmentConf {
+  ) extends WithAssets {
     override val filesToCache: List[(URI, String)] = List(eventSpecsFile)
     def enrichment[F[_]: Sync]: EitherT[F, String, EventSpecEnrichment] =
       EventSpecEnrichment.create[F](eventSpecsFile._2)

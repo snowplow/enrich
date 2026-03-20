@@ -10,12 +10,10 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments
 
-import scala.concurrent.ExecutionContext
-
 import cats.Monad
 import cats.data.{EitherT, NonEmptyList, ValidatedNel}
 
-import cats.effect.kernel.{Async, Clock}
+import cats.effect.kernel.Clock
 import cats.implicits._
 
 import io.circe._
@@ -27,9 +25,7 @@ import com.snowplowanalytics.iglu.core.circe.implicits._
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf._
-
-import com.snowplowanalytics.snowplow.enrich.common.utils.{CirceUtils, HttpClient}
+import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry._
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest.ApiRequestEnrichment
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii.PiiPseudonymizerEnrichment
@@ -102,84 +98,6 @@ object EnrichmentRegistry {
     } yield configs
     either.toValidated
   }
-
-  // todo: ValidatedNel?
-  def build[F[_]: Async](
-    confs: List[EnrichmentConf],
-    apiEnrichmentClient: HttpClient[F],
-    sqlEC: ExecutionContext,
-    exitOnJsCompileError: Boolean,
-    jsAllowedJavaClasses: Set[String]
-  ): EitherT[F, String, EnrichmentRegistry[F]] =
-    confs.foldLeft(EitherT.pure[F, String](EnrichmentRegistry[F]())) { (er, e) =>
-      e match {
-        case c: ApiRequestConf =>
-          for {
-            enrichment <- EitherT.right(c.enrichment[F](apiEnrichmentClient))
-            registry <- er
-          } yield registry.copy(apiRequest = enrichment.some)
-        case c: PiiPseudonymizerConf => er.map(_.copy(piiPseudonymizer = c.enrichment.some))
-        case c: SqlQueryConf =>
-          for {
-            enrichment <- EitherT.right(c.enrichment[F](sqlEC))
-            registry <- er
-          } yield registry.copy(sqlQuery = enrichment.some)
-        case c: AnonIpConf => er.map(_.copy(anonIp = c.enrichment.some))
-        case c: CampaignAttributionConf => er.map(_.copy(campaignAttribution = c.enrichment.some))
-        case c: CookieExtractorConf => er.map(_.copy(cookieExtractor = c.enrichment.some))
-        case c: CurrencyConversionConf =>
-          for {
-            enrichment <- EitherT.right(c.enrichment[F])
-            registry <- er
-          } yield registry.copy(currencyConversion = enrichment.some)
-        case c: EventFingerprintConf => er.map(_.copy(eventFingerprint = c.enrichment.some))
-        case c: HttpHeaderExtractorConf => er.map(_.copy(httpHeaderExtractor = c.enrichment.some))
-        case c: IabConf =>
-          for {
-            enrichment <- EitherT.right(c.enrichment[F])
-            registry <- er
-          } yield registry.copy(iab = enrichment.some)
-        case c: IpLookupsConf =>
-          for {
-            enrichment <- EitherT.right(c.enrichment[F])
-            registry <- er
-          } yield registry.copy(ipLookups = enrichment.some)
-        case c: AsnLookupsConf =>
-          for {
-            enrichment <- c.enrichment[F]
-            registry <- er
-          } yield registry.copy(asnLookups = enrichment.some)
-        case c: JavascriptScriptConf =>
-          er.subflatMap(v =>
-            c.enrichment(exitOnJsCompileError, jsAllowedJavaClasses)
-              .map(e => v.copy(javascriptScript = v.javascriptScript :+ e))
-          )
-        case c: RefererParserConf =>
-          for {
-            enrichment <- c.enrichment[F]
-            registry <- er
-          } yield registry.copy(refererParser = enrichment.some)
-        case c: UaParserConf =>
-          for {
-            enrichment <- c.enrichment[F]
-            registry <- er
-          } yield registry.copy(uaParser = enrichment.some)
-        case c: UserAgentUtilsConf => er.map(_.copy(userAgentUtils = c.enrichment.some))
-        case c: WeatherConf =>
-          for {
-            enrichment <- c.enrichment[F]
-            registry <- er
-          } yield registry.copy(weather = enrichment.some)
-        case c: YauaaConf => er.map(_.copy(yauaa = c.enrichment.some))
-        case c: CrossNavigationConf => er.map(_.copy(crossNavigation = c.enrichment.some))
-        case c: BotDetectionConf => er.map(_.copy(botDetection = c.enrichment.some))
-        case c: EventSpecConf =>
-          for {
-            enrichment <- c.enrichment[F]
-            registry <- er
-          } yield registry.copy(eventSpec = enrichment.some)
-      }
-    }
 
   /**
    * Builds an EnrichmentConf from a Json if it has a recognized name field and matches a schema key

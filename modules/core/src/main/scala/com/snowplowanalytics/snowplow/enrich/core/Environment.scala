@@ -12,8 +12,6 @@ package com.snowplowanalytics.snowplow.enrich.core
 
 import java.lang.reflect.Field
 
-import scala.concurrent.ExecutionContext
-
 import scala.concurrent.duration._
 
 import cats.implicits._
@@ -33,11 +31,8 @@ import com.snowplowanalytics.iglu.client.IgluCirceClient
 
 import com.snowplowanalytics.snowplow.streams.{Factory, Sink, SourceAndAck}
 import com.snowplowanalytics.snowplow.runtime.{AppHealth, AppInfo, HealthProbe, Sentry}
-import com.snowplowanalytics.snowplow.runtime.processing.Coldswap
-
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
-import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.ApiRequestConf
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.SqlExecutionContext
 import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient => CommonHttpClient}
@@ -68,9 +63,7 @@ case class Environment[F[_]](
   sinkParallelism: Int,
   sinkMaxSize: Int,
   adapterRegistry: AdapterRegistry[F],
-  assetRefresher: AssetRefresher[F],
-  blobClients: List[BlobClientFactory[F]],
-  enrichmentRegistry: Coldswap[F, EnrichmentRegistry[F]],
+  enrichmentRegistry: ManagedEnrichmentRegistry[F],
   igluClient: IgluCirceClient[F],
   httpClient: Http4sClient[F],
   registryLookup: RegistryLookup[F],
@@ -143,16 +136,22 @@ object Environment {
                                  Resource.pure[F, CommonHttpClient[F]](CommonHttpClient.noop[F])
                              }
       sqlEC <- SqlExecutionContext.mk
-      enrichmentRegistry <- Coldswap.make(
-                              mkEnrichmentRegistry(enrichmentsConfs,
-                                                   apiEnrichmentClient,
-                                                   sqlEC,
-                                                   config.main.validation.exitOnJsCompileError,
-                                                   config.main.jsAllowedJavaClasses
-                              )
-                            )
-      assetRefresher <- AssetRefresher.fromEnrichmentConfs(enrichmentsConfs, blobClients, enrichmentRegistry)
-      _ <- Resource.eval(assetRefresher.refreshAndOpenRegistry)
+      managedRegistry <- ManagedEnrichmentRegistry
+                           .build(
+                             enrichmentsConfs,
+                             blobClients,
+                             apiEnrichmentClient,
+                             sqlEC,
+                             config.main.validation.exitOnJsCompileError,
+                             config.main.jsAllowedJavaClasses
+                           )
+                           .flatMap {
+                             case Right(r) => Resource.pure[F, ManagedEnrichmentRegistry[F]](r)
+                             case Left(error) =>
+                               Resource.raiseError[F, ManagedEnrichmentRegistry[F], Throwable](
+                                 new IllegalArgumentException(s"Can't build enrichments registry: $error")
+                               )
+                           }
       metadata <- config.main.metadata.traverse(MetadataReporter.build[F](_, appInfo, httpClient))
       identity <- Resource.eval(config.main.identity.traverse(Identity.build(_, httpClient)))
       _ <- Resource.eval(appHealth.beHealthyForSetup)
@@ -168,9 +167,7 @@ object Environment {
       sinkParallelism = sinkParallelism,
       sinkMaxSize = config.main.output.good.maxRecordSize,
       adapterRegistry = adapterRegistry,
-      assetRefresher = assetRefresher,
-      blobClients = blobClients,
-      enrichmentRegistry = enrichmentRegistry,
+      enrichmentRegistry = managedRegistry,
       igluClient = igluClient,
       httpClient = httpClient,
       registryLookup = registryLookup,
@@ -192,36 +189,8 @@ object Environment {
         .rethrow
     }
 
-  def mkEnrichmentRegistry[F[_]: Async](
-    enrichmentsConfs: List[EnrichmentConf],
-    apiEnrichmentHttpClient: CommonHttpClient[F],
-    sqlEC: ExecutionContext,
-    exitOnJsCompileError: Boolean,
-    jsAllowedJavaClasses: Set[String]
-  ): Resource[F, EnrichmentRegistry[F]] =
-    for {
-      maybeRegistry <- Resource.eval {
-                         EnrichmentRegistry
-                           .build(
-                             enrichmentsConfs,
-                             apiEnrichmentHttpClient,
-                             sqlEC,
-                             exitOnJsCompileError,
-                             jsAllowedJavaClasses
-                           )
-                           .value
-                       }
-      registry <- maybeRegistry match {
-                    case Right(r) => Resource.pure[F, EnrichmentRegistry[F]](r)
-                    case Left(error) =>
-                      Resource.raiseError[F, EnrichmentRegistry[F], Throwable](
-                        new IllegalArgumentException(s"Can't build enrichments registry: $error")
-                      )
-                  }
-    } yield registry
-
   /**
-   * See the description of `cpuParallelism` on the [[Environment]] class
+   * See the description of `cpuParallelism` on the `Environment` class
    *
    * For bigger instances (more cores) we want more parallelism, so that cpu-intensive steps can
    * take advantage of all the cores.
@@ -232,7 +201,7 @@ object Environment {
       .toInt
 
   /**
-   * See the description of `sinkParallelism` on the [[Environment]] class
+   * See the description of `sinkParallelism` on the `Environment` class
    */
   private def chooseSinkParallelism(config: AnyConfig): Int =
     (Runtime.getRuntime.availableProcessors * config.sinkParallelismFraction)

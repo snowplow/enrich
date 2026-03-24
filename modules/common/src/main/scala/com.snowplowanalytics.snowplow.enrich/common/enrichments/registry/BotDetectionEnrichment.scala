@@ -33,7 +33,7 @@ object BotDetectionEnrichment extends ParseableEnrichment {
     )
 
   val outputSchema: SchemaKey =
-    SchemaKey("com.snowplowanalytics.snowplow", "bot_detection", "jsonschema", SchemaVer.Full(1, 0, 0))
+    SchemaKey("com.snowplowanalytics.snowplow", "bot_detection", "jsonschema", SchemaVer.Full(1, 0, 1))
 
   private val botDeviceClasses: Set[String] = Set("Robot", "Robot Mobile", "Robot Imitator")
   private val botAgentClasses: Set[String] = Set("Robot", "Robot Mobile")
@@ -68,6 +68,15 @@ object BotDetectionEnrichment extends ParseableEnrichment {
     _.hcursor.downField("likelyBot").as[Boolean].getOrElse(false)
   )
 
+  private val clientSideSchema: SchemaKey =
+    SchemaKey("com.snowplowanalytics.snowplow", "client_side_bot_detection", "jsonschema", SchemaVer.Full(1, 0, 0))
+
+  private val clientSideDetectionIndicator: Indicator = Indicator(
+    clientSideSchema,
+    "clientSideDetection",
+    _.hcursor.downField("bot").as[Boolean].getOrElse(false)
+  )
+
   override def parse(
     config: Json,
     schemaKey: SchemaKey,
@@ -78,43 +87,49 @@ object BotDetectionEnrichment extends ParseableEnrichment {
       useYauaa <- CirceUtils.extract[Boolean](config, "parameters", "useYauaa").toEither
       useIab <- CirceUtils.extract[Boolean](config, "parameters", "useIab").toEither
       useAsnLookups <- CirceUtils.extract[Boolean](config, "parameters", "useAsnLookups").toEither
-    } yield BotDetectionConf(schemaKey, useYauaa, useIab, useAsnLookups)).toValidatedNel
+      useClientSideDetection <- CirceUtils.extract[Option[Boolean]](config, "parameters", "useClientSideDetection").toEither
+    } yield BotDetectionConf(schemaKey, useYauaa, useIab, useAsnLookups, useClientSideDetection.getOrElse(false))).toValidatedNel
 }
 
 final case class BotDetectionEnrichment(
   useYauaa: Boolean,
   useIab: Boolean,
-  useAsnLookups: Boolean
+  useAsnLookups: Boolean,
+  useClientSideDetection: Boolean
 ) {
   import BotDetectionEnrichment._
 
   /** Only the indicators that are enabled — built once at construction, not per event. */
-  private val enabledIndicators: List[Indicator] = {
-    val all = List(
+  private val enabledDerivedIndicators: Map[SchemaKey, Indicator] =
+    List(
       (useYauaa, yauaaIndicator),
       (useIab, iabIndicator),
       (useAsnLookups, asnLookupsIndicator)
-    )
-    all.collect { case (true, ind) => ind }
-  }
+    ).collect { case (true, ind) => ind.schemaKey -> ind }.toMap
 
-  /** Schema keys we need to look for — built once, used for the fast-path check in the fold. */
-  private val schemaKeySet: Set[SchemaKey] = enabledIndicators.map(_.schemaKey).toSet
+  private val enabledInputIndicators: Map[SchemaKey, Indicator] =
+    List(
+      (useClientSideDetection, clientSideDetectionIndicator)
+    ).collect { case (true, ind) => ind.schemaKey -> ind }.toMap
 
   def getBotDetectionContext(
-    derivedContexts: List[SelfDescribingData[Json]]
+    derivedContexts: List[SelfDescribingData[Json]],
+    inputContexts: List[SelfDescribingData[Json]]
   ): List[SelfDescribingData[Json]] = {
-    // Single pass: collect only the JSON data for schemas we care about
-    val found = derivedContexts.foldLeft(Map.empty[SchemaKey, Json]) { (acc, ctx) =>
-      if (acc.size < enabledIndicators.size && schemaKeySet.contains(ctx.schema))
-        acc + (ctx.schema -> ctx.data)
-      else acc
-    }
+    def collectTriggeredIndicators(contexts: List[SelfDescribingData[Json]], bySchema: Map[SchemaKey, Indicator]): List[String] =
+      contexts.foldLeft(List.empty[String]) { (acc, ctx) =>
+        bySchema
+          .get(ctx.schema)
+          .fold(acc)(ind =>
+            if (ind.isBot(ctx.data)) ind.name :: acc
+            else acc
+          )
+      }
+    val derivedIndicators =
+      if (enabledDerivedIndicators.nonEmpty) collectTriggeredIndicators(derivedContexts, enabledDerivedIndicators) else Nil
+    val inputIndicators = if (enabledInputIndicators.nonEmpty) collectTriggeredIndicators(inputContexts, enabledInputIndicators) else Nil
+    val indicatorList = inputIndicators ::: derivedIndicators
 
-    // Evaluate each enabled indicator against its source context
-    val indicatorList = enabledIndicators.flatMap { ind =>
-      found.get(ind.schemaKey).filter(ind.isBot).map(_ => ind.name)
-    }
     val resultJson = Json.obj(
       "bot" -> (indicatorList.nonEmpty).asJson,
       "indicators" -> indicatorList.asJson

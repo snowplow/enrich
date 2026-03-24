@@ -929,10 +929,10 @@ object EnrichmentManager {
     botDetection: Option[BotDetectionEnrichment]
   ): EStateT[F, Unit] =
     EStateT.fromEither {
-      case (_, derivedContexts) =>
+      case (event, derivedContexts) =>
         botDetection match {
           case Some(enrichment) =>
-            enrichment.getBotDetectionContext(derivedContexts).asRight
+            enrichment.getBotDetectionContext(derivedContexts, event.contexts).asRight
           case None =>
             Nil.asRight
         }

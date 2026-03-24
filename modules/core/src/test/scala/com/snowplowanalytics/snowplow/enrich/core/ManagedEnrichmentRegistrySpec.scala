@@ -91,7 +91,7 @@ object ManagedEnrichmentRegistrySpec {
     YauaaConf(dummySchemaKey, cacheSize = None)
 
   val botDetectionConf: BotDetectionConf =
-    BotDetectionConf(dummySchemaKey, useYauaa = false, useIab = false, useAsnLookups = false)
+    BotDetectionConf(dummySchemaKey, useYauaa = false, useIab = false, useAsnLookups = false, useClientSideDetection = false)
 
   val httpHeaderExtractorConf: HttpHeaderExtractorConf =
     HttpHeaderExtractorConf(dummySchemaKey, headersPattern = new Regex(".*"))

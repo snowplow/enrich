@@ -617,7 +617,7 @@ class EnrichmentConfigsSpec extends Specification with ValidatedMatchers with Da
         "jsonschema",
         SchemaVer.Full(1, 0, 0)
       )
-      val expected = BotDetectionConf(schemaKey, useYauaa = true, useIab = true, useAsnLookups = false)
+      val expected = BotDetectionConf(schemaKey, useYauaa = true, useIab = true, useAsnLookups = false, useClientSideDetection = false)
       val result = BotDetectionEnrichment.parse(botDetectionJson, schemaKey)
       result must beValid(expected)
     }

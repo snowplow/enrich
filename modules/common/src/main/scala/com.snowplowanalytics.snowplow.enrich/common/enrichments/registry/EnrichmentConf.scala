@@ -282,9 +282,10 @@ object EnrichmentConf {
     schemaKey: SchemaKey,
     useYauaa: Boolean,
     useIab: Boolean,
-    useAsnLookups: Boolean
+    useAsnLookups: Boolean,
+    useClientSideDetection: Boolean
   ) extends EnrichmentConf {
-    def enrichment: BotDetectionEnrichment = BotDetectionEnrichment(useYauaa, useIab, useAsnLookups)
+    def enrichment: BotDetectionEnrichment = BotDetectionEnrichment(useYauaa, useIab, useAsnLookups, useClientSideDetection)
   }
 
   final case class EventSpecConf(

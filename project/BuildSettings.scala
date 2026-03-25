@@ -159,14 +159,19 @@ object BuildSettings {
     )
   )
 
+  lazy val nashornJvmOptions = List(
+    "-Dnashorn.args=--language=es6",
+    "-Dnashorn.propertyMap.softReferenceDerivationLimit=0"
+  )
+
   lazy val dockerSettingsFocal = Seq(
-    Universal / javaOptions ++= Seq("-Dnashorn.args=--language=es6")
+    Universal / javaOptions ++= nashornJvmOptions
   )
 
   lazy val dockerSettingsDistroless = Seq(
     dockerEntrypoint := {
       val orig = dockerEntrypoint.value
-      orig.head +: "-Dnashorn.args=--language=es6" +: orig.tail
+      orig.head +: nashornJvmOptions ++: orig.tail
     }
   )
 

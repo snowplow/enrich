@@ -16,7 +16,7 @@ import scala.util.control.NonFatal
 
 import cats.syntax.either._
 import cats.syntax.option._
-import org.joda.time.{DateTime, DateTimeZone, Period}
+import org.joda.time.{DateTime, DateTimeZone}
 import org.joda.time.format.DateTimeFormat
 
 import com.snowplowanalytics.snowplow.enrich.common.utils.AtomicError
@@ -85,9 +85,10 @@ object EventEnrichments {
             case (Some(dst), Some(dct), Some(ct)) =>
               val startTstamp = fromTimestamp(dct)
               val endTstamp = fromTimestamp(dst)
-              if (startTstamp.isBefore(endTstamp))
-                toTimestamp(fromTimestamp(ct).minus(new Period(startTstamp, endTstamp))).some
-              else
+              if (startTstamp.isBefore(endTstamp)) {
+                val delayMs = endTstamp.getMillis - startTstamp.getMillis
+                toTimestamp(new DateTime(fromTimestamp(ct).getMillis - delayMs, DateTimeZone.UTC)).some
+              } else
                 ct.some
             case _ => collectorTstamp
           }).asRight

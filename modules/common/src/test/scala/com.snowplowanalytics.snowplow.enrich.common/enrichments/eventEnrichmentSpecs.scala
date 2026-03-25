@@ -92,6 +92,25 @@ class DerivedTimestampSpec extends Specification with DataTables {
       "No collector_tstamp" !! null ! null ! null ! null ! null |
       "dvce_sent_tstamp before dvce_created_tstamp" !! "2014-04-29 09:00:54.001" ! "2014-04-29 09:00:54.000" ! "2014-04-29 09:00:54.000" ! null ! "2014-04-29 09:00:54.000" |
       "dvce_sent_tstamp after dvce_created_tstamp" !! "2014-04-29 09:00:54.000" ! "2014-04-29 09:00:54.001" ! "2014-04-29 09:00:54.000" ! null ! "2014-04-29 09:00:53.999" |
+      "dvce_sent_tstamp >1 month after dvce_created_tstamp" !! "2024-06-30 09:00:00.000" ! "2024-08-09 09:00:00.000" ! "2024-08-09 09:00:00.000" ! null ! "2024-06-30 09:00:00.000" |
+      // Period bug: April also has 30 days; Apr 30 + 1m = May 30, +10d = Jun 9; backward: Jun 9 -1m = May 9, -10d = Apr 29 (off by 1)
+      "end of 30-day month (April) crosses month boundary" !! "2024-04-30 09:00:00.000" ! "2024-06-09 09:00:00.000" ! "2024-06-09 09:00:00.000" ! null ! "2024-04-30 09:00:00.000" |
+      // Period bug: same asymmetry crossing a year boundary; Nov 30 + 1m = Dec 30, +10d = Jan 9; backward: Jan 9 -1m = Dec 9, -10d = Nov 29 (off by 1)
+      "end of 30-day month (November) crosses year boundary" !! "2024-11-30 09:00:00.000" ! "2025-01-09 09:00:00.000" ! "2025-01-09 09:00:00.000" ! null ! "2024-11-30 09:00:00.000" |
+      // Period bug: Feb 29 + 1m = Mar 29, +3d = Apr 1; backward: Apr 1 -1m = Mar 1, -3d = Feb 27 (off by 2!)
+      "leap day as dvce_created_tstamp" !! "2024-02-29 09:00:00.000" ! "2024-04-01 09:00:00.000" ! "2024-04-01 09:00:00.000" ! null ! "2024-02-29 09:00:00.000" |
+      // Period bug: non-leap Feb clamps Jan 29 to Feb 28; Jan 29 +1m = Feb 28, +3d = Mar 3; backward: Mar 3 -1m = Feb 3, -3d = Jan 31 (wrong by 2, wrong direction!)
+      "non-leap Feb clamps late-January start date" !! "2023-01-29 09:00:00.000" ! "2023-03-03 09:00:00.000" ! "2023-03-03 09:00:00.000" ! null ! "2023-01-29 09:00:00.000" |
+      // Period bug: same June 30 asymmetry but with collector_tstamp != dvce_sent_tstamp (more realistic)
+      "collector_tstamp later than dvce_sent_tstamp, crosses month boundary" !! "2024-06-30 09:00:00.000" ! "2024-08-09 09:00:00.000" ! "2024-08-09 11:30:00.000" ! null ! "2024-06-30 11:30:00.000" |
+      // No month component in the Period — exact millisecond arithmetic, no asymmetry
+      "delay within a single month" !! "2024-06-15 09:00:00.000" ! "2024-06-25 09:00:00.000" ! "2024-06-25 09:00:00.000" ! null ! "2024-06-15 09:00:00.000" |
+      // Period has months but zero residual days — symmetric because day-of-month is equal
+      "delay of exactly one calendar month same day" !! "2024-06-15 09:00:00.000" ! "2024-07-15 09:00:00.000" ! "2024-07-15 09:00:00.000" ! null ! "2024-06-15 09:00:00.000" |
+      // Period contains only years, no months or days — exact and symmetric
+      "multi-year delay on anniversary day" !! "2020-06-15 09:00:00.000" ! "2024-06-15 09:00:00.000" ! "2024-06-15 09:00:00.000" ! null ! "2020-06-15 09:00:00.000" |
+      // Sub-millisecond domain: Period has no calendar fields, just millis — collector != sent
+      "sub-second delay with collector before sent" !! "2024-06-15 09:00:00.000" ! "2024-06-15 09:00:00.010" ! "2024-06-15 09:00:00.005" ! null ! "2024-06-15 08:59:59.995" |
       "true_tstamp override" !! "2014-04-29 09:00:54.001" ! "2014-04-29 09:00:54.000" ! "2014-04-29 09:00:54.000" ! "2000-01-01 00:00:00.000" ! "2000-01-01 00:00:00.000" |> {
 
       (_, created, sent, collected, truth, expected) =>

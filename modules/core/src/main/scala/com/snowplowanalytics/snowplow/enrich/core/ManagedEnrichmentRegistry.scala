@@ -48,7 +48,7 @@ case class ManagedEnrichmentRegistry[F[_]: Async](
   asnLookups: Option[NonEmptyHotswap[F, AsnLookupsEnrichment]] = None,
   refererParser: Option[NonEmptyHotswap[F, RefererParserEnrichment]] = None,
   uaParser: Option[NonEmptyHotswap[F, UaParserEnrichment[F]]] = None,
-  eventSpec: Option[NonEmptyHotswap[F, EventSpecEnrichment]] = None,
+  eventSpec: Option[NonEmptyHotswap[F, EventSpecEnrichment[F]]] = None,
   // Non-asset enrichments — plain fields, never swapped.
   apiRequest: Option[ApiRequestEnrichment[F]] = None,
   piiPseudonymizer: Option[PiiPseudonymizerEnrichment] = None,
@@ -90,7 +90,7 @@ case class ManagedEnrichmentRegistry[F[_]: Async](
       asnLookupsSnapshot <- getHs[AsnLookupsEnrichment](asnLookups)
       refererParserSnapshot <- getHs[RefererParserEnrichment](refererParser)
       uaParserSnapshot <- getHs[UaParserEnrichment[F]](uaParser)
-      eventSpecSnapshot <- getHs[EventSpecEnrichment](eventSpec)
+      eventSpecSnapshot <- getHs[EventSpecEnrichment[F]](eventSpec)
     } yield EnrichmentRegistry[F](
       apiRequest = apiRequest,
       piiPseudonymizer = piiPseudonymizer,

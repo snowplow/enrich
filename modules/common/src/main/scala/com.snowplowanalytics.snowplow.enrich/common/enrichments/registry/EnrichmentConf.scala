@@ -293,7 +293,7 @@ object EnrichmentConf {
     eventSpecsFile: (URI, String)
   ) extends WithAssets {
     override val filesToCache: List[(URI, String)] = List(eventSpecsFile)
-    def enrichment[F[_]: Sync]: EitherT[F, String, EventSpecEnrichment] =
+    def enrichment[F[_]: Sync]: EitherT[F, String, EventSpecEnrichment[F]] =
       EventSpecEnrichment.create[F](eventSpecsFile._2)
   }
 }

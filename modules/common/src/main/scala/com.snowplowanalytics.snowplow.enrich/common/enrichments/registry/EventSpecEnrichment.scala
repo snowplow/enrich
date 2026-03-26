@@ -13,10 +13,10 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 import java.net.URI
 import cats.implicits._
 import cats.data.{EitherT, NonEmptyList, ValidatedNel}
-import cats.effect.{Resource, Sync}
+import cats.effect.{Ref, Resource, Sync}
 import com.networknt.schema.JsonSchema
 import com.snowplowanalytics.iglu.client.CirceValidator
-import io.circe.{Decoder, Json, parser}
+import io.circe.{Decoder, Encoder, Json, parser}
 import io.circe.generic.semiauto._
 import io.circe.syntax.EncoderOps
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.EventSpecConf
@@ -56,6 +56,10 @@ object EventSpecEnrichment extends ParseableEnrichment {
   case class EventSpec(
     id: String,
     name: String,
+    // Temporarily Optional for backward compatibility during rollout.
+    // Old S3 payloads (pre msc-backend#4498) don't include version and decode as None.
+    // Once all deployments send versioned payloads, this will always be Some(n).
+    version: Option[Int],
     schemaKey: SchemaKey,
     constraint: Option[Json],
     entities: List[Entity]
@@ -81,6 +85,7 @@ object EventSpecEnrichment extends ParseableEnrichment {
   case class EventSpecCompiled(
     id: String,
     name: String,
+    version: Option[Int],
     schemaKey: SchemaKey,
     constraint: Option[JsonSchema],
     entities: List[EntityCompiled]
@@ -97,22 +102,17 @@ object EventSpecEnrichment extends ParseableEnrichment {
         esc <- e.entities
                  .traverse(EntityCompiled.fromEntity)
                  .leftMap(error => s"Error during compilation of entity in event spec ${e.id}: $error")
-      } yield EventSpecCompiled(e.id, e.name, e.schemaKey, c, esc)
+      } yield EventSpecCompiled(e.id, e.name, e.version, e.schemaKey, c, esc)
 
   }
 
-  /** Wrapper for the event specs file format */
-  case class EventSpecsFile(eventSpecs: List[EventSpec])
-
-  /**
-   * Used for decoding an EventSpec from the configuration file
-   */
-
   implicit def eventSpecEntityDecoder: Decoder[Entity] = deriveDecoder
+
+  implicit def eventSpecEntityEncoder: Encoder[Entity] = deriveEncoder
 
   implicit def eventSpecDecoder: Decoder[EventSpec] = deriveDecoder
 
-  implicit def eventSpecsFileDecoder: Decoder[EventSpecsFile] = deriveDecoder
+  implicit def eventSpecEncoder: Encoder[EventSpec] = deriveEncoder
 
   /**
    * A structure optimized for fast lookups of event specs based on incoming event
@@ -121,6 +121,22 @@ object EventSpecEnrichment extends ParseableEnrichment {
    */
 
   private type EventSpecLookup = Map[SchemaKey, Map[Set[SchemaKey], List[EventSpecCompiled]]]
+
+  /** Compiled specs keyed by (id, version) for fast validation lookups */
+  private type ValidationCache = Map[(String, Int), EventSpecCompiled]
+
+  /** Raw JSON strings keyed by (id, version) for on-demand compilation */
+  private type Archive = Map[(String, Int), String]
+
+  sealed trait LookupError
+  object LookupError {
+    case class NotFound(id: String, version: Int) extends LookupError
+    case class CompilationFailed(
+      id: String,
+      version: Int,
+      reason: String
+    ) extends LookupError
+  }
 
   override def parse(
     config: Json,
@@ -146,12 +162,14 @@ object EventSpecEnrichment extends ParseableEnrichment {
     else
       (uri, localFile)
 
-  def create[F[_]: Sync](filePath: String): EitherT[F, String, EventSpecEnrichment] =
+  def create[F[_]: Sync](filePath: String): EitherT[F, String, EventSpecEnrichment[F]] =
     for {
       content <- EitherT(readFile[F](filePath))
-      parsed <- EitherT.fromEither[F](parseEventSpecsFile(content))
-      prepared <- EitherT.fromEither[F](prepareEventSpecs(parsed.eventSpecs))
-    } yield new EventSpecEnrichment(prepared)
+      eventSpecs <- EitherT.fromEither[F](parseEventSpecs(content))
+      tiers <- EitherT.fromEither[F](buildTiers(eventSpecs))
+      (inferenceLookup, validationCache, archiveMap) = tiers
+      ref <- EitherT.right[String](Ref.of[F, ValidationCache](validationCache))
+    } yield new EventSpecEnrichment[F](inferenceLookup, ref, archiveMap)
 
   private def readFile[F[_]: Sync](path: String): F[Either[String, String]] =
     Resource
@@ -160,33 +178,75 @@ object EventSpecEnrichment extends ParseableEnrichment {
       .attempt
       .map(_.leftMap(e => s"Failed to read event specs file: ${e.getMessage}"))
 
-  private def parseEventSpecsFile(content: String): Either[String, EventSpecsFile] =
+  private def parseEventSpecs(content: String): Either[String, List[EventSpec]] =
     parser
-      .decode[EventSpecsFile](content)
+      .decode[Json](content)
+      .flatMap(_.hcursor.downField("eventSpecs").as[List[EventSpec]])
       .leftMap(e => s"Failed to parse event specs file: ${e.getMessage}")
 
-  /** For testing purposes - creates enrichment directly from a list of specs */
-  private[registry] def createFromSpecs(eventSpecs: List[EventSpec]): Either[String, EventSpecEnrichment] =
-    prepareEventSpecs(eventSpecs).map(new EventSpecEnrichment(_))
+  private[registry] def createFromSpecs[F[_]: Sync](eventSpecs: List[EventSpec]): F[Either[String, EventSpecEnrichment[F]]] =
+    buildTiers(eventSpecs) match {
+      case Right((inferenceLookup, validationCache, archiveMap)) =>
+        Ref.of[F, ValidationCache](validationCache).map { ref =>
+          Right(new EventSpecEnrichment[F](inferenceLookup, ref, archiveMap))
+        }
+      case Left(error) =>
+        Sync[F].pure(Left(error))
+    }
 
   /**
-   * Prepare the optimized `EventSpecLookup` ready for doing fast lookups of incoming events
-   *
-   * This conversion is run once when the Enrich app first starts up.  Try to do as much
-   * heavy-lifting in this function as possible, e.g. construct any jsonschema validators.
+   * Organize compiled event specs into the optimized lookup structure for fast inference.
    */
-  private def prepareEventSpecs(eventSpecs: List[EventSpec]): Either[String, EventSpecLookup] =
-    for {
-      compiledEventSpecs <- eventSpecs.traverse(EventSpecCompiled.fromEventSpec)
-      // group by event
-    } yield compiledEventSpecs.groupBy(_.schemaKey).map {
+  private def organizeIntoLookup(compiledSpecs: List[EventSpecCompiled]): EventSpecLookup =
+    compiledSpecs.groupBy(_.schemaKey).map {
       case (eventKey, specs) =>
-        // group by required entities set
         val eventSpecByRequiredEntity = specs.groupBy { es =>
           es.entities.filter(_.minCardinality.exists(_ >= 1)).map(_.schemaKey).toSet
         }
         (eventKey, eventSpecByRequiredEntity)
     }
+
+  /**
+   * Partition event specs into three tiers based on version.
+   *
+   * Cache specs are compiled first. The latest version per id (which appears in both
+   * inference and cache) is shared between both lookups to avoid compiling the same
+   * spec twice. Versionless specs are compiled separately for inference only.
+   * Archive specs are serialized to raw JSON strings (~13x less memory than case classes).
+   */
+  private def buildTiers(
+    eventSpecs: List[EventSpec]
+  ): Either[String, (EventSpecLookup, ValidationCache, Archive)] = {
+    val (versionless, versioned) = eventSpecs.partition(_.version.isEmpty)
+
+    val groupedById: Map[String, List[EventSpec]] =
+      versioned.groupBy(_.id).map {
+        case (id, specs) => id -> specs.sortBy(_.version.getOrElse(0))(Ordering[Int].reverse)
+      }
+
+    val cacheSpecs = groupedById.values.flatMap(_.take(3)).toList
+    val archiveRaw = groupedById.values.flatMap(_.drop(3)).toList
+
+    val archive: Archive = archiveRaw.flatMap(es => es.version.map(v => ((es.id, v), es.asJson.noSpaces))).toMap
+
+    for {
+      compiledCache <- cacheSpecs.traverse(EventSpecCompiled.fromEventSpec)
+      compiledVersionless <- versionless.traverse(EventSpecCompiled.fromEventSpec)
+    } yield {
+      val validationCache: ValidationCache =
+        compiledCache.flatMap(c => c.version.map(v => ((c.id, v), c))).toMap
+
+      val latestPerIdCompiled = groupedById.values.flatMap { specs =>
+        for {
+          latest <- specs.headOption
+          compiled <- compiledCache.find(c => c.id === latest.id && c.version === latest.version)
+        } yield compiled
+      }.toList
+
+      val inferenceLookup = organizeIntoLookup(compiledVersionless ++ latestPerIdCompiled)
+      (inferenceLookup, validationCache, archive)
+    }
+  }
 
   private def isValidAgainstSchema(
     data: Json,
@@ -261,13 +321,20 @@ object EventSpecEnrichment extends ParseableEnrichment {
     SelfDescribingData(
       eventSpecSchemaKey,
       Json.obj(
-        "id" -> es.id.asJson,
-        "name" -> es.name.asJson
+        List(
+          Some("id" -> es.id.asJson),
+          Some("name" -> es.name.asJson),
+          es.version.map(v => "version" -> v.asJson)
+        ).flatten: _*
       )
     )
 }
 
-class EventSpecEnrichment private (eventSpecs: EventSpecEnrichment.EventSpecLookup) {
+class EventSpecEnrichment[F[_]: Sync] private (
+  eventSpecs: EventSpecEnrichment.EventSpecLookup,
+  validationCacheRef: Ref[F, EventSpecEnrichment.ValidationCache],
+  archive: EventSpecEnrichment.Archive
+) {
 
   /**
    * Infer the event spec of an incoming event
@@ -312,5 +379,33 @@ class EventSpecEnrichment private (eventSpecs: EventSpecEnrichment.EventSpecLook
                       else None
     } yield passingSpecs.map(mkSpecContext)).getOrElse(List.empty)
   }
+
+  /**
+   * Look up a compiled spec by (id, version) from the tracker's event_specification entity
+   * against the tiers built from the backend's S3 config file.
+   * If not found in cache, check the archive and promote (compile + add to cache) on hit.
+   */
+  def lookupInCache(id: String, version: Int): F[Either[EventSpecEnrichment.LookupError, EventSpecEnrichment.EventSpecCompiled]] =
+    validationCacheRef.get.flatMap { cache =>
+      cache.get((id, version)) match {
+        case Some(hit) => Sync[F].pure(hit.asRight)
+        case None =>
+          archive.get((id, version)) match {
+            case Some(raw) =>
+              val compiled = for {
+                eventSpec <- parser.decode[EventSpecEnrichment.EventSpec](raw).leftMap(_.getMessage)
+                c <- EventSpecEnrichment.EventSpecCompiled.fromEventSpec(eventSpec)
+              } yield c
+              compiled match {
+                case Right(c) =>
+                  validationCacheRef.update(_ + ((id, version) -> c)).as(c.asRight)
+                case Left(reason) =>
+                  Sync[F].pure(EventSpecEnrichment.LookupError.CompilationFailed(id, version, reason).asLeft)
+              }
+            case None =>
+              Sync[F].pure(EventSpecEnrichment.LookupError.NotFound(id, version).asLeft)
+          }
+      }
+    }
 
 }

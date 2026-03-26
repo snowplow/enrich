@@ -938,7 +938,7 @@ object EnrichmentManager {
         }
     }
 
-  def getEventSpecContext[F[_]: Applicative](eventSpecEnrichment: Option[EventSpecEnrichment], maxJsonDepth: Int): EStateT[F, Unit] =
+  def getEventSpecContext[F[_]: Applicative](eventSpecEnrichment: Option[EventSpecEnrichment[F]], maxJsonDepth: Int): EStateT[F, Unit] =
     EStateT.fromEither {
       case (event, _) =>
         eventSpecEnrichment match {

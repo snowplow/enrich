@@ -3,6 +3,7 @@
     {
       "id": "test-spec-from-file",
       "name": "Test Event Spec From File",
+      "version": 0,
       "schemaKey": "iglu:com.snowplowanalytics.snowplow/page_ping/jsonschema/1-0-0",
       "entities": []
     }

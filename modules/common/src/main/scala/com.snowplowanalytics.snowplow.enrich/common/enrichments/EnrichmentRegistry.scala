@@ -195,5 +195,5 @@ final case class EnrichmentRegistry[F[_]](
   yauaa: Option[YauaaEnrichment] = None,
   crossNavigation: Option[CrossNavigationEnrichment] = None,
   botDetection: Option[BotDetectionEnrichment] = None,
-  eventSpec: Option[EventSpecEnrichment] = None
+  eventSpec: Option[EventSpecEnrichment[F]] = None
 )

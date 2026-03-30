@@ -268,7 +268,7 @@ object ConversionUtils {
     Either
       .catchNonFatal(
         Option(uri) // to handle null
-          .map(_.replaceAll(" ", "%20"))
+          .map(_.replace(" ", "%20"))
           .map(URI.create)
       )
       .leftFlatMap { javaErr =>

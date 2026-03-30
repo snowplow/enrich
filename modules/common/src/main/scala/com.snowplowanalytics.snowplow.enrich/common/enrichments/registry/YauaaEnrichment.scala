@@ -105,12 +105,11 @@ final case class YauaaEnrichment(cacheSize: Option[Int]) {
       case null | "" =>
         YauaaEnrichment.DefaultResult
       case _ =>
-        val headerMap = headers
-          .map(_.split(": ", 2))
-          .collect {
-            case Array(key, value) => key -> leadingWhitespacePattern.replaceFirstIn(value, "")
-          }
-          .toMap ++ Map("User-Agent" -> userAgent)
+        val headerMap = headers.flatMap { h =>
+          val idx = h.indexOf(": ")
+          if (idx >= 0) Some(h.substring(0, idx) -> leadingWhitespacePattern.replaceFirstIn(h.substring(idx + 2), ""))
+          else None
+        }.toMap ++ Map("User-Agent" -> userAgent)
         val parsedUA = uaa.parse(headerMap.asJava)
         parsedUA.getAvailableFieldNamesSorted.asScala
           .map(field => decapitalize(field) -> parsedUA.getValue(field))

@@ -10,6 +10,8 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments
 
+import java.util.regex.Pattern
+
 import cats.syntax.either._
 
 import io.circe._
@@ -23,6 +25,8 @@ import com.snowplowanalytics.snowplow.enrich.common.utils.{ConversionUtils => CU
 
 /** Miscellaneous enrichments which don't fit into one of the other modules. */
 object MiscEnrichments {
+
+  private val IpSplitPattern = Pattern.compile("[,| ]")
 
   val ContextsSchema =
     SchemaKey("com.snowplowanalytics.snowplow", "contexts", "jsonschema", SchemaVer.Full(1, 0, 1))
@@ -73,7 +77,7 @@ object MiscEnrichments {
    */
   val extractIp: (String, String) => Either[AtomicError.ParseError, String] =
     (_, value) => {
-      val lastIp = Option(value).map(_.split("[,|, ]").head).orNull
+      val lastIp = Option(value).map(IpSplitPattern.split(_, 2).head).orNull
       CU.makeTsvSafe(lastIp).asRight
     }
 

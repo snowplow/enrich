@@ -60,18 +60,18 @@ class IdentitySpec extends Specification with CatsEffect {
 
     val expectedContext1 = json"""
     {
-      "snowplowId": ${testIdPairs(1).snowplowId},
-      "createdAt": "2023-03-03T03:03:03.333Z"
+      "snowplow_id": ${testIdPairs(1).snowplowId},
+      "created_at": "2023-03-03T03:03:03.333Z"
     }
     """
 
     val expectedContext2 = json"""
     {
-      "snowplowId": ${testIdPairs(2).snowplowId},
-      "createdAt": "2023-03-03T03:03:03.333Z"
+      "snowplow_id": ${testIdPairs(2).snowplowId},
+      "created_at": "2023-03-03T03:03:03.333Z"
     }
     """
-    val expectedKey = SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/identity/jsonschema/1-0-0").toOption.get
+    val expectedKey = SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/identity/jsonschema/2-0-0").toOption.get
 
     for {
       api <- Identity.build(testConfig(), testHttpClient)
@@ -100,8 +100,8 @@ class IdentitySpec extends Specification with CatsEffect {
     val expectedRequestBody = json"""
       [
         {
-          "eventId": ${e.event_id},
-          "derivedTimestamp": ${e.derived_tstamp},
+          "event_id": ${e.event_id},
+          "derived_timestamp": ${e.derived_tstamp},
           "identifiers": {
             "user_id": ${e.user_id},
             "domain_userid": ${e.domain_userid},
@@ -138,8 +138,8 @@ class IdentitySpec extends Specification with CatsEffect {
     val expectedRequestBody = json"""
       [
         {
-          "eventId": ${e.event_id},
-          "derivedTimestamp": null,
+          "event_id": ${e.event_id},
+          "derived_timestamp": null,
           "identifiers": {
             "domain_userid": ${e.domain_userid}
           }
@@ -185,8 +185,8 @@ class IdentitySpec extends Specification with CatsEffect {
     val expectedRequestBody = json"""
       [
         {
-          "eventId": ${e.event_id},
-          "derivedTimestamp": ${e.derived_tstamp},
+          "event_id": ${e.event_id},
+          "derived_timestamp": ${e.derived_tstamp},
           "identifiers": {
             "user_id": ${e.user_id},
             "custom_id": "custom-123"
@@ -251,8 +251,8 @@ class IdentitySpec extends Specification with CatsEffect {
     val expectedRequestBody = json"""
       [
         {
-          "eventId": ${e.event_id},
-          "derivedTimestamp": null,
+          "event_id": ${e.event_id},
+          "derived_timestamp": null,
           "identifiers": {
             "default_custom_id": "id-from-first",
             "first_custom_id": "id-from-first",
@@ -296,8 +296,8 @@ class IdentitySpec extends Specification with CatsEffect {
     val expectedRequestBody = json"""
       [
         {
-          "eventId": ${e.event_id},
-          "derivedTimestamp": null,
+          "event_id": ${e.event_id},
+          "derived_timestamp": null,
           "identifiers": {
             "event_user_id": "event-user-123"
           }
@@ -352,8 +352,8 @@ class IdentitySpec extends Specification with CatsEffect {
     val expectedRequestBody = json"""
       [
         {
-          "eventId": ${e1.event_id},
-          "derivedTimestamp": null,
+          "event_id": ${e1.event_id},
+          "derived_timestamp": null,
           "identifiers": {
             "user_id": ${e1.user_id}
           }
@@ -408,8 +408,8 @@ class IdentitySpec extends Specification with CatsEffect {
     val expectedRequestBody = json"""
       [
         {
-          "eventId": ${e1.event_id},
-          "derivedTimestamp": null,
+          "event_id": ${e1.event_id},
+          "derived_timestamp": null,
           "identifiers": {
             "user_id": ${e1.user_id}
           }
@@ -471,15 +471,15 @@ class IdentitySpec extends Specification with CatsEffect {
     val expectedRequestBody = json"""
       [
         {
-          "eventId": ${e1.event_id},
-          "derivedTimestamp": ${e1.derived_tstamp},
+          "event_id": ${e1.event_id},
+          "derived_timestamp": ${e1.derived_tstamp},
           "identifiers": {
             "user_id": ${e1.user_id}
           }
         },
         {
-          "eventId": ${e2.event_id},
-          "derivedTimestamp": ${e2.derived_tstamp},
+          "event_id": ${e2.event_id},
+          "derived_timestamp": ${e2.derived_tstamp},
           "identifiers": {
             "user_id": ${e2.user_id}
           }
@@ -539,15 +539,15 @@ class IdentitySpec extends Specification with CatsEffect {
     val expectedRequestBody = json"""
       [
         {
-          "eventId": ${e2.event_id},
-          "derivedTimestamp": null,
+          "event_id": ${e2.event_id},
+          "derived_timestamp": null,
           "identifiers": {
             "user_id": ${e2.user_id}
           }
         },
         {
-          "eventId": ${e3.event_id},
-          "derivedTimestamp": null,
+          "event_id": ${e3.event_id},
+          "derived_timestamp": null,
           "identifiers": {
             "user_id": ${e3.user_id}
           }
@@ -719,7 +719,7 @@ class IdentitySpec extends Specification with CatsEffect {
   }
 
   def e15 = {
-    val mockResponseBody = """[{"createdAt":"2024-01-01T00:00:00Z","eventId":"event-123","snowplowId":"sp-123"}]"""
+    val mockResponseBody = """[{"created_at":"2024-01-01T00:00:00Z","event_id":"event-123","snowplow_id":"sp-123"}]"""
 
     val test = for {
       callCount <- Ref.of[IO, Int](0)
@@ -811,24 +811,24 @@ object IdentitySpec {
   val mockResponseBody = json"""
   [
     {
-      "createdAt": "2023-03-03T03:03:03.333Z",
-      "eventId": ${testIdPairs(0).eventId},
-      "snowplowId": ${testIdPairs(0).snowplowId}
+      "created_at": "2023-03-03T03:03:03.333Z",
+      "event_id": ${testIdPairs(0).eventId},
+      "snowplow_id": ${testIdPairs(0).snowplowId}
     },
     {
-      "createdAt": "2023-03-03T03:03:03.333Z",
-      "eventId": ${testIdPairs(1).eventId},
-      "snowplowId": ${testIdPairs(1).snowplowId}
+      "created_at": "2023-03-03T03:03:03.333Z",
+      "event_id": ${testIdPairs(1).eventId},
+      "snowplow_id": ${testIdPairs(1).snowplowId}
     },
     {
-      "createdAt": "2023-03-03T03:03:03.333Z",
-      "eventId": ${testIdPairs(2).eventId},
-      "snowplowId": ${testIdPairs(2).snowplowId}
+      "created_at": "2023-03-03T03:03:03.333Z",
+      "event_id": ${testIdPairs(2).eventId},
+      "snowplow_id": ${testIdPairs(2).snowplowId}
     },
     {
-      "createdAt": "2023-03-03T03:03:03.333Z",
-      "eventId": ${testIdPairs(3).eventId},
-      "snowplowId": ${testIdPairs(3).snowplowId}
+      "created_at": "2023-03-03T03:03:03.333Z",
+      "event_id": ${testIdPairs(3).eventId},
+      "snowplow_id": ${testIdPairs(3).snowplowId}
     }
   ]
   """

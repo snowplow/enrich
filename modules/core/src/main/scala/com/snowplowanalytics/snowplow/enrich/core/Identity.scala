@@ -14,7 +14,8 @@ import cats.effect.{Async, Sync}
 import cats.implicits._
 import io.circe.Decoder
 import io.circe.literal._
-import io.circe.generic.semiauto._
+import io.circe.generic.extras.semiauto._
+import io.circe.generic.extras.Configuration
 import org.http4s.client.{Client => Http4sClient}
 import org.http4s.{BasicCredentials, EntityDecoder, EntityEncoder, Headers, MediaType, Method, Request}
 import org.http4s.headers.{Authorization, `Content-Type`}
@@ -29,6 +30,8 @@ import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, S
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
 object Identity {
+
+  private implicit val snakeCaseConfig: Configuration = Configuration.default.withSnakeCaseMemberNames
 
   trait Api[F[_]] {
     def concurrency: Int
@@ -168,8 +171,8 @@ object Identity {
   private def merge(events: List[EnrichedEvent], identities: List[Identity]): Unit = {
     val byEventId = identities.map { identity =>
       val context = json"""{
-          "snowplowId": ${identity.snowplowId},
-          "createdAt": ${identity.createdAt}
+          "snowplow_id": ${identity.snowplowId},
+          "created_at": ${identity.createdAt}
         }"""
       val sdj = SelfDescribingData(identitySchemaKey, context)
       identity.eventId -> sdj
@@ -182,7 +185,7 @@ object Identity {
     }
   }
 
-  private val identitySchemaKey: SchemaKey = SchemaKey("com.snowplowanalytics.snowplow", "identity", "jsonschema", SchemaVer.Full(1, 0, 0))
+  private val identitySchemaKey: SchemaKey = SchemaKey("com.snowplowanalytics.snowplow", "identity", "jsonschema", SchemaVer.Full(2, 0, 0))
 
   private val identityMediaType = new MediaType(
     mainType = "application",
@@ -192,13 +195,13 @@ object Identity {
   )
 
   private implicit def eventsIdentifiersEncoder[F[_]]: EntityEncoder[F, List[EventIdentifiers]] = {
-    implicit val eventIdentifiersEncoder: io.circe.Encoder[EventIdentifiers] = deriveEncoder[EventIdentifiers]
+    implicit val eventIdentifiersEncoder: io.circe.Encoder[EventIdentifiers] = deriveConfiguredEncoder[EventIdentifiers]
     jsonEncoderOf[F, List[EventIdentifiers]]
       .withContentType(`Content-Type`(identityMediaType))
   }
 
   private implicit def entitiesDecoder[F[_]: Async]: EntityDecoder[F, List[Identity]] = {
-    implicit val identityDecoder: Decoder[Identity] = deriveDecoder[Identity]
+    implicit val identityDecoder: Decoder[Identity] = deriveConfiguredDecoder[Identity]
     jsonOfWithMedia[F, List[Identity]](identityMediaType)
   }
 }

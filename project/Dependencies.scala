@@ -28,10 +28,6 @@ object Dependencies {
 
   object V {
     // Java
-    val commonsCodec = "1.16.0"
-    val commonsText = "1.10.0"
-    val commonsLang = "3.18.0"
-    val commonsIO = "2.14.0"
     val jodaTime = "2.10.1"
     val useragent = "1.21"
     val uaParser = "1.5.4"
@@ -50,7 +46,7 @@ object Dependencies {
     val thrift = "0.15.0"
     val httpclient = "4.5.13"
     val sprayJson = "1.3.6"
-    val netty = "4.2.10.Final"
+    val netty = "4.2.12.Final"
     val protobuf = "4.28.3"
     val nashorn = "15.6"
     val zstd = "1.5.7-4"
@@ -74,19 +70,19 @@ object Dependencies {
     val gcpSdk = "2.60.0"
     val awsSdk = "2.33.1"
     val kafka = "4.1.1"
-    val jackson = "2.18.1"
+    val jackson = "2.21.2"
 
     val decline = "2.4.1"
-    val fs2 = "3.10.2"
+    val fs2 = "3.12.2"
     val catsEffect = "3.7.0"
     val azureIdentity = "1.18.2"
     val azureStorageBlob = "12.33.0"
     val nimbusJoseJwt = "10.0.2"
     val lz4 = "1.10.3"
-    val reactorNetty = "1.2.8"
+    val reactorNetty = "1.2.13"
     val http4s = "0.23.25"
 
-    val streams = "0.22.0-M2"
+    val streams = "0.22.0"
 
     val specs2 = "4.20.3"
     val specs2Cats = "4.20.3"
@@ -100,10 +96,6 @@ object Dependencies {
   }
 
   object Libraries {
-    val commonsCodec = "commons-codec"                 % "commons-codec"       % V.commonsCodec
-    val commonsText = "org.apache.commons"             % "commons-text"        % V.commonsText
-    val commonsLang = "org.apache.commons"             % "commons-lang3"       % V.commonsLang
-    val commonsIO = "commons-io"                       % "commons-io"          % V.commonsIO
     val jodaTime = "joda-time"                         % "joda-time"           % V.jodaTime
     val useragent = "eu.bitwalker"                     % "UserAgentUtils"      % V.useragent
     val jacksonDatabind = "com.fasterxml.jackson.core" % "jackson-databind"    % V.jackson
@@ -190,10 +182,6 @@ object Dependencies {
 
     val commonDependencies = Seq(
       jodaTime,
-      commonsCodec,
-      commonsText,
-      commonsLang, // for security vulnerabilities
-      commonsIO, // for security vulnerabilities
       useragent,
       jacksonDatabind,
       uaParser,

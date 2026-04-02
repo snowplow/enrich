@@ -1,3 +1,20 @@
+6.10.0 (2026-04-02)
+------------------
+Use correct version of event spec context (#216)
+Upgrade dependencies (#217)
+Update Identity client for snake_case API response and schema 2-0-0 (#208)
+Avoid regex recompilation (#215)
+Fix compilation error introduced by rebase of #205 (#212)
+[DPS-1839] Add three-tier data model with versioned event spec validation (#205)
+Fix getDerivedTimestamp for device delays spanning month boundaries (#211)
+Validation of iglu URI length moved to iglu-scala-core 1.1.5 (#210)
+Add Nashorn property map JVM option to reduce GC pressure (#209)
+Add client-side bot detection indicator to bot detection enrichment (#207)
+Hot-swap enrichments individually rather than rebuilding the whole registry (#203)
+Add unit tests for invalid schema version and URI cases (#204)
+Common streams 0.22.0 (#200)
+Fix asn example config (#199)
+
 6.9.0 (2026-03-02)
 ------------------
 Bump libraries to address security vulnerabilities

@@ -156,7 +156,7 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers with CatsEf
 
     val payloadBody = s"""[${eventsAsJson.toList.mkString(",")}]"""
     val payload =
-      CollectorPayload(Shared.api, Nil, None, payloadBody.some, Shared.cljSource, Shared.context)
+      SpecHelpers.collectorPayload(Shared.api, Nil, None, payloadBody.some, Shared.cljSource, Shared.context)
 
     val expected = eventsAsJson
       .map { evtJson =>
@@ -183,7 +183,7 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers with CatsEf
 
   def e2 = {
     val emptyListPayload =
-      CollectorPayload(Shared.api, Nil, None, "".some, Shared.cljSource, Shared.context)
+      SpecHelpers.collectorPayload(Shared.api, Nil, None, "".some, Shared.cljSource, Shared.context)
     val expected = NonEmptyList.one(
       FailureDetails.AdapterFailure.InputData(
         "body",
@@ -200,7 +200,7 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers with CatsEf
 
   def e3 = {
     val bodylessPayload =
-      CollectorPayload(Shared.api, Nil, None, None, Shared.cljSource, Shared.context)
+      SpecHelpers.collectorPayload(Shared.api, Nil, None, None, Shared.cljSource, Shared.context)
     val expected = NonEmptyList.one(
       FailureDetails.AdapterFailure.InputData(
         "body",
@@ -217,7 +217,7 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers with CatsEf
 
   def e4 = {
     val bodylessPayload =
-      CollectorPayload(Shared.api, Nil, None, None, Shared.cljSource, Shared.context)
+      SpecHelpers.collectorPayload(Shared.api, Nil, None, None, Shared.cljSource, Shared.context)
     val invalidJsonResponse = Right("{invalid json")
     val expected = FailureDetails.AdapterFailure.NotJson(
       "body",
@@ -231,7 +231,7 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers with CatsEf
 
   def e5 = {
     val bodylessPayload =
-      CollectorPayload(Shared.api, Nil, None, None, Shared.cljSource, Shared.context)
+      SpecHelpers.collectorPayload(Shared.api, Nil, None, None, Shared.cljSource, Shared.context)
     val unexpectedJsonResponse = Right("{\"events\":\"response\"}")
     val expected = FailureDetails.AdapterFailure.InputData(
       "body",
@@ -245,7 +245,7 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers with CatsEf
 
   def e6 = {
     val bodylessPayload =
-      CollectorPayload(Shared.api, Nil, None, None, Shared.cljSource, Shared.context)
+      SpecHelpers.collectorPayload(Shared.api, Nil, None, None, Shared.cljSource, Shared.context)
     val emptyJsonResponse = Right("{\"error\":\"\", \"events\":[]}")
     val expected = FailureDetails.AdapterFailure.InputData(
       "body",

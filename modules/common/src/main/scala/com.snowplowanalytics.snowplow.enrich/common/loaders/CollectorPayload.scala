@@ -10,6 +10,7 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.loaders
 
+import java.nio.charset.StandardCharsets
 import java.util.UUID
 
 import scala.collection.JavaConverters._
@@ -25,7 +26,7 @@ import org.joda.time.DateTime
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
-import com.snowplowanalytics.snowplow.CollectorPayload.thrift.model1.{CollectorPayload => CollectorPayload1}
+import com.snowplowanalytics.snowplow.collector.thrift.{CollectorPayload => CollectorPayload1}
 
 import com.snowplowanalytics.snowplow.badrows.{FailureDetails, NVP, Payload}
 
@@ -51,17 +52,24 @@ final case class CollectorPayload(
   api: CollectorPayload.Api,
   querystring: List[NameValuePair],
   contentType: Option[String],
-  body: Option[String],
+  body: Option[Array[Byte]],
   source: CollectorPayload.Source,
   context: CollectorPayload.Context
 ) {
+
+  /**
+   * UTF-8 view of `body`. Adapters that consume textual payloads should use this; binary-aware
+   * adapters can read `body` directly. Invalid UTF-8 sequences are replaced with `?`.
+   */
+  def bodyAsString: Option[String] = body.map(new String(_, StandardCharsets.UTF_8))
+
   def toBadRowPayload: Payload.CollectorPayload =
     Payload.CollectorPayload(
       api.vendor,
       api.version,
       querystring.map(nvp => NVP(nvp.getName, Option(nvp.getValue))),
       contentType,
-      body,
+      bodyAsString,
       source.name,
       source.encoding,
       source.hostname,
@@ -100,6 +108,27 @@ final case class CollectorPayload(
    */
   def toRaw: Array[Byte] =
     CollectorPayload.serializer.get.serialize(toThrift)
+
+  // Case classes default to referential equality for Array[Byte] fields, which breaks roundtrip
+  // tests. Override to compare body content with java.util.Arrays.equals.
+  override def equals(other: Any): Boolean =
+    other match {
+      case that: CollectorPayload =>
+        api == that.api &&
+          querystring == that.querystring &&
+          contentType == that.contentType &&
+          ((body, that.body) match {
+            case (None, None) => true
+            case (Some(a), Some(b)) => java.util.Arrays.equals(a, b)
+            case _ => false
+          }) &&
+          source == that.source &&
+          context == that.context
+      case _ => false
+    }
+
+  override def hashCode: Int =
+    (api, querystring, contentType, body.map(_.toSeq), source, context).hashCode
 }
 
 object CollectorPayload {

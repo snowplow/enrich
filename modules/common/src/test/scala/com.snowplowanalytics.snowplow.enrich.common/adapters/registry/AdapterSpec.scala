@@ -61,7 +61,7 @@ class AdapterSpec extends Specification with DataTables with ValidatedMatchers {
     ) =
       Monad[F].pure(
         FailureDetails.AdapterFailure
-          .InputData("base", None, payload.body.getOrElse("base"))
+          .InputData("base", None, payload.bodyAsString.getOrElse("base"))
           .invalidNel
       )
   }

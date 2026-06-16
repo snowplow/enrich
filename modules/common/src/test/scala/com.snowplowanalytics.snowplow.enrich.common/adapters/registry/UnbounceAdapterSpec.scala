@@ -61,7 +61,7 @@ class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMa
     val params = SpecHelpers.toNameValuePairs("schema" -> "iglu:com.unbounce/test/jsonschema/1-0-0")
     val body =
       "page_url=http%3A%2F%2Funbouncepages.com%2Fwayfaring-147%2F&page_name=Wayfaring&page_id=7648177d-7323-4330-b4f9-9951a52138b6&variant=a&data.json=%7B%22userfield1%22%3A%5B%22asdfasdf%22%5D%2C%22ip_address%22%3A%5B%2285.73.39.163%22%5D%2C%22page_uuid%22%3A%5B%227648177d-7323-4330-b4f9-9951a52138b6%22%5D%2C%22variant%22%3A%5B%22a%22%5D%2C%22time_submitted%22%3A%5B%2211%3A45+AM+UTC%22%5D%2C%22date_submitted%22%3A%5B%222017-11-15%22%5D%2C%22page_url%22%3A%5B%22http%3A%2F%2Funbouncepages.com%2Fwayfaring-147%2F%22%5D%2C%22page_name%22%3A%5B%22Wayfaring%22%5D%7D&data.xml=%3C%3Fxml+version%3D%221.0%22+encoding%3D%22UTF-8%22%3F%3E%3Cform_data%3E%3Cuserfield1%3Easdfasdf%3C%2Fuserfield1%3E%3Cip_address%3E85.73.39.163%3C%2Fip_address%3E%3Cpage_uuid%3E7648177d-7323-4330-b4f9-9951a52138b6%3C%2Fpage_uuid%3E%3Cvariant%3Ea%3C%2Fvariant%3E%3Ctime_submitted%3E11%3A45+AM+UTC%3C%2Ftime_submitted%3E%3Cdate_submitted%3E2017-11-15%3C%2Fdate_submitted%3E%3Cpage_url%3Ehttp%3A%2F%2Funbouncepages.com%2Fwayfaring-147%2F%3C%2Fpage_url%3E%3Cpage_name%3EWayfaring%3C%2Fpage_name%3E%3C%2Fform_data%3E"
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       params,
       ContentType.some,
@@ -125,7 +125,7 @@ class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMa
   def e2 = {
     val params = SpecHelpers.toNameValuePairs("schema" -> "iglu:com.unbounce/test/jsonschema/1-0-0")
     val payload =
-      CollectorPayload(Shared.api, params, ContentType.some, None, Shared.cljSource, Shared.context)
+      SpecHelpers.collectorPayload(Shared.api, params, ContentType.some, None, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
@@ -142,7 +142,7 @@ class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMa
     val body =
       "page_id=f7afd389-65a3-45fa-8bad-b7a42236044c&page_name=Test-Webhook&variant=a&page_url=http%3A%2F%2Funbouncepages.com%2Ftest-webhook-1&data.json=%7B%22email%22%3A%5B%22test%40snowplowanalytics.com%22%5D%2C%22ip_address%22%3A%5B%22200.121.220.179%22%5D%2C%22time_submitted%22%3A%5B%2204%3A17%20PM%20UTC%22%5D%7D"
     val payload =
-      CollectorPayload(Shared.api, Nil, None, body.some, Shared.cljSource, Shared.context)
+      SpecHelpers.collectorPayload(Shared.api, Nil, None, body.some, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
@@ -163,7 +163,7 @@ class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMa
       "page_id=f7afd389-65a3-45fa-8bad-b7a42236044c&page_name=Test-Webhook&variant=a&page_url=http%3A%2F%2Funbouncepages.com%2Ftest-webhook-1&data.json=%7B%22email%22%3A%5B%22test%40snowplowanalytics.com%22%5D%2C%22ip_address%22%3A%5B%22200.121.220.179%22%5D%2C%22time_submitted%22%3A%5B%2204%3A17%20PM%20UTC%22%5D%7D"
     val ct = "application/json"
     val payload =
-      CollectorPayload(Shared.api, Nil, ct.some, body.some, Shared.cljSource, Shared.context)
+      SpecHelpers.collectorPayload(Shared.api, Nil, ct.some, body.some, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
@@ -182,7 +182,7 @@ class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMa
   def e5 = {
     val params = SpecHelpers.toNameValuePairs("schema" -> "iglu:com.unbounce/test/jsonschema/1-0-0")
     val body = ""
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       params,
       ContentType.some,
@@ -204,7 +204,7 @@ class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMa
     val params = SpecHelpers.toNameValuePairs("schema" -> "iglu:com.unbounce/test/jsonschema/1-0-0")
     val body =
       "page_id=f7afd389-65a3-45fa-8bad-b7a42236044c&page_name=Test-Webhook&variant=a&page_url=http%3A%2F%2Funbouncepages.com%2Ftest-webhook-1"
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       params,
       ContentType.some,
@@ -225,7 +225,7 @@ class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMa
     val params = SpecHelpers.toNameValuePairs("schema" -> "iglu:com.unbounce/test/jsonschema/1-0-0")
     val body =
       "page_id=f7afd389-65a3-45fa-8bad-b7a42236044c&page_name=Test-Webhook&variant=a&page_url=http%3A%2F%2Funbouncepages.com%2Ftest-webhook-1&data.json="
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       params,
       ContentType.some,
@@ -246,7 +246,7 @@ class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMa
     val params = SpecHelpers.toNameValuePairs("schema" -> "iglu:com.unbounce/test/jsonschema/1-0-0")
     val body =
       "page_id=f7afd389-65a3-45fa-8bad-b7a42236044c&page_name=Test-Webhook&variant=a&page_url=http%3A%2F%2Funbouncepages.com%2Ftest-webhook-1&data.json=%7B%7B%22email%22%3A%5B%22test%40snowplowanalytics.com%22%5D%2C%22ip_address%22%3A%5B%22200.121.220.179%22%5D%2C%22time_submitted%22%3A%5B%2204%3A17%20PM%20UTC%22%5D%7D"
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       params,
       ContentType.some,
@@ -270,7 +270,7 @@ class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMa
     val params = SpecHelpers.toNameValuePairs("schema" -> "iglu:com.unbounce/test/jsonschema/1-0-0")
     val body =
       "page_name=Test-Webhook&variant=a&page_url=http%3A%2F%2Funbouncepages.com%2Ftest-webhook-1&data.json=%7B%22email%22%3A%5B%22test%40snowplowanalytics.com%22%5D%2C%22ip_address%22%3A%5B%22200.121.220.179%22%5D%2C%22time_submitted%22%3A%5B%2204%3A17%20PM%20UTC%22%5D%7D"
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       params,
       ContentType.some,
@@ -292,7 +292,7 @@ class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMa
     val params = SpecHelpers.toNameValuePairs("schema" -> "iglu:com.unbounce/test/jsonschema/1-0-0")
     val body =
       "page_id=f7afd389-65a3-45fa-8bad-b7a42236044c&variant=a&page_url=http%3A%2F%2Funbouncepages.com%2Ftest-webhook-1&data.json=%7B%22email%22%3A%5B%22test%40snowplowanalytics.com%22%5D%2C%22ip_address%22%3A%5B%22200.121.220.179%22%5D%2C%22time_submitted%22%3A%5B%2204%3A17%20PM%20UTC%22%5D%7D"
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       params,
       ContentType.some,
@@ -313,7 +313,7 @@ class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMa
     val params = SpecHelpers.toNameValuePairs("schema" -> "iglu:com.unbounce/test/jsonschema/1-0-0")
     val body =
       "page_id=f7afd389-65a3-45fa-8bad-b7a42236044c&page_name=Test-Webhook&page_url=http%3A%2F%2Funbouncepages.com%2Ftest-webhook-1&data.json=%7B%22email%22%3A%5B%22test%40snowplowanalytics.com%22%5D%2C%22ip_address%22%3A%5B%22200.121.220.179%22%5D%2C%22time_submitted%22%3A%5B%2204%3A17%20PM%20UTC%22%5D%7D"
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       params,
       ContentType.some,
@@ -335,7 +335,7 @@ class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMa
     val params = SpecHelpers.toNameValuePairs("schema" -> "iglu:com.unbounce/test/jsonschema/1-0-0")
     val body =
       "page_id=f7afd389-65a3-45fa-8bad-b7a42236044c&page_name=Test-Webhook&variant=a&data.json=%7B%22email%22%3A%5B%22test%40snowplowanalytics.com%22%5D%2C%22ip_address%22%3A%5B%22200.121.220.179%22%5D%2C%22time_submitted%22%3A%5B%2204%3A17%20PM%20UTC%22%5D%7D"
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       params,
       ContentType.some,

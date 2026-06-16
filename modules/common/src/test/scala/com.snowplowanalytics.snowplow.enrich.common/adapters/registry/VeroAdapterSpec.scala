@@ -63,7 +63,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
   def e1 = {
     val bodyStr =
       """{"sent_at": 1435016238, "event": {"name": "Test event", "triggered_at": 1424012238}, "type": "sent", "user": {"id": 123, "email": "steve@getvero.com"},"campaign": {"id": 987, "type": "transactional", "name": "Order confirmation", "subject": "Your order is being processed", "trigger-event": "purchased item", "permalink": "http://app.getvero.com/view/1/341d64944577ac1f70f560e37db54a25", "variation": "Variation A", "tags": "tag 1, tag 2"}}"""
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ContentType.some,
@@ -93,7 +93,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
   def e2 = {
     val bodyStr =
       """{"delivered_at": 1435016238, "sender_ip": "127.0.0.1", "message_id": "20130920062934.21270.53268@vero.com", "event":{"name":"Test event","triggered_at":1424012238}, "type": "delivered", "user": {"id": 123, "email": "steve@getvero.com"},"campaign": {"id": 987, "type": "transactional", "name": "Order confirmation", "subject": "Your order is being processed", "trigger-event": "purchased item", "permalink": "http://app.getvero.com/view/1/341d64944577ac1f70f560e37db54a25", "variation": "Variation A", "tags": "tag 1, tag 2"}}"""
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ContentType.some,
@@ -123,7 +123,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
   def e3 = {
     val bodyStr =
       """{"opened_at": 1435016238, "user_agent":"Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; Trident/5.0)", "message_id": "20130920062934.21270.53268@vero.com", "event": {"name": "Test event", "triggered_at": 1424012238}, "type": "opened", "user": {"id": 123, "email": "steve@getvero.com"},"campaign": {"id": 987, "type": "transactional", "name": "Order confirmation", "subject": "Your order is being processed", "trigger-event": "purchased item", "permalink": "http://app.getvero.com/view/1/341d64944577ac1f70f560e37db54a25", "variation": "Variation A", "tags": "tag 1, tag 2"}}"""
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ContentType.some,
@@ -153,7 +153,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
   def e4 = {
     val bodyStr =
       """{"clicked_at": 1435016238, "user_agent":"Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; Trident/5.0)", "message_id": "20130920062934.21270.53268@vero.com", "event": {"name": "Test event", "triggered_at": 1424012238}, "type": "clicked", "user": {"id": 123, "email": "steve@getvero.com"},"campaign": {"id": 987, "type": "transactional", "name": "Order confirmation", "subject": "Your order is being processed", "trigger-event": "purchased item", "permalink": "http://app.getvero.com/view/1/341d64944577ac1f70f560e37db54a25", "variation": "Variation A", "tags": "tag 1, tag 2"}}"""
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ContentType.some,
@@ -183,7 +183,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
   def e5 = {
     val bodyStr =
       """{"bounced_at": 1435016238, "bounce_type":"hard", "bounce_code": "521", "bounce_message": "521 5.2.1 :  AOL will not accept delivery of this message.", "message_id": "20130920062934.21270.53268@vero.com", "event": {"name": "Test event", "triggered_at": 1424012238}, "type": "bounced", "user": {"id": 123, "email": "steve@getvero.com"},"campaign": {"id": 987, "type": "transactional", "name": "Order confirmation", "subject": "Your order is being processed", "trigger-event": "purchased item", "permalink": "http://app.getvero.com/view/1/341d64944577ac1f70f560e37db54a25", "variation": "Variation A"}}"""
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ContentType.some,
@@ -213,7 +213,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
   def e6 = {
     val bodyStr =
       """{"unsubscribed_at": 1435016238, "type": "unsubscribed", "user": {"id": 123, "email": "steve@getvero.com"}}"""
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ContentType.some,
@@ -243,7 +243,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
   def e7 = {
     val bodyStr =
       """{"type": "user_created", "user": {"id": 123, "email": "steve@getvero.com"}, "firstname": "Steve", "company": "Vero", "role": "Bot"}"""
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ContentType.some,
@@ -273,7 +273,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
   def e8 = {
     val bodyStr =
       """{"type": "user_updated", "user": {"id": 123, "email": "steve@getvero.com"}, "changes": {"_tags": {"add": ["active-customer"], "remove": ["unactive-180-days"]}}}"""
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ContentType.some,
@@ -311,7 +311,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
       "Valid, type updated" !! "user_updated" ! "iglu:com.getvero/updated/jsonschema/1-0-0" |
       "Valid, type bounced" !! "bounced" ! "iglu:com.getvero/bounced/jsonschema/1-0-0" |> { (_, schema, expected) =>
       val body = "{\"type\":\"" + schema + "\"}"
-      val payload = CollectorPayload(
+      val payload = SpecHelpers.collectorPayload(
         Shared.api,
         Nil,
         ContentType.some,
@@ -341,7 +341,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
 
   def e10 = {
     val payload =
-      CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
+      SpecHelpers.collectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(

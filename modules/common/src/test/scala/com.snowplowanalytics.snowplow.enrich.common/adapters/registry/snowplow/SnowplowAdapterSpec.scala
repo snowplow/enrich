@@ -87,7 +87,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
 
   def e1 = {
     val payload =
-      CollectorPayload(
+      SpecHelpers.collectorPayload(
         Snowplow.Tp1,
         SpecHelpers.toNameValuePairs("aid" -> "test"),
         None,
@@ -113,7 +113,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
   }
 
   def e2 = {
-    val payload = CollectorPayload(Snowplow.Tp1, Nil, None, None, Shared.source, Shared.context)
+    val payload = SpecHelpers.collectorPayload(Snowplow.Tp1, Nil, None, None, Shared.source, Shared.context)
     Tp1Adapter
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
@@ -130,7 +130,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
   }
 
   def e3 = {
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Snowplow.Tp2,
       SpecHelpers.toNameValuePairs("aid" -> "tp2", "e" -> "se"),
       None,
@@ -159,7 +159,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
     val body =
       SpecHelpers.toSelfDescJson("""[{"tv":"ios-0.1.0","p":"mob","e":"se"}]""", "payload_data")
     val payload =
-      CollectorPayload(
+      SpecHelpers.collectorPayload(
         Snowplow.Tp2,
         Nil,
         ApplicationJsonWithCharset.some,
@@ -189,7 +189,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
       """[{"tv":"1","p":"1","e":"1"},{"tv":"2","p":"2","e":"2"},{"tv":"3","p":"3","e":"3"}]""",
       "payload_data"
     )
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Snowplow.Tp2,
       SpecHelpers.toNameValuePairs("tv" -> "0", "nuid" -> "123"),
       ApplicationJsonWithCapitalCharset.some,
@@ -222,7 +222,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
   def e6 = {
     val body =
       SpecHelpers.toSelfDescJson("""[{"tv":"ios-0.1.0","p":"mob","e":"se"}]""", "payload_data")
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Snowplow.Tp2,
       Nil,
       ApplicationJsonWithCapitalCharset.some,
@@ -293,7 +293,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
             "invalid json: expected json value got 'body' (line 1, column 1)"
           )
         ) |> { (_, querystring, contentType, body, expected) =>
-      val payload = CollectorPayload(
+      val payload = SpecHelpers.collectorPayload(
         Snowplow.Tp2,
         querystring,
         contentType,
@@ -308,7 +308,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
     }
 
   def e8 = {
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Snowplow.Tp2,
       SpecHelpers.toNameValuePairs("aid" -> "test"),
       ApplicationJson.some,
@@ -330,7 +330,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
 
   def e9 = {
     val body = SpecHelpers.toSelfDescJson("""{"longitude":20.1234}""", "geolocation_context")
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Snowplow.Tp2,
       Nil,
       ApplicationJson.some,
@@ -467,7 +467,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
         ) |> { (_, json, expected) =>
       val body = SpecHelpers.toSelfDescJson(json, "payload_data")
       val payload =
-        CollectorPayload(
+        SpecHelpers.collectorPayload(
           Snowplow.Tp2,
           Nil,
           ApplicationJson.some,
@@ -483,7 +483,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
     }
 
   def e11 = {
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Snowplow.Tp2,
       SpecHelpers.toNameValuePairs(
         "u" -> "https://github.com/snowplow/snowplow",
@@ -518,7 +518,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
   }
 
   def e12 = {
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Snowplow.Tp2,
       SpecHelpers.toNameValuePairs(
         "u" -> "https://github.com/snowplow/snowplow",
@@ -554,7 +554,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
   }
 
   def e13 = {
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Snowplow.Tp2,
       SpecHelpers.toNameValuePairs(
         "u" -> "https://github.com/snowplow/snowplow",
@@ -591,7 +591,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
   }
 
   def e14 = {
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Snowplow.Tp2,
       SpecHelpers.toNameValuePairs(
         "u" -> "https://github.com/snowplow/snowplow",
@@ -626,7 +626,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
   }
 
   def e15 = {
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Snowplow.Tp2,
       SpecHelpers.toNameValuePairs(
         "u" -> "https://github.com/snowplow/snowplow",
@@ -666,7 +666,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
   }
 
   def e16 = {
-    val payload = CollectorPayload(Snowplow.Tp2, Nil, None, None, Shared.source, Shared.context)
+    val payload = SpecHelpers.collectorPayload(Snowplow.Tp2, Nil, None, None, Shared.source, Shared.context)
     RedirectAdapter
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
@@ -684,7 +684,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
 
   def e17 = {
     val payload =
-      CollectorPayload(
+      SpecHelpers.collectorPayload(
         Snowplow.Tp2,
         SpecHelpers.toNameValuePairs("aid" -> "test"),
         None,
@@ -708,7 +708,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
   }
 
   def e18 = {
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Snowplow.Tp2,
       SpecHelpers.toNameValuePairs(
         "u" -> "https://github.com/snowplow/snowplow",
@@ -736,7 +736,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
   }
 
   def e19 = {
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Snowplow.Tp2,
       SpecHelpers.toNameValuePairs(
         "u" -> "https://github.com/snowplow/snowplow",
@@ -761,7 +761,7 @@ class SnowplowAdapterSpec extends Specification with DataTables with ValidatedMa
   }
 
   def e20 = {
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Snowplow.Tp2,
       SpecHelpers.toNameValuePairs(
         "u" -> null, // happens with &u in the query string

@@ -66,7 +66,7 @@ object Tp2Adapter extends Adapter {
 
     // Verify: body + content type set; content type matches expected; body contains expected JSON Schema; body passes schema validation
     val validatedParamsNel: F[ValidatedNel[FailureDetails.TrackerProtocolViolation, NonEmptyList[RawEventParameters]]] =
-      (payload.body, payload.contentType) match {
+      (payload.bodyAsString, payload.contentType) match {
         case (None, _) if qsParams.isEmpty =>
           val msg1 = "empty body: not a valid tracker protocol event"
           val failure1 = FailureDetails.TrackerProtocolViolation.InputData(

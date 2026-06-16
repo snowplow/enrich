@@ -113,7 +113,7 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
   def e6 = {
     val bodyStr =
       """{"messages":[{"type":"incident.trigger","data":{"incident":{"id":"P9WY9U9","incident_number":139,"created_on":"2014-11-12T18:53:47 00:00","status":"triggered","html_url":"https://snowplow.pagerduty.com/incidents/P9WY9U9","incident_key":"srv01/HTTP","service":{"id":"PTHO4FF","name":"Webhooks Test","html_url":"https://snowplow.pagerduty.com/services/PTHO4FF","deleted_at":null},"escalation_policy":{"id":"P8ETVHU","name":"Default","deleted_at":null},"assigned_to_user":{"id":"P9L426X","name":"Yali Sassoon","email":"yali@snowplowanalytics.com","html_url":"https://snowplow.pagerduty.com/users/P9L426X"},"trigger_summary_data":{"description":"FAILURE for production/HTTP on machine srv01.acme.com","client":"Sample Monitoring Service","client_url":"https://monitoring.service.com"},"trigger_details_html_url":"https://snowplow.pagerduty.com/incidents/P9WY9U9/log_entries/P5AWPTR","trigger_type":"trigger_svc_event","last_status_change_on":"2014-11-12T18:53:47Z","last_status_change_by":null,"number_of_escalations":0,"assigned_to":[{"at":"2014-11-12T18:53:47Z","object":{"id":"P9L426X","name":"Yali Sassoon","email":"yali@snowplowanalytics.com","html_url":"https://snowplow.pagerduty.com/users/P9L426X","type":"user"}}]}},"id":"3c3e8ee0-6a9d-11e4-b3d5-22000ae31361","created_on":"2014-11-12T18:53:47Z"}]}"""
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ContentType.some,
@@ -143,7 +143,7 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
   def e7 = {
     val bodyStr =
       """{"messages":[{"type":"trigger","data":{"incident":{"id":"P9WY9U9","incident_number":139,"created_on":"2014-11-12T18:53:47 00:00","status":"triggered","html_url":"https://snowplow.pagerduty.com/incidents/P9WY9U9","incident_key":"srv01/HTTP","service":{"id":"PTHO4FF","name":"Webhooks Test","html_url":"https://snowplow.pagerduty.com/services/PTHO4FF","deleted_at":null},"escalation_policy":{"id":"P8ETVHU","name":"Default","deleted_at":null},"assigned_to_user":{"id":"P9L426X","name":"Yali Sassoon","email":"yali@snowplowanalytics.com","html_url":"https://snowplow.pagerduty.com/users/P9L426X"},"trigger_summary_data":{"description":"FAILURE for production/HTTP on machine srv01.acme.com","client":"Sample Monitoring Service","client_url":"https://monitoring.service.com"},"trigger_details_html_url":"https://snowplow.pagerduty.com/incidents/P9WY9U9/log_entries/P5AWPTR","trigger_type":"trigger_svc_event","last_status_change_on":"2014-11-12T18:53:47Z","last_status_change_by":null,"number_of_escalations":0,"assigned_to":[{"at":"2014-11-12T18:53:47Z","object":{"id":"P9L426X","name":"Yali Sassoon","email":"yali@snowplowanalytics.com","html_url":"https://snowplow.pagerduty.com/users/P9L426X","type":"user"}}]}},"id":"3c3e8ee0-6a9d-11e4-b3d5-22000ae31361","created_on":"2014-11-12T18:53:47Z"}]}"""
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ContentType.some,
@@ -167,7 +167,7 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
 
   def e8 = {
     val payload =
-      CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
+      SpecHelpers.collectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
@@ -182,7 +182,7 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
 
   def e9 = {
     val payload =
-      CollectorPayload(Shared.api, Nil, None, "stub".some, Shared.cljSource, Shared.context)
+      SpecHelpers.collectorPayload(Shared.api, Nil, None, "stub".some, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
@@ -200,7 +200,7 @@ class PagerdutyAdapterSpec extends Specification with DataTables with ValidatedM
 
   def e10 = {
     val ct = "application/x-www-form-urlencoded".some
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ct,

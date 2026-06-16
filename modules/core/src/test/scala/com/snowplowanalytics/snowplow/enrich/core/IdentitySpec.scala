@@ -34,9 +34,11 @@ class IdentitySpec extends Specification with CatsEffect {
   Identity should
     add identity contexts to enriched events $e1
     send valid requests to the identity api $e2
-    omit identfiers from the request body when they are null $e3
+    omit identifiers from the request body when they are null $e3
     extract and send identifiers from entities $e4
     extract from the correct entity when multiple entities of same type exist $e5
+    extract identifiers from derived contexts $e16
+    extract from contexts before derived contexts when both contain the same entity type $e17
     extract identifiers from unstructured events $e6
     filter with All logic and In operator $e7
     filter with All logic and NotIn operator $e8
@@ -767,6 +769,111 @@ class IdentitySpec extends Specification with CatsEffect {
     test.map {
       case (contextCount, finalCallCount) =>
         (contextCount must beEqualTo(1)) and (finalCallCount must beEqualTo(4))
+    }
+  }
+
+  def e16 = {
+    val e = new EnrichedEvent()
+    e.event_id = UUID.randomUUID.toString
+    e.user_id = "test-user-id"
+    e.derived_tstamp = "2024-01-16 14:25:30.456"
+
+    val testEntityData = json"""{"customId": "derived-123"}"""
+    val testEntitySchema = SchemaKey("com.test", "user_context", "jsonschema", SchemaVer.Full(1, 0, 0))
+    e.derived_contexts = List(SelfDescribingData(testEntitySchema, testEntityData))
+
+    val config = testConfig(
+      identifiers = List(
+        Config.Identity.Identifier(
+          name = "user_id",
+          field = atomicField("user_id")
+        ),
+        Config.Identity.Identifier(
+          name = "custom_id",
+          field = entityField("com.test", "user_context", 1, "$.customId", Some(0))
+        )
+      ),
+      filters = None
+    )
+
+    val expectedRequestBody = json"""
+      [
+        {
+          "event_id": ${e.event_id},
+          "derived_timestamp": ${e.derived_tstamp},
+          "identifiers": {
+            "user_id": ${e.user_id},
+            "custom_id": "derived-123"
+          }
+        }
+      ]
+    """
+
+    for {
+      ref <- Ref[IO].of(List.empty[(Request[IO], String)])
+      api <- Identity.build(config, new RecordingHttpClient(ref).mock)
+      _ <- api.addIdentityContexts(List(e))
+      result <- ref.get
+    } yield result must beLike {
+      case List((_, body)) =>
+        body must beEqualTo(expectedRequestBody.noSpaces)
+    }
+  }
+
+  def e17 = {
+    val e = new EnrichedEvent()
+    e.event_id = UUID.randomUUID.toString
+    e.user_id = "test-user-id"
+
+    val testEntitySchema = SchemaKey("com.test", "user_context", "jsonschema", SchemaVer.Full(1, 0, 0))
+    val fromContexts = json"""{"customId": "from-contexts"}"""
+    val fromDerived = json"""{"customId": "from-derived"}"""
+
+    e.contexts = List(SelfDescribingData(testEntitySchema, fromContexts))
+    e.derived_contexts = List(SelfDescribingData(testEntitySchema, fromDerived))
+
+    val config = testConfig(
+      identifiers = List(
+        Config.Identity.Identifier(
+          name = "user_id",
+          field = atomicField("user_id")
+        ),
+        Config.Identity.Identifier(
+          name = "context_id",
+          field = entityField("com.test", "user_context", 1, "$.customId", Some(0))
+        ),
+        Config.Identity.Identifier(
+          name = "derived_id",
+          field = entityField("com.test", "user_context", 1, "$.customId", Some(1))
+        )
+      ),
+      filters = None
+    )
+
+    // contexts are ordered before derived_contexts, so index 0 is the context
+    // entity and index 1 is the derived context entity
+    val expectedRequestBody = json"""
+      [
+        {
+          "event_id": ${e.event_id},
+          "derived_timestamp": null,
+          "identifiers": {
+            "user_id": ${e.user_id},
+            "context_id": "from-contexts",
+            "derived_id": "from-derived"
+          }
+        }
+      ]
+    """
+
+    for {
+      ref <- Ref[IO].of(List.empty[(Request[IO], String)])
+      api <- Identity.build(config, new RecordingHttpClient(ref).mock)
+      _ <- api.addIdentityContexts(List(e))
+      result <- ref.get
+    } yield result must beLike {
+      case List((_, body)) =>
+        body must beEqualTo(expectedRequestBody.noSpaces)
     }
   }
 }

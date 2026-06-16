@@ -113,5 +113,5 @@ object CollectorPayloadSpec {
     contentType <- Gen.option(contentTypeGen)
     body <- Gen.option(Gen.asciiPrintableStr.suchThat(_.nonEmpty))
     context <- contextGen
-  } yield CollectorPayload(api, kvlist, contentType, body, source, context)
+  } yield SpecHelpers.collectorPayload(api, kvlist, contentType, body, source, context)
 }

@@ -52,7 +52,7 @@ class ThriftLoaderSpec extends Specification with ValidatedMatchers with ScalaCh
         ),
         userId = UUID.fromString("c5f3a09f-75f8-4309-bec5-fea560f78455").some
       )
-      val expected = CollectorPayload(
+      val expected = SpecHelpers.collectorPayload(
         api = ThriftLoaderSpec.Api,
         querystring = toNameValuePairs("testParam" -> "3", "testParam2" -> "4"),
         body = None,
@@ -86,7 +86,7 @@ class ThriftLoaderSpec extends Specification with ValidatedMatchers with ScalaCh
         userId = UUID.fromString("75a13583-5c99-40e3-81fc-541084dfc784").some
       )
 
-      val expected = CollectorPayload(
+      val expected = SpecHelpers.collectorPayload(
         api = ThriftLoaderSpec.Api,
         querystring = toNameValuePairs(
           "e" -> "pp",
@@ -154,7 +154,7 @@ class ThriftLoaderSpec extends Specification with ValidatedMatchers with ScalaCh
         ),
         userId = UUID.fromString("75a13583-5c99-40e3-81fc-541084dfc784").some
       )
-      val expected = CollectorPayload(
+      val expected = SpecHelpers.collectorPayload(
         api = ThriftLoaderSpec.Api,
         querystring = toNameValuePairs(
           "e" -> "ue",
@@ -220,7 +220,7 @@ class ThriftLoaderSpec extends Specification with ValidatedMatchers with ScalaCh
         userId = UUID.fromString("75a13583-5c99-40e3-81fc-541084dfc784").some
       )
 
-      val expected = CollectorPayload(
+      val expected = SpecHelpers.collectorPayload(
         api = ThriftLoaderSpec.Api,
         querystring = toNameValuePairs(),
         contentType = None,

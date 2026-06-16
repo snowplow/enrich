@@ -243,7 +243,8 @@ object NsqConfigSpec {
         interval = 5.minutes,
         organizationId = UUID.fromString("c5f3a09f-75f8-4309-bec5-fea560f78455"),
         pipelineId = UUID.fromString("75a13583-5c99-40e3-81fc-541084dfc784"),
-        maxBodySize = 150000
+        maxBodySize = 150000,
+        maxDistinctAggregates = 10000
       )
     ),
     identity = Some(

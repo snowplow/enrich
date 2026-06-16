@@ -80,7 +80,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
       "tracking_id" -> "",
       "ad_unit" -> ""
     )
-    val payload = CollectorPayload(Shared.api, params, None, None, Shared.cfSource, Shared.context)
+    val payload = SpecHelpers.collectorPayload(Shared.api, params, None, None, Shared.cfSource, Shared.context)
 
     val expectedJson =
       """|{
@@ -125,7 +125,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
       "ad_unit" -> "UN-11-b",
       "aid" -> "webhooks"
     )
-    val payload = CollectorPayload(Shared.api, params, None, None, Shared.cfSource, Shared.context)
+    val payload = SpecHelpers.collectorPayload(Shared.api, params, None, None, Shared.cfSource, Shared.context)
 
     val expectedMap = {
       val json =
@@ -171,7 +171,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
       "cv" -> "clj-0.5.0-tom-0.0.4",
       "nuid" -> ""
     )
-    val payload = CollectorPayload(Shared.api, params, None, None, Shared.cljSource, Shared.context)
+    val payload = SpecHelpers.collectorPayload(Shared.api, params, None, None, Shared.cljSource, Shared.context)
 
     val expectedMap = {
       val json =
@@ -214,7 +214,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
       "name" -> "download",
       "p" -> "mob"
     )
-    val payload = CollectorPayload(Shared.api, params, None, None, Shared.cfSource, Shared.context)
+    val payload = SpecHelpers.collectorPayload(Shared.api, params, None, None, Shared.cfSource, Shared.context)
 
     val expectedJson =
       """|{
@@ -247,7 +247,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
 
   def e5 = {
     val params = SpecHelpers.toNameValuePairs()
-    val payload = CollectorPayload(Shared.api, params, None, None, Shared.cfSource, Shared.context)
+    val payload = SpecHelpers.collectorPayload(Shared.api, params, None, None, Shared.cfSource, Shared.context)
 
     IgluAdapter
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
@@ -267,7 +267,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
       "some_param" -> "foo",
       "p" -> "mob"
     )
-    val payload = CollectorPayload(Shared.api, params, None, None, Shared.cfSource, Shared.context)
+    val payload = SpecHelpers.collectorPayload(Shared.api, params, None, None, Shared.cfSource, Shared.context)
 
     IgluAdapter
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
@@ -286,7 +286,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
     val params = SpecHelpers.toNameValuePairs(
       "schema" -> "iglooooooo://blah"
     )
-    val payload = CollectorPayload(Shared.api, params, None, None, Shared.cfSource, Shared.context)
+    val payload = SpecHelpers.collectorPayload(Shared.api, params, None, None, Shared.cfSource, Shared.context)
 
     IgluAdapter
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
@@ -309,7 +309,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
     )
     val jsonStr = """{"key":"value", "everwets":"processed"}"""
     val payload =
-      CollectorPayload(
+      SpecHelpers.collectorPayload(
         Shared.api,
         params,
         "application/json".some,
@@ -344,7 +344,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
     )
     val jsonStr = """{"key":"value", "everwets":"processed"}"""
     val payload =
-      CollectorPayload(
+      SpecHelpers.collectorPayload(
         Shared.api,
         params,
         "application/badtype".some,
@@ -371,7 +371,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
     )
     val jsonStr = """{}"""
     val payload =
-      CollectorPayload(
+      SpecHelpers.collectorPayload(
         Shared.api,
         params,
         "application/json".some,
@@ -400,7 +400,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
     )
     val jsonStr = """{"key":"value"}"""
     val payload =
-      CollectorPayload(Shared.api, params, None, jsonStr.some, Shared.cljSource, Shared.context)
+      SpecHelpers.collectorPayload(Shared.api, params, None, jsonStr.some, Shared.cljSource, Shared.context)
 
     IgluAdapter
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
@@ -422,7 +422,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
     val jsonStr =
       """{"schema":"iglu:com.acme/campaign/jsonschema/1-0-1", "data":{"some_param":"foo"}}"""
     val payload =
-      CollectorPayload(
+      SpecHelpers.collectorPayload(
         Shared.api,
         params,
         "application/json".some,
@@ -454,7 +454,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
     val jsonStr =
       """{"schema":"iglu:com.acme/campaign/jsonschema/1-0-1", "data":{"some_param":"foo"}}"""
     val payload =
-      CollectorPayload(
+      SpecHelpers.collectorPayload(
         Shared.api,
         params,
         "application/xxx-url-form-encoded".some,
@@ -482,7 +482,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
     val params = SpecHelpers.toNameValuePairs("schema" -> "iglu:com.acme/campaign/jsonschema/1-0-1")
     val jsonStr = """{"some_param":"foo"}"""
     val payload =
-      CollectorPayload(
+      SpecHelpers.collectorPayload(
         Shared.api,
         params,
         "application/xxx-url-form-encoded".some,
@@ -510,7 +510,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
     val params = SpecHelpers.toNameValuePairs("schema" -> "iglu:com.acme/campaign/jsonschema/1-0-1")
     val formBodyStr = "some_param=foo&hello=world"
     val payload =
-      CollectorPayload(
+      SpecHelpers.collectorPayload(
         Shared.api,
         params,
         "application/x-www-form-urlencoded".some,
@@ -546,7 +546,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
     val jsonStr =
       """[{"key":"value", "everwets":"processed"},{"key":"value", "everwets":"processed"}]"""
     val payload =
-      CollectorPayload(
+      SpecHelpers.collectorPayload(
         Shared.api,
         params,
         "application/json".some,
@@ -581,7 +581,7 @@ class IgluAdapterSpec extends Specification with DataTables with ValidatedMatche
     )
     val jsonStr = """[]"""
     val payload =
-      CollectorPayload(
+      SpecHelpers.collectorPayload(
         Shared.api,
         params,
         "application/json".some,

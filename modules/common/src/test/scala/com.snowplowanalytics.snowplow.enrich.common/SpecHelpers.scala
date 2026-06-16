@@ -44,6 +44,7 @@ import com.snowplowanalytics.iglu.core.circe.implicits._
 import com.snowplowanalytics.lrumap.CreateLruMap._
 
 import com.snowplowanalytics.snowplow.enrich.common.adapters._
+import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, JsonUtils}
 
 object SpecHelpers extends CatsEffect {
@@ -51,6 +52,28 @@ object SpecHelpers extends CatsEffect {
   val etlTstamp = Instant.ofEpochMilli(1599750938180L)
 
   val DefaultMaxJsonDepth = 40
+
+  /**
+   * Construct a [[CollectorPayload]] from a String body. Production code
+   * constructs the case class directly with `Option[Array[Byte]]` — this helper exists so specs
+   * don't have to spell out `.getBytes(UTF_8)` at every site.
+   */
+  def collectorPayload(
+    api: CollectorPayload.Api,
+    querystring: List[NameValuePair],
+    contentType: Option[String],
+    body: Option[String],
+    source: CollectorPayload.Source,
+    context: CollectorPayload.Context
+  ): CollectorPayload =
+    new CollectorPayload(
+      api,
+      querystring,
+      contentType,
+      body.map(_.getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+      source,
+      context
+    )
 
   // Standard Iglu configuration
   private val igluConfig = json"""{

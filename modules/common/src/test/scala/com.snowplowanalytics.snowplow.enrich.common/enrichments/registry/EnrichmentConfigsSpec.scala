@@ -623,6 +623,34 @@ class EnrichmentConfigsSpec extends Specification with ValidatedMatchers with Da
     }
   }
 
+  "Parsing an agent_classification_enrichment_config JSON" should {
+    "successfully construct an AgentClassificationConf case class" in {
+      val agentClassificationJson = json"""{
+        "enabled": true,
+        "parameters": {
+          "classification": {
+            "ChatGPT-User": {"operator": "OpenAI", "purpose": "AI data retrieval"}
+          }
+        }
+      }"""
+      val schemaKey = SchemaKey(
+        "com.snowplowanalytics.snowplow.enrichments",
+        "agent_classification_enrichment_config",
+        "jsonschema",
+        SchemaVer.Full(1, 0, 0)
+      )
+      val expected = AgentClassificationConf(
+        schemaKey,
+        classificationFile = None,
+        classification = Map(
+          "ChatGPT-User" -> AgentClassificationEnrichment.AgentClassificationOverride(Some("OpenAI"), Some("AI data retrieval"))
+        )
+      )
+      val result = AgentClassificationEnrichment.parse(agentClassificationJson, schemaKey, localMode = false)
+      result must beValid(expected)
+    }
+  }
+
   "Parsing an cross_navigation_config JSON" should {
     "successfully construct a CrossNavigationEnrichment" in {
       val crossNavJson = json"""{

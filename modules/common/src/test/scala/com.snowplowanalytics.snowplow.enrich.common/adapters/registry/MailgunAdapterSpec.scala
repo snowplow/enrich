@@ -64,7 +64,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     val body =
       """{"signature":{"token":"090e1ce3702378c8121f3765a8efe0ffb97c4e2ca2adda6729","timestamp":"1657907833","signature":"496413b238ab6affce021b850d3fc72c4832fb04f1aed6d4a2fda7d08e6e95a6"},"event-data":{"id":"CPgfbmQMTCKtHW6uIWtuVe","timestamp":1521472262.908181,"log-level":"info","event":"delivered","delivery-status":{"tls":true,"mx-host":"smtp-in.example.com","code":250,"description":"","session-seconds":0.4331989288330078,"utf8":true,"attempt-no":1,"message":"OK","certificate-verified":true},"flags":{"is-routed":false,"is-authenticated":true,"is-system-test":false,"is-test-mode":false},"envelope":{"transport":"smtp","sender":"bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org","sending-ip":"209.61.154.250","targets":"alice@example.com"},"message":{"headers":{"to":"Alice <alice@example.com>","message-id":"20130503182626.18666.16540@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org","from":"Bob <bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org>","subject":"Test delivered webhook"},"attachments":[],"size":111},"recipient":"alice@example.com","recipient-domain":"example.com","storage":{"url":"https://se.api.mailgun.net/v3/domains/sandbox22aee81b13674403a5335202df94f7e7.mailgun.org/messages/message_key","key":"message_key"},"campaigns":[],"tags":["my_tag_1","my_tag_2"],"user-variables":{"my_var_1":"Mailgun Variable #1","my-var-2":"awesome"}}}"""
 
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ContentType.some,
@@ -152,7 +152,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
   def e2 = {
     val body =
       """{"signature":{"token":"52ff6f6383a394343c4de6e5d4fd870f4ae67b5daeebe3eb86","timestamp":"1659551876","signature":"b2314a28591eccaef5ea88fdf46b99202d8be44e3d1f911abd7e8fe3db726120"},"event-data":{"id":"Ase7i2zsRYeDXztHGENqRA","timestamp":1521243339.873676,"log-level":"info","event":"opened","message":{"headers":{"message-id":"20130503182626.18666.16540@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org"}},"recipient":"alice@example.com","recipient-domain":"example.com","ip":"50.56.129.169","geolocation":{"country":"US","region":"CA","city":"San Francisco"},"client-info":{"client-os":"Linux","device-type":"desktop","client-name":"Chrome","client-type":"browser","user-agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.31 (KHTML, like Gecko) Chrome/26.0.1410.43 Safari/537.31"},"campaigns":[],"tags":["my_tag_1","my_tag_2"],"user-variables":{"my_var_1":"Mailgun Variable #1","my-var-2":"awesome"}}}"""
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ContentType.some,
@@ -221,7 +221,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
   def e3 = {
     val body =
       """{"signature":{"token":"a80c92b02bf725bdd9ac58d681ed74a703ad616098b502f1cb","timestamp":"1659551885","signature":"eaf9de9689d7fbc8d39b90a19bb6cb837ec6451f8d1956d6bd9be09255e03af9"},"event-data":{"id":"Ase7i2zsRYeDXztHGENqRA","timestamp":1521243339.873676,"log-level":"info","event":"clicked","message":{"headers":{"message-id":"20130503182626.18666.16540@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org"}},"recipient":"alice@example.com","recipient-domain":"example.com","ip":"50.56.129.169","geolocation":{"country":"US","region":"CA","city":"San Francisco"},"client-info":{"client-os":"Linux","device-type":"desktop","client-name":"Chrome","client-type":"browser","user-agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.31 (KHTML, like Gecko) Chrome/26.0.1410.43 Safari/537.31"},"campaigns":[],"tags":["my_tag_1","my_tag_2"],"user-variables":{"my_var_1":"Mailgun Variable #1","my-var-2":"awesome"}}}"""
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ContentType.some,
@@ -255,7 +255,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
   def e4 = {
     val body =
       """{"signature":{"token":"136f8d92f5955101b0caf54c1c05d62742bae30cb583f4a2a8","timestamp":"1659551891","signature":"ba27e487214505e4da2b9def4d0b83bd99a8bec0cb8b91457a97f2bc3d93eda4"},"event-data":{"id":"Ase7i2zsRYeDXztHGENqRA","timestamp":1521243339.873676,"log-level":"info","event":"unsubscribed","message":{"headers":{"message-id":"20130503182626.18666.16540@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org"}},"recipient":"alice@example.com","recipient-domain":"example.com","ip":"50.56.129.169","geolocation":{"country":"US","region":"CA","city":"San Francisco"},"client-info":{"client-os":"Linux","device-type":"desktop","client-name":"Chrome","client-type":"browser","user-agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.31 (KHTML, like Gecko) Chrome/26.0.1410.43 Safari/537.31"},"campaigns":[],"tags":["my_tag_1","my_tag_2"],"user-variables":{"my_var_1":"Mailgun Variable #1","my-var-2":"awesome"}}}"""
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ContentType.some,
@@ -289,7 +289,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
   def e5 = {
     val body =
       """{"signature":{"token":"090e1ce3702378c8121f3765a8efe0ffb97c4e2ca2adda6729","timestamp":"1657907833","signature":"496413b238ab6affce021b850d3fc72c4832fb04f1aed6d4a2fda7d08e6e95a6"},"event-data":{"id":"CPgfbmQMTCKtHW6uIWtuVe","timestamp":1521472262.908181,"log-level":"info","event":"delivered","delivery-status":{"tls":true,"mx-host":"smtp-in.example.com","code":250,"description":"","session-seconds":0.4331989288330078,"utf8":true,"attempt-no":1,"message":"OK","certificate-verified":true},"flags":{"is-routed":false,"is-authenticated":true,"is-system-test":false,"is-test-mode":false},"envelope":{"transport":"smtp","sender":"bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org","sending-ip":"209.61.154.250","targets":"alice@example.com"},"message":{"headers":{"to":"Alice <alice@example.com>","message-id":"20130503182626.18666.16540@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org","from":"Bob <bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org>","subject":"Test delivered webhook"},"attachments":[],"size":111},"recipient":"alice@example.com","recipient-domain":"example.com","storage":{"url":"https://se.api.mailgun.net/v3/domains/sandbox22aee81b13674403a5335202df94f7e7.mailgun.org/messages/message_key","key":"message_key"},"campaigns":[],"tags":["my_tag_1","my_tag_2"],"user-variables":{"my_var_1":"Mailgun Variable #1","my-var-2":"awesome"}}}"""
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       Some("application/json"),
@@ -375,7 +375,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
 
   def e6 = {
     val payload =
-      CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
+      SpecHelpers.collectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
@@ -391,7 +391,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
   def e7 = {
     val body = "body"
     val payload =
-      CollectorPayload(Shared.api, Nil, None, body.some, Shared.cljSource, Shared.context)
+      SpecHelpers.collectorPayload(Shared.api, Nil, None, body.some, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
@@ -411,7 +411,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     val body = "body"
     val ct = "multipart/form-data"
     val payload =
-      CollectorPayload(Shared.api, Nil, ct.some, body.some, Shared.cljSource, Shared.context)
+      SpecHelpers.collectorPayload(Shared.api, Nil, ct.some, body.some, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
@@ -429,7 +429,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
 
   def e9 = {
     val body = ""
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ContentType.some,
@@ -449,7 +449,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
 
   def e10 = {
     val body = "{}"
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ContentType.some,
@@ -472,7 +472,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
   def e11 = {
     val body =
       """{"signature":{"token":"090e1ce3702378c8121f3765a8efe0ffb97c4e2ca2adda6729","timestamp":"1657907833","signature":"496413b238ab6affce021b850d3fc72c4832fb04f1aed6d4a2fda7d08e6e95a6"},"event-data":{"id":"CPgfbmQMTCKtHW6uIWtuVe","timestamp":1521472262.908181,"log-level":"info","event":"released","delivery-status":{"tls":true,"mx-host":"smtp-in.example.com","code":250,"description":"","session-seconds":0.4331989288330078,"utf8":true,"attempt-no":1,"message":"OK","certificate-verified":true},"flags":{"is-routed":false,"is-authenticated":true,"is-system-test":false,"is-test-mode":false},"envelope":{"transport":"smtp","sender":"bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org","sending-ip":"209.61.154.250","targets":"alice@example.com"},"message":{"headers":{"to":"Alice <alice@example.com>","message-id":"20130503182626.18666.16540@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org","from":"Bob <bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org>","subject":"Test delivered webhook"},"attachments":[],"size":111},"recipient":"alice@example.com","recipient-domain":"example.com","storage":{"url":"https://se.api.mailgun.net/v3/domains/sandbox22aee81b13674403a5335202df94f7e7.mailgun.org/messages/message_key","key":"message_key"},"campaigns":[],"tags":["my_tag_1","my_tag_2"],"user-variables":{"my_var_1":"Mailgun Variable #1","my-var-2":"awesome"}}}"""
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ContentType.some,
@@ -495,7 +495,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
   def e12 = {
     val body =
       """{"signature":{"token":"090e1ce3702378c8121f3765a8efe0ffb97c4e2ca2adda6729","signature":"496413b238ab6affce021b850d3fc72c4832fb04f1aed6d4a2fda7d08e6e95a6"},"event-data":{"id":"CPgfbmQMTCKtHW6uIWtuVe","timestamp":1521472262.908181,"log-level":"info","event":"delivered","delivery-status":{"tls":true,"mx-host":"smtp-in.example.com","code":250,"description":"","session-seconds":0.4331989288330078,"utf8":true,"attempt-no":1,"message":"OK","certificate-verified":true},"flags":{"is-routed":false,"is-authenticated":true,"is-system-test":false,"is-test-mode":false},"envelope":{"transport":"smtp","sender":"bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org","sending-ip":"209.61.154.250","targets":"alice@example.com"},"message":{"headers":{"to":"Alice <alice@example.com>","message-id":"20130503182626.18666.16540@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org","from":"Bob <bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org>","subject":"Test delivered webhook"},"attachments":[],"size":111},"recipient":"alice@example.com","recipient-domain":"example.com","storage":{"url":"https://se.api.mailgun.net/v3/domains/sandbox22aee81b13674403a5335202df94f7e7.mailgun.org/messages/message_key","key":"message_key"},"campaigns":[],"tags":["my_tag_1","my_tag_2"],"user-variables":{"my_var_1":"Mailgun Variable #1","my-var-2":"awesome"}}}"""
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ContentType.some,
@@ -516,7 +516,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
   def e13 = {
     val body =
       """{"signature":{"timestamp":"1657907833","signature":"496413b238ab6affce021b850d3fc72c4832fb04f1aed6d4a2fda7d08e6e95a6"},"event-data":{"id":"CPgfbmQMTCKtHW6uIWtuVe","timestamp":1521472262.908181,"log-level":"info","event":"delivered","delivery-status":{"tls":true,"mx-host":"smtp-in.example.com","code":250,"description":"","session-seconds":0.4331989288330078,"utf8":true,"attempt-no":1,"message":"OK","certificate-verified":true},"flags":{"is-routed":false,"is-authenticated":true,"is-system-test":false,"is-test-mode":false},"envelope":{"transport":"smtp","sender":"bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org","sending-ip":"209.61.154.250","targets":"alice@example.com"},"message":{"headers":{"to":"Alice <alice@example.com>","message-id":"20130503182626.18666.16540@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org","from":"Bob <bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org>","subject":"Test delivered webhook"},"attachments":[],"size":111},"recipient":"alice@example.com","recipient-domain":"example.com","storage":{"url":"https://se.api.mailgun.net/v3/domains/sandbox22aee81b13674403a5335202df94f7e7.mailgun.org/messages/message_key","key":"message_key"},"campaigns":[],"tags":["my_tag_1","my_tag_2"],"user-variables":{"my_var_1":"Mailgun Variable #1","my-var-2":"awesome"}}}"""
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ContentType.some,
@@ -535,7 +535,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
   def e14 = {
     val body =
       """{"signature":{"token":"090e1ce3702378c8121f3765a8efe0ffb97c4e2ca2adda6729","timestamp":"1657907833"},"event-data":{"id":"CPgfbmQMTCKtHW6uIWtuVe","timestamp":1521472262.908181,"log-level":"info","event":"delivered","delivery-status":{"tls":true,"mx-host":"smtp-in.example.com","code":250,"description":"","session-seconds":0.4331989288330078,"utf8":true,"attempt-no":1,"message":"OK","certificate-verified":true},"flags":{"is-routed":false,"is-authenticated":true,"is-system-test":false,"is-test-mode":false},"envelope":{"transport":"smtp","sender":"bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org","sending-ip":"209.61.154.250","targets":"alice@example.com"},"message":{"headers":{"to":"Alice <alice@example.com>","message-id":"20130503182626.18666.16540@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org","from":"Bob <bob@sandbox22aee81b13674403a5335202df94f7e7.mailgun.org>","subject":"Test delivered webhook"},"attachments":[],"size":111},"recipient":"alice@example.com","recipient-domain":"example.com","storage":{"url":"https://se.api.mailgun.net/v3/domains/sandbox22aee81b13674403a5335202df94f7e7.mailgun.org/messages/message_key","key":"message_key"},"campaigns":[],"tags":["my_tag_1","my_tag_2"],"user-variables":{"my_var_1":"Mailgun Variable #1","my-var-2":"awesome"}}}"""
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ContentType.some,

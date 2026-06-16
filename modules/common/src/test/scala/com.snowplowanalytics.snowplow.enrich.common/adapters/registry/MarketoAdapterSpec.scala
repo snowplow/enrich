@@ -50,7 +50,7 @@ class MarketoAdapterSpec extends Specification with DataTables with ValidatedMat
   def e1 = {
     val bodyStr =
       """{"name": "webhook for A", "step": 6, "lead": {"acquisition_date": "2010-11-11 11:11:11", "black_listed": false, "first_name": "the hulk", "updated_at": "", "created_at": "2018-06-16 11:23:58", "last_interesting_moment_date": "2018-09-26 20:26:40"}, "company": {"name": "iron man", "notes": "the something dog leapt over the lazy fox"}, "campaign": {"id": 987, "name": "triggered event"}, "datetime": "2018-03-07 14:28:16"}"""
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ContentType.some,
@@ -79,7 +79,7 @@ class MarketoAdapterSpec extends Specification with DataTables with ValidatedMat
 
   def e2 = {
     val payload =
-      CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
+      SpecHelpers.collectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(

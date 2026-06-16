@@ -288,6 +288,16 @@ object EnrichmentConf {
     def enrichment: BotDetectionEnrichment = BotDetectionEnrichment(useYauaa, useIab, useAsnLookups, useClientSideDetection)
   }
 
+  final case class AgentClassificationConf(
+    schemaKey: SchemaKey,
+    classificationFile: Option[(URI, String)],
+    classification: Map[String, AgentClassificationEnrichment.AgentClassificationOverride]
+  ) extends WithAssets {
+    override val filesToCache: List[(URI, String)] = classificationFile.toList
+    def enrichment[F[_]: Sync]: EitherT[F, String, AgentClassificationEnrichment] =
+      AgentClassificationEnrichment.create[F](classificationFile.map(_._2), classification)
+  }
+
   final case class EventSpecConf(
     schemaKey: SchemaKey,
     eventSpecsFile: (URI, String)

@@ -74,7 +74,7 @@ class UrbanAirshipAdapterSpec extends Specification with ValidatedMatchers with 
       "type": "NOT_AN_EVENT_TYPE"
     }"""
 
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       None,
@@ -127,7 +127,7 @@ class UrbanAirshipAdapterSpec extends Specification with ValidatedMatchers with 
     }
 
     "fail on unknown event types" in {
-      val payload = CollectorPayload(
+      val payload = SpecHelpers.collectorPayload(
         Shared.api,
         Nil,
         None,
@@ -142,7 +142,7 @@ class UrbanAirshipAdapterSpec extends Specification with ValidatedMatchers with 
 
     "reject unparsable json" in {
       val payload =
-        CollectorPayload(Shared.api, Nil, None, """{ """.some, Shared.cljSource, Shared.context)
+        SpecHelpers.collectorPayload(Shared.api, Nil, None, """{ """.some, Shared.cljSource, Shared.context)
       adapterWithDefaultSchemas
         .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
         .map(_ must beInvalid)
@@ -150,7 +150,7 @@ class UrbanAirshipAdapterSpec extends Specification with ValidatedMatchers with 
 
     "reject badly formatted json" in {
       val payload =
-        CollectorPayload(
+        SpecHelpers.collectorPayload(
           Shared.api,
           Nil,
           None,
@@ -164,7 +164,7 @@ class UrbanAirshipAdapterSpec extends Specification with ValidatedMatchers with 
     }
 
     "reject content types" in {
-      val payload = CollectorPayload(
+      val payload = SpecHelpers.collectorPayload(
         Shared.api,
         Nil,
         "a/type".some,

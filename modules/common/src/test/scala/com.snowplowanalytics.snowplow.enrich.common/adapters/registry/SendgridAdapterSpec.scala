@@ -215,7 +215,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
   "toRawEvents" should {
 
     val payload =
-      CollectorPayload(
+      SpecHelpers.collectorPayload(
         Shared.api,
         Nil,
         ContentType.some,
@@ -272,7 +272,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
 
     "reject empty bodies" in {
       val invalidpayload =
-        CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
+        SpecHelpers.collectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
       adapterWithDefaultSchemas
         .toRawEvents(invalidpayload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
         .map(_ must beInvalid)
@@ -280,7 +280,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
 
     "reject empty content type" in {
       val invalidpayload =
-        CollectorPayload(
+        SpecHelpers.collectorPayload(
           Shared.api,
           Nil,
           None,
@@ -295,7 +295,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
 
     "reject unexpected content type" in {
       val invalidpayload =
-        CollectorPayload(
+        SpecHelpers.collectorPayload(
           Shared.api,
           Nil,
           "invalidtype/invalid".some,
@@ -310,7 +310,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
 
     "accept content types with explicit charsets" in {
       val payload =
-        CollectorPayload(
+        SpecHelpers.collectorPayload(
           Shared.api,
           Nil,
           "application/json; charset=utf-8".some,
@@ -340,7 +340,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
             ]"""
 
       val invalidpayload =
-        CollectorPayload(
+        SpecHelpers.collectorPayload(
           Shared.api,
           Nil,
           ContentType.some,
@@ -358,7 +358,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
       val unparsableJson = """[ """
       adapterWithDefaultSchemas
         .toRawEvents(
-          CollectorPayload(
+          SpecHelpers.collectorPayload(
             Shared.api,
             Nil,
             ContentType.some,
@@ -377,7 +377,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
       val incorrectlyFormattedJson = """[ ]"""
       adapterWithDefaultSchemas
         .toRawEvents(
-          CollectorPayload(
+          SpecHelpers.collectorPayload(
             Shared.api,
             Nil,
             ContentType.some,
@@ -416,7 +416,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
       ]"""
 
       val payload =
-        CollectorPayload(
+        SpecHelpers.collectorPayload(
           Shared.api,
           Nil,
           ContentType.some,
@@ -460,7 +460,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
       ]"""
 
       val payload =
-        CollectorPayload(
+        SpecHelpers.collectorPayload(
           Shared.api,
           Nil,
           ContentType.some,
@@ -528,7 +528,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
         """
 
       val payload =
-        CollectorPayload(
+        SpecHelpers.collectorPayload(
           Shared.api,
           Nil,
           ContentType.some,
@@ -581,7 +581,7 @@ class SendgridAdapterSpec extends Specification with ValidatedMatchers with Cats
         """
 
       val payload =
-        CollectorPayload(
+        SpecHelpers.collectorPayload(
           Shared.api,
           Nil,
           ContentType.some,

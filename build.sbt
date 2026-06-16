@@ -27,6 +27,14 @@ lazy val common = project
   .settings(commonBuildSettings)
   .settings(libraryDependencies ++= commonDependencies)
   .settings(excludeDependencies ++= exclusions)
+  // Skip Scaladoc for the common module. The Thrift-generated Java source carries an
+  // `@generated` Javadoc tag that Scaladoc rejects, and once the .java is filtered out
+  // Scaladoc can no longer resolve the symbols our Scala sources import from it.
+  // We still publish an (empty) javadoc jar because the Sonatype Central Portal requires
+  // a -javadoc.jar for the component to pass validation.
+  .settings(
+    Compile / doc / sources := Seq.empty
+  )
   .settings(
     igluUris := Seq(
       // Core event schemas
@@ -71,7 +79,8 @@ lazy val common = project
       "iglu:com.snowplowanalytics.snowplow.enrichments/sql_query_enrichment_config/jsonschema/1-0-0",
       "iglu:com.snowplowanalytics.snowplow.enrichments/sql_query_enrichment_config/jsonschema/1-0-1",
       "iglu:com.snowplowanalytics.snowplow.enrichments/weather_enrichment_config/jsonschema/1-0-0",
-      "iglu:com.snowplowanalytics.snowplow.enrichments/yauaa_enrichment_config/jsonschema/1-0-0"
+      "iglu:com.snowplowanalytics.snowplow.enrichments/yauaa_enrichment_config/jsonschema/1-0-0",
+      "iglu:com.snowplowanalytics.snowplow.enrichments/agent_classification_enrichment_config/jsonschema/1-0-0"
     )
   )
 

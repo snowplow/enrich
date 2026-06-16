@@ -49,13 +49,13 @@ final case class RemoteAdapter[F[_]: Monad](
     payload: CollectorPayload,
     maxJsonDepth: Int
   ): F[Adapted] =
-    payload.body match {
+    payload.bodyAsString match {
       case Some(body) if body.nonEmpty =>
         val json = Json.obj(
           "contentType" := payload.contentType,
           "queryString" := toMap(payload.querystring),
           "headers" := payload.context.headers,
-          "body" := payload.body
+          "body" := body
         )
         httpClient
           .getResponse(remoteUrl, None, None, Some(json.noSpaces), "POST")

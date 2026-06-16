@@ -78,7 +78,7 @@ object CollectorPayloadGen {
       headers = Nil
       userId <- Gen.uuid.map(Some(_))
       context = CollectorPayload.Context(DateTime.now, ipAddress, useragent, refererUri, headers, userId)
-    } yield CollectorPayload(api, queryString, contentType, body, source, context)
+    } yield CollectorPayload(api, queryString, contentType, body.map(_.getBytes(java.nio.charset.StandardCharsets.UTF_8)), source, context)
 
   private def bodyGen(valid: Boolean, drop: Boolean): Gen[String] =
     for {

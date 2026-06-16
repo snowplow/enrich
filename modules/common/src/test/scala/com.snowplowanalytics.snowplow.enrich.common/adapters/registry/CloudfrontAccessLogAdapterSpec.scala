@@ -495,7 +495,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
   def e8 = {
     val params = SpecHelpers.toNameValuePairs()
     val payload =
-      CollectorPayload(
+      SpecHelpers.collectorPayload(
         Shared.api,
         params,
         None,
@@ -523,7 +523,7 @@ class CloudfrontAccessLogAdapterSpec extends Specification with DataTables with 
   def e9 = {
     val params = SpecHelpers.toNameValuePairs()
     val payload =
-      CollectorPayload(
+      SpecHelpers.collectorPayload(
         Shared.api,
         params,
         None,
@@ -578,7 +578,7 @@ object CloudfrontAccessLogAdapterSpec {
             val source = CollectorPayload.Source(CollectorName, CollectorEncoding, None)
             val collectorTstamp = DateTime.parse("2013-10-07T23:35:30.000Z")
             val context = CollectorPayload.Context(collectorTstamp, None, None, None, Nil, None)
-            CollectorPayload(api, Nil, None, Some(line), source, context).some
+            SpecHelpers.collectorPayload(api, Nil, None, Some(line), source, context).some
           }
           .leftMap(f =>
             BadRow.CPFormatViolation(

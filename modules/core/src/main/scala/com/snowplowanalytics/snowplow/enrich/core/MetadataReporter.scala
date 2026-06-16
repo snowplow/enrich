@@ -14,6 +14,7 @@ import cats.Show
 import cats.implicits._
 import cats.effect.{Async, Ref, Resource, Sync}
 import cats.effect.implicits._
+import cats.effect.std.Queue
 import fs2.{Chunk, Pipe, Stream}
 import org.http4s.client.Client
 import org.http4s.{MediaType, Method, Request, Status}
@@ -30,7 +31,7 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.{MiscEnrichments => ME}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
-import scala.concurrent.duration.DurationInt
+import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import java.time.Instant
 import java.util.Base64
 import java.nio.charset.StandardCharsets
@@ -64,20 +65,35 @@ object MetadataReporter {
   ): Resource[F, MetadataReporter[F]] =
     for {
       ref <- Resource.eval(Ref.of[F, Metadata.Aggregates](Map.empty))
-      _ <- stream(config, appInfo, httpClient, ref).compile.drain.background
+      earlyFlush <- Resource.eval(Queue.bounded[F, Unit](1))
+      _ <- stream(config, appInfo, httpClient, ref, earlyFlush).compile.drain.background
     } yield new MetadataReporter[F] {
       def add(aggregates: Metadata.Aggregates): F[Unit] =
-        ref.update(_ |+| aggregates)
+        ref.updateAndGet(_ |+| aggregates).flatMap { merged =>
+          if (merged.size >= config.maxDistinctAggregates)
+            earlyFlush.tryOffer(()).void
+          else
+            Async[F].unit
+        }
     }
+
+  // Emits a Unit on each flush boundary: either when the interval elapses or when an early-flush
+  // signal arrives. After each emission the timer resets, so an early flush defers the next
+  // periodic flush by a full interval.
+  private def flushSignals[F[_]: Async](
+    interval: FiniteDuration,
+    earlyFlush: Queue[F, Unit]
+  ): Stream[F, Unit] =
+    Stream.repeatEval(Async[F].race(Async[F].sleep(interval), earlyFlush.take).void)
 
   private def stream[F[_]: Async](
     config: Config.Metadata,
     appInfo: AppInfo,
     httpClient: Client[F],
-    ref: Ref[F, Metadata.Aggregates]
+    ref: Ref[F, Metadata.Aggregates],
+    earlyFlush: Queue[F, Unit]
   ): Stream[F, Nothing] =
-    Stream
-      .fixedRate[F](config.interval)
+    flushSignals(config.interval, earlyFlush)
       .evalMap(_ => ref.getAndSet(Map.empty))
       .filter(_.nonEmpty)
       .through(toTrackerProtocolJsonStrings(config, appInfo))

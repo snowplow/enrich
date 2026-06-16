@@ -71,7 +71,7 @@ object IgluAdapter extends Adapter {
   ): F[Adapted] = {
     val _ = client
     val params = toMap(payload.querystring)
-    (params.get("schema").flatten, payload.body, payload.contentType) match {
+    (params.get("schema").flatten, payload.bodyAsString, payload.contentType) match {
       case (_, Some(_), None) =>
         val msg = s"expected one of $contentTypesStr"
         Monad[F].pure(
@@ -177,7 +177,7 @@ object IgluAdapter extends Adapter {
           .InputData("schema", schemaUri.some, parseError.code)
           .invalidNel
       case Right(key) =>
-        (payload.body, payload.contentType) match {
+        (payload.bodyAsString, payload.contentType) match {
           case (None, _) =>
             NonEmptyList
               .one(

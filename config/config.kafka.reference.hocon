@@ -228,6 +228,8 @@
 
     # -- Maximum body size for the payloads sent to the endpoint
     "maxBodySize": 150000
+    # -- Maximum number of distinct event combinations to accumulate before triggering an early flush
+    "maxDistinctAggregates": 10000
   }
 
   # -- Enrich events via an external identity service

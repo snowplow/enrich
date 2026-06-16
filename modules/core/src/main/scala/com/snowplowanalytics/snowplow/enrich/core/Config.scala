@@ -126,7 +126,8 @@ object Config {
     organizationId: M[UUID],
     pipelineId: M[UUID],
     interval: FiniteDuration,
-    maxBodySize: Int
+    maxBodySize: Int,
+    maxDistinctAggregates: Int
   )
 
   type Metadata = MetadataM[Id]
@@ -278,9 +279,9 @@ object Config {
 
     implicit val metadataDecoder = deriveConfiguredDecoder[MetadataM[Option]]
       .emap[Option[Metadata]] {
-        case MetadataM(Some(endpoint), Some(organizationId), Some(pipelineId), interval, bodySize) =>
-          Right(Some(MetadataM[Id](endpoint, organizationId, pipelineId, interval, bodySize)))
-        case MetadataM(None, None, None, _, _) =>
+        case MetadataM(Some(endpoint), Some(organizationId), Some(pipelineId), interval, bodySize, maxDistinctAggregates) =>
+          Right(Some(MetadataM[Id](endpoint, organizationId, pipelineId, interval, bodySize, maxDistinctAggregates)))
+        case MetadataM(None, None, None, _, _, _) =>
           Right(None)
         case _ =>
           Left("endpoint, organizationId and pipelineId should all be defined to enable metadata reporting")
@@ -348,6 +349,7 @@ object Config {
       deriveConfiguredDecoder[CallrailSchemas]
     implicit val cloudfrontAccessLogSchemasDecoder: Decoder[CloudfrontAccessLogSchemas] =
       deriveConfiguredDecoder[CloudfrontAccessLogSchemas]
+
     implicit val googleAnalyticsSchemasDecoder: Decoder[GoogleAnalyticsSchemas] =
       deriveConfiguredDecoder[GoogleAnalyticsSchemas]
     implicit val hubspotSchemasDecoder: Decoder[HubspotSchemas] =

@@ -42,6 +42,7 @@ class AdapterRegistry[F[_]: Clock: Monad](
     (Vendor.Iglu, "v1") -> IgluAdapter,
     (Vendor.Callrail, "v1") -> CallrailAdapter(adaptersSchemas.callrail),
     (Vendor.Cloudfront, "wd_access_log") -> CloudfrontAccessLogAdapter(adaptersSchemas.cloudfrontAccessLog),
+    (Vendor.Cloudfront, "firehose") -> CloudfrontFirehoseAdapter(),
     (Vendor.Mailchimp, "v1") -> MailchimpAdapter(adaptersSchemas.mailchimp),
     (Vendor.Mailgun, "v1") -> MailgunAdapter(adaptersSchemas.mailgun),
     (Vendor.GoogleAnalytics, "v1") -> GoogleAnalyticsAdapter(adaptersSchemas.googleAnalytics),

@@ -137,7 +137,7 @@ object EmbeddedSchemasSpec {
     val uePx = unstructEventJson.toBase64
     val cx = contextsJson.toBase64
 
-    CollectorPayload(
+    SpecHelpers.collectorPayload(
       CollectorPayload.Api("com.snowplowanalytics.snowplow", "tp2"),
       Nil,
       Some("application/json"),

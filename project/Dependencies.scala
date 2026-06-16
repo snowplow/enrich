@@ -32,7 +32,7 @@ object Dependencies {
     val useragent = "1.21"
     val uaParser = "1.5.4"
     val snakeYaml = "2.3"
-    val postgresDriver = "42.7.2"
+    val postgresDriver = "42.7.11"
     val mysqlClient = "3.4.0"
     val hikariCP = "5.0.1"
     val jaywayJsonpath = "2.10.0"
@@ -43,10 +43,10 @@ object Dependencies {
     val log4jToSlf4j = "2.18.0"
     val guava = "33.1.0-jre"
     val slf4j = "2.0.3"
-    val thrift = "0.15.0"
+    val thrift = "0.23.0"
     val httpclient = "4.5.13"
     val sprayJson = "1.3.6"
-    val netty = "4.2.12.Final"
+    val netty = "4.2.15.Final"
     val protobuf = "4.28.3"
     val nashorn = "15.6"
     val zstd = "1.5.7-4"
@@ -63,10 +63,6 @@ object Dependencies {
     val badRows = "2.3.0"
     val igluClient = "4.2.1"
 
-    val snowplowRawEvent = "0.1.0"
-    val collectorPayload = "0.0.0"
-    val schemaSniffer = "0.0.0"
-
     val gcpSdk = "2.60.0"
     val awsSdk = "2.33.1"
     val kafka = "4.1.2"
@@ -77,9 +73,10 @@ object Dependencies {
     val catsEffect = "3.7.0"
     val azureIdentity = "1.18.2"
     val azureStorageBlob = "12.33.0"
-    val nimbusJoseJwt = "10.0.2"
-    val lz4 = "1.10.3"
-    val reactorNetty = "1.2.13"
+    val javaxAnnotation = "1.3.2"
+    val httpcore5H2 = "5.3.6"
+    val micrometer = "1.15.12"
+    val reactorNetty = "1.2.18"
     val http4s = "0.23.25"
 
     val streams = "0.24.0"
@@ -113,33 +110,33 @@ object Dependencies {
     val nashorn = "org.openjdk.nashorn"           % "nashorn-core"   % V.nashorn
     val zstd = "com.github.luben"                 % "zstd-jni"       % V.zstd
 
-    val circeGeneric = "io.circe"                  %% "circe-generic"                 % V.circe
-    val circeLiteral = "io.circe"                  %% "circe-literal"                 % V.circe
-    val circeOptics = "io.circe"                   %% "circe-optics"                  % V.circeOptics
-    val circeJackson = "io.circe"                  %% "circe-jackson210"              % V.circeJackson
-    val scalaUri = "io.lemonlabs"                  %% "scala-uri"                     % V.scalaUri
-    val gatlingJsonpath = "io.gatling"             %% "jsonpath"                      % V.gatlingJsonpath
-    val scalaForex = "com.snowplowanalytics"       %% "scala-forex"                   % V.scalaForex
-    val refererParser = "com.snowplowanalytics"    %% "scala-referer-parser"          % V.refererParser
-    val maxmindIplookups = "com.snowplowanalytics" %% "scala-maxmind-iplookups"       % V.maxmindIplookups
-    val scalaWeather = "com.snowplowanalytics"     %% "scala-weather"                 % V.scalaWeather
-    val badRows = "com.snowplowanalytics"          %% "snowplow-badrows"              % V.badRows
-    val igluClient = "com.snowplowanalytics"       %% "iglu-scala-client"             % V.igluClient
-    val igluClientHttp4s = "com.snowplowanalytics" %% "iglu-scala-client-http4s"      % V.igluClient
-    val snowplowRawEvent = "com.snowplowanalytics"  % "snowplow-thrift-raw-event"     % V.snowplowRawEvent
-    val collectorPayload = "com.snowplowanalytics"  % "collector-payload-1"           % V.collectorPayload
-    val schemaSniffer = "com.snowplowanalytics"     % "schema-sniffer-1"              % V.schemaSniffer
-    val iabClient = "com.snowplowanalytics"         % "iab-spiders-and-robots-client" % V.iabClient
-    val ipaddress = "com.github.seancfoley"         % "ipaddress"                     % V.ipaddress
-    val thrift = "org.apache.thrift"                % "libthrift"                     % V.thrift
-    val httpclient = "org.apache.httpcomponents"    % "httpclient"                    % V.httpclient
-    val sprayJson = "io.spray"                     %% "spray-json"                    % V.sprayJson
-    val nettyAll = "io.netty"                       % "netty-all"                     % V.netty
-    val nettyCodec = "io.netty"                     % "netty-codec"                   % V.netty
-    val nettyCodecHttp = "io.netty"                 % "netty-codec-http"              % V.netty
-    val slf4j = "org.slf4j"                         % "slf4j-simple"                  % V.slf4j
-    val sentry = "io.sentry"                        % "sentry"                        % V.sentry
-    val protobuf = "com.google.protobuf"            % "protobuf-java"                 % V.protobuf
+    val circeGeneric = "io.circe"                      %% "circe-generic"                 % V.circe
+    val circeLiteral = "io.circe"                      %% "circe-literal"                 % V.circe
+    val circeOptics = "io.circe"                       %% "circe-optics"                  % V.circeOptics
+    val circeJackson = "io.circe"                      %% "circe-jackson210"              % V.circeJackson
+    val scalaUri = "io.lemonlabs"                      %% "scala-uri"                     % V.scalaUri
+    val gatlingJsonpath = "io.gatling"                 %% "jsonpath"                      % V.gatlingJsonpath
+    val scalaForex = "com.snowplowanalytics"           %% "scala-forex"                   % V.scalaForex
+    val refererParser = "com.snowplowanalytics"        %% "scala-referer-parser"          % V.refererParser
+    val maxmindIplookups = "com.snowplowanalytics"     %% "scala-maxmind-iplookups"       % V.maxmindIplookups
+    val scalaWeather = "com.snowplowanalytics"         %% "scala-weather"                 % V.scalaWeather
+    val badRows = "com.snowplowanalytics"              %% "snowplow-badrows"              % V.badRows
+    val igluClient = "com.snowplowanalytics"           %% "iglu-scala-client"             % V.igluClient
+    val igluClientHttp4s = "com.snowplowanalytics"     %% "iglu-scala-client-http4s"      % V.igluClient
+    val iabClient = "com.snowplowanalytics"             % "iab-spiders-and-robots-client" % V.iabClient
+    val ipaddress = "com.github.seancfoley"             % "ipaddress"                     % V.ipaddress
+    val thrift = "org.apache.thrift"                    % "libthrift"                     % V.thrift
+    val javaxAnnotation = "javax.annotation"            % "javax.annotation-api"          % V.javaxAnnotation
+    val httpcore5H2 = "org.apache.httpcomponents.core5" % "httpcore5-h2"                  % V.httpcore5H2
+    val micrometer = "io.micrometer"                    % "micrometer-core"               % V.micrometer
+    val httpclient = "org.apache.httpcomponents"        % "httpclient"                    % V.httpclient
+    val sprayJson = "io.spray"                         %% "spray-json"                    % V.sprayJson
+    val nettyAll = "io.netty"                           % "netty-all"                     % V.netty
+    val nettyCodec = "io.netty"                         % "netty-codec"                   % V.netty
+    val nettyCodecHttp = "io.netty"                     % "netty-codec-http"              % V.netty
+    val slf4j = "org.slf4j"                             % "slf4j-simple"                  % V.slf4j
+    val sentry = "io.sentry"                            % "sentry"                        % V.sentry
+    val protobuf = "com.google.protobuf"                % "protobuf-java"                 % V.protobuf
 
     val streams = "com.snowplowanalytics"         %% "streams-core" % V.streams
     val kinesisSnowplow = "com.snowplowanalytics" %% "kinesis"      % V.streams
@@ -164,18 +161,15 @@ object Dependencies {
     val kafkaClients = ("org.apache.kafka" % "kafka-clients"        % V.kafka)
       .exclude("org.lz4", "lz4-java") // CVE-2025-12183: use at.yawk.lz4 instead
 
-    val declineEffect = "com.monovore"                   %% "decline-effect"         % V.decline
-    val fs2 = "co.fs2"                                   %% "fs2-core"               % V.fs2
-    val s3 = "software.amazon.awssdk"                     % "s3"                     % V.awsSdk
-    val sts = "software.amazon.awssdk"                    % "sts"                    % V.awsSdk % Runtime
-    val azureIdentity = "com.azure"                       % "azure-identity"         % V.azureIdentity
-    val azureStorageBlob = "com.azure"                    % "azure-storage-blob"     % V.azureStorageBlob
-    val nimbusJoseJwt = "com.nimbusds"                    % "nimbus-jose-jwt"        % V.nimbusJoseJwt
-    val jacksonDfXml = "com.fasterxml.jackson.dataformat" % "jackson-dataformat-xml" % V.jackson
-    val lz4 = "at.yawk.lz4"                               % "lz4-java"               % V.lz4
-    val reactorNetty = "io.projectreactor.netty"          % "reactor-netty-http"     % V.reactorNetty
-    val http4sClient = "org.http4s"                      %% "http4s-ember-client"    % V.http4s
-    val http4sDsl = "org.http4s"                         %% "http4s-dsl"             % V.http4s % Test
+    val declineEffect = "com.monovore"          %% "decline-effect"      % V.decline
+    val fs2 = "co.fs2"                          %% "fs2-core"            % V.fs2
+    val s3 = "software.amazon.awssdk"            % "s3"                  % V.awsSdk
+    val sts = "software.amazon.awssdk"           % "sts"                 % V.awsSdk % Runtime
+    val azureIdentity = "com.azure"              % "azure-identity"      % V.azureIdentity
+    val azureStorageBlob = "com.azure"           % "azure-storage-blob"  % V.azureStorageBlob
+    val reactorNetty = "io.projectreactor.netty" % "reactor-netty-http"  % V.reactorNetty
+    val http4sClient = "org.http4s"             %% "http4s-ember-client" % V.http4s
+    val http4sDsl = "org.http4s"                %% "http4s-dsl"          % V.http4s % Test
 
     // compiler plugins
     val betterMonadicFor = "com.olegpy" %% "better-monadic-for" % V.betterMonadicFor
@@ -206,11 +200,11 @@ object Dependencies {
       gatlingJsonpath,
       badRows,
       igluClient,
-      snowplowRawEvent,
       http4sClient,
-      collectorPayload,
-      schemaSniffer,
+      httpclient,
       thrift,
+      javaxAnnotation,
+      httpcore5H2,
       sprayJson,
       nettyAll,
       nettyCodec,
@@ -231,6 +225,7 @@ object Dependencies {
       circeLiteral,
       declineEffect,
       igluClientHttp4s,
+      micrometer,
       runtime,
       sentry,
       streams,
@@ -261,10 +256,7 @@ object Dependencies {
     val azureUtilsDependencies = Seq(
       azureIdentity,
       azureStorageBlob,
-      circeGeneric,
-      jacksonDfXml, // for security vulnerabilities
-      nimbusJoseJwt, // for security vulnerabilities
-      lz4 // for security vulnerabilities
+      circeGeneric
     )
 
     val pubsubDependencies = Seq(
@@ -279,7 +271,8 @@ object Dependencies {
     val kafkaDependencies = Seq(
       kafkaSnowplow,
       kafkaClients, // for security vulnerabilities
-      httpclient // for security vulnerabilities
+      httpclient, // for security vulnerabilities
+      reactorNetty // for security vulnerabilities
     )
 
     val nsqDependencies = Seq(

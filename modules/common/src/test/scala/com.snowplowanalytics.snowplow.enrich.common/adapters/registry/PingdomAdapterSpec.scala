@@ -79,7 +79,7 @@ class PingdomAdapterSpec extends Specification with DataTables with ValidatedMat
       "message" -> """{"check": "1421338", "checkname": "Webhooks_Test", "host": "7eef51c2.ngrok.com", "action": "assign", "incidentid": 3, "description": "down"}"""
     )
     val payload =
-      CollectorPayload(Shared.api, querystring, None, None, Shared.cljSource, Shared.context)
+      SpecHelpers.collectorPayload(Shared.api, querystring, None, None, Shared.cljSource, Shared.context)
     val expected = RawEvent(
       Shared.api,
       Map(
@@ -102,7 +102,7 @@ class PingdomAdapterSpec extends Specification with DataTables with ValidatedMat
   }
 
   def e4 = {
-    val payload = CollectorPayload(Shared.api, Nil, None, None, Shared.cljSource, Shared.context)
+    val payload = SpecHelpers.collectorPayload(Shared.api, Nil, None, None, Shared.cljSource, Shared.context)
     val expected =
       FailureDetails.AdapterFailure.InputData(
         "querystring",
@@ -121,7 +121,7 @@ class PingdomAdapterSpec extends Specification with DataTables with ValidatedMat
   def e5 = {
     val querystring = SpecHelpers.toNameValuePairs("p" -> "apps")
     val payload =
-      CollectorPayload(Shared.api, querystring, None, None, Shared.cljSource, Shared.context)
+      SpecHelpers.collectorPayload(Shared.api, querystring, None, None, Shared.cljSource, Shared.context)
     val expected =
       FailureDetails.AdapterFailure.InputData(
         "querystring",

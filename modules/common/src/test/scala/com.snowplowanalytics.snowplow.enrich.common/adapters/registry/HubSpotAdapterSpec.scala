@@ -77,7 +77,7 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
   def e3 = {
     val bodyStr =
       """[{"eventId":1,"subscriptionId":25458,"portalId":4737818,"occurredAt":1539145399845,"subscriptionType":"contact.creation","attemptNumber":0,"objectId":123,"changeSource":"CRM","changeFlag":"NEW","appId":177698}]"""
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ContentType.some,
@@ -107,7 +107,7 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
   def e4 = {
     val bodyStr =
       """[{"eventId":1,"subscriptionId":25458,"portalId":4737818,"occurredAt":1539145399845,"subscriptionType":"contact","attemptNumber":0,"objectId":123,"changeSource":"CRM","changeFlag":"NEW","appId":177698}]"""
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ContentType.some,
@@ -131,7 +131,7 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
 
   def e5 = {
     val payload =
-      CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
+      SpecHelpers.collectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
@@ -146,7 +146,7 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
 
   def e6 = {
     val payload =
-      CollectorPayload(Shared.api, Nil, None, "stub".some, Shared.cljSource, Shared.context)
+      SpecHelpers.collectorPayload(Shared.api, Nil, None, "stub".some, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
@@ -164,7 +164,7 @@ class HubSpotAdapterSpec extends Specification with DataTables with ValidatedMat
 
   def e7 = {
     val ct = "application/x-www-form-urlencoded".some
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ct,

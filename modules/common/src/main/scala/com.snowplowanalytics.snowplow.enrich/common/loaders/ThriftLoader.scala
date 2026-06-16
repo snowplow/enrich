@@ -26,7 +26,7 @@ import org.joda.time.{DateTime, DateTimeZone}
 import org.apache.thrift.protocol.TBinaryProtocol
 import org.apache.thrift.transport.{TByteBuffer, TTransportException}
 
-import com.snowplowanalytics.snowplow.CollectorPayload.thrift.model1.{CollectorPayload => CollectorPayload1}
+import com.snowplowanalytics.snowplow.collector.thrift.{CollectorPayload => CollectorPayload1}
 
 import com.snowplowanalytics.snowplow.badrows._
 import com.snowplowanalytics.snowplow.badrows.FailureDetails.CPFormatViolationMessage
@@ -157,7 +157,7 @@ object ThriftLoader extends Loader[Array[Byte]] {
         a,
         q,
         Option(collectorPayload.contentType),
-        Option(collectorPayload.body),
+        Option(collectorPayload.getBody),
         source,
         context
       )

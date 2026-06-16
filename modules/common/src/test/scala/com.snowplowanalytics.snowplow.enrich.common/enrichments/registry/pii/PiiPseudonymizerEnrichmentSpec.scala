@@ -907,7 +907,7 @@ object PiiPseudonymizerEnrichmentSpec {
         None
       )
     val source = CollectorPayload.Source("clj-tomcat", "UTF-8", None)
-    val collectorPayload = CollectorPayload(
+    val collectorPayload = SpecHelpers.collectorPayload(
       CollectorPayload.Api("com.snowplowanalytics.snowplow", "tp2"),
       SpecHelpers.toNameValuePairs(
         "e" -> "se",

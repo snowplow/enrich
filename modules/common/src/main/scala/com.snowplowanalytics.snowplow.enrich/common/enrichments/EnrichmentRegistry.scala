@@ -167,6 +167,8 @@ object EnrichmentRegistry {
             BotDetectionEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
           case "event_spec_enrichment_config" =>
             EventSpecEnrichment.parse(enrichmentConfig, schemaKey).map(_.some)
+          case "agent_classification_enrichment_config" =>
+            AgentClassificationEnrichment.parse(enrichmentConfig, schemaKey, localMode).map(_.some)
           case _ =>
             Option.empty[EnrichmentConf].validNel // Enrichment is not recognized
         }
@@ -195,5 +197,6 @@ final case class EnrichmentRegistry[F[_]](
   yauaa: Option[YauaaEnrichment] = None,
   crossNavigation: Option[CrossNavigationEnrichment] = None,
   botDetection: Option[BotDetectionEnrichment] = None,
-  eventSpec: Option[EventSpecEnrichment[F]] = None
+  eventSpec: Option[EventSpecEnrichment[F]] = None,
+  agentClassification: Option[AgentClassificationEnrichment] = None
 )

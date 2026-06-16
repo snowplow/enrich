@@ -29,7 +29,7 @@ import com.snowplowanalytics.iglu.client.resolver.registries.Registry
 import com.snowplowanalytics.snowplow.badrows.Processor
 import com.snowplowanalytics.snowplow.badrows.BadRow
 
-import com.snowplowanalytics.snowplow.CollectorPayload.thrift.model1.{CollectorPayload => tCollectorPayload}
+import com.snowplowanalytics.snowplow.collector.thrift.{CollectorPayload => tCollectorPayload}
 
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
@@ -145,7 +145,7 @@ object EtlPipelineSpec {
         None
       )
     val source = CollectorPayload.Source("clj-tomcat", "UTF-8", None)
-    CollectorPayload(
+    SpecHelpers.collectorPayload(
       CollectorPayload.Api("com.snowplowanalytics.snowplow", "tp2"),
       Nil,
       Some("application/json"),

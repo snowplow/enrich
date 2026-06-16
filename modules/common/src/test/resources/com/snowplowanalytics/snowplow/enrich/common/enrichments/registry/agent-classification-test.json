@@ -1,0 +1,5 @@
+{
+  "ChatGPT-User": {"operator": "OpenAI", "purpose": "AI data retrieval"},
+  "GPTBot": {"operator": "OpenAI", "purpose": "AI crawler"},
+  "ClaudeBot": {"operator": "Anthropic"}
+}

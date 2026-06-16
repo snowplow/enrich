@@ -142,7 +142,7 @@ object Identity {
           .flatMap(data => path.circeQuery(data.data).headOption.flatMap(_.asString))
       case Config.Identity.Identifier.Entity(vendor, name, major, index, path) =>
         val criterion = SchemaCriterion(vendor, name, "jsonschema", major)
-        event.contexts
+        (event.contexts ++ event.derived_contexts)
           .filter(entity => criterion.matches(entity.schema))
           .lift(index.getOrElse(0))
           .flatMap(entity => path.circeQuery(entity.data).headOption.flatMap(_.asString))

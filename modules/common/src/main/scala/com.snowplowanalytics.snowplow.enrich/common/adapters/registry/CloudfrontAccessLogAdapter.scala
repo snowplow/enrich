@@ -85,7 +85,7 @@ case class CloudfrontAccessLogAdapter(schemas: CloudfrontAccessLogSchemas) exten
     registryLookup: RegistryLookup[F],
     maxJsonDepth: Int
   ): F[Adapted] =
-    payload.body match {
+    payload.bodyAsString match {
       case Some(p) =>
         val _ = client
         val fields = p.split("\t", -1)

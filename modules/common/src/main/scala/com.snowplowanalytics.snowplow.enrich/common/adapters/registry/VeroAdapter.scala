@@ -59,7 +59,7 @@ case class VeroAdapter(schemas: VeroSchemas) extends Adapter {
     registryLookup: RegistryLookup[F],
     maxJsonDepth: Int
   ): F[Adapted] =
-    (payload.body, payload.contentType) match {
+    (payload.bodyAsString, payload.contentType) match {
       case (None, _) =>
         val failure = FailureDetails.AdapterFailure.InputData(
           "body",

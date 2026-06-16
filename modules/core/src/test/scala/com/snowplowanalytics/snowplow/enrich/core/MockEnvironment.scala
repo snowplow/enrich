@@ -284,7 +284,8 @@ object MockEnvironment {
       def report: Stream[IO, Nothing] = Stream.never[IO]
     }
 
-  private val testAdapterRegistry = new AdapterRegistry(Map.empty[(String, String), RemoteAdapter[IO]], SpecHelpers.adaptersSchemas)
+  private val testAdapterRegistry =
+    new AdapterRegistry(Map.empty[(String, String), RemoteAdapter[IO]], SpecHelpers.adaptersSchemas)
 
   case class Enriched(
     event: Event,

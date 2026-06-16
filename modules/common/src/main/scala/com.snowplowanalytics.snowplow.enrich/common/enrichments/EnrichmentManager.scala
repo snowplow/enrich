@@ -383,7 +383,8 @@ object EnrichmentManager {
       _       <- getCookieContexts                                                  // Execute cookie extractor enrichment
       _       <- getHttpHeaderContexts                                              // Execute header extractor enrichment
       _       <- getWeatherContext[F](registry.weather)                             // Fetch weather context
-      _       <- getYauaaContext[F](registry.yauaa, raw.context.headers)            // Runs YAUAA enrichment (gets info thanks to user agent)
+      yauaaCtx <- getYauaaContext[F](registry.yauaa, raw.context.headers)           // Runs YAUAA enrichment (gets info thanks to user agent)
+      _       <- getAgentClassificationContext[F](registry.agentClassification, yauaaCtx) // Classify the agent (operator/purpose) from YAUAA agentName
       _       <- extractSchemaFields[F]                                             // Extract the event vendor/name/format/version
       _       <- ipLookups[F](registry.ipLookups)                                   // Execute IP lookup enrichment
       _       <- asnLookups[F](registry.asnLookups)                                 // Check ASN against bot lists
@@ -887,10 +888,20 @@ object EnrichmentManager {
         }
     }
 
-  def getYauaaContext[F[_]: Applicative](yauaa: Option[YauaaEnrichment], headers: List[String]): EStateT[F, Unit] =
-    EStateT.fromEither {
-      case (event, _) =>
-        yauaa.map(_.getYauaaContext(event.useragent, headers)).toList.asRight
+  /**
+   * Runs the YAUAA enrichment, adding its context to the derived contexts and also returning it so
+   * that downstream enrichments (e.g. agent classification) can consume it directly.
+   */
+  def getYauaaContext[F[_]: Applicative](
+    yauaa: Option[YauaaEnrichment],
+    headers: List[String]
+  ): EStateT[F, Option[SelfDescribingData[Json]]] =
+    EStateT {
+      case Accumulation.Enriched(event, errors, contexts) =>
+        val yauaaContext = yauaa.map(_.getYauaaContext(event.useragent, headers))
+        Applicative[F].pure((Accumulation.Enriched(event, errors, yauaaContext.toList ::: contexts), yauaaContext))
+      case Accumulation.Dropped =>
+        Applicative[F].pure((Accumulation.Dropped, Option.empty[SelfDescribingData[Json]]))
     }
 
   // Derive some contexts with custom SQL Query enrichment
@@ -943,6 +954,20 @@ object EnrichmentManager {
           case Some(enrichment) =>
             enrichment.getBotDetectionContext(derivedContexts, event.contexts).asRight
           case None =>
+            Nil.asRight
+        }
+    }
+
+  def getAgentClassificationContext[F[_]: Applicative](
+    agentClassification: Option[AgentClassificationEnrichment],
+    yauaaContext: Option[SelfDescribingData[Json]]
+  ): EStateT[F, Unit] =
+    EStateT.fromEither {
+      case (_, _) =>
+        (agentClassification, yauaaContext) match {
+          case (Some(enrichment), Some(yauaa)) =>
+            enrichment.getAgentClassificationContext(yauaa).asRight
+          case _ =>
             Nil.asRight
         }
     }

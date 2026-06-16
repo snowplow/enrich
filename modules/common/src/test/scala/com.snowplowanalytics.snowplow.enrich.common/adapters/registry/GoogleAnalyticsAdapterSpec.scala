@@ -75,7 +75,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
     |}""".stripMargin.replaceAll("[\n\r]", "")
 
   def e1 = {
-    val payload = CollectorPayload(api, Nil, None, None, source, context)
+    val payload = SpecHelpers.collectorPayload(api, Nil, None, None, source, context)
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
@@ -89,7 +89,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
   def e2 = {
     val body = "dl=docloc"
-    val payload = CollectorPayload(api, Nil, None, body.some, source, context)
+    val payload = SpecHelpers.collectorPayload(api, Nil, None, body.some, source, context)
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
@@ -107,7 +107,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
   def e3 = {
     val body = "t=unknown&dl=docloc"
-    val payload = CollectorPayload(api, Nil, None, body.some, source, context)
+    val payload = SpecHelpers.collectorPayload(api, Nil, None, body.some, source, context)
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
@@ -127,7 +127,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
   def e4 = {
     val body = "t=pageview&dh=host&dp=path"
-    val payload = CollectorPayload(api, Nil, None, body.some, source, context)
+    val payload = SpecHelpers.collectorPayload(api, Nil, None, body.some, source, context)
 
     val expectedJson =
       """|{
@@ -154,7 +154,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
   def e5 = {
     val body = "t=pageview&dh=host&cid=id&v=version"
-    val payload = CollectorPayload(api, Nil, None, body.some, source, context)
+    val payload = SpecHelpers.collectorPayload(api, Nil, None, body.some, source, context)
 
     val expectedUE =
       """|{
@@ -186,7 +186,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
   def e6 = {
     val body = "t=pageview&dp=path&uip=ip"
-    val payload = CollectorPayload(api, Nil, None, body.some, source, context)
+    val payload = SpecHelpers.collectorPayload(api, Nil, None, body.some, source, context)
 
     val expectedUE =
       """|{
@@ -214,7 +214,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
   def e7 = {
     val body = "t=item&in=name&ip=12.228&iq=12&aip=0"
-    val payload = CollectorPayload(api, Nil, None, body.some, source, context)
+    val payload = SpecHelpers.collectorPayload(api, Nil, None, body.some, source, context)
 
     val expectedUE =
       """|{
@@ -252,7 +252,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
   def e8 = {
     val body = "t=exception&exd=desc&exf=1&dh=host"
-    val payload = CollectorPayload(api, Nil, None, body.some, source, context)
+    val payload = SpecHelpers.collectorPayload(api, Nil, None, body.some, source, context)
 
     val expectedUE =
       """|{
@@ -279,7 +279,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
   def e9 = {
     val body = "t=transaction&ti=tr&cu=EUR&pr12id=ident&pr12cd42=val"
-    val payload = CollectorPayload(api, Nil, None, body.some, source, context)
+    val payload = SpecHelpers.collectorPayload(api, Nil, None, body.some, source, context)
 
     val expectedUE =
       """|{
@@ -314,7 +314,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
   def e10 = {
     val body = "t=pageview&dp=path&il12pi42id=s&il12pi42cd36=dim"
-    val payload = CollectorPayload(api, Nil, None, body.some, source, context)
+    val payload = SpecHelpers.collectorPayload(api, Nil, None, body.some, source, context)
 
     val expectedUE =
       """|{
@@ -344,7 +344,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
   def e11 = {
     val body = "t=screenview&cd=name&cd12=dim"
-    val payload = CollectorPayload(api, Nil, None, body.some, source, context)
+    val payload = SpecHelpers.collectorPayload(api, Nil, None, body.some, source, context)
 
     val expectedUE =
       """|{
@@ -371,7 +371,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
   def e12 = {
     val body = "t=pageview&dp=path&pr1id=s1&pr2id=s2&pr1cd1=v1&pr1cd2=v2"
-    val payload = CollectorPayload(api, Nil, None, body.some, source, context)
+    val payload = SpecHelpers.collectorPayload(api, Nil, None, body.some, source, context)
 
     val expectedUE =
       """|{
@@ -407,7 +407,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
   def e13 = {
     val body = "t=pageview&dp=path&promoa=action&promo12id=id"
-    val payload = CollectorPayload(api, Nil, None, body.some, source, context)
+    val payload = SpecHelpers.collectorPayload(api, Nil, None, body.some, source, context)
 
     val expectedUE =
       """|{
@@ -437,7 +437,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
   def e14 = {
     val body = "t=pageview&dh=host&dp=path\nt=pageview&dh=host&dp=path"
-    val payload = CollectorPayload(api, Nil, None, body.some, source, context)
+    val payload = SpecHelpers.collectorPayload(api, Nil, None, body.some, source, context)
 
     val expectedJson =
       """|{
@@ -466,7 +466,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
   def e15 = {
     val body =
       "t=pageview&dh=host&dp=path&cu=EUR&il1pi1pr=1&il1pi1nm=name1&il1pi1ps=1&il1pi1ca=cat1&il1pi1id=id1&il1pi1br=brand1&il1pi2pr=2&il1pi2nm=name2&il1pi2ps=2&il1pi2ca=cat2&il1pi2id=id2&il1pi2br=brand2&il2pi1pr=21&il2pi1nm=name21&il2pi1ps=21&il2pi1ca=cat21&il2pi1id=id21&il2pi1br=brand21"
-    val payload = CollectorPayload(api, Nil, None, body.some, source, context)
+    val payload = SpecHelpers.collectorPayload(api, Nil, None, body.some, source, context)
 
     val expectedJson =
       """|{

@@ -125,7 +125,7 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
 
   def e6 = {
     val body = "type=subscribe&data%5Bmerges%5D%5BLNAME%5D=Beemster"
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ContentType.some,
@@ -168,7 +168,7 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
 
   def e7 = {
     val body = "type=subscribe&data%5Bmerges%5D%5BFNAME%5D=Agent&data%5Bmerges%5D%5BLNAME%5D=Smith"
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ContentType.some,
@@ -219,7 +219,7 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
       "Valid, type cleaned" !! "cleaned" ! "iglu:com.mailchimp/cleaned_email/jsonschema/1-0-0" |
       "Valid, type campaign" !! "campaign" ! "iglu:com.mailchimp/campaign_sending_status/jsonschema/1-0-0" |> { (_, schema, expected) =>
       val body = "type=" + schema
-      val payload = CollectorPayload(
+      val payload = SpecHelpers.collectorPayload(
         Shared.api,
         Nil,
         ContentType.some,
@@ -260,7 +260,7 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
         "cannot determine event type: type parameter empty"
       ) |> { (_, schema, expected) =>
       val body = "type=" + schema
-      val payload = CollectorPayload(
+      val payload = SpecHelpers.collectorPayload(
         Shared.api,
         Nil,
         ContentType.some,
@@ -278,7 +278,7 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
     val body =
       "type=unsubscribe&fired_at=2014-10-22+13%3A10%3A40&data%5Baction%5D=unsub&data%5Breason%5D=manual&data%5Bid%5D=94826aa750&data%5Bemail%5D=josh%40snowplowanalytics.com&data%5Bemail_type%5D=html&data%5Bip_opt%5D=82.225.169.220&data%5Bweb_id%5D=203740265&data%5Bmerges%5D%5BEMAIL%5D=josh%40snowplowanalytics.com&data%5Bmerges%5D%5BFNAME%5D=Joshua&data%5Bmerges%5D%5BLNAME%5D=Beemster&data%5Blist_id%5D=f1243a3b12"
     val qs = SpecHelpers.toNameValuePairs("nuid" -> "123")
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       qs,
       ContentType.some,
@@ -338,7 +338,7 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
 
   def e11 = {
     val payload =
-      CollectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
+      SpecHelpers.collectorPayload(Shared.api, Nil, ContentType.some, None, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
@@ -353,7 +353,7 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
 
   def e12 = {
     val payload =
-      CollectorPayload(Shared.api, Nil, None, "stub".some, Shared.cljSource, Shared.context)
+      SpecHelpers.collectorPayload(Shared.api, Nil, None, "stub".some, Shared.cljSource, Shared.context)
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
@@ -370,7 +370,7 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
   }
 
   def e13 = {
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       "application/json".some,
@@ -395,7 +395,7 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
 
   def e14 = {
     val body = "fired_at=2014-10-22+13%3A10%3A40"
-    val payload = CollectorPayload(
+    val payload = SpecHelpers.collectorPayload(
       Shared.api,
       Nil,
       ContentType.some,

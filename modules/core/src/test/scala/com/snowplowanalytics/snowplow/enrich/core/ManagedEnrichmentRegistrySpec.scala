@@ -19,6 +19,7 @@ import org.specs2.mutable.Specification
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.AgentClassificationEnrichment
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf._
 import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient => CommonHttpClient}
 
@@ -26,12 +27,13 @@ class ManagedEnrichmentRegistrySpec extends Specification with CatsEffect {
 
   "ManagedEnrichmentRegistry" should {
 
-    "route each non-asset conf type to its own field in the snapshot" in {
+    "route each conf type to its own field in the snapshot" in {
       val confs = List(
         ManagedEnrichmentRegistrySpec.cookieExtractorConf,
         ManagedEnrichmentRegistrySpec.yauaaConf,
         ManagedEnrichmentRegistrySpec.botDetectionConf,
-        ManagedEnrichmentRegistrySpec.httpHeaderExtractorConf
+        ManagedEnrichmentRegistrySpec.httpHeaderExtractorConf,
+        ManagedEnrichmentRegistrySpec.agentClassificationConf
       )
       ManagedEnrichmentRegistry
         .build[IO](confs, Nil, CommonHttpClient.noop[IO], ExecutionContext.global, false, Set.empty)
@@ -45,6 +47,7 @@ class ManagedEnrichmentRegistrySpec extends Specification with CatsEffect {
                   (snap.yauaa must beSome) and
                   (snap.botDetection must beSome) and
                   (snap.httpHeaderExtractor must beSome) and
+                  (snap.agentClassification must beSome) and // asset-backed, but no file -> builds from inline config
                   (snap.anonIp must beNone) and // not in conf list
                   (snap.crossNavigation must beNone) and // not in conf list
                   (snap.ipLookups must beNone) // asset-backed, not in conf list
@@ -71,6 +74,7 @@ class ManagedEnrichmentRegistrySpec extends Specification with CatsEffect {
                   (snap.refererParser must beNone) and
                   (snap.uaParser must beNone) and
                   (snap.eventSpec must beNone) and
+                  (snap.agentClassification must beNone) and
                   (snap.javascriptScript must beEmpty)
               }
             }
@@ -95,4 +99,11 @@ object ManagedEnrichmentRegistrySpec {
 
   val httpHeaderExtractorConf: HttpHeaderExtractorConf =
     HttpHeaderExtractorConf(dummySchemaKey, headersPattern = new Regex(".*"))
+
+  val agentClassificationConf: AgentClassificationConf =
+    AgentClassificationConf(
+      dummySchemaKey,
+      classificationFile = None,
+      classification = Map("ChatGPT-User" -> AgentClassificationEnrichment.AgentClassificationOverride(Some("OpenAI"), None))
+    )
 }

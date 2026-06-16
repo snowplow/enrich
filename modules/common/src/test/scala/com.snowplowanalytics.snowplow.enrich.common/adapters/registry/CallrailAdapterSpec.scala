@@ -97,7 +97,7 @@ class CallrailAdapterSpec extends Specification with DataTables with ValidatedMa
       "cv" -> "clj-0.6.0-tom-0.0.4",
       "nuid" -> "-"
     )
-    val payload = CollectorPayload(Shared.api, params, None, None, Shared.source, Shared.context)
+    val payload = SpecHelpers.collectorPayload(Shared.api, params, None, None, Shared.source, Shared.context)
 
     val expectedJson =
       """|{
@@ -163,7 +163,7 @@ class CallrailAdapterSpec extends Specification with DataTables with ValidatedMa
 
   def e2 = {
     val params = toNameValuePairs()
-    val payload = CollectorPayload(Shared.api, params, None, None, Shared.source, Shared.context)
+    val payload = SpecHelpers.collectorPayload(Shared.api, params, None, None, Shared.source, Shared.context)
 
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)

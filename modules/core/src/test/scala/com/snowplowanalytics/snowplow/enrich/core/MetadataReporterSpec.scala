@@ -43,6 +43,7 @@ class MetadataReporterSpec extends Specification with CatsEffect {
     Attach multiple contexts to an event when an aggregate has multiple contexts $e5
     Correctly json-escape special characters $e6
     Recover from http errors and never crash $e7
+    Flush early and reset the timer when maxDistinctAggregates is exceeded $e8
   """
 
   def e0 = {
@@ -389,33 +390,14 @@ class MetadataReporterSpec extends Specification with CatsEffect {
     }
 
     val assertions = run.map {
-      case Vector(httpRequest1, httpRequest2, httpRequest3) =>
-        val t1 = httpRequest1 must (
-          List(
-            haveCorrectUri,
-            haveTrackedEventCount(1),
-            beSentAt(Instant.parse("1970-01-01T00:45:00.00Z")),
-            containTrackedEvent(expectedEvent("mysource1"), expectedContext)
-          ).reduce(_ and _)
-        )
-        val t2 = httpRequest2 must (
-          List(
-            haveCorrectUri,
-            haveTrackedEventCount(1),
-            beSentAt(Instant.parse("1970-01-01T00:45:00.00Z")),
-            containTrackedEvent(expectedEvent("mysource2"), expectedContext)
-          ).reduce(_ and _)
-        )
-        val t3 = httpRequest3 must (
-          List(
-            haveCorrectUri,
-            haveTrackedEventCount(1),
-            beSentAt(Instant.parse("1970-01-01T00:45:00.00Z")),
-            containTrackedEvent(expectedEvent("mysource3"), expectedContext)
-          ).reduce(_ and _)
-        )
-
-        t1 and t2 and t3
+      case results @ Vector(_, _, _) =>
+        val sharedMatcher =
+          List(haveCorrectUri, haveTrackedEventCount(1), beSentAt(Instant.parse("1970-01-01T00:45:00.00Z"))).reduce(_ and _)
+        val t1 = results must contain(sharedMatcher).forall
+        val t2 = results must contain(containTrackedEvent(expectedEvent("mysource1"), expectedContext))
+        val t3 = results must contain(containTrackedEvent(expectedEvent("mysource2"), expectedContext))
+        val t4 = results must contain(containTrackedEvent(expectedEvent("mysource3"), expectedContext))
+        t1 and t2 and t3 and t4
       case other => ko(s"Expected 3 http request, got ${other.size} http requests")
     }
 
@@ -646,13 +628,69 @@ class MetadataReporterSpec extends Specification with CatsEffect {
           List(
             haveCorrectUri,
             haveTrackedEventCount(1),
-            beSentAt(Instant.parse("1970-01-02T01:25:00.00Z"))
+            beSentAt(Instant.parse("1970-01-02T01:25:28.60Z"))
           ).reduce(_ and _)
         )
       case other => ko(s"Expected 1 http request, got ${other.size} http requests")
     }
 
     TestControl.executeEmbed(test)
+  }
+
+  // Verifies that an early flush fires when maxDistinctAggregates is exceeded, and that the
+  // interval timer resets from the point of the early flush rather than the original schedule.
+  def e8 = {
+    val thisTestConfig = testConfig.copy(maxDistinctAggregates = 2)
+
+    def input(appId: String) = {
+      val schemaKey = SchemaKey.fromUri("iglu:myvendor/myschema/jsonschema/1-0-0").toOption.get
+      val entityKey = SchemaKey.fromUri("iglu:myvendor/mycontext/jsonschema/1-0-8").toOption.get
+      val metadataEvent =
+        Metadata.MetadataEvent(Some(schemaKey), Some(appId), Some("mytracker"), Some("myplatform"), None)
+      val entitiesAndCount = Metadata.EntitiesAndCount(Set(entityKey), 1)
+      Map(metadataEvent -> entitiesAndCount)
+    }
+
+    val resources = for {
+      httpClient <- Resource.eval(mockHttpClient)
+      reporter <- MetadataReporter.build(thisTestConfig, testAppInfo, httpClient.mock)
+    } yield (reporter, httpClient.results)
+
+    val run = resources.use {
+      case (reporter, ref) =>
+        for {
+          _ <- IO.sleep(1.minute)
+          _ <- reporter.add(input("app1")) // acc size 1, no flush
+          _ <- reporter.add(input("app2")) // acc size 2, no flush
+          _ <- reporter.add(input("app3")) // acc size 3 > 2, early flush at t=1m, timer reset
+          _ <- IO.sleep(4.minutes) // t=5m, reset interval not yet elapsed
+          _ <- reporter.add(input("app4")) // acc size 1, no flush
+          _ <- IO.sleep(1.day) // periodic flush fires at t=6m (1m + 5m reset interval)
+          results <- ref.get
+        } yield results
+    }
+
+    val assertions = run.map {
+      case Vector(httpRequest1, httpRequest2) =>
+        val t1 = httpRequest1 must (
+          List(
+            haveCorrectUri,
+            haveTrackedEventCount(3),
+            beSentAt(Instant.parse("1970-01-01T00:01:00.00Z"))
+          ).reduce(_ and _)
+        )
+        val t2 = httpRequest2 must (
+          List(
+            haveCorrectUri,
+            haveTrackedEventCount(1),
+            beSentAt(Instant.parse("1970-01-01T00:06:00.00Z"))
+          ).reduce(_ and _)
+        )
+        t1 and t2
+      case other => ko(s"Expected 2 http requests, got ${other.size} http requests")
+    }
+
+    TestControl.executeEmbed(assertions)
   }
 
   /** Custom matchers */
@@ -720,7 +758,8 @@ object MetadataReporterSpec {
     organizationId = testOrganizationId,
     pipelineId = testPipelineId,
     interval = 5.minutes,
-    maxBodySize = 10000
+    maxBodySize = 10000,
+    maxDistinctAggregates = 1000
   )
 
   /** Holds details of the http requests received by our mock http client */

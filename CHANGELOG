@@ -1,3 +1,19 @@
+6.12.0 (2026-06-10)
+------------------
+Bump dependencies for 6.12.0 release (#246)
+Add agent classification config schema to embedded iglu registry (#244)
+Add agent classification enrichment (#241)
+Add new Cloudfront + Firehose adapter (#237)
+Fix publishing of snowplow-common-enrich (#243)
+Fix artifact download path for Docker stage contexts (#242)
+Install Thrift in release workflow build steps (#240)
+Resolve identity Entity identifiers against derived contexts (#239)
+Use same Thrift collector payload definition as the collector (#238)
+Migrate Docker publish to staged build + reusable workflow (#236)
+Cap aggregate map size with early flush in MetadataReporter (#214)
+[QA-832] Consume Snowman's async rollout dispatch (#235)
+Trigger collector_warehouse_pipelines composite tests on enrich release (#233)
+
 6.11.0 (2026-04-28)
 ------------------
 Improve yauaa upgrade skill for clearer presentation of results (#231)

@@ -481,7 +481,7 @@ case class GoogleAnalyticsAdapter(schemas: GoogleAnalyticsSchemas) extends Adapt
     maxJsonDepth: Int
   ): F[Adapted] = {
     val events: Option[NonEmptyList[ValidatedNel[FailureDetails.AdapterFailure, RawEvent]]] = for {
-      body <- payload.body
+      body <- payload.bodyAsString
       _ = client
       rawEvents <- body.linesIterator
                      .map[ValidatedNel[FailureDetails.AdapterFailure, RawEvent]]((bodyPart: String) => parsePayload(bodyPart, payload))

@@ -128,6 +128,7 @@ object MockEnvironment {
                                )
                            }
       igluClient <- Resource.eval(IgluCirceClient.fromResolver(Resolver[IO](Nil, None), 0, 40))
+      compressor <- Environment.mkCompressor[IO](compression)
     } yield {
       val env = Environment(
         appInfo = appInfo,
@@ -171,7 +172,7 @@ object MockEnvironment {
         identity = Some(testIdentityApi),
         assetsUpdatePeriod = 3.seconds,
         decompression = decompression,
-        compression = compression
+        compressor = compressor
       )
       MockEnvironment(state, env)
     }

@@ -40,6 +40,7 @@ class RefererParserEnrichmentSpec extends Specification with DataTables with Cat
   referers from the config file should be used         $e3
   referers can be an empty section in the config file  $e4
   wrong referers section in the config file should fail with helpful message $e5
+  utm_source values are classified against utm_sources entries $e6
   """
 
   val PageHost = "www.snowplowanalytics.com"
@@ -273,4 +274,47 @@ class RefererParserEnrichmentSpec extends Specification with DataTables with Cat
            )
       e <- c.enrichment[IO]
     } yield e).value.map(_ must beEqualTo(Left("Can't decode referers: Referers json must be an object")))
+
+  def e6 =
+    (for {
+      c <- EitherT.fromEither[IO](
+             RefererParserEnrichment
+               .parse(
+                 json"""{
+            "name": "referer_parser",
+            "vendor": "com.snowplowanalytics.snowplow",
+            "enabled": true,
+            "parameters": {
+              "internalDomains": [],
+              "uri": "http://snowplow.com",
+              "database": "referer-tests.json",
+              "referrers": {
+                "chatbot": {
+                  "ChatGPT": {
+                    "domains": [ "chatgpt.com" ],
+                    "utm_sources": [ "chatgpt.com" ]
+                  }
+                }
+              }
+            }
+          }""",
+                 SchemaKey(
+                   "com.snowplowanalytics.snowplow",
+                   "referer_parser",
+                   "jsonschema",
+                   SchemaVer.Full(2, 0, 1)
+                 ),
+                 true
+               )
+               .toEither
+               .leftMap(_.head)
+           )
+      e <- c.enrichment[IO]
+      matched = e.extractUtmReferrer("chatgpt.com")
+      unmatched = e.extractUtmReferrer("unknown.example.com")
+    } yield (matched, unmatched)).value.map(_ must beRight.like {
+      case (matched, unmatched) =>
+        (matched must beSome(ExternalReferer("chatbot", "ChatGPT", None))) and
+          (unmatched must beNone)
+    })
 }

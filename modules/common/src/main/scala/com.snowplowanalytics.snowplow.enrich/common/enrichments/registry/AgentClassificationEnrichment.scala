@@ -147,17 +147,20 @@ object AgentClassificationEnrichment extends ParseableEnrichment {
   private[registry] def merge(
     fromFile: Map[String, AgentClassification],
     overrides: Map[String, AgentClassificationOverride]
-  ): Map[String, AgentClassification] =
-    overrides.foldLeft(fromFile) {
+  ): Map[String, AgentClassification] = {
+    val normalizedFile = fromFile.map { case (k, v) => k.toLowerCase -> v }
+    overrides.foldLeft(normalizedFile) {
       case (acc, (agent, o)) =>
-        val base = acc.get(agent)
+        val key = agent.toLowerCase
+        val base = acc.get(key)
         val operator = o.operator.orElse(base.map(_.operator))
         val purpose = o.purpose.orElse(base.flatMap(_.purpose))
         operator match {
-          case Some(op) => acc + (agent -> AgentClassification(op, purpose))
+          case Some(op) => acc + (key -> AgentClassification(op, purpose))
           case None => acc
         }
     }
+  }
 }
 
 final case class AgentClassificationEnrichment(
@@ -174,7 +177,7 @@ final case class AgentClassificationEnrichment(
     else
       (for {
         agentName <- yauaaContext.data.hcursor.get[String]("agentName").toOption
-        classification <- classifications.get(agentName)
+        classification <- classifications.get(agentName.toLowerCase)
       } yield {
         // `purpose` is omitted (not set to null) when unknown, consistent with asn_lookups
         val fields = ("operator" := classification.operator) :: classification.purpose.map("purpose" := _).toList

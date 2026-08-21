@@ -13,7 +13,6 @@ package com.snowplowanalytics.snowplow.enrich.core
 import cats.Semigroup
 import cats.implicits._
 import io.circe.Json
-
 import com.snowplowanalytics.iglu.core.{SchemaKey, SelfDescribingData}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 
@@ -21,6 +20,7 @@ object Metadata {
 
   private val eventSpecSchemaVendor = "com.snowplowanalytics.snowplow"
   private val eventSpecSchemaName = "event_specification"
+  private val eventSpecValidationFailureName = "event_specification_validation"
 
   /** The unique combinations that get reported to the metadata collector */
   type Aggregates = Map[MetadataEvent, EntitiesAndCount]
@@ -41,18 +41,17 @@ object Metadata {
     source: Option[String],
     tracker: Option[String],
     platform: Option[String],
-    scenarioId: Option[String]
+    scenarioId: Option[String],
+    scenarioVersion: Option[Int],
+    eventSpecInferred: Boolean,
+    eventSpecValid: Boolean
   )
 
   /**
    * For a batch of successfully enriched events, extract unique combinations of metadata
    */
   def extractsForBatch(batch: List[EnrichedEvent]): Aggregates =
-    batch.map { event =>
-      val entities = schemaKeysFromEntities(event.contexts) ++ schemaKeysFromEntities(event.derived_contexts)
-      val key = extractMetadataEvent(event)
-      Map(key -> EntitiesAndCount(entities, 1))
-    }.combineAll
+    batch.map(extractMetadataEvent).combineAll
 
   implicit def entitiesAndCountSemigroup: Semigroup[EntitiesAndCount] =
     new Semigroup[EntitiesAndCount] {
@@ -63,27 +62,77 @@ object Metadata {
         )
     }
 
-  private def extractMetadataEvent(event: EnrichedEvent): MetadataEvent =
-    MetadataEvent(
-      schema = event.unstruct_event.map(_.schema),
-      source = Option(event.app_id),
-      tracker = Option(event.v_tracker),
-      platform = Option(event.platform),
-      scenarioId = extractScenarioId(event)
-    )
+  private def extractMetadataEvent(event: EnrichedEvent): Aggregates = {
+    val entities = schemaKeysFromEntities(event.contexts) ++ schemaKeysFromEntities(event.derived_contexts)
+    val schema = event.unstruct_event.map(_.schema)
+    val source = Option(event.app_id)
+    val tracker = Option(event.v_tracker)
+    val platform = Option(event.platform)
+
+    val statedEventSpec = extractStatedScenarioId(event)
+    lazy val inferredEventSpecs = extractInferredScenarioIds(event)
+    statedEventSpec match {
+      case Some((id, version)) =>
+        val eventSpecValid = extractValidityStatus(event)
+        Map(
+          MetadataEvent(
+            schema = schema,
+            source = source,
+            tracker = tracker,
+            platform = platform,
+            scenarioId = Some(id),
+            scenarioVersion = version,
+            eventSpecInferred = false,
+            eventSpecValid = eventSpecValid
+          ) -> EntitiesAndCount(entities, 1)
+        )
+      case None if inferredEventSpecs.nonEmpty =>
+        inferredEventSpecs.map {
+          case (id, version) =>
+            MetadataEvent(schema, source, tracker, platform, Some(id), version, eventSpecInferred = true, eventSpecValid = true) ->
+              EntitiesAndCount(entities, 1)
+        }.toMap
+      case _ =>
+        Map(
+          MetadataEvent(
+            schema = schema,
+            source = source,
+            tracker = tracker,
+            platform = platform,
+            scenarioId = None,
+            scenarioVersion = None,
+            eventSpecInferred = false,
+            eventSpecValid = true
+          ) -> EntitiesAndCount(entities, 1)
+        )
+    }
+  }
 
   private def schemaKeysFromEntities(sdjs: List[SelfDescribingData[Json]]): Set[SchemaKey] =
     sdjs.map(_.schema).toSet
 
-  private def extractScenarioId(event: EnrichedEvent): Option[String] =
-    (event.contexts.view ++ event.derived_contexts.view).collectFirst {
+  private def extractStatedScenarioId(event: EnrichedEvent): Option[(String, Option[Int])] =
+    event.contexts.collectFirst {
       case sdj if sdj.schema.vendor === eventSpecSchemaVendor && sdj.schema.name === eventSpecSchemaName =>
-        sdj.data.hcursor.downField("id").as[String] match {
-          case Right(scenarioId) =>
-            Some(scenarioId)
-          case _ =>
-            None
-        }
+        parseScenarioIdentifiers(sdj)
     }.flatten
+
+  private def extractInferredScenarioIds(event: EnrichedEvent): List[(String, Option[Int])] =
+    event.derived_contexts.collect {
+      case sdj if sdj.schema.vendor === eventSpecSchemaVendor && sdj.schema.name === eventSpecSchemaName =>
+        parseScenarioIdentifiers(sdj)
+    }.flatten
+
+  private def extractValidityStatus(event: EnrichedEvent): Boolean =
+    // currently we are only sending the context when the event was not valid
+    // if we change it in the future, this function should be changed to return Option[Boolean]
+    // that should be parsed from the body of the context, instead of relying on it's existence
+    !event.derived_contexts.exists(sdj => sdj.schema.vendor === eventSpecSchemaVendor && sdj.schema.name === eventSpecValidationFailureName)
+
+  private def parseScenarioIdentifiers(sdj: SelfDescribingData[Json]): Option[(String, Option[Int])] =
+    (for {
+      id <- sdj.data.hcursor.downField("id").as[String]
+      version <- sdj.data.hcursor.downField("version").as[Option[Int]]
+    } yield (id, version)).toOption
 
 }

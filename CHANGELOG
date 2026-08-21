@@ -1,3 +1,22 @@
+6.13.0 (2026-07-31)
+------------------
+Bump dependencies to remediate HIGH/MEDIUM CVEs
+[DPS-2311] Route event-spec validation failures to bad via sendInvalidToBad (#267)
+Allow an enrichment to both fail an event and add a derived context (#267)
+Bump dependencies to remediate HIGH/CRITICAL CVEs
+Bump common-streams to 0.25.0
+Make agent classification enrichment case-insensitive (#268)
+Use referrer parser enrichment to attach utm_referrer entity thanks to utm_source (#260)
+Bump dependencies to remediate HIGH/CRITICAL CVEs
+Remove Snyk scanning
+Update CVE remediation workflow to open a GH issue for CVEs that can't be fixed (#261)
+CVE auto-patching: compute CVEs diff and report to n8n (#250)
+Add automated CVE remediation workflow and skills (#252)
+Reuse a single long-lived compressor across batches (#253)
+Add new Metadata dimensions (#220)
+Cache sbt compiled output in CI (#249)
+Pass needed enrichments contexts directly to bot detection enrichment (#248)
+
 6.12.0 (2026-06-10)
 ------------------
 Bump dependencies for 6.12.0 release (#246)

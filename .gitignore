@@ -15,3 +15,9 @@ project/plugins/project/
 !.claude/skills
 !.claude/skills/**
 .claude/skills/*/tmp/
+
+# Scan artifacts emitted by the cve-fix skill (initial Phase S scan and
+# per-CVE Phase B rescan) — never commit
+scan.json
+rescan.json
+issue-body.md

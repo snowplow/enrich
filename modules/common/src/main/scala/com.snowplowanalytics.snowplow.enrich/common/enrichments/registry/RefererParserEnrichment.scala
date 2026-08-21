@@ -19,7 +19,7 @@ import cats.effect.Sync
 
 import io.circe.Json
 
-import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey}
+import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer}
 
 import com.snowplowanalytics.refererparser._
 
@@ -30,6 +30,10 @@ import com.snowplowanalytics.snowplow.enrich.common.utils.{ConversionUtils => CU
 object RefererParserEnrichment extends ParseableEnrichment {
   override val supportedSchema =
     SchemaCriterion("com.snowplowanalytics.snowplow", "referer_parser", "jsonschema", 2, 0)
+
+  /** Schema for the entity emitted when a `utm_source` query parameter is classified as a referer */
+  val utmReferrerSchema: SchemaKey =
+    SchemaKey("com.snowplowanalytics.snowplow", "utm_referrer", "jsonschema", SchemaVer.Full(1, 0, 0))
 
   private val localFile = "./referer-parser.json"
 
@@ -56,7 +60,7 @@ object RefererParserEnrichment extends ParseableEnrichment {
               }.toEither
       source <- getDatabaseUri(conf._1, conf._2).leftMap(NonEmptyList.one)
       maybeReferers = c.hcursor.downField("parameters").downField("referrers").focus
-      referers <- maybeReferers.fold(Map.empty[String, RefererLookup].asRight[NonEmptyList[String]]) { json =>
+      referers <- maybeReferers.fold(ParsedReferers.empty.asRight[NonEmptyList[String]]) { json =>
                     ParseReferers
                       .loadJson(json)
                       .leftMap(e => NonEmptyList.one(s"Can't decode referers: ${e.getMessage}"))
@@ -77,7 +81,7 @@ object RefererParserEnrichment extends ParseableEnrichment {
   def create[F[_]: Sync](
     filePath: String,
     internalDomains: List[String],
-    referers: Map[String, RefererLookup]
+    referers: ParsedReferers
   ): EitherT[F, String, RefererParserEnrichment] =
     EitherT(CreateParser[F].create(filePath, referers))
       .leftMap(_.getMessage)
@@ -104,4 +108,15 @@ final case class RefererParserEnrichment(parser: Parser, domains: List[String]) 
         ExternalReferer(m, s, fixedTerm)
       case other => other
     }
+
+  /**
+   * Classify an injected `utm_source` query parameter value against the referer database's
+   * `utm_sources` entries. This is independent of the Referer header parsing done by
+   * [[extractRefererDetails]] - some sites inject `utm_source` instead of (or in addition to)
+   * setting a Referer header.
+   * @param utmSource The value of the `utm_source` query parameter
+   * @return the matched referer details, or None if the value is not recognised
+   */
+  def extractUtmReferrer(utmSource: String): Option[ExternalReferer] =
+    parser.parseUtmSource(utmSource)
 }

@@ -10,14 +10,16 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
-import cats.data.EitherT
+import cats.data.{EitherT, Ior, NonEmptyList}
 import cats.syntax.either._
 import cats.effect.IO
 import cats.effect.testing.specs2.CatsEffect
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
+import com.snowplowanalytics.snowplow.badrows.FailureDetails
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EventSpecEnrichment.{Entity, EventSpec}
 import org.specs2.Specification
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
+import io.circe.Json
 import io.circe.literal.JsonStringContext
 
 class EventSpecEnrichmentSpec extends Specification with CatsEffect {
@@ -32,6 +34,8 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
   val maxJsonDepth = 10
 
   val eventSpecSchemaKey = SchemaKey("com.snowplowanalytics.snowplow", "event_specification", "jsonschema", SchemaVer.Full(1, 0, 4))
+  val enrichmentConfigSchemaKey =
+    SchemaKey("com.snowplowanalytics.snowplow.enrichments", "event_spec_enrichment_config", "jsonschema", SchemaVer.Full(1, 0, 0))
   val pagePingSchemaKey = SchemaKey("com.snowplowanalytics.snowplow", "page_ping", "jsonschema", SchemaVer.Full(1, 0, 0))
   val pageViewSchemaKey = SchemaKey("com.snowplowanalytics.snowplow", "page_view", "jsonschema", SchemaVer.Full(1, 0, 0))
 
@@ -58,6 +62,15 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
       """)
     )
 
+  /** Extracts the contexts of a good-stream result, failing the test on Ior.Left/Ior.Both */
+  def goodStreamContexts(
+    result: Ior[NonEmptyList[FailureDetails.EnrichmentFailure], List[SelfDescribingData[Json]]]
+  ): List[SelfDescribingData[Json]] =
+    result match {
+      case Ior.Right(contexts) => contexts
+      case other => sys.error(s"Expected Ior.Right but got $other")
+    }
+
   /** Helper to build an event spec */
   def mkSpec(
     id: String,
@@ -65,9 +78,10 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
     schemaKey: SchemaKey,
     version: Option[Int] = None,
     constraint: Option[io.circe.Json] = None,
-    entities: List[Entity] = List.empty
+    entities: List[Entity] = List.empty,
+    sendInvalidToBad: Option[Boolean] = None
   ): EventSpec =
-    EventSpec(id, name, version, schemaKey, constraint, entities)
+    EventSpec(id, name, version, schemaKey, constraint, entities, sendInvalidToBad)
 
   /** Helper to build an entity JSON object */
   def mkEntity(
@@ -192,13 +206,19 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
   EventSpecEnrichment#validateEventSpec should return SpecNotFound for non-existent version $e31
   EventSpecEnrichment#validateEventSpec should return Valid for spec promoted from archive $e32
   EventSpecEnrichment#validateEventSpec should return Invalid when event constraint fails (archive) $e33
+  EventSpecEnrichment#validateEventSpec should emit failures and keep the context when sendInvalidToBad is set $e50
+  EventSpecEnrichment#validateEventSpec should not emit failures for a valid event when sendInvalidToBad is set $e51
+  EventSpecEnrichment#validateEventSpec should keep invalid events in the good stream when sendInvalidToBad is false $e52
+  EventSpecEnrichment payload decoder should read sendInvalidToBad and default to None when absent $e53
+  EventSpecEnrichment#validateEventSpec should route to bad when the flagged spec version comes from the archive $e54
+  EventSpecEnrichment#validateEventSpec should emit one failure per validation error when sendInvalidToBad is set $e55
   """
 
   def e1 = {
     val event = new EnrichedEvent {
       app_id = "some-app-id"
     }
-    EventSpecEnrichment.createFromSpecs[IO](List.empty).map { result =>
+    EventSpecEnrichment.createFromSpecs[IO](List.empty, enrichmentConfigSchemaKey).map { result =>
       result must beRight.like {
         case enrichment =>
           enrichment.inferEventSpec(event, maxJsonDepth) must beEmpty
@@ -211,7 +231,7 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
     val event = new EnrichedEvent {
       app_id = "some-app-id"
     }
-    EventSpecEnrichment.createFromSpecs[IO](specs).map { result =>
+    EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey).map { result =>
       result must beRight.like {
         case enrichment =>
           enrichment.inferEventSpec(event, maxJsonDepth) must beEmpty
@@ -226,7 +246,7 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
       event_name = "page_ping"
     }
     val expectedSpecs = List(mkEventSpecSDJ(esId1, esName1))
-    EventSpecEnrichment.createFromSpecs[IO](specs).map { result =>
+    EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey).map { result =>
       result must beRight.like {
         case enrichment =>
           enrichment.inferEventSpec(event, maxJsonDepth) must beEqualTo(expectedSpecs)
@@ -246,7 +266,7 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
       page_url = "test.com"
     }
     val expectedSpecs = List(mkEventSpecSDJ(esId1, esName1), mkEventSpecSDJ(esId2, esName2))
-    EventSpecEnrichment.createFromSpecs[IO](specs).map { result =>
+    EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey).map { result =>
       result must beRight.like {
         case enrichment =>
           enrichment.inferEventSpec(event, maxJsonDepth) must beEqualTo(expectedSpecs)
@@ -261,7 +281,7 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
       event_name = "page_view"
     }
     val expectedSpecs = List(mkEventSpecSDJ(esId1, esName1))
-    EventSpecEnrichment.createFromSpecs[IO](specs).map { result =>
+    EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey).map { result =>
       result must beRight.like {
         case enrichment =>
           enrichment.inferEventSpec(event, maxJsonDepth) must beEqualTo(expectedSpecs)
@@ -281,7 +301,7 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
       )
     }
     val expectedSpecs = List(mkEventSpecSDJ(esId1, esName1))
-    EventSpecEnrichment.createFromSpecs[IO](specs).map { result =>
+    EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey).map { result =>
       result must beRight.like {
         case enrichment =>
           enrichment.inferEventSpec(event, maxJsonDepth) must beEqualTo(expectedSpecs)
@@ -305,7 +325,7 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
       )
     }
     val expectedSpecs = List(mkEventSpecSDJ(esId1, esName1), mkEventSpecSDJ(esId2, esName2))
-    EventSpecEnrichment.createFromSpecs[IO](specs).map { result =>
+    EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey).map { result =>
       result must beRight.like {
         case enrichment =>
           enrichment.inferEventSpec(event, maxJsonDepth) must beEqualTo(expectedSpecs)
@@ -328,7 +348,7 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
         SelfDescribingData(customEntityKey, json"""{"entity_field": "entity_value"}""")
       )
     }
-    EventSpecEnrichment.createFromSpecs[IO](specs).map { result =>
+    EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey).map { result =>
       result must beRight.like {
         case enrichment =>
           enrichment.inferEventSpec(eventWithSingleEntity, maxJsonDepth) must beEmpty
@@ -353,7 +373,7 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
       )
     }
     val expectedSpecs = List(mkEventSpecSDJ(esId2, esName2))
-    EventSpecEnrichment.createFromSpecs[IO](specs).map { result =>
+    EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey).map { result =>
       result must beRight.like {
         case enrichment =>
           enrichment.inferEventSpec(eventWithSingleEntity, maxJsonDepth) must beEqualTo(expectedSpecs)
@@ -379,7 +399,7 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
       )
     }
     val expectedSpecs = List(mkEventSpecSDJ(esId1, esName1), mkEventSpecSDJ(esId2, esName2))
-    EventSpecEnrichment.createFromSpecs[IO](specs).map { result =>
+    EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey).map { result =>
       result must beRight.like {
         case enrichment =>
           enrichment.inferEventSpec(eventWithBothEntities, maxJsonDepth) must beEqualTo(expectedSpecs)
@@ -405,7 +425,7 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
       )
     }
     val expectedSpecs = List(mkEventSpecSDJ(esId2, esName2))
-    EventSpecEnrichment.createFromSpecs[IO](specs).map { result =>
+    EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey).map { result =>
       result must beRight.like {
         case enrichment =>
           enrichment.inferEventSpec(eventWithBothEntities, maxJsonDepth) must beEqualTo(expectedSpecs)
@@ -427,7 +447,7 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
         )
       )
     }
-    EventSpecEnrichment.createFromSpecs[IO](specs).map { result =>
+    EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey).map { result =>
       result must beRight.like {
         case enrichment =>
           enrichment.inferEventSpec(event, maxJsonDepth) must beEmpty
@@ -453,7 +473,7 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
       )
     }
     val expectedSpecs = List(mkEventSpecSDJ(esId2, esName2))
-    EventSpecEnrichment.createFromSpecs[IO](specs).map { result =>
+    EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey).map { result =>
       result must beRight.like {
         case enrichment =>
           enrichment.inferEventSpec(eventWithBothEntities, maxJsonDepth) must beEqualTo(expectedSpecs)
@@ -478,7 +498,7 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
       )
     }
     val expectedSpecs = List(mkEventSpecSDJ(esId1, esName1), mkEventSpecSDJ(esId2, esName2))
-    EventSpecEnrichment.createFromSpecs[IO](specs).map { result =>
+    EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey).map { result =>
       result must beRight.like {
         case enrichment =>
           enrichment.inferEventSpec(eventWithSingleEntity, maxJsonDepth) must beEqualTo(expectedSpecs)
@@ -531,7 +551,7 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
     }
     val expectedSpecs = List(mkEventSpecSDJ(esId1, s"$esName1-v4", Some(4)))
 
-    EventSpecEnrichment.createFromSpecs[IO](specs).map { result =>
+    EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey).map { result =>
       result must beRight.like {
         case enrichment =>
           enrichment.inferEventSpec(event, maxJsonDepth) must beEqualTo(expectedSpecs)
@@ -550,7 +570,7 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
     }
     val expectedSpecs = List(mkEventSpecSDJ(esId1, esName1))
 
-    EventSpecEnrichment.createFromSpecs[IO](specs).map { result =>
+    EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey).map { result =>
       result must beRight.like {
         case enrichment =>
           enrichment.inferEventSpec(event, maxJsonDepth) must beEqualTo(expectedSpecs)
@@ -569,7 +589,7 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
     }
     val expectedSpecs = List(mkEventSpecSDJ(esId1, esName1), mkEventSpecSDJ(esId2, esName2, Some(0)))
 
-    EventSpecEnrichment.createFromSpecs[IO](specs).map { result =>
+    EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey).map { result =>
       result must beRight.like {
         case enrichment =>
           enrichment.inferEventSpec(event, maxJsonDepth) must beEqualTo(expectedSpecs)
@@ -583,7 +603,7 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
     }
 
     for {
-      result <- EventSpecEnrichment.createFromSpecs[IO](specs)
+      result <- EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey)
       enrichment = result.fold(e => sys.error(e), identity)
       found <- enrichment.lookupInCache(esId1, 1)
     } yield found must beRight.like {
@@ -598,7 +618,7 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
     }
 
     for {
-      result <- EventSpecEnrichment.createFromSpecs[IO](specs)
+      result <- EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey)
       enrichment = result.fold(e => sys.error(e), identity)
       foundV0 <- enrichment.lookupInCache(esId1, 0)
       foundV0Again <- enrichment.lookupInCache(esId1, 0)
@@ -614,7 +634,7 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
     )
 
     for {
-      result <- EventSpecEnrichment.createFromSpecs[IO](specs)
+      result <- EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey)
       enrichment = result.fold(e => sys.error(e), identity)
       found <- enrichment.lookupInCache(esId1, 99)
     } yield found must beLeft.like {
@@ -637,7 +657,7 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
       mkEventSpecSDJ(esId1, esName1, Some(0)),
       mkEventSpecSDJ(esId2, esName2, Some(1))
     )
-    EventSpecEnrichment.createFromSpecs[IO](specs).map { result =>
+    EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey).map { result =>
       result must beRight.like {
         case enrichment =>
           enrichment.inferEventSpec(event, maxJsonDepth) must beEqualTo(expectedSpecs)
@@ -662,7 +682,7 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
       mkEventSpecSDJ(esId1, s"$esName1-v4", Some(4)),
       mkEventSpecSDJ(esId2, esName2, Some(0))
     )
-    EventSpecEnrichment.createFromSpecs[IO](specs).map { result =>
+    EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey).map { result =>
       result must beRight.like {
         case enrichment =>
           enrichment.inferEventSpec(event, maxJsonDepth) must beEqualTo(expectedSpecs)
@@ -688,7 +708,7 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
       )
     }
     val expectedSpecs = List(mkEventSpecSDJ(esId2, esName2, Some(0)))
-    EventSpecEnrichment.createFromSpecs[IO](specs).map { result =>
+    EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey).map { result =>
       result must beRight.like {
         case enrichment =>
           enrichment.inferEventSpec(eventWithBothEntities, maxJsonDepth) must beEqualTo(expectedSpecs)
@@ -716,7 +736,7 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
       )
     }
     val expectedSpecs = List(mkEventSpecSDJ(esId2, esName2, Some(0)))
-    EventSpecEnrichment.createFromSpecs[IO](specs).map { result =>
+    EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey).map { result =>
       result must beRight.like {
         case enrichment =>
           enrichment.inferEventSpec(eventWithBothEntities, maxJsonDepth) must beEqualTo(expectedSpecs)
@@ -734,9 +754,9 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
     }
 
     for {
-      result <- EventSpecEnrichment.createFromSpecs[IO](specs)
+      result <- EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey)
       enrichment = result.fold(e => sys.error(e), identity)
-      validation <- enrichment.validateEventSpec(event, esId1, 1, maxJsonDepth)
+      validation <- enrichment.validateEventSpec(event, esId1, 1, maxJsonDepth).map(goodStreamContexts)
     } yield validation must beEmpty
   }
 
@@ -751,9 +771,9 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
     }
 
     for {
-      result <- EventSpecEnrichment.createFromSpecs[IO](specs)
+      result <- EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey)
       enrichment = result.fold(e => sys.error(e), identity)
-      validation <- enrichment.validateEventSpec(event, esId1, 0, maxJsonDepth)
+      validation <- enrichment.validateEventSpec(event, esId1, 0, maxJsonDepth).map(goodStreamContexts)
     } yield validation must beEmpty
   }
 
@@ -768,9 +788,9 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
     }
 
     for {
-      result <- EventSpecEnrichment.createFromSpecs[IO](specs)
+      result <- EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey)
       enrichment = result.fold(e => sys.error(e), identity)
-      validation <- enrichment.validateEventSpec(event, esId1, 0, maxJsonDepth)
+      validation <- enrichment.validateEventSpec(event, esId1, 0, maxJsonDepth).map(goodStreamContexts)
     } yield {
       val errors = validation.head.data.hcursor.downField("errors").values.map(_.toList).getOrElse(List.empty)
       (validation must haveSize(1)) and (errors must not(beEmpty))
@@ -788,9 +808,9 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
     }
 
     for {
-      result <- EventSpecEnrichment.createFromSpecs[IO](specs)
+      result <- EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey)
       enrichment = result.fold(e => sys.error(e), identity)
-      validation <- enrichment.validateEventSpec(event, esId1, 0, maxJsonDepth)
+      validation <- enrichment.validateEventSpec(event, esId1, 0, maxJsonDepth).map(goodStreamContexts)
     } yield {
       val errors = validation.head.data.hcursor.downField("errors").values.map(_.toList).getOrElse(List.empty)
       errors.flatMap(_.hcursor.get[String]("message").toOption) must contain(contain("expected at least 1"))
@@ -813,9 +833,9 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
     }
 
     for {
-      result <- EventSpecEnrichment.createFromSpecs[IO](specs)
+      result <- EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey)
       enrichment = result.fold(e => sys.error(e), identity)
-      validation <- enrichment.validateEventSpec(event, esId1, 0, maxJsonDepth)
+      validation <- enrichment.validateEventSpec(event, esId1, 0, maxJsonDepth).map(goodStreamContexts)
     } yield {
       val errors = validation.head.data.hcursor.downField("errors").values.map(_.toList).getOrElse(List.empty)
       (validation must haveSize(1)) and (errors must not(beEmpty))
@@ -828,9 +848,9 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
     )
 
     for {
-      result <- EventSpecEnrichment.createFromSpecs[IO](specs)
+      result <- EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey)
       enrichment = result.fold(e => sys.error(e), identity)
-      validation <- enrichment.validateEventSpec(event = new EnrichedEvent, "nonexistent", 99, maxJsonDepth)
+      validation <- enrichment.validateEventSpec(event = new EnrichedEvent, "nonexistent", 99, maxJsonDepth).map(goodStreamContexts)
     } yield {
       val errors = validation.head.data.hcursor.downField("errors").values.map(_.toList).getOrElse(List.empty)
       val message = errors.head.hcursor.get[String]("message").getOrElse("")
@@ -849,9 +869,9 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
     }
 
     for {
-      result <- EventSpecEnrichment.createFromSpecs[IO](specs)
+      result <- EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey)
       enrichment = result.fold(e => sys.error(e), identity)
-      validation <- enrichment.validateEventSpec(event, esId1, 0, maxJsonDepth)
+      validation <- enrichment.validateEventSpec(event, esId1, 0, maxJsonDepth).map(goodStreamContexts)
     } yield validation must beEmpty
   }
 
@@ -866,9 +886,9 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
     }
 
     for {
-      result <- EventSpecEnrichment.createFromSpecs[IO](specs)
+      result <- EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey)
       enrichment = result.fold(e => sys.error(e), identity)
-      validation <- enrichment.validateEventSpec(event, esId1, 0, maxJsonDepth)
+      validation <- enrichment.validateEventSpec(event, esId1, 0, maxJsonDepth).map(goodStreamContexts)
     } yield {
       val errors = validation.head.data.hcursor.downField("errors").values.map(_.toList).getOrElse(List.empty)
       (validation must haveSize(1)) and (errors must not(beEmpty))
@@ -884,10 +904,10 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
     val expectedSpecs = List(mkEventSpecSDJ(esId1, esName1))
 
     for {
-      result <- EventSpecEnrichment.createFromSpecs[IO](specs)
+      result <- EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey)
       enrichment = result.fold(e => sys.error(e), identity)
       actual <- enrichment.processEvent(event, maxJsonDepth)
-    } yield actual must beEqualTo(expectedSpecs)
+    } yield actual must beLike { case Ior.Right(contexts) => contexts must beEqualTo(expectedSpecs) }
   }
 
   def e35 = {
@@ -904,10 +924,10 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
     }
 
     for {
-      result <- EventSpecEnrichment.createFromSpecs[IO](specs)
+      result <- EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey)
       enrichment = result.fold(e => sys.error(e), identity)
       actual <- enrichment.processEvent(event, maxJsonDepth)
-    } yield actual must beEmpty
+    } yield actual must beLike { case Ior.Right(contexts) => contexts must beEmpty }
   }
 
   def e36 = {
@@ -924,10 +944,10 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
     }
 
     for {
-      result <- EventSpecEnrichment.createFromSpecs[IO](specs)
+      result <- EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey)
       enrichment = result.fold(e => sys.error(e), identity)
       actual <- enrichment.processEvent(event, maxJsonDepth)
-    } yield actual must beEmpty
+    } yield actual must beLike { case Ior.Right(contexts) => contexts must beEmpty }
   }
 
   def e41 = {
@@ -947,12 +967,13 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
     }
 
     for {
-      result <- EventSpecEnrichment.createFromSpecs[IO](specs)
+      result <- EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey)
       enrichment = result.fold(e => sys.error(e), identity)
       actual <- enrichment.processEvent(event, maxJsonDepth)
-    } yield {
-      val errors = actual.head.data.hcursor.downField("errors").values.map(_.toList).getOrElse(List.empty)
-      (actual must haveSize(1)) and (errors must not(beEmpty))
+    } yield actual must beLike {
+      case Ior.Right(contexts) =>
+        val errors = contexts.head.data.hcursor.downField("errors").values.map(_.toList).getOrElse(List.empty)
+        (contexts must haveSize(1)) and (errors must not(beEmpty))
     }
   }
 
@@ -966,9 +987,9 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
     }
 
     for {
-      result <- EventSpecEnrichment.createFromSpecs[IO](specs)
+      result <- EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey)
       enrichment = result.fold(e => sys.error(e), identity)
-      validation <- enrichment.validateEventSpec(event, esId1, 0, maxJsonDepth)
+      validation <- enrichment.validateEventSpec(event, esId1, 0, maxJsonDepth).map(goodStreamContexts)
     } yield {
       val errors = validation.head.data.hcursor.downField("errors").values.map(_.toList).getOrElse(List.empty)
       val first = errors.head.hcursor
@@ -994,9 +1015,9 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
     }
 
     for {
-      result <- EventSpecEnrichment.createFromSpecs[IO](specs)
+      result <- EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey)
       enrichment = result.fold(e => sys.error(e), identity)
-      validation <- enrichment.validateEventSpec(event, esId1, 0, maxJsonDepth)
+      validation <- enrichment.validateEventSpec(event, esId1, 0, maxJsonDepth).map(goodStreamContexts)
     } yield {
       val errors = validation.head.data.hcursor.downField("errors").values.map(_.toList).getOrElse(List.empty)
       val first = errors.head.hcursor
@@ -1019,9 +1040,9 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
     }
 
     for {
-      result <- EventSpecEnrichment.createFromSpecs[IO](specs)
+      result <- EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey)
       enrichment = result.fold(e => sys.error(e), identity)
-      validation <- enrichment.validateEventSpec(event, esId1, 0, maxJsonDepth)
+      validation <- enrichment.validateEventSpec(event, esId1, 0, maxJsonDepth).map(goodStreamContexts)
     } yield {
       val errors = validation.head.data.hcursor.downField("errors").values.map(_.toList).getOrElse(List.empty)
       val first = errors.head.hcursor
@@ -1051,9 +1072,9 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
     }
 
     for {
-      result <- EventSpecEnrichment.createFromSpecs[IO](specs)
+      result <- EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey)
       enrichment = result.fold(e => sys.error(e), identity)
-      validation <- enrichment.validateEventSpec(event, esId1, 0, maxJsonDepth)
+      validation <- enrichment.validateEventSpec(event, esId1, 0, maxJsonDepth).map(goodStreamContexts)
     } yield {
       val errors = validation.head.data.hcursor.downField("errors").values.map(_.toList).getOrElse(List.empty)
       val schemas = errors.flatMap(_.hcursor.get[String]("schema").toOption)
@@ -1074,10 +1095,10 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
     }
 
     for {
-      result <- EventSpecEnrichment.createFromSpecs[IO](specs)
+      result <- EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey)
       enrichment = result.fold(e => sys.error(e), identity)
       actual <- enrichment.processEvent(event, maxJsonDepth)
-    } yield actual must beEmpty
+    } yield actual must beLike { case Ior.Right(contexts) => contexts must beEmpty }
   }
 
   def e49 = {
@@ -1093,14 +1114,180 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
     }
 
     for {
-      result <- EventSpecEnrichment.createFromSpecs[IO](specs)
+      result <- EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey)
       enrichment = result.fold(e => sys.error(e), identity)
       actual <- enrichment.processEvent(event, maxJsonDepth)
-    } yield {
-      val isValid = actual.head.data.hcursor.get[Boolean]("isValid").getOrElse(true)
-      val errors = actual.head.data.hcursor.downField("errors").values.map(_.toList).getOrElse(List.empty)
-      val message = errors.head.hcursor.get[String]("message").getOrElse("")
-      (actual must haveSize(1)) and (isValid must beFalse) and (errors must haveSize(1)) and (message must contain("expected at least 1"))
+    } yield actual must beLike {
+      case Ior.Right(contexts) =>
+        val isValid = contexts.head.data.hcursor.get[Boolean]("isValid").getOrElse(true)
+        val errors = contexts.head.data.hcursor.downField("errors").values.map(_.toList).getOrElse(List.empty)
+        val message = errors.head.hcursor.get[String]("message").getOrElse("")
+        (contexts must haveSize(1)) and (isValid must beFalse) and (errors must haveSize(1)) and (message must contain(
+          "expected at least 1"
+        ))
+    }
+  }
+
+  def e50 = {
+    val specs = List(
+      mkSpec(
+        esId1,
+        esName1,
+        pagePingSchemaKey,
+        version = Some(0),
+        constraint = Some(testConstraint),
+        sendInvalidToBad = Some(true)
+      )
+    )
+    val event = new EnrichedEvent {
+      app_id = "some-app-id"
+      event_name = "page_ping"
+      page_url = "wrong.com"
+    }
+
+    for {
+      result <- EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey)
+      enrichment = result.fold(e => sys.error(e), identity)
+      actual <- enrichment.validateEventSpec(event, esId1, 0, maxJsonDepth)
+    } yield actual must beLike {
+      case Ior.Both(failures, contexts) =>
+        val attributed = failures.toList.forall(_.enrichment.exists(_.schemaKey == enrichmentConfigSchemaKey))
+        val errors = contexts.head.data.hcursor.downField("errors").values.map(_.toList).getOrElse(List.empty)
+        (attributed must beTrue) and
+          (contexts must haveSize(1)) and
+          (errors must not(beEmpty))
+    }
+  }
+
+  def e51 = {
+    val specs = List(
+      mkSpec(
+        esId1,
+        esName1,
+        pagePingSchemaKey,
+        version = Some(0),
+        constraint = Some(testConstraint),
+        sendInvalidToBad = Some(true)
+      )
+    )
+    val event = new EnrichedEvent {
+      app_id = "some-app-id"
+      event_name = "page_ping"
+      page_url = "test.com"
+    }
+
+    for {
+      result <- EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey)
+      enrichment = result.fold(e => sys.error(e), identity)
+      actual <- enrichment.validateEventSpec(event, esId1, 0, maxJsonDepth)
+    } yield actual must beLike {
+      case Ior.Right(contexts) => contexts must beEmpty
+    }
+  }
+
+  def e52 = {
+    val specs = List(
+      mkSpec(
+        esId1,
+        esName1,
+        pagePingSchemaKey,
+        version = Some(0),
+        constraint = Some(testConstraint),
+        sendInvalidToBad = Some(false)
+      )
+    )
+    val event = new EnrichedEvent {
+      app_id = "some-app-id"
+      event_name = "page_ping"
+      page_url = "wrong.com"
+    }
+
+    for {
+      result <- EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey)
+      enrichment = result.fold(e => sys.error(e), identity)
+      actual <- enrichment.validateEventSpec(event, esId1, 0, maxJsonDepth)
+    } yield actual must beLike {
+      case Ior.Right(contexts) =>
+        val errors = contexts.head.data.hcursor.downField("errors").values.map(_.toList).getOrElse(List.empty)
+        (contexts must haveSize(1)) and (errors must not(beEmpty))
+    }
+  }
+
+  def e53 = {
+    val withFlag = json"""{
+      "id": $esId1,
+      "name": $esName1,
+      "version": 0,
+      "schemaKey": "iglu:com.snowplowanalytics.snowplow/page_ping/jsonschema/1-0-0",
+      "entities": [],
+      "sendInvalidToBad": true
+    }"""
+    val withoutFlag = json"""{
+      "id": $esId1,
+      "name": $esName1,
+      "version": 0,
+      "schemaKey": "iglu:com.snowplowanalytics.snowplow/page_ping/jsonschema/1-0-0",
+      "entities": []
+    }"""
+
+    (withFlag.as[EventSpec].map(_.sendInvalidToBad) must beRight(Some(true): Option[Boolean])) and
+      (withoutFlag.as[EventSpec].map(_.sendInvalidToBad) must beRight(None: Option[Boolean]))
+  }
+
+  def e54 = {
+    val specs = (0 to 4).toList.map { v =>
+      mkSpec(
+        esId1,
+        s"$esName1-v$v",
+        pagePingSchemaKey,
+        version = Some(v),
+        constraint = Some(testConstraint),
+        sendInvalidToBad = Some(true)
+      )
+    }
+    val event = new EnrichedEvent {
+      app_id = "some-app-id"
+      event_name = "page_ping"
+      page_url = "wrong.com"
+    }
+
+    for {
+      result <- EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey)
+      enrichment = result.fold(e => sys.error(e), identity)
+      actual <- enrichment.validateEventSpec(event, esId1, 0, maxJsonDepth)
+    } yield actual must beLike {
+      case Ior.Both(failures, contexts) =>
+        (failures.toList must not(beEmpty)) and (contexts must haveSize(1))
+    }
+  }
+
+  def e55 = {
+    val requiredEntity = mkEntity(customEntityKey, minCardinality = Some(1))
+    val specs = List(
+      mkSpec(
+        esId1,
+        esName1,
+        pagePingSchemaKey,
+        version = Some(0),
+        constraint = Some(testConstraint),
+        entities = List(requiredEntity),
+        sendInvalidToBad = Some(true)
+      )
+    )
+    val event = new EnrichedEvent {
+      app_id = "some-app-id"
+      event_name = "page_ping"
+      page_url = "wrong.com"
+    }
+
+    for {
+      result <- EventSpecEnrichment.createFromSpecs[IO](specs, enrichmentConfigSchemaKey)
+      enrichment = result.fold(e => sys.error(e), identity)
+      actual <- enrichment.validateEventSpec(event, esId1, 0, maxJsonDepth)
+    } yield actual must beLike {
+      case Ior.Both(failures, contexts) =>
+        val errors = contexts.head.data.hcursor.downField("errors").values.map(_.toList).getOrElse(List.empty)
+        (failures.size must beEqualTo(errors.size)) and (errors must haveSize(2))
     }
   }
 

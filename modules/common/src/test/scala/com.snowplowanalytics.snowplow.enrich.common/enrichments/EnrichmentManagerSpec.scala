@@ -19,7 +19,7 @@ import cats.effect.IO
 import cats.effect.testing.specs2.CatsEffect
 
 import cats.implicits._
-import cats.data.NonEmptyList
+import cats.data.{Ior, NonEmptyList}
 
 import io.circe.Json
 import io.circe.literal._
@@ -34,7 +34,7 @@ import com.snowplowanalytics.snowplow.badrows.{Failure => BadRowFailure}
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
-import com.snowplowanalytics.snowplow.enrich.common.QueryStringParameters
+import com.snowplowanalytics.snowplow.enrich.common.{QueryStringParameters, RawEventParameters}
 import com.snowplowanalytics.snowplow.enrich.common.loaders._
 import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii.{
@@ -52,6 +52,7 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{
   IabEnrichment,
   IpLookupsEnrichment,
   JavascriptScriptEnrichment,
+  RefererParserEnrichment,
   YauaaEnrichment
 }
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.JavascriptScriptEnrichmentSpec.createJsEnrichment
@@ -2912,6 +2913,99 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
     }
   }
 
+  "Referer parser enrichment" should {
+
+    def refererParserEnrichment: IO[RefererParserEnrichment] =
+      RefererParserEnrichment
+        .parse(
+          json"""{
+            "name": "referer_parser",
+            "vendor": "com.snowplowanalytics.snowplow",
+            "enabled": true,
+            "parameters": {
+              "internalDomains": [],
+              "uri": "http://snowplow.com",
+              "database": "referer-tests.json",
+              "referrers": {
+                "chatbot": {
+                  "ChatGPT": {
+                    "domains": [ "chatgpt.com" ],
+                    "utm_sources": [ "chatgpt.com" ]
+                  }
+                }
+              }
+            }
+          }""",
+          SchemaKey("com.snowplowanalytics.snowplow", "referer_parser", "jsonschema", SchemaVer.Full(2, 0, 1)),
+          localMode = true
+        )
+        .toEither
+        .leftMap(_.head)
+        .fold(
+          e => IO.raiseError(new RuntimeException(e)),
+          _.enrichment[IO].value.flatMap {
+            case Right(rp) => IO.pure(rp)
+            case Left(e) => IO.raiseError(new RuntimeException(e))
+          }
+        )
+
+    def enrich(parameters: RawEventParameters) =
+      refererParserEnrichment.flatMap { rp =>
+        val enrichmentReg = EnrichmentRegistry[IO](refererParser = rp.some)
+        EnrichmentManager.enrichEvent[IO](
+          enrichmentReg,
+          client,
+          processor,
+          timestamp,
+          RawEvent(api, parameters, None, source, context),
+          AcceptInvalid.featureFlags,
+          IO.unit,
+          SpecHelpers.registryLookup,
+          atomicFieldLimits,
+          emitFailed,
+          SpecHelpers.DefaultMaxJsonDepth
+        )
+      }
+
+    "emit a utm_referrer entity for a recognised utm_source, leaving refr_* fields untouched" >> {
+      // The utm_source (ChatGPT/chatbot) and the Referer header (Google/search) deliberately disagree
+      val parameters = Map(
+        "e" -> "pp",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "url" -> "http://www.mysite.com/path?utm_source=chatgpt.com",
+        "refr" -> "http://www.google.com/search?q=test"
+      ).toOpt
+      enrich(parameters).map {
+        case OptionIor.Right(e) =>
+          (e.derived_contexts must beLike {
+            case List(SelfDescribingData(RefererParserEnrichment.utmReferrerSchema, data)) =>
+              data must beEqualTo(Json.obj("source" := "ChatGPT", "medium" := "chatbot"))
+          }) and
+            (e.refr_source must beEqualTo("Google")) and
+            (e.refr_medium must beEqualTo("search"))
+        case other => ko(s"[$other] is not an enriched event")
+      }
+    }
+
+    "not emit a utm_referrer entity when utm_source is absent or unrecognised" >> {
+      val parameters = Map(
+        "e" -> "pp",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "url" -> "http://www.mysite.com/path?utm_source=unknown.example.com",
+        "refr" -> "http://www.google.com/search?q=test"
+      ).toOpt
+      enrich(parameters).map {
+        case OptionIor.Right(e) =>
+          (e.derived_contexts must beEmpty) and
+            (e.refr_source must beEqualTo("Google")) and
+            (e.refr_medium must beEqualTo("search"))
+        case other => ko(s"[$other] is not an enriched event")
+      }
+    }
+  }
+
   "IP lookup enrichment" should {
 
     def ipLookupCommonTest(
@@ -3933,7 +4027,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
 
       val rawEvent = RawEvent(api, parameters, None, source, context)
 
-      EventSpecEnrichment.createFromSpecs[IO](List(spec)).flatMap {
+      EventSpecEnrichment.createFromSpecs[IO](List(spec), eventSpecEnrichmentConfigKey).flatMap {
         case Left(e) => IO.raiseError(new RuntimeException(e))
         case Right(ese) =>
           val reg: EnrichmentRegistry[IO] = enrichmentReg.copy(eventSpec = Some(ese))
@@ -4010,7 +4104,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
 
       val rawEvent = RawEvent(api, parameters, None, source, context)
 
-      EventSpecEnrichment.createFromSpecs[IO](List(spec)).flatMap {
+      EventSpecEnrichment.createFromSpecs[IO](List(spec), eventSpecEnrichmentConfigKey).flatMap {
         case Left(e) => IO.raiseError(new RuntimeException(e))
         case Right(ese) =>
           val reg: EnrichmentRegistry[IO] = enrichmentReg.copy(eventSpec = Some(ese))
@@ -4072,7 +4166,7 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
 
       val rawEvent = RawEvent(api, parameters, None, source, context)
 
-      EventSpecEnrichment.createFromSpecs[IO](List(spec)).flatMap {
+      EventSpecEnrichment.createFromSpecs[IO](List(spec), eventSpecEnrichmentConfigKey).flatMap {
         case Left(e) => IO.raiseError(new RuntimeException(e))
         case Right(ese) =>
           val reg: EnrichmentRegistry[IO] = enrichmentReg.copy(eventSpec = Some(ese))
@@ -4099,10 +4193,138 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
       }
     }
 
+    "route the event to bad and keep the validation context when the spec has sendInvalidToBad" >> {
+      val pagePingSchemaKey = SchemaKey("com.snowplowanalytics.snowplow", "page_ping", "jsonschema", SchemaVer.Full(1, 0, 0))
+      val eventSpecSchemaKey = SchemaKey("com.snowplowanalytics.snowplow", "event_specification", "jsonschema", SchemaVer.Full(1, 0, 4))
+      val validationFailureSchemaKey =
+        SchemaKey("com.snowplowanalytics.snowplow", "event_specification_validation", "jsonschema", SchemaVer.Full(1, 0, 0))
+      val specId = "test-routing-spec"
+
+      val failingConstraint = json"""{
+        "type": "object",
+        "properties": {
+          "page_url": { "enum": ["test.com"], "type": "string" }
+        },
+        "additionalProperties": true
+      }"""
+
+      val spec = EventSpecEnrichment.EventSpec(
+        id = specId,
+        name = "Routing spec",
+        version = Some(0),
+        schemaKey = pagePingSchemaKey,
+        constraint = Some(failingConstraint),
+        entities = List.empty,
+        sendInvalidToBad = Some(true)
+      )
+
+      val parameters = Map(
+        "e" -> "pp",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "url" -> "http://wrong.com",
+        "co" ->
+          s"""{
+            "schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
+            "data":[{
+              "schema":"${eventSpecSchemaKey.toSchemaUri}",
+              "data":{"id":"$specId","version":0}
+            }]
+          }"""
+      ).toOpt
+
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+
+      EventSpecEnrichment.createFromSpecs[IO](List(spec), eventSpecEnrichmentConfigKey).flatMap {
+        case Left(e) => IO.raiseError(new RuntimeException(e))
+        case Right(ese) =>
+          val reg: EnrichmentRegistry[IO] = enrichmentReg.copy(eventSpec = Some(ese))
+          EnrichmentManager
+            .enrichEvent[IO](
+              reg,
+              client,
+              processor,
+              timestamp,
+              rawEvent,
+              AcceptInvalid.featureFlags,
+              IO.unit,
+              SpecHelpers.registryLookup,
+              atomicFieldLimits,
+              emitFailed = true,
+              SpecHelpers.DefaultMaxJsonDepth
+            )
+            .map {
+              case OptionIor.Both(br: BadRow.EnrichmentFailures, enrichedEvent) =>
+                val attributedToEventSpec =
+                  br.failure.messages.exists(_.enrichment.exists(_.schemaKey === eventSpecEnrichmentConfigKey))
+                val hasValidationContext = enrichedEvent.derived_contexts.exists(_.schema === validationFailureSchemaKey)
+                (attributedToEventSpec must beTrue) and (hasValidationContext must beTrue)
+              case other => ko(s"Expected Both(EnrichmentFailures, EnrichedEvent) but got $other")
+            }
+      }
+    }
+
+  }
+
+  "EStateT.fromIorF" should {
+    val ctx0 = SelfDescribingData[Json](SchemaKey("com.acme", "ctx0", "jsonschema", SchemaVer.Full(1, 0, 0)), Json.obj())
+    val ctx1 = SelfDescribingData[Json](SchemaKey("com.acme", "ctx1", "jsonschema", SchemaVer.Full(1, 0, 0)), Json.obj())
+    val err0 = FailureDetails.EnrichmentFailure(None, FailureDetails.EnrichmentFailureMessage.Simple("err0"))
+    val err1 = FailureDetails.EnrichmentFailure(None, FailureDetails.EnrichmentFailureMessage.Simple("err1"))
+
+    "add contexts and no errors for Ior.Right" >> {
+      val inputState = EnrichmentManager.Accumulation.Enriched(new EnrichedEvent(), Nil, Nil)
+      EnrichmentManager.EStateT
+        .fromIorF[IO] {
+          case (_, _) =>
+            IO.pure(Ior.right[NonEmptyList[FailureDetails.EnrichmentFailure], List[SelfDescribingData[Json]]](List(ctx1)))
+        }
+        .runS(inputState)
+        .map(_ must beLike {
+          case acc: EnrichmentManager.Accumulation.Enriched =>
+            (acc.errors must beEmpty) and (acc.contexts must beEqualTo(List(ctx1)))
+        })
+    }
+
+    "add errors and no contexts for Ior.Left" >> {
+      val inputState = EnrichmentManager.Accumulation.Enriched(new EnrichedEvent(), Nil, Nil)
+      EnrichmentManager.EStateT
+        .fromIorF[IO] {
+          case (_, _) =>
+            IO.pure(Ior.left[NonEmptyList[FailureDetails.EnrichmentFailure], List[SelfDescribingData[Json]]](NonEmptyList.one(err1)))
+        }
+        .runS(inputState)
+        .map(_ must beLike {
+          case acc: EnrichmentManager.Accumulation.Enriched =>
+            (acc.errors must beEqualTo(List(err1))) and (acc.contexts must beEmpty)
+        })
+    }
+
+    "add both errors and contexts for Ior.Both, prepended to existing state" >> {
+      val inputState = EnrichmentManager.Accumulation.Enriched(new EnrichedEvent(), List(err0), List(ctx0))
+      EnrichmentManager.EStateT
+        .fromIorF[IO] {
+          case (_, _) =>
+            IO.pure(
+              Ior.both[NonEmptyList[FailureDetails.EnrichmentFailure], List[SelfDescribingData[Json]]](
+                NonEmptyList.one(err1),
+                List(ctx1)
+              )
+            )
+        }
+        .runS(inputState)
+        .map(_ must beLike {
+          case acc: EnrichmentManager.Accumulation.Enriched =>
+            (acc.errors must beEqualTo(List(err1, err0))) and (acc.contexts must beEqualTo(List(ctx1, ctx0)))
+        })
+    }
   }
 }
 
 object EnrichmentManagerSpec {
+
+  val eventSpecEnrichmentConfigKey =
+    SchemaKey("com.snowplowanalytics.snowplow.enrichments", "event_spec_enrichment_config", "jsonschema", SchemaVer.Full(1, 0, 0))
 
   val enrichmentReg = EnrichmentRegistry[IO](yauaa = Some(YauaaEnrichment(None)))
   val client = SpecHelpers.client

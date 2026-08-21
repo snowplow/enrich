@@ -188,7 +188,7 @@ object MetadataReporter {
     count: Int
   ): SelfDescribingData[Json] =
     SelfDescribingData(
-      SchemaKey("com.snowplowanalytics.console", "observed_event", "jsonschema", SchemaVer.Full(6, 0, 1)),
+      SchemaKey("com.snowplowanalytics.console", "observed_event", "jsonschema", SchemaVer.Full(7, 0, 0)),
       Json.obj(
         "organizationId" -> config.organizationId.asJson,
         "pipelineId" -> config.pipelineId.asJson,
@@ -199,6 +199,9 @@ object MetadataReporter {
         "tracker" -> event.tracker.getOrElse("unknown-tracker").asJson,
         "platform" -> event.platform.getOrElse("unknown-platform").asJson,
         "scenario_id" -> event.scenarioId.asJson,
+        "scenario_version" -> event.scenarioVersion.asJson,
+        "eventSpecInferred" -> event.eventSpecInferred.asJson,
+        "eventSpecValid" -> event.eventSpecValid.asJson,
         "eventVolume" -> Json.fromInt(count),
         "periodStart" -> periodStart.asJson,
         "periodEnd" -> periodEnd.asJson

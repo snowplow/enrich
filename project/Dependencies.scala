@@ -32,26 +32,25 @@ object Dependencies {
     val useragent = "1.21"
     val uaParser = "1.5.4"
     val snakeYaml = "2.3"
-    val postgresDriver = "42.7.11"
+    val postgresDriver = "42.7.12"
     val mysqlClient = "3.4.0"
     val hikariCP = "5.0.1"
     val jaywayJsonpath = "2.10.0"
-    val jsonsmart = "2.5.2"
     val iabClient = "0.3.1"
     val ipaddress = "5.5.1"
     val yauaa = "8.1.1"
-    val log4jToSlf4j = "2.18.0"
+    val log4jToSlf4j = "2.25.5"
     val guava = "33.1.0-jre"
     val slf4j = "2.0.3"
-    val thrift = "0.23.0"
+    val thrift = "0.24.0"
     val httpclient = "4.5.13"
     val sprayJson = "1.3.6"
-    val netty = "4.2.15.Final"
+    val netty = "4.2.16.Final"
     val protobuf = "4.28.3"
     val nashorn = "15.6"
     val zstd = "1.5.7-4"
 
-    val refererParser = "3.0.0"
+    val refererParser = "4.0.0"
     val maxmindIplookups = "0.9.1"
     val circe = "0.14.3"
     val circeOptics = "0.14.1"
@@ -63,10 +62,11 @@ object Dependencies {
     val badRows = "2.3.0"
     val igluClient = "4.2.1"
 
-    val gcpSdk = "2.60.0"
+    val gcpSdk = "2.69.0"
     val awsSdk = "2.33.1"
     val kafka = "4.1.2"
-    val jackson = "2.21.2"
+    val lz4 = "1.11.1"
+    val jackson = "2.21.5"
 
     val decline = "2.4.1"
     val fs2 = "3.12.2"
@@ -74,12 +74,13 @@ object Dependencies {
     val azureIdentity = "1.18.2"
     val azureStorageBlob = "12.33.0"
     val javaxAnnotation = "1.3.2"
-    val httpcore5H2 = "5.3.6"
+    val httpcore5H2 = "5.4.3"
     val micrometer = "1.15.12"
     val reactorNetty = "1.2.18"
     val http4s = "0.23.25"
+    val blaze = "0.23.18"
 
-    val streams = "0.24.0"
+    val streams = "0.25.0"
 
     val specs2 = "4.20.3"
     val specs2Cats = "4.20.3"
@@ -103,7 +104,6 @@ object Dependencies {
     val hikariCP = ("com.zaxxer"                       % "HikariCP"            % V.hikariCP)
       .exclude("org.slf4j", "slf4j-api")
     val jaywayJsonpath = "com.jayway.jsonpath"    % "json-path"      % V.jaywayJsonpath
-    val jsonsmart = "net.minidev"                 % "json-smart"     % V.jsonsmart
     val yauaa = "nl.basjes.parse.useragent"       % "yauaa"          % V.yauaa
     val log4jToSlf4j = "org.apache.logging.log4j" % "log4j-to-slf4j" % V.log4jToSlf4j
     val guava = "com.google.guava"                % "guava"          % V.guava
@@ -170,6 +170,9 @@ object Dependencies {
     val reactorNetty = "io.projectreactor.netty" % "reactor-netty-http"  % V.reactorNetty
     val http4sClient = "org.http4s"             %% "http4s-ember-client" % V.http4s
     val http4sDsl = "org.http4s"                %% "http4s-dsl"          % V.http4s % Test
+    val blazeServer = "org.http4s"              %% "http4s-blaze-server" % V.blaze
+    val blazeClient = "org.http4s"              %% "http4s-blaze-client" % V.blaze
+    val lz4 = "at.yawk.lz4"                      % "lz4-java"            % V.lz4
 
     // compiler plugins
     val betterMonadicFor = "com.olegpy" %% "better-monadic-for" % V.betterMonadicFor
@@ -184,7 +187,6 @@ object Dependencies {
       mysqlClient,
       hikariCP,
       jaywayJsonpath,
-      jsonsmart,
       iabClient,
       ipaddress,
       yauaa,
@@ -231,6 +233,8 @@ object Dependencies {
       streams,
       slf4j,
       zstd,
+      blazeServer, // for security vulnerabilities
+      blazeClient, // for security vulnerabilities
       // Tests
       specs2,
       catsEffectTestkit,
@@ -271,7 +275,7 @@ object Dependencies {
     val kafkaDependencies = Seq(
       kafkaSnowplow,
       kafkaClients, // for security vulnerabilities
-      httpclient, // for security vulnerabilities
+      lz4, // for security vulnerabilities
       reactorNetty // for security vulnerabilities
     )
 

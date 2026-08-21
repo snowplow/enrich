@@ -125,7 +125,8 @@ object EventUtils {
         derived_contexts = Contexts(List())
       )
 
-  def expectedPageViewMetadata = Metadata.MetadataEvent(None, Some(appID), None, None, None)
+  def expectedPageViewMetadata =
+    Metadata.MetadataEvent(None, Some(appID), None, None, None, None, eventSpecInferred = false, eventSpecValid = true)
   def expectedPageViewMetadataEntities =
     Set.empty[SchemaKey]
 

@@ -35,7 +35,7 @@ import com.snowplowanalytics.snowplow.badrows.{
   Processor => BadRowProcessor
 }
 import com.snowplowanalytics.snowplow.streams.{EventProcessingConfig, ListOfList, Sinkable}
-import com.snowplowanalytics.snowplow.streams.compression.{Compressor, GzipCompressor, ZstdCompressor}
+import com.snowplowanalytics.snowplow.streams.compression.Compressor
 import com.snowplowanalytics.snowplow.streams.compression.Decompression._
 import com.snowplowanalytics.snowplow.runtime.syntax.foldable._
 
@@ -201,6 +201,11 @@ object Processing {
   private def serialize[F[_]: Async](
     env: Environment[F]
   ): Pipe[F, Enriched, Serialized] = { in =>
+    // IMPORTANT: this MUST stay `evalMap`, not `parEvalMap`. When compression is enabled we drive a
+    // single long-lived, mutable, non-thread-safe Compressor (env.compressor) from here. `evalMap`
+    // guarantees these batches are processed one at a time on a single fiber, which is what makes
+    // that shared Compressor safe. Parallelising this step would corrupt its native (off-heap)
+    // state with no clean exception - see compressBatch below.
     in.evalMap { enriched =>
       Sync[F].delay {
         val failed = enriched.failed.flatMap { f =>
@@ -209,68 +214,68 @@ object Processing {
         val bad = enriched.bad.mapUnordered { br =>
           serializeBad(br, env.sinkMaxSize, env.badRowProcessor, enriched.etlTstamp)
         }
-        if (env.compression.enabled) {
-          // Partition key and attributes are not propagated when compression is enabled,
-          // because multiple records are merged into a single compressed payload.
-          val rawSinkables = enriched.enriched.map { e =>
-            Sinkable(ConversionUtils.tabSeparatedEnrichedEvent(e).getBytes(UTF_8), None, Map.empty)
-          }
-          val compressed =
-            compressBatch(rawSinkables, env.compression, env.sinkMaxSize, env.badRowProcessor, enriched.etlTstamp)
-          Serialized(
-            compressed.records,
-            compressed.count,
-            compressed.recordsBytesCount,
-            failed,
-            bad.prepend(compressed.sizeViolations),
-            enriched.collectorTstamp,
-            enriched.token
-          )
-        } else {
-          val (sizeViolations, good, bytesCount) =
-            enriched.enriched.foldLeft((List.empty[Sinkable], List.empty[Sinkable], 0L)) {
-              case ((ls, rs, bs), e) =>
-                serializeEnriched(e,
-                                  env.partitionKeyField,
-                                  env.attributeFields,
-                                  env.sinkMaxSize,
-                                  env.badRowProcessor,
-                                  enriched.etlTstamp
-                ) match {
-                  case Left(sv) => (sv :: ls, rs, bs)
-                  case Right(s) => (ls, s :: rs, bs + s.bytes.length.toLong)
-                }
+        env.compressor match {
+          case Some(compressor) =>
+            // Partition key and attributes are not propagated when compression is enabled,
+            // because multiple records are merged into a single compressed payload.
+            val rawSinkables = enriched.enriched.map { e =>
+              Sinkable(ConversionUtils.tabSeparatedEnrichedEvent(e).getBytes(UTF_8), None, Map.empty)
             }
-          Serialized(
-            good,
-            good.size,
-            bytesCount,
-            failed,
-            bad.prepend(sizeViolations),
-            enriched.collectorTstamp,
-            enriched.token
-          )
+            val compressed =
+              compressBatch(rawSinkables, compressor, env.sinkMaxSize, env.badRowProcessor, enriched.etlTstamp)
+            Serialized(
+              compressed.records,
+              compressed.count,
+              compressed.recordsBytesCount,
+              failed,
+              bad.prepend(compressed.sizeViolations),
+              enriched.collectorTstamp,
+              enriched.token
+            )
+          case None =>
+            val (sizeViolations, good, bytesCount) =
+              enriched.enriched.foldLeft((List.empty[Sinkable], List.empty[Sinkable], 0L)) {
+                case ((ls, rs, bs), e) =>
+                  serializeEnriched(e,
+                                    env.partitionKeyField,
+                                    env.attributeFields,
+                                    env.sinkMaxSize,
+                                    env.badRowProcessor,
+                                    enriched.etlTstamp
+                  ) match {
+                    case Left(sv) => (sv :: ls, rs, bs)
+                    case Right(s) => (ls, s :: rs, bs + s.bytes.length.toLong)
+                  }
+              }
+            Serialized(
+              good,
+              good.size,
+              bytesCount,
+              failed,
+              bad.prepend(sizeViolations),
+              enriched.collectorTstamp,
+              enriched.token
+            )
         }
       }
     }
   }
 
+  // WARNING: `compressor` is a single, long-lived, mutable and NOT thread-safe object, reused across
+  // every frame and every batch (its off-heap state is reset between frames rather than reallocated).
+  // This is only safe because serialize drives it sequentially from a single fiber - see the comment
+  // on serialize's `evalMap`. Do not refactor this into a parallelized/concurrent block.
   private def compressBatch(
     sinkables: List[Sinkable],
-    compression: Config.Compression,
+    compressor: Compressor,
     maxRecordSize: Int,
     processor: BadRowProcessor,
     etlTstamp: Instant
   ): Compressed = {
-    val factory = compression.`type` match {
-      case Config.Compression.GZIP => GzipCompressor.factory(compression.gzipCompressionLevel)
-      case Config.Compression.ZSTD => ZstdCompressor.factory(compression.zstdCompressionLevel)
-    }
 
     @scala.annotation.tailrec
     def go(
       remaining: List[Sinkable],
-      compressor: Compressor,
       compressed: List[Sinkable],
       count: Int,
       compressedBytesCount: Long,
@@ -280,36 +285,35 @@ object Processing {
         case Nil =>
           val last =
             if (compressor.recordCount > 0) List(Sinkable(byteBufferToArray(compressor.result), None, Map.empty))
-            else { compressor.close(); Nil }
+            else Nil
           Compressed(last ::: compressed, count, compressedBytesCount, oversized)
         case sinkable :: rest =>
           val bytes = sinkable.bytes
           if (compressor.addRecord(bytes, 0, bytes.length))
-            go(rest, compressor, compressed, count + 1, compressedBytesCount + bytes.length, oversized)
+            go(rest, compressed, count + 1, compressedBytesCount + bytes.length, oversized)
           else {
+            // The current frame is full. Take its bytes (copied out before the next reset), then
+            // reset the reused compressor to start a fresh frame for this record.
             val newCompressed =
               if (compressor.recordCount > 0) Sinkable(byteBufferToArray(compressor.result), None, Map.empty) :: compressed
               else compressed
-            val fresh = factory.buildAndInitialize(maxRecordSize, CompressedEnrichedVersion)
-            if (fresh.addRecord(bytes, 0, bytes.length))
-              go(rest, fresh, newCompressed, count + 1, compressedBytesCount + bytes.length, oversized)
+            compressor.reset(CompressedEnrichedVersion, maxRecordSize)
+            if (compressor.addRecord(bytes, 0, bytes.length))
+              go(rest, newCompressed, count + 1, compressedBytesCount + bytes.length, oversized)
             else {
-              // Record can't fit even in a fresh compressor — emit as a size violation bad row
+              // Record can't fit even in a fresh frame — emit as a size violation bad row.
+              // addRecord returned false, so we must reset again before adding any further records.
+              compressor.reset(CompressedEnrichedVersion, maxRecordSize)
               val tsv = new String(bytes, UTF_8)
               val error = s"Enriched event exceeds the maximum allowed size of $maxRecordSize bytes after compression"
               val badRow = mkSizeViolation(tsv, maxRecordSize, processor, error, etlTstamp)
-              go(rest,
-                 factory.buildAndInitialize(maxRecordSize, CompressedEnrichedVersion),
-                 newCompressed,
-                 count,
-                 compressedBytesCount,
-                 badRow :: oversized
-              )
+              go(rest, newCompressed, count, compressedBytesCount, badRow :: oversized)
             }
           }
       }
 
-    go(sinkables, factory.buildAndInitialize(maxRecordSize, CompressedEnrichedVersion), Nil, 0, 0L, Nil)
+    compressor.reset(CompressedEnrichedVersion, maxRecordSize)
+    go(sinkables, Nil, 0, 0L, Nil)
   }
 
   private def byteBufferToArray(buf: java.nio.ByteBuffer): Array[Byte] = {

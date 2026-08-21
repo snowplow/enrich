@@ -71,7 +71,15 @@ class MetadataReporterSpec extends Specification with CatsEffect {
       val schemaKey = SchemaKey.fromUri("iglu:myvendor/myschema/jsonschema/1-0-0").toOption.get
       val entityKey = SchemaKey.fromUri("iglu:myvendor/mycontext/jsonschema/1-0-8").toOption.get
       val metadataEvent =
-        Metadata.MetadataEvent(Some(schemaKey), Some("mysource"), Some("mytracker"), Some("myplatform"), Some("myscenario"))
+        Metadata.MetadataEvent(Some(schemaKey),
+                               Some("mysource"),
+                               Some("mytracker"),
+                               Some("myplatform"),
+                               Some("myscenario"),
+                               None,
+                               false,
+                               true
+        )
       val entitiesAndCount = Metadata.EntitiesAndCount(Set(entityKey), 42)
       Map(metadataEvent -> entitiesAndCount)
     }
@@ -80,7 +88,7 @@ class MetadataReporterSpec extends Specification with CatsEffect {
     {
       "schema": "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
       "data": {
-        "schema": "iglu:com.snowplowanalytics.console/observed_event/jsonschema/6-0-1",
+        "schema": "iglu:com.snowplowanalytics.console/observed_event/jsonschema/7-0-0",
         "data": {
           "organizationId": $testOrganizationId,
           "pipelineId": $testPipelineId,
@@ -91,6 +99,9 @@ class MetadataReporterSpec extends Specification with CatsEffect {
           "tracker": "mytracker",
           "platform": "myplatform",
           "scenario_id": "myscenario",
+          "scenario_version": null,
+          "eventSpecInferred": false,
+          "eventSpecValid": true,
           "eventVolume": 42,
           "periodStart": $periodStart,
           "periodEnd": $periodEnd
@@ -166,7 +177,15 @@ class MetadataReporterSpec extends Specification with CatsEffect {
       val schemaKey = SchemaKey.fromUri("iglu:myvendor/myschema/jsonschema/1-0-0").toOption.get
       val entityKey = SchemaKey.fromUri("iglu:myvendor/mycontext/jsonschema/1-0-8").toOption.get
       val metadataEvent =
-        Metadata.MetadataEvent(Some(schemaKey), Some("mysource"), Some("mytracker"), Some("myplatform"), Some("myscenario"))
+        Metadata.MetadataEvent(Some(schemaKey),
+                               Some("mysource"),
+                               Some("mytracker"),
+                               Some("myplatform"),
+                               Some("myscenario"),
+                               None,
+                               false,
+                               true
+        )
       val entitiesAndCount = Metadata.EntitiesAndCount(Set(entityKey), inputEventVolume)
       Map(metadataEvent -> entitiesAndCount)
     }
@@ -175,7 +194,7 @@ class MetadataReporterSpec extends Specification with CatsEffect {
     {
       "schema": "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
       "data": {
-        "schema": "iglu:com.snowplowanalytics.console/observed_event/jsonschema/6-0-1",
+        "schema": "iglu:com.snowplowanalytics.console/observed_event/jsonschema/7-0-0",
         "data": {
           "organizationId": $testOrganizationId,
           "pipelineId": $testPipelineId,
@@ -186,6 +205,9 @@ class MetadataReporterSpec extends Specification with CatsEffect {
           "tracker": "mytracker",
           "platform": "myplatform",
           "scenario_id": "myscenario",
+          "scenario_version": null,
+          "eventSpecInferred": false,
+          "eventSpecValid": true,
           "eventVolume": $expectedEventVolume,
           "periodStart": "1970-01-01T00:40:00Z",
           "periodEnd": "1970-01-01T00:45:00Z"
@@ -246,7 +268,7 @@ class MetadataReporterSpec extends Specification with CatsEffect {
       val schemaKey = SchemaKey.fromUri("iglu:myvendor/myschema/jsonschema/1-0-0").toOption.get
       val entityKey = SchemaKey.fromUri("iglu:myvendor/mycontext/jsonschema/1-0-8").toOption.get
       val metadataEvent =
-        Metadata.MetadataEvent(Some(schemaKey), Some(appId), Some("mytracker"), Some("myplatform"), Some("myscenario"))
+        Metadata.MetadataEvent(Some(schemaKey), Some(appId), Some("mytracker"), Some("myplatform"), Some("myscenario"), None, false, true)
       val entitiesAndCount = Metadata.EntitiesAndCount(Set(entityKey), 42)
       Map(metadataEvent -> entitiesAndCount)
     }
@@ -255,7 +277,7 @@ class MetadataReporterSpec extends Specification with CatsEffect {
     {
       "schema": "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
       "data": {
-        "schema": "iglu:com.snowplowanalytics.console/observed_event/jsonschema/6-0-1",
+        "schema": "iglu:com.snowplowanalytics.console/observed_event/jsonschema/7-0-0",
         "data": {
           "organizationId": $testOrganizationId,
           "pipelineId": $testPipelineId,
@@ -266,6 +288,9 @@ class MetadataReporterSpec extends Specification with CatsEffect {
           "tracker": "mytracker",
           "platform": "myplatform",
           "scenario_id": "myscenario",
+          "scenario_version": null,
+          "eventSpecInferred": false,
+          "eventSpecValid": true,
           "eventVolume": 42,
           "periodStart": "1970-01-01T00:40:00Z",
           "periodEnd": "1970-01-01T00:45:00Z"
@@ -326,7 +351,7 @@ class MetadataReporterSpec extends Specification with CatsEffect {
       val schemaKey = SchemaKey.fromUri("iglu:myvendor/myschema/jsonschema/1-0-0").toOption.get
       val entityKey = SchemaKey.fromUri("iglu:myvendor/mycontext/jsonschema/1-0-8").toOption.get
       def metadataEvent(appId: String) =
-        Metadata.MetadataEvent(Some(schemaKey), Some(appId), Some("mytracker"), Some("myplatform"), Some("myscenario"))
+        Metadata.MetadataEvent(Some(schemaKey), Some(appId), Some("mytracker"), Some("myplatform"), Some("myscenario"), None, false, true)
       val entitiesAndCount = Metadata.EntitiesAndCount(Set(entityKey), 42)
       Map(
         metadataEvent("mysource1") -> entitiesAndCount,
@@ -341,7 +366,7 @@ class MetadataReporterSpec extends Specification with CatsEffect {
     {
       "schema": "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
       "data": {
-        "schema": "iglu:com.snowplowanalytics.console/observed_event/jsonschema/6-0-1",
+        "schema": "iglu:com.snowplowanalytics.console/observed_event/jsonschema/7-0-0",
         "data": {
           "organizationId": $testOrganizationId,
           "pipelineId": $testPipelineId,
@@ -352,6 +377,9 @@ class MetadataReporterSpec extends Specification with CatsEffect {
           "tracker": "mytracker",
           "platform": "myplatform",
           "scenario_id": "myscenario",
+          "scenario_version": null,
+          "eventSpecInferred": false,
+          "eventSpecValid": true,
           "eventVolume": 42,
           "periodStart": "1970-01-01T00:40:00Z",
           "periodEnd": "1970-01-01T00:45:00Z"
@@ -411,7 +439,7 @@ class MetadataReporterSpec extends Specification with CatsEffect {
       val entityKey1 = SchemaKey.fromUri("iglu:myvendor/mycontext1/jsonschema/2-0-0").toOption.get
       val entityKey2 = SchemaKey.fromUri("iglu:myvendor/mycontext2/jsonschema/1-0-8").toOption.get
       val metadataEvent =
-        Metadata.MetadataEvent(Some(schemaKey), Some(appId), Some("mytracker"), Some("myplatform"), Some("myscenario"))
+        Metadata.MetadataEvent(Some(schemaKey), Some(appId), Some("mytracker"), Some("myplatform"), Some("myscenario"), None, false, true)
       val entitiesAndCount = Metadata.EntitiesAndCount(Set(entityKey1, entityKey2), 42)
       Map(metadataEvent -> entitiesAndCount)
     }
@@ -420,7 +448,7 @@ class MetadataReporterSpec extends Specification with CatsEffect {
     {
       "schema": "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
       "data": {
-        "schema": "iglu:com.snowplowanalytics.console/observed_event/jsonschema/6-0-1",
+        "schema": "iglu:com.snowplowanalytics.console/observed_event/jsonschema/7-0-0",
         "data": {
           "organizationId": $testOrganizationId,
           "pipelineId": $testPipelineId,
@@ -431,6 +459,9 @@ class MetadataReporterSpec extends Specification with CatsEffect {
           "tracker": "mytracker",
           "platform": "myplatform",
           "scenario_id": "myscenario",
+          "scenario_version": null,
+          "eventSpecInferred": false,
+          "eventSpecValid": true,
           "eventVolume": 42,
           "periodStart": "1970-01-01T00:40:00Z",
           "periodEnd": "1970-01-01T00:45:00Z"
@@ -505,7 +536,10 @@ class MetadataReporterSpec extends Specification with CatsEffect {
                                Some("app{,\"}:;[']"),
                                Some("tracker{,\"}:;[']"),
                                Some("myplatform"),
-                               Some("scenario{,\"}:;[']")
+                               Some("scenario{,\"}:;[']"),
+                               None,
+                               false,
+                               true
         )
       val entitiesAndCount = Metadata.EntitiesAndCount(Set(entityKey), 42)
       Map(metadataEvent -> entitiesAndCount)
@@ -515,7 +549,7 @@ class MetadataReporterSpec extends Specification with CatsEffect {
     {
       "schema": "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
       "data": {
-        "schema": "iglu:com.snowplowanalytics.console/observed_event/jsonschema/6-0-1",
+        "schema": "iglu:com.snowplowanalytics.console/observed_event/jsonschema/7-0-0",
         "data": {
           "organizationId": $testOrganizationId,
           "pipelineId": $testPipelineId,
@@ -526,6 +560,9 @@ class MetadataReporterSpec extends Specification with CatsEffect {
           "tracker": "tracker{,\"}:;[']",
           "platform": "myplatform",
           "scenario_id": "scenario{,\"}:;[']",
+          "scenario_version": null,
+          "eventSpecInferred": false,
+          "eventSpecValid": true,
           "eventVolume": 42,
           "periodStart": "1970-01-01T00:40:00Z",
           "periodEnd": "1970-01-01T00:45:00Z"
@@ -603,7 +640,15 @@ class MetadataReporterSpec extends Specification with CatsEffect {
       val schemaKey = SchemaKey.fromUri("iglu:myvendor/myschema/jsonschema/1-0-0").toOption.get
       val entityKey = SchemaKey.fromUri("iglu:myvendor/mycontext/jsonschema/1-0-8").toOption.get
       val metadataEvent =
-        Metadata.MetadataEvent(Some(schemaKey), Some("mysource"), Some("mytracker"), Some("myplatform"), Some("myscenario"))
+        Metadata.MetadataEvent(Some(schemaKey),
+                               Some("mysource"),
+                               Some("mytracker"),
+                               Some("myplatform"),
+                               Some("myscenario"),
+                               None,
+                               false,
+                               true
+        )
       val entitiesAndCount = Metadata.EntitiesAndCount(Set(entityKey), 42)
       Map(metadataEvent -> entitiesAndCount)
     }
@@ -646,7 +691,15 @@ class MetadataReporterSpec extends Specification with CatsEffect {
       val schemaKey = SchemaKey.fromUri("iglu:myvendor/myschema/jsonschema/1-0-0").toOption.get
       val entityKey = SchemaKey.fromUri("iglu:myvendor/mycontext/jsonschema/1-0-8").toOption.get
       val metadataEvent =
-        Metadata.MetadataEvent(Some(schemaKey), Some(appId), Some("mytracker"), Some("myplatform"), None)
+        Metadata.MetadataEvent(Some(schemaKey),
+                               Some(appId),
+                               Some("mytracker"),
+                               Some("myplatform"),
+                               None,
+                               None,
+                               eventSpecInferred = false,
+                               eventSpecValid = false
+        )
       val entitiesAndCount = Metadata.EntitiesAndCount(Set(entityKey), 1)
       Map(metadataEvent -> entitiesAndCount)
     }

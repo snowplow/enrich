@@ -16,7 +16,7 @@ import java.time.Instant
 import org.joda.time.DateTime
 import io.circe.Json
 import cats.{Applicative, Monad}
-import cats.data.{EitherT, NonEmptyList, OptionT, StateT, WriterT}
+import cats.data.{EitherT, Ior, NonEmptyList, OptionT, StateT, WriterT}
 import cats.implicits._
 import cats.effect.Sync
 
@@ -279,9 +279,29 @@ object EnrichmentManager {
 
   private[enrichments] type EStateT[F[_], A] = StateT[F, Accumulation, A]
 
-  private object EStateT {
+  private[enrichments] object EStateT {
     def apply[F[_]: Applicative, A](f: Accumulation => F[(Accumulation, A)]): EStateT[F, A] =
       StateT(f)
+
+    /**
+     * Like [[fromEitherF]], but the enrichment may return failures AND derived contexts together.
+     * `Ior.Both` lets an enrichment fail the event while still contributing a distinct derived
+     * context (e.g. event-spec enforcement), which the mutually-exclusive `Either` cannot express.
+     */
+    def fromIorF[F[_]: Applicative](
+      f: (EnrichedEvent,
+        List[SelfDescribingData[Json]]) => F[Ior[NonEmptyList[FailureDetails.EnrichmentFailure], List[SelfDescribingData[Json]]]]
+    ): EStateT[F, Unit] =
+      EStateT {
+        case Accumulation.Enriched(event, errors, contexts) =>
+          f(event, contexts).map {
+            case Ior.Right(contexts2) => (Accumulation.Enriched(event, errors, contexts2 ::: contexts), ())
+            case Ior.Left(moreErrors) => (Accumulation.Enriched(event, moreErrors.toList ::: errors, contexts), ())
+            case Ior.Both(moreErrors, contexts2) =>
+              (Accumulation.Enriched(event, moreErrors.toList ::: errors, contexts2 ::: contexts), ())
+          }
+        case Accumulation.Dropped => Applicative[F].pure((Accumulation.Dropped, ()))
+      }
 
     def fromEither[F[_]: Applicative](
       f: (EnrichedEvent,
@@ -371,13 +391,14 @@ object EnrichmentManager {
       _       <- getCollectorVersionSet[F]                                          // The load fails if the collector version is not set
       pageUri <- getPageUri[F](raw.context.refererUri)                              // Potentially update the page_url and set the page URL components
       _       <- getDerivedTstamp[F]                                                // Calculate the derived timestamp
-      _       <- getIabContext[F](registry.iab)                                     // Fetch IAB enrichment context (before anonymizing the IP address)
+      iabCtx  <- getIabContext[F](registry.iab)                                     // Fetch IAB enrichment context (before anonymizing the IP address)
       _       <- getUaUtils[F](registry.userAgentUtils)                             // Parse the useragent using user-agent-utils
       _       <- getUaParser[F](registry.uaParser)                                  // Create the ua_parser_context
       _       <- getCurrency[F](raw.context.timestamp, registry.currencyConversion) // Finalize the currency conversion
       _       <- getRefererUri[F](registry.refererParser)                           // Potentially set the referrer details and URL components
       qsMap   <- extractQueryString[F](pageUri, raw.source.encoding)                // Parse the page URI's querystring
       _       <- setCampaign[F](qsMap, registry.campaignAttribution)                // Marketing attribution
+      _       <- getUtmReferrer[F](qsMap, registry.refererParser)                   // Classify an injected utm_source into a utm_referrer entity
       _       <- getCrossDomain[F](qsMap, registry.crossNavigation)                 // Cross-domain tracking
       _       <- setEventFingerprint[F](raw.parameters, registry.eventFingerprint)  // This enrichment cannot fail
       _       <- getCookieContexts                                                  // Execute cookie extractor enrichment
@@ -386,9 +407,9 @@ object EnrichmentManager {
       yauaaCtx <- getYauaaContext[F](registry.yauaa, raw.context.headers)           // Runs YAUAA enrichment (gets info thanks to user agent)
       _       <- getAgentClassificationContext[F](registry.agentClassification, yauaaCtx) // Classify the agent (operator/purpose) from YAUAA agentName
       _       <- extractSchemaFields[F]                                             // Extract the event vendor/name/format/version
-      _       <- ipLookups[F](registry.ipLookups)                                   // Execute IP lookup enrichment
-      _       <- asnLookups[F](registry.asnLookups)                                 // Check ASN against bot lists
-      _       <- getBotDetectionContext[F](registry.botDetection)                   // Consolidated bot detection from YAUAA, IAB, ASN
+      asnCtx  <- ipLookups[F](registry.ipLookups)                                   // Execute IP lookup enrichment (produces the ASN context)
+      asnCtx2 <- asnLookups[F](registry.asnLookups, asnCtx)                         // Check ASN against bot lists (adds likelyBot to the ASN context)
+      _       <- getBotDetectionContext[F](registry.botDetection, yauaaCtx, iabCtx, asnCtx2) // Consolidated bot detection from YAUAA, IAB, ASN
       _       <- registry.javascriptScript.traverse(                                // Execute the JavaScript scripting enrichment
                    getJsScript[F](_, raw.context.headers, maxJsonDepth)
                  )
@@ -475,9 +496,12 @@ object EnrichmentManager {
   // If our IpToGeo enrichment is enabled, get the geo-location from the IP address
   // enrichment doesn't fail to maintain the previous approach where failures were suppressed
   // c.f. https://github.com/snowplow/snowplow/issues/351
-  def ipLookups[F[_]: Monad](ipLookups: Option[IpLookupsEnrichment[F]]): EStateT[F, Unit] =
-    EStateT.fromEitherF {
-      case (event, _) =>
+  // Execute the IP lookup enrichment. The geo/ISP fields are set on the event, and the ASN context
+  // (when produced) is returned so that the ASN lookups enrichment can enrich it and add it to the
+  // derived contexts.
+  def ipLookups[F[_]: Monad](ipLookups: Option[IpLookupsEnrichment[F]]): EStateT[F, Option[SelfDescribingData[Json]]] =
+    EStateT {
+      case Accumulation.Enriched(event, errors, contexts) =>
         val ipLookup = for {
           enrichment <- OptionT.fromOption[F](ipLookups)
           ip <- OptionT.fromOption[F](Option(event.user_ipaddress))
@@ -509,29 +533,34 @@ object EnrichmentManager {
             lookup.connectionType.flatMap(_.toOption).foreach { ct =>
               event.ip_netspeed = ct
             }
-            asnContext.toList.asRight
+            (Accumulation.Enriched(event, errors, contexts), asnContext)
           case None =>
-            Nil.asRight
+            (Accumulation.Enriched(event, errors, contexts), Option.empty[SelfDescribingData[Json]])
         }
+      case Accumulation.Dropped =>
+        Monad[F].pure((Accumulation.Dropped, Option.empty[SelfDescribingData[Json]]))
     }
 
-  // Check if ASN belongs to cloud, managed hosting, colo facilities, etc. and adds likelyBot field to ASN context if that's the case
-  def asnLookups[F[_]: Monad](asnLookupsEnrichment: Option[AsnLookupsEnrichment]): EStateT[F, Unit] =
+  // Adds the ASN context (produced by the IP lookup enrichment) to the derived contexts.
+  // When the ASN lookups enrichment is configured, it first checks whether the ASN belongs to a
+  // cloud, managed hosting or colo facility, etc. and adds the likelyBot field to the context if so.
+  // The context is also returned so that downstream enrichments (e.g. bot detection) can consume it
+  // directly.
+  def asnLookups[F[_]: Monad](
+    asnLookupsEnrichment: Option[AsnLookupsEnrichment],
+    asnContext: Option[SelfDescribingData[Json]]
+  ): EStateT[F, Option[SelfDescribingData[Json]]] =
     EStateT {
       case Accumulation.Enriched(event, errors, contexts) =>
-        val updatedContexts = asnLookupsEnrichment.fold(contexts) { enrichment =>
-          contexts.map { context =>
-            if (context.schema == IpLookupsEnrichment.asnSchema)
-              enrichment
-                .lookupAsn(context, Option(event.platform))
-                .getOrElse(context)
-            else
-              context
-          }
+        val enrichedAsn = (asnLookupsEnrichment, asnContext) match {
+          case (Some(enrichment), Some(asn)) =>
+            enrichment.lookupAsn(asn, Option(event.platform)).getOrElse(asn).some
+          case _ =>
+            asnContext
         }
-        Monad[F].pure((Accumulation.Enriched(event, errors, updatedContexts), ()))
+        Monad[F].pure((Accumulation.Enriched(event, errors, enrichedAsn.toList ::: contexts), enrichedAsn))
       case Accumulation.Dropped =>
-        Monad[F].pure((Accumulation.Dropped, ()))
+        Monad[F].pure((Accumulation.Dropped, Option.empty[SelfDescribingData[Json]]))
     }
 
   // Potentially update the page_url and set the page URL components
@@ -575,9 +604,11 @@ object EnrichmentManager {
   // Fetch IAB enrichment context (before anonymizing the IP address).
   // The timestamp is required; the user agent and IP are optional but at least one must be
   // defined (the IAB library rejects null for both simultaneously).
-  def getIabContext[F[_]: Applicative](iabEnrichment: Option[IabEnrichment]): EStateT[F, Unit] =
-    EStateT.fromEither {
-      case (event, _) =>
+  // The context is added to the derived contexts and also returned so that downstream enrichments
+  // (e.g. bot detection) can consume it directly.
+  def getIabContext[F[_]: Applicative](iabEnrichment: Option[IabEnrichment]): EStateT[F, Option[SelfDescribingData[Json]]] =
+    EStateT {
+      case Accumulation.Enriched(event, errors, contexts) =>
         val result = for {
           iab <- iabEnrichment
           tstamp <- Option(event.derived_tstamp).map(EventEnrichments.fromTimestamp)
@@ -586,7 +617,16 @@ object EnrichmentManager {
           if useragent != null || ip != null
         } yield iab.getIabContext(useragent, ip, tstamp)
 
-        result.sequence.bimap(NonEmptyList.one, _.toList)
+        result.sequence match {
+          case Right(iabContext) =>
+            Applicative[F].pure((Accumulation.Enriched(event, errors, iabContext.toList ::: contexts), iabContext))
+          case Left(error) =>
+            Applicative[F].pure(
+              (Accumulation.Enriched(event, error :: errors, contexts), Option.empty[SelfDescribingData[Json]])
+            )
+        }
+      case Accumulation.Dropped =>
+        Applicative[F].pure((Accumulation.Dropped, Option.empty[SelfDescribingData[Json]]))
     }
 
   def anonIp[F[_]: Applicative](anonIp: Option[AnonIpEnrichment]): EStateT[F, Unit] =
@@ -783,6 +823,35 @@ object EnrichmentManager {
         }
     }
 
+  /**
+   * Classifies an injected `utm_source` query parameter against the referer parser's `utm_sources`
+   * database entries, emitting a `utm_referrer` entity on a match. This is additive and independent
+   * of the Referer-header parsing done by [[getRefererUri]]: the two may legitimately disagree (the
+   * more reliable one is picked downstream), so the `refr_*` atomic fields are left untouched here.
+   */
+  def getUtmReferrer[F[_]: Applicative](
+    pageQsMap: Option[QueryStringParameters],
+    refererParser: Option[RefererParserEnrichment]
+  ): EStateT[F, Unit] =
+    EStateT.fromEither {
+      case (_, _) =>
+        val utmReferrer = for {
+          rp <- refererParser
+          qsList <- pageQsMap
+          utmSource <- qsList.collectFirst { case ("utm_source", Some(value)) => value }
+          referer <- rp.extractUtmReferrer(utmSource)
+        } yield referer
+        utmReferrer match {
+          case Some(ExternalReferer(medium, source, term)) =>
+            val fields = List(
+              "source" -> Json.fromString(source),
+              "medium" -> Json.fromString(medium)
+            ) ++ term.map(t => "term" -> Json.fromString(t))
+            List(SelfDescribingData(RefererParserEnrichment.utmReferrerSchema, Json.obj(fields: _*))).asRight
+          case _ => Nil.asRight
+        }
+    }
+
   def getCrossDomain[F[_]: Applicative](
     pageQsMap: Option[QueryStringParameters],
     crossNavEnrichment: Option[CNE]
@@ -946,13 +1015,16 @@ object EnrichmentManager {
     }
 
   def getBotDetectionContext[F[_]: Applicative](
-    botDetection: Option[BotDetectionEnrichment]
+    botDetection: Option[BotDetectionEnrichment],
+    yauaaContext: Option[SelfDescribingData[Json]],
+    iabContext: Option[SelfDescribingData[Json]],
+    asnContext: Option[SelfDescribingData[Json]]
   ): EStateT[F, Unit] =
     EStateT.fromEither {
-      case (event, derivedContexts) =>
+      case (event, _) =>
         botDetection match {
           case Some(enrichment) =>
-            enrichment.getBotDetectionContext(derivedContexts, event.contexts).asRight
+            List(enrichment.getBotDetectionContext(yauaaContext, iabContext, asnContext, event.contexts)).asRight
           case None =>
             Nil.asRight
         }
@@ -973,12 +1045,12 @@ object EnrichmentManager {
     }
 
   def getEventSpecContext[F[_]: Monad](eventSpecEnrichment: Option[EventSpecEnrichment[F]], maxJsonDepth: Int): EStateT[F, Unit] =
-    EStateT.fromEitherF {
+    EStateT.fromIorF {
       case (event, _) =>
         eventSpecEnrichment.fold(
-          Monad[F].pure(List.empty[SelfDescribingData[Json]].asRight[NonEmptyList[FailureDetails.EnrichmentFailure]])
+          Monad[F].pure(List.empty[SelfDescribingData[Json]].rightIor[NonEmptyList[FailureDetails.EnrichmentFailure]])
         ) {
-          _.processEvent(event, maxJsonDepth).map(_.asRight[NonEmptyList[FailureDetails.EnrichmentFailure]])
+          _.processEvent(event, maxJsonDepth)
         }
     }
 }

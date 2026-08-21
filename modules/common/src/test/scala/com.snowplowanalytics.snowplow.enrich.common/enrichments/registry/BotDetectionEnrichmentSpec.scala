@@ -91,97 +91,85 @@ class BotDetectionEnrichmentSpec extends Specification with ValidatedMatchers {
   private val allEnabled = BotDetectionEnrichment(useYauaa = true, useIab = true, useAsnLookups = true, useClientSideDetection = true)
 
   def yauaaDeviceClassRobot = {
-    val contexts = List(mkYauaaContext("Robot", "Browser"))
-    val result = allEnabled.getBotDetectionContext(contexts, Nil)
-    val data = result.head.data
+    val result = allEnabled.getBotDetectionContext(Some(mkYauaaContext("Robot", "Browser")), None, None, Nil)
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(true)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(List("yauaa")))
   }
 
   def yauaaDeviceClassRobotMobile = {
-    val contexts = List(mkYauaaContext("Robot Mobile", "Browser"))
-    val result = allEnabled.getBotDetectionContext(contexts, Nil)
-    val data = result.head.data
+    val result = allEnabled.getBotDetectionContext(Some(mkYauaaContext("Robot Mobile", "Browser")), None, None, Nil)
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(true)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(List("yauaa")))
   }
 
   def yauaaDeviceClassRobotImitator = {
-    val contexts = List(mkYauaaContext("Robot Imitator", "Browser"))
-    val result = allEnabled.getBotDetectionContext(contexts, Nil)
-    val data = result.head.data
+    val result = allEnabled.getBotDetectionContext(Some(mkYauaaContext("Robot Imitator", "Browser")), None, None, Nil)
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(true)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(List("yauaa")))
   }
 
   def yauaaAgentClassRobot = {
-    val contexts = List(mkYauaaContext("Desktop", "Robot"))
-    val result = allEnabled.getBotDetectionContext(contexts, Nil)
-    val data = result.head.data
+    val result = allEnabled.getBotDetectionContext(Some(mkYauaaContext("Desktop", "Robot")), None, None, Nil)
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(true)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(List("yauaa")))
   }
 
   def yauaaAgentClassRobotMobile = {
-    val contexts = List(mkYauaaContext("Desktop", "Robot Mobile"))
-    val result = allEnabled.getBotDetectionContext(contexts, Nil)
-    val data = result.head.data
+    val result = allEnabled.getBotDetectionContext(Some(mkYauaaContext("Desktop", "Robot Mobile")), None, None, Nil)
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(true)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(List("yauaa")))
   }
 
   def yauaaNonRobot = {
-    val contexts = List(mkYauaaContext("Desktop", "Browser"))
-    val result = allEnabled.getBotDetectionContext(contexts, Nil)
-    val data = result.head.data
+    val result = allEnabled.getBotDetectionContext(Some(mkYauaaContext("Desktop", "Browser")), None, None, Nil)
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(false)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(Nil))
   }
 
   def iabSpider = {
-    val contexts = List(mkIabContext(true))
-    val result = allEnabled.getBotDetectionContext(contexts, Nil)
-    val data = result.head.data
+    val result = allEnabled.getBotDetectionContext(None, Some(mkIabContext(true)), None, Nil)
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(true)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(List("iab")))
   }
 
   def iabNonSpider = {
-    val contexts = List(mkIabContext(false))
-    val result = allEnabled.getBotDetectionContext(contexts, Nil)
-    val data = result.head.data
+    val result = allEnabled.getBotDetectionContext(None, Some(mkIabContext(false)), None, Nil)
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(false)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(Nil))
   }
 
   def multipleIndicators = {
-    val contexts = List(mkYauaaContext("Robot", "Robot"), mkIabContext(true))
-    val result = allEnabled.getBotDetectionContext(contexts, Nil)
-    val data = result.head.data
+    val result = allEnabled.getBotDetectionContext(Some(mkYauaaContext("Robot", "Robot")), Some(mkIabContext(true)), None, Nil)
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(true)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(List("iab", "yauaa")))
   }
 
   def yauaaPositiveIabNegative = {
-    val contexts = List(mkYauaaContext("Robot", "Browser"), mkIabContext(false))
-    val result = allEnabled.getBotDetectionContext(contexts, Nil)
-    val data = result.head.data
+    val result = allEnabled.getBotDetectionContext(Some(mkYauaaContext("Robot", "Browser")), Some(mkIabContext(false)), None, Nil)
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(true)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(List("yauaa")))
   }
 
   def iabPositiveYauaaNegative = {
-    val contexts = List(mkYauaaContext("Desktop", "Browser"), mkIabContext(true))
-    val result = allEnabled.getBotDetectionContext(contexts, Nil)
-    val data = result.head.data
+    val result = allEnabled.getBotDetectionContext(Some(mkYauaaContext("Desktop", "Browser")), Some(mkIabContext(true)), None, Nil)
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(true)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(List("iab")))
   }
 
   def noSignals = {
-    val contexts = List(mkYauaaContext("Desktop", "Browser"), mkIabContext(false))
-    val result = allEnabled.getBotDetectionContext(contexts, Nil)
-    val data = result.head.data
+    val result = allEnabled.getBotDetectionContext(Some(mkYauaaContext("Desktop", "Browser")), Some(mkIabContext(false)), None, Nil)
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(false)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(Nil))
   }
@@ -191,75 +179,78 @@ class BotDetectionEnrichmentSpec extends Specification with ValidatedMatchers {
       yauaaSchema,
       json"""{"deviceName": "Phone", "operatingSystemClass": "Mobile"}"""
     )
-    val result = allEnabled.getBotDetectionContext(List(yauaaCtx), Nil)
-    val data = result.head.data
+    val result = allEnabled.getBotDetectionContext(Some(yauaaCtx), None, None, Nil)
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(false)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(Nil))
   }
 
   def skipYauaa = {
     val enrichment = BotDetectionEnrichment(useYauaa = false, useIab = true, useAsnLookups = false, useClientSideDetection = false)
-    val contexts = List(mkYauaaContext("Robot", "Robot"))
-    val result = enrichment.getBotDetectionContext(contexts, Nil)
-    val data = result.head.data
+    val result = enrichment.getBotDetectionContext(Some(mkYauaaContext("Robot", "Robot")), None, None, Nil)
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(false)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(Nil))
   }
 
   def skipIab = {
     val enrichment = BotDetectionEnrichment(useYauaa = true, useIab = false, useAsnLookups = false, useClientSideDetection = false)
-    val contexts = List(mkIabContext(true))
-    val result = enrichment.getBotDetectionContext(contexts, Nil)
-    val data = result.head.data
+    val result = enrichment.getBotDetectionContext(None, Some(mkIabContext(true)), None, Nil)
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(false)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(Nil))
   }
 
   def missingContexts = {
-    val result = allEnabled.getBotDetectionContext(Nil, Nil)
-    val data = result.head.data
+    val result = allEnabled.getBotDetectionContext(None, None, None, Nil)
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(false)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(Nil))
   }
 
   def asnLikelyBot = {
-    val contexts = List(mkAsnContext(true))
-    val result = allEnabled.getBotDetectionContext(contexts, Nil)
-    val data = result.head.data
+    val result = allEnabled.getBotDetectionContext(None, None, Some(mkAsnContext(true)), Nil)
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(true)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(List("asnLookups")))
   }
 
   def asnNotLikelyBot = {
-    val contexts = List(mkAsnContext(false))
-    val result = allEnabled.getBotDetectionContext(contexts, Nil)
-    val data = result.head.data
+    val result = allEnabled.getBotDetectionContext(None, None, Some(mkAsnContext(false)), Nil)
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(false)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(Nil))
   }
 
   def allFourIndicators = {
-    val derivedContexts = List(mkYauaaContext("Robot", "Robot"), mkIabContext(true), mkAsnContext(true))
     val inputContexts = List(mkClientSideContext(true))
-    val result = allEnabled.getBotDetectionContext(derivedContexts, inputContexts)
-    val data = result.head.data
+    val result = allEnabled.getBotDetectionContext(
+      Some(mkYauaaContext("Robot", "Robot")),
+      Some(mkIabContext(true)),
+      Some(mkAsnContext(true)),
+      inputContexts
+    )
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(true)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(List("clientSideDetection", "asnLookups", "iab", "yauaa")))
   }
 
   def asnPositiveOthersNegative = {
-    val contexts = List(mkYauaaContext("Desktop", "Browser"), mkIabContext(false), mkAsnContext(true))
-    val result = allEnabled.getBotDetectionContext(contexts, Nil)
-    val data = result.head.data
+    val result = allEnabled.getBotDetectionContext(
+      Some(mkYauaaContext("Desktop", "Browser")),
+      Some(mkIabContext(false)),
+      Some(mkAsnContext(true)),
+      Nil
+    )
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(true)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(List("asnLookups")))
   }
 
   def skipAsn = {
     val enrichment = BotDetectionEnrichment(useYauaa = false, useIab = false, useAsnLookups = false, useClientSideDetection = false)
-    val contexts = List(mkAsnContext(true))
-    val result = enrichment.getBotDetectionContext(contexts, Nil)
-    val data = result.head.data
+    val result = enrichment.getBotDetectionContext(None, None, Some(mkAsnContext(true)), Nil)
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(false)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(Nil))
   }
@@ -269,8 +260,8 @@ class BotDetectionEnrichmentSpec extends Specification with ValidatedMatchers {
       asnSchema,
       json"""{"asn": 12345, "organization": "Example ISP"}"""
     )
-    val result = allEnabled.getBotDetectionContext(List(asnCtx), Nil)
-    val data = result.head.data
+    val result = allEnabled.getBotDetectionContext(None, None, Some(asnCtx), Nil)
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(false)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(Nil))
   }
@@ -316,8 +307,8 @@ class BotDetectionEnrichmentSpec extends Specification with ValidatedMatchers {
   def clientSideDetectionBotTrue = {
     val enrichment = BotDetectionEnrichment(useYauaa = false, useIab = false, useAsnLookups = false, useClientSideDetection = true)
     val inputContexts = List(mkClientSideContext(true))
-    val result = enrichment.getBotDetectionContext(Nil, inputContexts)
-    val data = result.head.data
+    val result = enrichment.getBotDetectionContext(None, None, None, inputContexts)
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(true)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(List("clientSideDetection")))
   }
@@ -325,8 +316,8 @@ class BotDetectionEnrichmentSpec extends Specification with ValidatedMatchers {
   def clientSideDetectionBotFalse = {
     val enrichment = BotDetectionEnrichment(useYauaa = false, useIab = false, useAsnLookups = false, useClientSideDetection = true)
     val inputContexts = List(mkClientSideContext(false))
-    val result = enrichment.getBotDetectionContext(Nil, inputContexts)
-    val data = result.head.data
+    val result = enrichment.getBotDetectionContext(None, None, None, inputContexts)
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(false)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(Nil))
   }
@@ -334,18 +325,17 @@ class BotDetectionEnrichmentSpec extends Specification with ValidatedMatchers {
   def skipClientSideDetection = {
     val enrichment = BotDetectionEnrichment(useYauaa = false, useIab = false, useAsnLookups = false, useClientSideDetection = false)
     val inputContexts = List(mkClientSideContext(true))
-    val result = enrichment.getBotDetectionContext(Nil, inputContexts)
-    val data = result.head.data
+    val result = enrichment.getBotDetectionContext(None, None, None, inputContexts)
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(false)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(Nil))
   }
 
   def clientSideCombinedWithDerived = {
     val enrichment = BotDetectionEnrichment(useYauaa = true, useIab = false, useAsnLookups = false, useClientSideDetection = true)
-    val derivedContexts = List(mkYauaaContext("Robot", "Browser"))
     val inputContexts = List(mkClientSideContext(true))
-    val result = enrichment.getBotDetectionContext(derivedContexts, inputContexts)
-    val data = result.head.data
+    val result = enrichment.getBotDetectionContext(Some(mkYauaaContext("Robot", "Browser")), None, None, inputContexts)
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(true)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(List("clientSideDetection", "yauaa")))
   }
@@ -356,8 +346,8 @@ class BotDetectionEnrichmentSpec extends Specification with ValidatedMatchers {
       clientSideSchema,
       json"""{"someOtherField": "value"}"""
     )
-    val result = enrichment.getBotDetectionContext(Nil, List(ctx))
-    val data = result.head.data
+    val result = enrichment.getBotDetectionContext(None, None, None, List(ctx))
+    val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(false)) and
       (data.hcursor.downField("indicators").as[List[String]] must beRight(Nil))
   }

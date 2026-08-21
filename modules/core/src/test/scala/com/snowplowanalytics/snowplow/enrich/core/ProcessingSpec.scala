@@ -74,6 +74,8 @@ class ProcessingSpec extends Specification with CatsEffect {
     Compress enriched output into multiple batches when maxRecordSize is exceeded $e18
     Emit size violation bad rows for enriched events that exceed maxRecordSize after compression $e19
     Exclude bytes of size-violation records from good_bytes on a mixed batch $e20
+    Reuse one compressor correctly across successive good batches $e21
+    Reuse one compressor correctly when a batch has no good events $e22
   """
 
   def e1 = {
@@ -523,7 +525,9 @@ class ProcessingSpec extends Specification with CatsEffect {
         )
       )
 
-    val expectedMetadata = Map(Metadata.MetadataEvent(None, Some("test_app"), None, None, None) -> Metadata.EntitiesAndCount(Set(), 1))
+    val expectedMetadata = Map(
+      Metadata.MetadataEvent(None, Some("test_app"), None, None, None, None, false, true) -> Metadata.EntitiesAndCount(Set(), 1)
+    )
 
     val ipLookupsConf = IpLookupsEnrichment
       .parse(
@@ -1210,6 +1214,116 @@ class ProcessingSpec extends Specification with CatsEffect {
                              (badActions must haveSize(1)) and
                              (enrichedBytesMetric must beEqualTo(698L)) and
                              (badActions.head.bad.compact must contain("exceeds the maximum allowed size of 700 bytes after compression"))
+                         }
+                     }
+      } yield assertion
+
+    TestControl.executeEmbed(io)
+  }
+
+  def e21 = {
+    // The Environment holds one long-lived compressor that is reset and reused for every batch. Reuse
+    // must be correct across batch boundaries: batch 2 must decompress correctly even though batch 1
+    // already drove the same instance through reset/addRecord/result (and thus a finish()) before it.
+    val eventId1 = UUID.randomUUID
+    val eventId2 = UUID.randomUUID
+    val eventId3 = UUID.randomUUID
+    val eventId4 = UUID.randomUUID
+
+    val batch1 = GoodBatch(List(pageView(eventId1), pageView(eventId2)))
+    val batch2 = GoodBatch(List(pageView(eventId3), pageView(eventId4)))
+
+    val expectedEnriched =
+      List(
+        Enriched(expectedPageView(eventId1), None, Map.empty),
+        Enriched(expectedPageView(eventId2), None, Map.empty),
+        Enriched(expectedPageView(eventId3), None, Map.empty),
+        Enriched(expectedPageView(eventId4), None, Map.empty)
+      )
+
+    // zstd is the higher-risk engine for reuse: it carries a native ZstdCompressCtx across batches,
+    // so a stale window or an incomplete reset corrupts batch 2's frame rather than throwing.
+    val zstdCompression = Config.Compression(
+      enabled = true,
+      `type` = Config.Compression.ZSTD,
+      gzipCompressionLevel = 6,
+      zstdCompressionLevel = 9
+    )
+
+    val io =
+      for {
+        token1 <- IO.unique
+        token2 <- IO.unique
+        inputStream = mkGoodStream((batch1, token1), (batch2, token2))
+        assertion <- runTest(etlTstamp, inputStream, compression = zstdCompression) {
+                       case control =>
+                         for {
+                           _ <- Processing.stream(control.environment).compile.drain
+                           state <- control.state.get
+                         } yield {
+                           val enrichedActions = state.collect { case Action.SentToEnriched(enriched) => enriched }.flatten.toList
+                           val enrichedMetrics = state.collect { case Action.AddedEnrichedCountMetric(n) => n }.sum
+                           val enrichedBytesMetric = state.collect { case Action.AddedEnrichedBytesMetric(n) => n }.sum
+                           (enrichedActions must containTheSameElementsAs(expectedEnriched)) and
+                             (enrichedMetrics must beEqualTo(4)) and
+                             (enrichedBytesMetric must beEqualTo(1396L))
+                         }
+                     }
+      } yield assertion
+
+    TestControl.executeEmbed(io)
+  }
+
+  def e22 = {
+    // A batch with no good events (all invalid) sandwiched between two good batches. compressBatch
+    // resets the compressor for the empty batch but never takes `result`, so the next batch's reset
+    // follows an unfinished one. The following good batch must still decompress correctly, and the
+    // empty batch must not emit a compressed frame.
+    val eventId1 = UUID.randomUUID
+    val eventId2 = UUID.randomUUID
+    val eventIdBad = UUID.randomUUID
+    val eventId3 = UUID.randomUUID
+    val eventId4 = UUID.randomUUID
+
+    val batch1 = GoodBatch(List(pageView(eventId1), pageView(eventId2)))
+    val emptyGoodBatch = GoodBatch(List(invalidAddToCart(eventIdBad)))
+    val batch3 = GoodBatch(List(pageView(eventId3), pageView(eventId4)))
+
+    val expectedEnriched =
+      List(
+        Enriched(expectedPageView(eventId1), None, Map.empty),
+        Enriched(expectedPageView(eventId2), None, Map.empty),
+        Enriched(expectedPageView(eventId3), None, Map.empty),
+        Enriched(expectedPageView(eventId4), None, Map.empty)
+      )
+
+    val zstdCompression = Config.Compression(
+      enabled = true,
+      `type` = Config.Compression.ZSTD,
+      gzipCompressionLevel = 6,
+      zstdCompressionLevel = 9
+    )
+
+    val io =
+      for {
+        token1 <- IO.unique
+        token2 <- IO.unique
+        token3 <- IO.unique
+        inputStream = mkGoodStream((batch1, token1), (emptyGoodBatch, token2), (batch3, token3))
+        assertion <- runTest(etlTstamp, inputStream, compression = zstdCompression) {
+                       case control =>
+                         for {
+                           _ <- Processing.stream(control.environment).compile.drain
+                           state <- control.state.get
+                         } yield {
+                           val enrichedActions = state.collect { case Action.SentToEnriched(enriched) => enriched }.flatten.toList
+                           val badActions = state.collect { case Action.SentToBad(bads) => bads }.flatten.toList
+                           val enrichedMetrics = state.collect { case Action.AddedEnrichedCountMetric(n) => n }.sum
+                           val enrichedBytesMetric = state.collect { case Action.AddedEnrichedBytesMetric(n) => n }.sum
+                           (enrichedActions must containTheSameElementsAs(expectedEnriched)) and
+                             (badActions must haveSize(1)) and
+                             (enrichedMetrics must beEqualTo(4)) and
+                             (enrichedBytesMetric must beEqualTo(1396L))
                          }
                      }
       } yield assertion

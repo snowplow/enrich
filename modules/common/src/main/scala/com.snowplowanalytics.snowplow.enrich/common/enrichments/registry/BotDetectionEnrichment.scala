@@ -38,44 +38,28 @@ object BotDetectionEnrichment extends ParseableEnrichment {
   private val botDeviceClasses: Set[String] = Set("Robot", "Robot Mobile", "Robot Imitator")
   private val botAgentClasses: Set[String] = Set("Robot", "Robot Mobile")
 
-  /** Defines how to extract a bot signal from one source context. */
-  private case class Indicator(
-    schemaKey: SchemaKey,
-    name: String,
-    isBot: Json => Boolean
-  )
-
-  private val yauaaIndicator: Indicator = Indicator(
-    YauaaEnrichment.outputSchema,
-    "yauaa",
-    json => {
-      val cursor = json.hcursor
-      val deviceClass = cursor.downField("deviceClass").as[String].getOrElse("")
-      val agentClass = cursor.downField("agentClass").as[String].getOrElse("")
-      botDeviceClasses.contains(deviceClass) || botAgentClasses.contains(agentClass)
-    }
-  )
-
-  private val iabIndicator: Indicator = Indicator(
-    IabEnrichment.outputSchema,
-    "iab",
-    _.hcursor.downField("spiderOrRobot").as[Boolean].getOrElse(false)
-  )
-
-  private val asnLookupsIndicator: Indicator = Indicator(
-    IpLookupsEnrichment.asnSchema,
-    "asnLookups",
-    _.hcursor.downField("likelyBot").as[Boolean].getOrElse(false)
-  )
-
   private val clientSideSchema: SchemaKey =
     SchemaKey("com.snowplowanalytics.snowplow", "client_side_bot_detection", "jsonschema", SchemaVer.Full(1, 0, 0))
 
-  private val clientSideDetectionIndicator: Indicator = Indicator(
-    clientSideSchema,
-    "clientSideDetection",
-    _.hcursor.downField("bot").as[Boolean].getOrElse(false)
-  )
+  /** Bot signal from the YAUAA context: a robot device or agent class. */
+  private def isYauaaBot(json: Json): Boolean = {
+    val cursor = json.hcursor
+    val deviceClass = cursor.downField("deviceClass").as[String].getOrElse("")
+    val agentClass = cursor.downField("agentClass").as[String].getOrElse("")
+    botDeviceClasses.contains(deviceClass) || botAgentClasses.contains(agentClass)
+  }
+
+  /** Bot signal from the IAB context. */
+  private def isIabBot(json: Json): Boolean =
+    json.hcursor.downField("spiderOrRobot").as[Boolean].getOrElse(false)
+
+  /** Bot signal from the ASN context, set by the ASN lookups enrichment. */
+  private def isAsnBot(json: Json): Boolean =
+    json.hcursor.downField("likelyBot").as[Boolean].getOrElse(false)
+
+  /** Bot signal from the client-side detection input context. */
+  private def isClientSideBot(json: Json): Boolean =
+    json.hcursor.downField("bot").as[Boolean].getOrElse(false)
 
   override def parse(
     config: Json,
@@ -99,41 +83,33 @@ final case class BotDetectionEnrichment(
 ) {
   import BotDetectionEnrichment._
 
-  /** Only the indicators that are enabled — built once at construction, not per event. */
-  private val enabledDerivedIndicators: Map[SchemaKey, Indicator] =
-    List(
-      (useYauaa, yauaaIndicator),
-      (useIab, iabIndicator),
-      (useAsnLookups, asnLookupsIndicator)
-    ).collect { case (true, ind) => ind.schemaKey -> ind }.toMap
-
-  private val enabledInputIndicators: Map[SchemaKey, Indicator] =
-    List(
-      (useClientSideDetection, clientSideDetectionIndicator)
-    ).collect { case (true, ind) => ind.schemaKey -> ind }.toMap
-
+  /**
+   * Consolidates the bot signals into a single context.
+   *
+   * The derived-context signals (YAUAA, IAB, ASN) are passed in directly by the enrichment
+   * pipeline. The client-side detection signal arrives in the list of input contexts attached to
+   * the event, so it is located by its schema.
+   */
   def getBotDetectionContext(
-    derivedContexts: List[SelfDescribingData[Json]],
+    yauaaContext: Option[SelfDescribingData[Json]],
+    iabContext: Option[SelfDescribingData[Json]],
+    asnContext: Option[SelfDescribingData[Json]],
     inputContexts: List[SelfDescribingData[Json]]
-  ): List[SelfDescribingData[Json]] = {
-    def collectTriggeredIndicators(contexts: List[SelfDescribingData[Json]], bySchema: Map[SchemaKey, Indicator]): List[String] =
-      contexts.foldLeft(List.empty[String]) { (acc, ctx) =>
-        bySchema
-          .get(ctx.schema)
-          .fold(acc)(ind =>
-            if (ind.isBot(ctx.data)) ind.name :: acc
-            else acc
-          )
-      }
-    val derivedIndicators =
-      if (enabledDerivedIndicators.nonEmpty) collectTriggeredIndicators(derivedContexts, enabledDerivedIndicators) else Nil
-    val inputIndicators = if (enabledInputIndicators.nonEmpty) collectTriggeredIndicators(inputContexts, enabledInputIndicators) else Nil
-    val indicatorList = inputIndicators ::: derivedIndicators
+  ): SelfDescribingData[Json] = {
+    val clientSideContext = inputContexts.find(_.schema == clientSideSchema)
+
+    // Each enabled source adds its name to the indicators when its context signals a bot.
+    val indicators = List(
+      (useClientSideDetection, clientSideContext, "clientSideDetection", isClientSideBot _),
+      (useAsnLookups, asnContext, "asnLookups", isAsnBot _),
+      (useIab, iabContext, "iab", isIabBot _),
+      (useYauaa, yauaaContext, "yauaa", isYauaaBot _)
+    ).collect { case (true, Some(ctx), name, isBot) if isBot(ctx.data) => name }
 
     val resultJson = Json.obj(
-      "bot" -> (indicatorList.nonEmpty).asJson,
-      "indicators" -> indicatorList.asJson
+      "bot" -> indicators.nonEmpty.asJson,
+      "indicators" -> indicators.asJson
     )
-    List(SelfDescribingData(outputSchema, resultJson))
+    SelfDescribingData(outputSchema, resultJson)
   }
 }

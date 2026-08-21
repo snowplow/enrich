@@ -13,7 +13,7 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 import java.net.URI
 import cats.Monad
 import cats.implicits._
-import cats.data.{EitherT, NonEmptyList, ValidatedNel}
+import cats.data.{EitherT, Ior, NonEmptyList, ValidatedNel}
 import cats.effect.{Ref, Resource, Sync}
 import com.networknt.schema.JsonSchema
 
@@ -22,6 +22,7 @@ import com.snowplowanalytics.iglu.client.CirceValidator
 import io.circe.{Decoder, Encoder, Json, parser}
 import io.circe.generic.semiauto._
 import io.circe.syntax.EncoderOps
+import com.snowplowanalytics.snowplow.badrows.FailureDetails
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.EventSpecConf
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.CirceIgluCodecs._
@@ -65,7 +66,9 @@ object EventSpecEnrichment extends ParseableEnrichment {
     version: Option[Int],
     schemaKey: SchemaKey,
     constraint: Option[Json],
-    entities: List[Entity]
+    entities: List[Entity],
+    // Optional for backward compatibility: payloads written before this field existed decode as None (= good stream)
+    sendInvalidToBad: Option[Boolean] = None
   )
 
   case class EntityCompiled(
@@ -91,7 +94,8 @@ object EventSpecEnrichment extends ParseableEnrichment {
     version: Option[Int],
     schemaKey: SchemaKey,
     constraint: Option[JsonSchema],
-    entities: List[EntityCompiled]
+    entities: List[EntityCompiled],
+    sendInvalidToBad: Boolean
   )
 
   private object EventSpecCompiled {
@@ -105,7 +109,7 @@ object EventSpecEnrichment extends ParseableEnrichment {
         esc <- e.entities
                  .traverse(EntityCompiled.fromEntity)
                  .leftMap(error => s"Error during compilation of entity in event spec ${e.id}: $error")
-      } yield EventSpecCompiled(e.id, e.name, e.version, e.schemaKey, c, esc)
+      } yield EventSpecCompiled(e.id, e.name, e.version, e.schemaKey, c, esc, e.sendInvalidToBad.getOrElse(false))
 
   }
 
@@ -115,7 +119,7 @@ object EventSpecEnrichment extends ParseableEnrichment {
 
   implicit def eventSpecDecoder: Decoder[EventSpec] = deriveDecoder
 
-  implicit def eventSpecEncoder: Encoder[EventSpec] = deriveEncoder
+  implicit def eventSpecEncoder: Encoder[EventSpec] = deriveEncoder[EventSpec].mapJson(_.dropNullValues)
 
   /**
    * A structure optimized for fast lookups of event specs based on incoming event
@@ -165,14 +169,14 @@ object EventSpecEnrichment extends ParseableEnrichment {
     else
       (uri, localFile)
 
-  def create[F[_]: Sync](filePath: String): EitherT[F, String, EventSpecEnrichment[F]] =
+  def create[F[_]: Sync](schemaKey: SchemaKey, filePath: String): EitherT[F, String, EventSpecEnrichment[F]] =
     for {
       content <- EitherT(readFile[F](filePath))
       eventSpecs <- EitherT.fromEither[F](parseEventSpecs(content))
       tiers <- EitherT.fromEither[F](buildTiers(eventSpecs))
       (inferenceLookup, validationCache, archiveMap) = tiers
       ref <- EitherT.right[String](Ref.of[F, ValidationCache](validationCache))
-    } yield new EventSpecEnrichment[F](inferenceLookup, ref, archiveMap)
+    } yield new EventSpecEnrichment[F](schemaKey, inferenceLookup, ref, archiveMap)
 
   private def readFile[F[_]: Sync](path: String): F[Either[String, String]] =
     Resource
@@ -187,11 +191,14 @@ object EventSpecEnrichment extends ParseableEnrichment {
       .flatMap(_.hcursor.downField("eventSpecs").as[List[EventSpec]])
       .leftMap(e => s"Failed to parse event specs file: ${e.getMessage}")
 
-  private[enrichments] def createFromSpecs[F[_]: Sync](eventSpecs: List[EventSpec]): F[Either[String, EventSpecEnrichment[F]]] =
+  private[enrichments] def createFromSpecs[F[_]: Sync](
+    eventSpecs: List[EventSpec],
+    schemaKey: SchemaKey
+  ): F[Either[String, EventSpecEnrichment[F]]] =
     buildTiers(eventSpecs) match {
       case Right((inferenceLookup, validationCache, archiveMap)) =>
         Ref.of[F, ValidationCache](validationCache).map { ref =>
-          Right(new EventSpecEnrichment[F](inferenceLookup, ref, archiveMap))
+          Right(new EventSpecEnrichment[F](schemaKey, inferenceLookup, ref, archiveMap))
         }
       case Left(error) =>
         Sync[F].pure(Left(error))
@@ -350,13 +357,29 @@ object EventSpecEnrichment extends ParseableEnrichment {
 
   private def mkInvalidContext(errors: List[ValidationError]): SelfDescribingData[Json] =
     SelfDescribingData(validationSchemaKey, Json.obj("isValid" -> false.asJson, "errors" -> errors.asJson))
+
 }
 
 class EventSpecEnrichment[F[_]: Monad] private (
+  schemaKey: SchemaKey,
   eventSpecs: EventSpecEnrichment.EventSpecLookup,
   validationCacheRef: Ref[F, EventSpecEnrichment.ValidationCache],
   archive: EventSpecEnrichment.Archive
 ) {
+
+  private val enrichmentInfo = FailureDetails.EnrichmentInformation(schemaKey, "event-spec").some
+
+  private def mkEnrichmentFailure(
+    specId: String,
+    specVersion: Int,
+    error: EventSpecEnrichment.ValidationError
+  ): FailureDetails.EnrichmentFailure = {
+    val message =
+      s"Event spec validation failed for spec $specId version $specVersion: ${error.message}" +
+        error.schema.fold("")(s => s" (schema: $s)") +
+        error.path.fold("")(p => s" (path: $p)")
+    FailureDetails.EnrichmentFailure(enrichmentInfo, FailureDetails.EnrichmentFailureMessage.Simple(message))
+  }
 
   /**
    * Entry point called by EnrichmentManager for every event.
@@ -366,18 +389,25 @@ class EventSpecEnrichment[F[_]: Monad] private (
    * - event_specification context with version → validation (check event against that specific spec version)
    * - event_specification context without version → skip (legacy tracker, no validation possible)
    */
-  def processEvent(event: EnrichedEvent, maxJsonDepth: Int): F[List[SelfDescribingData[Json]]] = {
+  def processEvent(
+    event: EnrichedEvent,
+    maxJsonDepth: Int
+  ): F[Ior[NonEmptyList[FailureDetails.EnrichmentFailure], List[SelfDescribingData[Json]]]] = {
     val specContext = event.contexts.find(c => isEventSpecEntity(c.schema))
 
     specContext.fold(
-      Monad[F].pure(inferEventSpec(event, maxJsonDepth))
+      Monad[F].pure(inferEventSpec(event, maxJsonDepth).rightIor[NonEmptyList[FailureDetails.EnrichmentFailure]])
     ) { ctx =>
       val versionOpt = for {
         id <- ctx.data.hcursor.get[String]("id").toOption
         version <- ctx.data.hcursor.get[Int]("version").toOption
       } yield (id, version)
 
-      versionOpt.fold(Monad[F].pure(List.empty[SelfDescribingData[Json]])) {
+      versionOpt.fold(
+        Monad[F].pure(
+          List.empty[SelfDescribingData[Json]].rightIor[NonEmptyList[FailureDetails.EnrichmentFailure]]
+        )
+      ) {
         case (specId, specVersion) =>
           validateEventSpec(event, specId, specVersion, maxJsonDepth)
       }
@@ -518,14 +548,23 @@ class EventSpecEnrichment[F[_]: Monad] private (
     specId: String,
     specVersion: Int,
     maxJsonDepth: Int
-  ): F[List[SelfDescribingData[Json]]] =
+  ): F[Ior[NonEmptyList[FailureDetails.EnrichmentFailure], List[SelfDescribingData[Json]]]] =
     lookupInCache(specId, specVersion).map {
       case Right(compiled) =>
         val errors = collectValidationErrors(event, compiled, maxJsonDepth)
-        if (errors.isEmpty) List.empty
-        else List(EventSpecEnrichment.mkInvalidContext(errors))
+        NonEmptyList.fromList(errors) match {
+          case None =>
+            List.empty[SelfDescribingData[Json]].rightIor
+          case Some(nel) =>
+            val contexts = List(EventSpecEnrichment.mkInvalidContext(errors))
+            if (compiled.sendInvalidToBad)
+              Ior.both(nel.map(mkEnrichmentFailure(specId, specVersion, _)), contexts)
+            else
+              contexts.rightIor
+        }
       case Left(error) =>
-        List(EventSpecEnrichment.mkInvalidContext(List(error)))
+        // Spec not found or failed to compile: no flag to read, stays in the good stream
+        List(EventSpecEnrichment.mkInvalidContext(List(error))).rightIor
     }
 
 }

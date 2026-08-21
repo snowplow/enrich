@@ -30,7 +30,7 @@ import com.snowplowanalytics.iglu.client.resolver.registries.{Http4sRegistryLook
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 
 import com.snowplowanalytics.snowplow.streams.{Factory, Sink, SourceAndAck}
-import com.snowplowanalytics.snowplow.streams.compression.DecompressionConfig
+import com.snowplowanalytics.snowplow.streams.compression.{Compressor, CompressorFactory, DecompressionConfig}
 import com.snowplowanalytics.snowplow.runtime.{AppHealth, AppInfo, HealthProbe, Sentry}
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
@@ -75,7 +75,7 @@ case class Environment[F[_]](
   identity: Option[Identity.Api[F]],
   assetsUpdatePeriod: FiniteDuration,
   decompression: DecompressionConfig,
-  compression: Config.Compression
+  compressor: Option[Compressor]
 ) {
   def badRowProcessor = BadRowProcessor(appInfo.name, appInfo.version)
 }
@@ -156,6 +156,7 @@ object Environment {
                            }
       metadata <- config.main.metadata.traverse(MetadataReporter.build[F](_, appInfo, httpClient))
       identity <- Resource.eval(config.main.identity.traverse(Identity.build(_, httpClient)))
+      compressor <- mkCompressor[F](config.main.compression)
       _ <- Resource.eval(appHealth.beHealthyForSetup)
     } yield Environment(
       appInfo = appInfo,
@@ -180,8 +181,31 @@ object Environment {
       assetsUpdatePeriod = config.main.assetsUpdatePeriod,
       identity = identity,
       decompression = config.main.decompression,
-      compression = config.main.compression
+      compressor = compressor
     )
+
+  /**
+   * Builds the long-lived [[Compressor]] used to compress enriched output, or `None` when
+   * compression is disabled.
+   *
+   * The Compressor reuses off-heap resources (for zstd, a native compression context) across every
+   * batch, so it is created once here and its lifetime is owned by this Resource. The algorithm,
+   * compression level and target size are all fixed for the lifetime of the app; Processing simply
+   * `reset`s this same instance between batches to rewind its off-heap state and start a fresh frame.
+   *
+   * IMPORTANT: the returned Compressor is NOT thread-safe. It is only ever driven from the single
+   * fiber running the `serialize` step of Processing. See the warning comments in Processing before
+   * changing how it is used.
+   */
+  private[core] def mkCompressor[F[_]: Sync](compression: Config.Compression): Resource[F, Option[Compressor]] =
+    if (compression.enabled) {
+      val factory = compression.`type` match {
+        case Config.Compression.GZIP => CompressorFactory.gzip(compression.gzipCompressionLevel)
+        case Config.Compression.ZSTD => CompressorFactory.zstd(compression.zstdCompressionLevel)
+      }
+      factory.resource[F].map(_.some)
+    } else
+      Resource.pure[F, Option[Compressor]](none)
 
   private def mkResolver[F[_]: Async](resolverConfig: Resolver.ResolverConfig): Resource[F, Resolver[F]] =
     Resource.eval {

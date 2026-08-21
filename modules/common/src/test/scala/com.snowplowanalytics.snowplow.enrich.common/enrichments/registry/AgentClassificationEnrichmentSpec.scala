@@ -34,6 +34,7 @@ class AgentClassificationEnrichmentSpec extends Specification with ValidatedMatc
   def is = s2"""
   AgentClassificationEnrichment.getAgentClassificationContext should
     attach the entity when the YAUAA agentName matches a record           $matchKnownAgent
+    match case-insensitively against YAUAA agentName                     $matchCaseInsensitive
     omit purpose when the record has no purpose                          $matchNoPurpose
     attach nothing when the agentName does not match                      $noMatch
     attach nothing when the YAUAA context has no agentName                $noAgentName
@@ -69,8 +70,8 @@ class AgentClassificationEnrichmentSpec extends Specification with ValidatedMatc
   private val enrichment =
     AgentClassificationEnrichment(
       Map(
-        "ChatGPT-User" -> AgentClassification("OpenAI", Some("AI data retrieval")),
-        "ClaudeBot" -> AgentClassification("Anthropic", None)
+        "chatgpt-user" -> AgentClassification("OpenAI", Some("AI data retrieval")),
+        "claudebot" -> AgentClassification("Anthropic", None)
       )
     )
 
@@ -82,6 +83,15 @@ class AgentClassificationEnrichmentSpec extends Specification with ValidatedMatc
       case List(sdj) =>
         (sdj.schema must beEqualTo(AgentClassificationEnrichment.outputSchema)) and
           (sdj.data.hcursor.get[String]("operator") must beRight("OpenAI")) and
+          (sdj.data.hcursor.get[Option[String]]("purpose") must beRight(Option("AI data retrieval")))
+    }
+  }
+
+  def matchCaseInsensitive = {
+    val result = enrichment.getAgentClassificationContext(mkYauaaContext("CHATGPT-USER"))
+    result must beLike {
+      case List(sdj) =>
+        (sdj.data.hcursor.get[String]("operator") must beRight("OpenAI")) and
           (sdj.data.hcursor.get[Option[String]]("purpose") must beRight(Option("AI data retrieval")))
     }
   }
@@ -124,7 +134,7 @@ class AgentClassificationEnrichmentSpec extends Specification with ValidatedMatc
       fileRecords,
       Map("ChatGPT-User" -> AgentClassificationOverride(Some("OpenAI Inc."), None))
     )
-    merged.get("ChatGPT-User") must beSome(AgentClassification("OpenAI Inc.", Some("AI data retrieval")))
+    merged.get("chatgpt-user") must beSome(AgentClassification("OpenAI Inc.", Some("AI data retrieval")))
   }
 
   def overrideAddPurpose = {
@@ -132,7 +142,7 @@ class AgentClassificationEnrichmentSpec extends Specification with ValidatedMatc
       fileRecords,
       Map("ClaudeBot" -> AgentClassificationOverride(None, Some("AI crawler")))
     )
-    merged.get("ClaudeBot") must beSome(AgentClassification("Anthropic", Some("AI crawler")))
+    merged.get("claudebot") must beSome(AgentClassification("Anthropic", Some("AI crawler")))
   }
 
   def overrideNewAgent = {
@@ -140,7 +150,7 @@ class AgentClassificationEnrichmentSpec extends Specification with ValidatedMatc
       fileRecords,
       Map("PerplexityBot" -> AgentClassificationOverride(Some("Perplexity"), Some("AI crawler")))
     )
-    merged.get("PerplexityBot") must beSome(AgentClassification("Perplexity", Some("AI crawler")))
+    merged.get("perplexitybot") must beSome(AgentClassification("Perplexity", Some("AI crawler")))
   }
 
   def overridePurposeOnlyDropped = {
@@ -148,7 +158,7 @@ class AgentClassificationEnrichmentSpec extends Specification with ValidatedMatc
       fileRecords,
       Map("UnknownBot" -> AgentClassificationOverride(None, Some("AI crawler")))
     )
-    merged.get("UnknownBot") must beNone
+    merged.get("unknownbot") must beNone
   }
 
   // --- parse ---
@@ -173,7 +183,7 @@ class AgentClassificationEnrichmentSpec extends Specification with ValidatedMatc
       conf <- parseConf(config, localMode = false)
       enr <- conf.enrichment[IO]
     } yield enr.classifications).value.map { result =>
-      result must beRight(Map("ChatGPT-User" -> AgentClassification("OpenAI", Some("AI data retrieval"))))
+      result must beRight(Map("chatgpt-user" -> AgentClassification("OpenAI", Some("AI data retrieval"))))
     }
   }
 
@@ -195,9 +205,9 @@ class AgentClassificationEnrichmentSpec extends Specification with ValidatedMatc
     } yield enr.classifications).value.map { result =>
       result must beRight(
         Map(
-          "ChatGPT-User" -> AgentClassification("OpenAI", Some("AI data retrieval")),
-          "GPTBot" -> AgentClassification("OpenAI", Some("AI crawler")),
-          "ClaudeBot" -> AgentClassification("Anthropic", None)
+          "chatgpt-user" -> AgentClassification("OpenAI", Some("AI data retrieval")),
+          "gptbot" -> AgentClassification("OpenAI", Some("AI crawler")),
+          "claudebot" -> AgentClassification("Anthropic", None)
         )
       )
     }
@@ -225,9 +235,9 @@ class AgentClassificationEnrichmentSpec extends Specification with ValidatedMatc
     } yield enr.classifications).value.map { result =>
       result must beRight.like {
         case classifications =>
-          (classifications.get("ClaudeBot") must beSome(AgentClassification("Anthropic", Some("AI assistant")))) and
-            (classifications.get("PerplexityBot") must beSome(AgentClassification("Perplexity", Some("AI search")))) and
-            (classifications.get("ChatGPT-User") must beSome(AgentClassification("OpenAI", Some("AI data retrieval"))))
+          (classifications.get("claudebot") must beSome(AgentClassification("Anthropic", Some("AI assistant")))) and
+            (classifications.get("perplexitybot") must beSome(AgentClassification("Perplexity", Some("AI search")))) and
+            (classifications.get("chatgpt-user") must beSome(AgentClassification("OpenAI", Some("AI data retrieval"))))
       }
     }
   }

@@ -70,7 +70,21 @@ object Metadata {
     val platform = Option(event.platform)
 
     val statedEventSpec = extractStatedScenarioId(event)
+    val entitiesAndCount = EntitiesAndCount(entities, 1)
+
     lazy val inferredEventSpecs = extractInferredScenarioIds(event)
+    lazy val plainRow =
+      MetadataEvent(
+        schema = schema,
+        source = source,
+        tracker = tracker,
+        platform = platform,
+        scenarioId = None,
+        scenarioVersion = None,
+        eventSpecInferred = false,
+        eventSpecValid = true
+      ) -> entitiesAndCount
+
     statedEventSpec match {
       case Some((id, version)) =>
         val eventSpecValid = extractValidityStatus(event)
@@ -84,27 +98,17 @@ object Metadata {
             scenarioVersion = version,
             eventSpecInferred = false,
             eventSpecValid = eventSpecValid
-          ) -> EntitiesAndCount(entities, 1)
+          ) -> entitiesAndCount
         )
       case None if inferredEventSpecs.nonEmpty =>
-        inferredEventSpecs.map {
+        // plainRow is needed to calculate the total number of events incoming, without duplication of the inference
+        // consumers can calculate total by filtering data with eventSpecInferred = false
+        (plainRow :: inferredEventSpecs.map {
           case (id, version) =>
             MetadataEvent(schema, source, tracker, platform, Some(id), version, eventSpecInferred = true, eventSpecValid = true) ->
-              EntitiesAndCount(entities, 1)
-        }.toMap
-      case _ =>
-        Map(
-          MetadataEvent(
-            schema = schema,
-            source = source,
-            tracker = tracker,
-            platform = platform,
-            scenarioId = None,
-            scenarioVersion = None,
-            eventSpecInferred = false,
-            eventSpecValid = true
-          ) -> EntitiesAndCount(entities, 1)
-        )
+              entitiesAndCount
+        }).toMap
+      case _ => Map(plainRow)
     }
   }
 

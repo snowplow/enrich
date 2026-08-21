@@ -24,12 +24,15 @@ object MetadataSpec extends Specification {
     Extract all relevant fields when set on a single event $e2
     Extract extract entities from contexts field and derived_contexts field $e3
     Extract scenarioId from contexts if present $e4a
-    Extract scenarioId from derived_contexts if present $e4b
+    Extract scenarioId from derived_contexts if present and send a plain event count $e4b
     Extract scenarioVersion if present $e4c
     Extract validation failures if present $e4d
     Marks event as invalid, regardless of the isValid property in the context $e4e
+    Emit a row per inferred spec plus a single plain row when multiple specs are inferred $e4f
+    Not emit a plain row when a stated spec is present $e4g
     Extract null as scenario id if scenario context is present with no id $e5
   Metadata.extractsForBatch with a batch of many events should:
+    Merge the plain row of an inferred-spec event with a spec-less event into one bucket $e4h
     Increment the `count` when multiple events yield the same `MetadataEvent` $e6
     Merge entities from similar events with different entities $e7
     Not merge entities when they come from different unstruct event types $e8
@@ -146,7 +149,7 @@ object MetadataSpec extends Specification {
       SelfDescribingData(contextKey3, json"""{"id": "18056e39-6147-4824-bd67-5f6f6f7e18ee"}""")
     )
 
-    val expectedKey = Metadata.MetadataEvent(
+    val expectedKeyInferred = Metadata.MetadataEvent(
       schema = None,
       source = None,
       tracker = None,
@@ -156,10 +159,22 @@ object MetadataSpec extends Specification {
       eventSpecInferred = true,
       eventSpecValid = true
     )
+    // we have to send both inferred as well as plain one
+    // plain one is used to count total number of events without multiplying the number by inference
+    val expectedKeyPlain = Metadata.MetadataEvent(
+      schema = None,
+      source = None,
+      tracker = None,
+      platform = None,
+      scenarioId = None,
+      scenarioVersion = None,
+      eventSpecInferred = false,
+      eventSpecValid = true
+    )
     val expectedValue = Metadata.EntitiesAndCount(Set(contextKey1, contextKey2, contextKey3), 1)
 
     val result = Metadata.extractsForBatch(List(input))
-    result must beEqualTo(Map(expectedKey -> expectedValue))
+    result must beEqualTo(Map(expectedKeyInferred -> expectedValue, expectedKeyPlain -> expectedValue))
   }
 
   def e4c = {
@@ -259,6 +274,96 @@ object MetadataSpec extends Specification {
 
     val result = Metadata.extractsForBatch(List(input))
     result must beEqualTo(Map(expectedKey -> expectedValue))
+  }
+
+  def e4f = {
+    val contextKey1 = SchemaKey.fromUri("iglu:myvendor/mycontext1/jsonschema/1-0-42").toOption.get
+    val eventSpecKey = SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/event_specification/jsonschema/1-0-0").toOption.get
+
+    val input = new EnrichedEvent
+    input.derived_contexts = List(
+      SelfDescribingData(contextKey1, json"""{"x": "y"}"""),
+      SelfDescribingData(eventSpecKey, json"""{"id": "11111111-1111-1111-1111-111111111111"}"""),
+      SelfDescribingData(eventSpecKey, json"""{"id": "22222222-2222-2222-2222-222222222222"}""")
+    )
+
+    val expectedKeyInferred1 = Metadata.MetadataEvent(
+      schema = None,
+      source = None,
+      tracker = None,
+      platform = None,
+      scenarioId = Some("11111111-1111-1111-1111-111111111111"),
+      scenarioVersion = None,
+      eventSpecInferred = true,
+      eventSpecValid = true
+    )
+    val expectedKeyInferred2 = expectedKeyInferred1.copy(scenarioId = Some("22222222-2222-2222-2222-222222222222"))
+    val expectedKeyPlain = expectedKeyInferred1.copy(scenarioId = None, eventSpecInferred = false)
+    val expectedValue = Metadata.EntitiesAndCount(Set(contextKey1, eventSpecKey), 1)
+
+    val result = Metadata.extractsForBatch(List(input))
+    result must beEqualTo(
+      Map(
+        expectedKeyInferred1 -> expectedValue,
+        expectedKeyInferred2 -> expectedValue,
+        expectedKeyPlain -> expectedValue
+      )
+    )
+  }
+
+  def e4g = {
+    val eventSpecKey = SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/event_specification/jsonschema/1-0-0").toOption.get
+
+    val input = new EnrichedEvent
+    input.contexts = List(
+      SelfDescribingData(eventSpecKey, json"""{"id": "18056e39-6147-4824-bd67-5f6f6f7e18ee", "version": 1}""")
+    )
+
+    val expectedKey = Metadata.MetadataEvent(
+      schema = None,
+      source = None,
+      tracker = None,
+      platform = None,
+      scenarioId = Some("18056e39-6147-4824-bd67-5f6f6f7e18ee"),
+      scenarioVersion = Some(1),
+      eventSpecInferred = false,
+      eventSpecValid = true
+    )
+    val expectedValue = Metadata.EntitiesAndCount(Set(eventSpecKey), 1)
+
+    val result = Metadata.extractsForBatch(List(input))
+    result must beEqualTo(Map(expectedKey -> expectedValue))
+  }
+
+  def e4h = {
+    val eventSpecKey = SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/event_specification/jsonschema/1-0-0").toOption.get
+
+    val input1 = new EnrichedEvent
+    input1.derived_contexts = List(
+      SelfDescribingData(eventSpecKey, json"""{"id": "18056e39-6147-4824-bd67-5f6f6f7e18ee"}""")
+    )
+
+    val input2 = new EnrichedEvent
+
+    val expectedKeyInferred = Metadata.MetadataEvent(
+      schema = None,
+      source = None,
+      tracker = None,
+      platform = None,
+      scenarioId = Some("18056e39-6147-4824-bd67-5f6f6f7e18ee"),
+      scenarioVersion = None,
+      eventSpecInferred = true,
+      eventSpecValid = true
+    )
+    val expectedKeyPlain = expectedKeyInferred.copy(scenarioId = None, eventSpecInferred = false)
+
+    val result = Metadata.extractsForBatch(List(input1, input2))
+    result must beEqualTo(
+      Map(
+        expectedKeyInferred -> Metadata.EntitiesAndCount(Set(eventSpecKey), 1),
+        expectedKeyPlain -> Metadata.EntitiesAndCount(Set(eventSpecKey), 2)
+      )
+    )
   }
 
   def e5 = {

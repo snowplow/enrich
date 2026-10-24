@@ -13,7 +13,7 @@ package com.snowplowanalytics.snowplow.enrich.common.loaders
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import cats.syntax.either._
 import cats.syntax.option._

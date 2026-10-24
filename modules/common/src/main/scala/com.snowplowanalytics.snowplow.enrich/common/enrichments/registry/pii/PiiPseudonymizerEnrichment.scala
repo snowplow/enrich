@@ -10,8 +10,8 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.pii
 
-import scala.collection.JavaConverters._
-import scala.collection.mutable.MutableList
+import scala.jdk.CollectionConverters._
+import scala.collection.mutable.ListBuffer
 
 import cats.Foldable
 import cats.data.ValidatedNel
@@ -222,7 +222,7 @@ object PiiPseudonymizerEnrichment extends ParseableEnrichment {
   ): (Json, List[JsonModifiedField]) = {
     val objectNode = CirceUtils.mapper.valueToTree[ObjectNode](json)
     val documentContext = JJsonPath.using(JsonPathConf).parse(objectNode)
-    val modifiedFields = MutableList[JsonModifiedField]()
+    val modifiedFields = ListBuffer[JsonModifiedField]()
     Option(documentContext.read[AnyRef](jsonPath)) match { // check that json object not null
       case None => (jacksonToCirce(documentContext.json[JsonNode]()), modifiedFields.toList)
       case _ =>
@@ -310,7 +310,7 @@ final case class PiiPseudonymizerEnrichment(
     }
 
   private def transformContexts(event: EnrichedEvent): ModifiedFields = {
-    val finalResult = MutableList[ModifiedField]()
+    val finalResult = ListBuffer[ModifiedField]()
     val fixed = event.contexts.map { sdj =>
       val locators = mutators.contexts.filter { locator =>
         locator.schemaCriterion.matches(sdj.schema)
@@ -331,7 +331,7 @@ final case class PiiPseudonymizerEnrichment(
   private def transformDerivedContexts(
     derivedContexts: List[SelfDescribingData[Json]]
   ): (ModifiedFields, List[SelfDescribingData[Json]]) = {
-    val finalResult = MutableList[ModifiedField]()
+    val finalResult = ListBuffer[ModifiedField]()
     val fixed = derivedContexts.map { sdj =>
       val locators = mutators.derivedContexts.filter { locator =>
         locator.schemaCriterion.matches(sdj.schema)
@@ -351,7 +351,7 @@ final case class PiiPseudonymizerEnrichment(
 
 private final case class ScrambleMapFunction(
   strategy: PiiStrategy,
-  modifiedFields: MutableList[JsonModifiedField],
+  modifiedFields: ListBuffer[JsonModifiedField],
   fieldName: String,
   jsonPath: String,
   schema: SchemaKey

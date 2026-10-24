@@ -10,6 +10,8 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
+import scala.annotation.nowarn
+
 import org.specs2.{ScalaCheck, Specification}
 import org.specs2.matcher.DataTables
 import org.scalacheck._
@@ -36,14 +38,19 @@ class AnonIpEnrichmentSpec extends Specification with DataTables with ScalaCheck
       "valid, anonymize 3" !! "54.242.102.43" ! AnonIPv4Octets(3) ! AnonIPv6Segments(3) ! "54.x.x.x" |
       "valid, anonymize 4" !! "94.15.213.171" ! AnonIPv4Octets(4) ! AnonIPv6Segments(4) ! "x.x.x.x" |
       "invalid, anonymize 1" !! "777.2" ! AnonIPv4Octets(1) ! AnonIPv6Segments(1) ! "777.2" |
-      "invalid, anonymize 4" !! "777.2.23" ! AnonIPv4Octets(4) ! AnonIPv6Segments(4) ! "x.x.x" |
-      "invalid, anonymize 3" !! "999.123.777.2" ! AnonIPv4Octets(3) ! AnonIPv6Segments(3) ! "999.x.x.x" |
-      "invalid, anonymize 3" !! "999.aaa.bbb.c" ! AnonIPv4Octets(3) ! AnonIPv6Segments(3) ! "999.x.x.x" |
+      "invalid, anonymize 4" !! "777.2.23" ! AnonIPv4Octets(4) ! AnonIPv6Segments(4) ! "777.2.23" |
+      "invalid, anonymize 3" !! "999.123.777.2" ! AnonIPv4Octets(3) ! AnonIPv6Segments(3) ! "999.123.777.2" |
+      "invalid, anonymize 3" !! "999.aaa.bbb.c" ! AnonIPv4Octets(3) ! AnonIPv6Segments(3) ! "999.aaa.bbb.c" |
       "invalid, anonymize 3" !! "hello;goodbye" ! AnonIPv4Octets(3) ! AnonIPv6Segments(3) ! "hello;goodbye" |
-      "invalid, anonymize 3" !! ":::::::::::::::" ! AnonIPv4Octets(3) ! AnonIPv6Segments(3) ! "x:x:x:x:x:x:x:x" |
-      "invalid, anonymize 3" !! "::1" ! AnonIPv4Octets(3) ! AnonIPv6Segments(3) ! "0:0:0:0:0:x:x:x" |
+      "invalid, anonymize 3" !! ":::::::::::::::" ! AnonIPv4Octets(3) ! AnonIPv6Segments(3) ! ":::::::::::::::" |
+      "hostname, anonymize 3" !! "example.com" ! AnonIPv4Octets(3) ! AnonIPv6Segments(3) ! "example.com" |
+      "non-IP string, anonymize 3" !! "not an ip" ! AnonIPv4Octets(3) ! AnonIPv6Segments(3) ! "not an ip" |
+      "ipv4 with port, anonymize 2" !! "1.2.3.4:8080" ! AnonIPv4Octets(2) ! AnonIPv6Segments(2) ! "1.2.x.x" |
+      "ipv4 with prefix, anonymize 2" !! "1.2.3.4/24" ! AnonIPv4Octets(2) ! AnonIPv6Segments(2) ! "1.2.x.x" |
+      "ipv6 with port, anonymize 2" !! "[2001:db8::1]:443" ! AnonIPv4Octets(2) ! AnonIPv6Segments(2) ! "2001:db8:0:0:0:0:x:x" |
+      "loopback ipv6, anonymize 3" !! "::1" ! AnonIPv4Octets(3) ! AnonIPv6Segments(3) ! "0:0:0:0:0:x:x:x" |
       "null, anonymize 2" !! null ! AnonIPv4Octets(2) ! AnonIPv6Segments(2) ! null |
-      "empty, anonymize 4" !! "" ! AnonIPv4Octets(4) ! AnonIPv6Segments(4) ! "x" |
+      "empty, anonymize 4" !! "" ! AnonIPv4Octets(4) ! AnonIPv6Segments(4) ! "" |
       "ipv6, anonymize 1" !! "4b0c:0:0:0:880c:99a8:4b0:4411" ! AnonIPv4Octets(1) ! AnonIPv6Segments(
         1
       ) ! "4b0c:0:0:0:880c:99a8:4b0:x" |
@@ -56,7 +63,7 @@ class AnonIpEnrichmentSpec extends Specification with DataTables with ScalaCheck
       "ipv6, anonymize 8" !! "2605:2700:0:3::4713:93e3" ! AnonIPv4Octets(4) ! AnonIPv6Segments(8) ! "x:x:x:x:x:x:x:x" |
       "ipv6, anonymize 8" !! "2605:2700::4713:93e3" ! AnonIPv4Octets(4) ! AnonIPv6Segments(8) ! "x:x:x:x:x:x:x:x" |
       "ipv6, anonymize 8" !! "2700::4713" ! AnonIPv4Octets(4) ! AnonIPv6Segments(8) ! "x:x:x:x:x:x:x:x" |
-      "ipv6, anonymize 8" !! "2700:zzzz::gggg" ! AnonIPv4Octets(4) ! AnonIPv6Segments(6) ! "2700:zzzz:x:x:x:x:x:x" |
+      "invalid ipv6, anonymize 6" !! "2700:zzzz::gggg" ! AnonIPv4Octets(4) ! AnonIPv6Segments(6) ! "2700:zzzz::gggg" |
       "hybrid ipv6 + ipv4" !! "f334::40cb:152.16.24.142" ! AnonIPv4Octets(4) ! AnonIPv6Segments(2) ! "f334:0:0:0:0:40cb:x:x" |
       "hybrid ipv6 + ipv4" !! "f334::40cb:152.16.24.142" ! AnonIPv4Octets(4) ! AnonIPv6Segments(4) ! "f334:0:0:0:x:x:x:x" |
       "ipv6, compat address" !! "::192.168.0.1" ! AnonIPv4Octets(4) ! AnonIPv6Segments(1) ! "0:0:0:0:0:0:c0a8:x" |
@@ -96,7 +103,7 @@ class AnonIpEnrichmentSpec extends Specification with DataTables with ScalaCheck
         val validIpProp = GuavaInetAddress
           .forString(anon.replace("x", "1"))
           .isInstanceOf[Inet4Address] ==== true
-        countProp and validIpProp
+        (countProp and validIpProp): @nowarn("msg=type was inferred to be")
     }
 
   def e3 =
@@ -108,7 +115,7 @@ class AnonIpEnrichmentSpec extends Specification with DataTables with ScalaCheck
         val validIpProp = GuavaInetAddress
           .forString(anon.replace("x", "1"))
           .isInstanceOf[Inet6Address] ==== true
-        countProp and validIpProp
+        (countProp and validIpProp): @nowarn("msg=type was inferred to be")
     }
 
   def e4 =
@@ -120,7 +127,7 @@ class AnonIpEnrichmentSpec extends Specification with DataTables with ScalaCheck
         val validIpProp = GuavaInetAddress
           .forString(anon.replace("x", "1"))
           .isInstanceOf[Inet6Address] ==== true
-        countProp and validIpProp
+        (countProp and validIpProp): @nowarn("msg=type was inferred to be")
     }
 
   def e5 = {

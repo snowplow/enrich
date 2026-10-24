@@ -121,7 +121,7 @@ object AsnLookupsEnrichment extends ParseableEnrichment {
         .fromAutoCloseable(Sync[F].blocking(Source.fromFile(path)))
         .use { file =>
           Sync[F].blocking {
-            file.getLines.drop(1).map(_.split(",").head.trim.toLong).toSet
+            file.getLines().drop(1).map(_.split(",").head.trim.toLong).toSet
           }
         }
         .attempt

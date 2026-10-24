@@ -32,8 +32,8 @@ object Dependencies {
     val useragent = "1.21"
     val uaParser = "1.5.4"
     val snakeYaml = "2.3"
-    val postgresDriver = "42.7.12"
-    val mysqlClient = "3.4.0"
+    val postgresDriver = "42.7.14"
+    val mysqlClient = "3.4.4"
     val hikariCP = "5.0.1"
     val jaywayJsonpath = "2.10.0"
     val iabClient = "0.3.1"
@@ -45,7 +45,7 @@ object Dependencies {
     val thrift = "0.24.0"
     val httpclient = "4.5.13"
     val sprayJson = "1.3.6"
-    val netty = "4.2.16.Final"
+    val netty = "4.2.17.Final"
     val protobuf = "4.28.3"
     val nashorn = "15.6"
     val zstd = "1.5.7-4"
@@ -57,7 +57,7 @@ object Dependencies {
     val circeJackson = "0.14.0"
     val scalaForex = "3.0.0"
     val scalaWeather = "2.0.0"
-    val gatlingJsonpath = "0.6.14"
+    val gatlingJsonpath = "3.15.1"
     val scalaUri = "1.5.1"
     val badRows = "2.3.0"
     val igluClient = "4.2.1"
@@ -75,12 +75,13 @@ object Dependencies {
     val azureStorageBlob = "12.33.0"
     val javaxAnnotation = "1.3.2"
     val httpcore5H2 = "5.4.3"
+    val httpclient5 = "5.6.4"
     val micrometer = "1.15.12"
     val reactorNetty = "1.2.18"
-    val http4s = "0.23.25"
+    val http4s = "0.23.35"
     val blaze = "0.23.18"
 
-    val streams = "0.25.0"
+    val streams = "0.27.1"
 
     val specs2 = "4.20.3"
     val specs2Cats = "4.20.3"
@@ -110,12 +111,15 @@ object Dependencies {
     val nashorn = "org.openjdk.nashorn"           % "nashorn-core"   % V.nashorn
     val zstd = "com.github.luben"                 % "zstd-jni"       % V.zstd
 
-    val circeGeneric = "io.circe"                      %% "circe-generic"                 % V.circe
-    val circeLiteral = "io.circe"                      %% "circe-literal"                 % V.circe
-    val circeOptics = "io.circe"                       %% "circe-optics"                  % V.circeOptics
-    val circeJackson = "io.circe"                      %% "circe-jackson210"              % V.circeJackson
-    val scalaUri = "io.lemonlabs"                      %% "scala-uri"                     % V.scalaUri
-    val gatlingJsonpath = "io.gatling"                 %% "jsonpath"                      % V.gatlingJsonpath
+    val circeGeneric = "io.circe" %% "circe-generic"    % V.circe
+    val circeLiteral = "io.circe" %% "circe-literal"    % V.circe
+    val circeOptics = "io.circe"  %% "circe-optics"     % V.circeOptics
+    val circeJackson = "io.circe" %% "circe-jackson210" % V.circeJackson
+    val scalaUri = "io.lemonlabs" %% "scala-uri"        % V.scalaUri
+    // The standalone `io.gatling.jsonpath % jsonpath` artifact has no Scala 2.13 build. This module
+    // of the Gatling framework is the same engine, folded in-tree, which is why a load-testing
+    // framework's module backs `JsonPath.compileQuery`.
+    val gatlingJsonpath = "io.gatling"                  % "gatling-jsonpath"              % V.gatlingJsonpath
     val scalaForex = "com.snowplowanalytics"           %% "scala-forex"                   % V.scalaForex
     val refererParser = "com.snowplowanalytics"        %% "scala-referer-parser"          % V.refererParser
     val maxmindIplookups = "com.snowplowanalytics"     %% "scala-maxmind-iplookups"       % V.maxmindIplookups
@@ -137,6 +141,8 @@ object Dependencies {
     val slf4j = "org.slf4j"                             % "slf4j-simple"                  % V.slf4j
     val sentry = "io.sentry"                            % "sentry"                        % V.sentry
     val protobuf = "com.google.protobuf"                % "protobuf-java"                 % V.protobuf
+
+    val httpclient5 = "org.apache.httpcomponents.client5" % "httpclient5" % V.httpclient5
 
     val streams = "com.snowplowanalytics"         %% "streams-core" % V.streams
     val kinesisSnowplow = "com.snowplowanalytics" %% "kinesis"      % V.streams
@@ -205,6 +211,7 @@ object Dependencies {
       http4sClient,
       httpclient,
       thrift,
+      httpclient5, // for security vulnerabilities
       javaxAnnotation,
       httpcore5H2,
       sprayJson,

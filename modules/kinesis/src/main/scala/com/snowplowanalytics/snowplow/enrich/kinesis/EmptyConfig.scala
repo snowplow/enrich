@@ -10,11 +10,12 @@
  */
 package com.snowplowanalytics.snowplow.enrich.kinesis
 
+import io.circe.Decoder
 import io.circe.generic.extras.semiauto._
 import io.circe.generic.extras.Configuration
 
 case class EmptyConfig()
 object EmptyConfig {
-  implicit val configuration = Configuration.default
-  implicit val decoder = deriveConfiguredDecoder[EmptyConfig]
+  implicit val configuration: Configuration = Configuration.default
+  implicit val decoder: Decoder[EmptyConfig] = deriveConfiguredDecoder[EmptyConfig]
 }

@@ -129,7 +129,7 @@ class BotDetectionEnrichmentSpec extends Specification with ValidatedMatchers {
     val result = allEnabled.getBotDetectionContext(Some(mkYauaaContext("Desktop", "Browser")), None, None, Nil)
     val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(false)) and
-      (data.hcursor.downField("indicators").as[List[String]] must beRight(Nil))
+      (data.hcursor.downField("indicators").as[List[String]] must beRight(List.empty[String]))
   }
 
   def iabSpider = {
@@ -143,7 +143,7 @@ class BotDetectionEnrichmentSpec extends Specification with ValidatedMatchers {
     val result = allEnabled.getBotDetectionContext(None, Some(mkIabContext(false)), None, Nil)
     val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(false)) and
-      (data.hcursor.downField("indicators").as[List[String]] must beRight(Nil))
+      (data.hcursor.downField("indicators").as[List[String]] must beRight(List.empty[String]))
   }
 
   def multipleIndicators = {
@@ -171,7 +171,7 @@ class BotDetectionEnrichmentSpec extends Specification with ValidatedMatchers {
     val result = allEnabled.getBotDetectionContext(Some(mkYauaaContext("Desktop", "Browser")), Some(mkIabContext(false)), None, Nil)
     val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(false)) and
-      (data.hcursor.downField("indicators").as[List[String]] must beRight(Nil))
+      (data.hcursor.downField("indicators").as[List[String]] must beRight(List.empty[String]))
   }
 
   def yauaaMissingFields = {
@@ -182,7 +182,7 @@ class BotDetectionEnrichmentSpec extends Specification with ValidatedMatchers {
     val result = allEnabled.getBotDetectionContext(Some(yauaaCtx), None, None, Nil)
     val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(false)) and
-      (data.hcursor.downField("indicators").as[List[String]] must beRight(Nil))
+      (data.hcursor.downField("indicators").as[List[String]] must beRight(List.empty[String]))
   }
 
   def skipYauaa = {
@@ -190,7 +190,7 @@ class BotDetectionEnrichmentSpec extends Specification with ValidatedMatchers {
     val result = enrichment.getBotDetectionContext(Some(mkYauaaContext("Robot", "Robot")), None, None, Nil)
     val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(false)) and
-      (data.hcursor.downField("indicators").as[List[String]] must beRight(Nil))
+      (data.hcursor.downField("indicators").as[List[String]] must beRight(List.empty[String]))
   }
 
   def skipIab = {
@@ -198,14 +198,14 @@ class BotDetectionEnrichmentSpec extends Specification with ValidatedMatchers {
     val result = enrichment.getBotDetectionContext(None, Some(mkIabContext(true)), None, Nil)
     val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(false)) and
-      (data.hcursor.downField("indicators").as[List[String]] must beRight(Nil))
+      (data.hcursor.downField("indicators").as[List[String]] must beRight(List.empty[String]))
   }
 
   def missingContexts = {
     val result = allEnabled.getBotDetectionContext(None, None, None, Nil)
     val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(false)) and
-      (data.hcursor.downField("indicators").as[List[String]] must beRight(Nil))
+      (data.hcursor.downField("indicators").as[List[String]] must beRight(List.empty[String]))
   }
 
   def asnLikelyBot = {
@@ -219,7 +219,7 @@ class BotDetectionEnrichmentSpec extends Specification with ValidatedMatchers {
     val result = allEnabled.getBotDetectionContext(None, None, Some(mkAsnContext(false)), Nil)
     val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(false)) and
-      (data.hcursor.downField("indicators").as[List[String]] must beRight(Nil))
+      (data.hcursor.downField("indicators").as[List[String]] must beRight(List.empty[String]))
   }
 
   def allFourIndicators = {
@@ -252,7 +252,7 @@ class BotDetectionEnrichmentSpec extends Specification with ValidatedMatchers {
     val result = enrichment.getBotDetectionContext(None, None, Some(mkAsnContext(true)), Nil)
     val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(false)) and
-      (data.hcursor.downField("indicators").as[List[String]] must beRight(Nil))
+      (data.hcursor.downField("indicators").as[List[String]] must beRight(List.empty[String]))
   }
 
   def asnMissingLikelyBot = {
@@ -263,7 +263,7 @@ class BotDetectionEnrichmentSpec extends Specification with ValidatedMatchers {
     val result = allEnabled.getBotDetectionContext(None, None, Some(asnCtx), Nil)
     val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(false)) and
-      (data.hcursor.downField("indicators").as[List[String]] must beRight(Nil))
+      (data.hcursor.downField("indicators").as[List[String]] must beRight(List.empty[String]))
   }
 
   def parseValidConfig = {
@@ -319,7 +319,7 @@ class BotDetectionEnrichmentSpec extends Specification with ValidatedMatchers {
     val result = enrichment.getBotDetectionContext(None, None, None, inputContexts)
     val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(false)) and
-      (data.hcursor.downField("indicators").as[List[String]] must beRight(Nil))
+      (data.hcursor.downField("indicators").as[List[String]] must beRight(List.empty[String]))
   }
 
   def skipClientSideDetection = {
@@ -328,7 +328,7 @@ class BotDetectionEnrichmentSpec extends Specification with ValidatedMatchers {
     val result = enrichment.getBotDetectionContext(None, None, None, inputContexts)
     val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(false)) and
-      (data.hcursor.downField("indicators").as[List[String]] must beRight(Nil))
+      (data.hcursor.downField("indicators").as[List[String]] must beRight(List.empty[String]))
   }
 
   def clientSideCombinedWithDerived = {
@@ -349,7 +349,7 @@ class BotDetectionEnrichmentSpec extends Specification with ValidatedMatchers {
     val result = enrichment.getBotDetectionContext(None, None, None, List(ctx))
     val data = result.data
     (data.hcursor.downField("bot").as[Boolean] must beRight(false)) and
-      (data.hcursor.downField("indicators").as[List[String]] must beRight(Nil))
+      (data.hcursor.downField("indicators").as[List[String]] must beRight(List.empty[String]))
   }
 
   def parseConfigWithClientSide = {

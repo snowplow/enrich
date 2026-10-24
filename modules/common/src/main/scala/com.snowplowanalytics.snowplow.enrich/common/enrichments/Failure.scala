@@ -14,7 +14,7 @@ import java.time.Instant
 
 import cats.syntax.option._
 
-import io.circe.{Encoder, Json}
+import io.circe.{Encoder, Json, JsonNumber}
 import io.circe.generic.semiauto._
 import io.circe.syntax._
 
@@ -191,10 +191,37 @@ object Failure {
       failureType = failureType,
       errors = errors,
       schema = schema,
-      data = data,
+      data = data.map(stringifyOutOfRangeNumbers),
       timestamp = etlTimestamp,
       componentName = processor.artifact,
       componentVersion = processor.version
     )
+  }
+
+  /**
+   * Replaces every number outside the range of normal doubles (a non-zero magnitude below
+   * `Double.MIN_NORMAL`, or above `Double.MaxValue`) with a string holding its original text.
+   *
+   * The data of a schema violation is the payload exactly as received, and it may hold such a number,
+   * either because the Iglu client rejected it for exactly that reason, or because the payload
+   * failed before validation ran at all. Left as a number, some warehouses reject it and others
+   * silently load it as infinity or zero.
+   */
+  private def stringifyOutOfRangeNumbers(json: Json): Json =
+    json.fold(
+      json,
+      _ => json,
+      number => if (isInDoubleRange(number)) json else Json.fromString(number.toString),
+      _ => json,
+      array => Json.fromValues(array.map(stringifyOutOfRangeNumbers)),
+      obj => Json.fromJsonObject(obj.mapValues(stringifyOutOfRangeNumbers))
+    )
+
+  /** Mirrors the range check the Iglu client applies to instance data */
+  private def isInDoubleRange(number: JsonNumber): Boolean = {
+    val magnitude = Math.abs(number.toDouble)
+    if (magnitude >= java.lang.Double.MIN_NORMAL && magnitude <= Double.MaxValue) true
+    // Zero itself is fine; a non-zero number that converts to zero has underflowed.
+    else magnitude == 0.0 && number.toBigDecimal.exists(_.signum == 0)
   }
 }

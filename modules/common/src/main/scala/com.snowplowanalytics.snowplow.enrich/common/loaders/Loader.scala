@@ -14,7 +14,7 @@ import java.net.URI
 import java.nio.charset.Charset
 import java.time.Instant
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import cats.data.ValidatedNel
 import cats.syntax.either._

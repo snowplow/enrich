@@ -13,6 +13,7 @@ import java.util.{Base64, UUID}
 import java.time.Instant
 import java.nio.charset.StandardCharsets.UTF_8
 
+import scala.annotation.nowarn
 import scala.concurrent.duration._
 
 import org.specs2.Specification
@@ -1027,9 +1028,9 @@ class ProcessingSpec extends Specification with CatsEffect {
                            val enrichedActions = state.collect { case Action.SentToEnriched(enriched) => enriched }.flatten.toList
                            val enrichedMetrics = state.collect { case Action.AddedEnrichedCountMetric(n) => n }.sum
                            val enrichedBytesMetric = state.collect { case Action.AddedEnrichedBytesMetric(n) => n }.sum
-                           (enrichedActions must containTheSameElementsAs(expectedEnriched)) and
+                           ((enrichedActions must containTheSameElementsAs(expectedEnriched)) and
                              (enrichedMetrics must beEqualTo(2)) and // For one compressed record
-                             (enrichedBytesMetric must beEqualTo(698L))
+                             (enrichedBytesMetric must beEqualTo(698L))): @nowarn("msg=type was inferred to be")
                          }
                      }
       } yield assertion
@@ -1069,9 +1070,9 @@ class ProcessingSpec extends Specification with CatsEffect {
                            val enrichedActions = state.collect { case Action.SentToEnriched(enriched) => enriched }.flatten.toList
                            val enrichedMetrics = state.collect { case Action.AddedEnrichedCountMetric(n) => n }.sum
                            val enrichedBytesMetric = state.collect { case Action.AddedEnrichedBytesMetric(n) => n }.sum
-                           (enrichedActions must containTheSameElementsAs(expectedEnriched)) and
+                           ((enrichedActions must containTheSameElementsAs(expectedEnriched)) and
                              (enrichedMetrics must beEqualTo(2)) and // For one compressed record
-                             (enrichedBytesMetric must beEqualTo(698L))
+                             (enrichedBytesMetric must beEqualTo(698L))): @nowarn("msg=type was inferred to be")
                          }
                      }
       } yield assertion
@@ -1116,9 +1117,9 @@ class ProcessingSpec extends Specification with CatsEffect {
                            val enrichedActions = state.collect { case Action.SentToEnriched(enriched) => enriched }.flatten.toList
                            val enrichedMetrics = state.collect { case Action.AddedEnrichedCountMetric(n) => n }.sum
                            val enrichedBytesMetric = state.collect { case Action.AddedEnrichedBytesMetric(n) => n }.sum
-                           (enrichedActions must containTheSameElementsAs(expectedEnriched)) and
+                           ((enrichedActions must containTheSameElementsAs(expectedEnriched)) and
                              (enrichedMetrics must beEqualTo(3)) and
-                             (enrichedBytesMetric must beEqualTo(1047L))
+                             (enrichedBytesMetric must beEqualTo(1047L))): @nowarn("msg=type was inferred to be")
                          }
                      }
       } yield assertion
@@ -1154,11 +1155,15 @@ class ProcessingSpec extends Specification with CatsEffect {
                            val badActions = state.collect { case Action.SentToBad(bads) => bads }.flatten.toList
                            val enrichedMetrics = state.collect { case Action.AddedEnrichedCountMetric(n) => n }.sum
                            val enrichedBytesActions = state.collect { case Action.AddedEnrichedBytesMetric(n) => n }
-                           (enrichedActions must beEmpty) and
+                           ((enrichedActions must beEmpty) and
                              (badActions must haveSize(2)) and
                              (enrichedMetrics must beEqualTo(0)) and
                              (enrichedBytesActions must beEmpty) and
-                             (badActions.head.bad.compact must contain("exceeds the maximum allowed size of 50 bytes after compression"))
+                             (badActions.head.bad.compact must contain(
+                               "exceeds the maximum allowed size of 50 bytes after compression"
+                             ))): @nowarn(
+                             "msg=type was inferred to be"
+                           )
                          }
                      }
       } yield assertion
@@ -1210,10 +1215,14 @@ class ProcessingSpec extends Specification with CatsEffect {
                            val enrichedActions = state.collect { case Action.SentToEnriched(enriched) => enriched }.flatten.toList
                            val badActions = state.collect { case Action.SentToBad(bads) => bads }.flatten.toList
                            val enrichedBytesMetric = state.collect { case Action.AddedEnrichedBytesMetric(n) => n }.sum
-                           (enrichedActions must containTheSameElementsAs(expectedEnriched)) and
+                           ((enrichedActions must containTheSameElementsAs(expectedEnriched)) and
                              (badActions must haveSize(1)) and
                              (enrichedBytesMetric must beEqualTo(698L)) and
-                             (badActions.head.bad.compact must contain("exceeds the maximum allowed size of 700 bytes after compression"))
+                             (badActions.head.bad.compact must contain(
+                               "exceeds the maximum allowed size of 700 bytes after compression"
+                             ))): @nowarn(
+                             "msg=type was inferred to be"
+                           )
                          }
                      }
       } yield assertion
@@ -1264,9 +1273,9 @@ class ProcessingSpec extends Specification with CatsEffect {
                            val enrichedActions = state.collect { case Action.SentToEnriched(enriched) => enriched }.flatten.toList
                            val enrichedMetrics = state.collect { case Action.AddedEnrichedCountMetric(n) => n }.sum
                            val enrichedBytesMetric = state.collect { case Action.AddedEnrichedBytesMetric(n) => n }.sum
-                           (enrichedActions must containTheSameElementsAs(expectedEnriched)) and
+                           ((enrichedActions must containTheSameElementsAs(expectedEnriched)) and
                              (enrichedMetrics must beEqualTo(4)) and
-                             (enrichedBytesMetric must beEqualTo(1396L))
+                             (enrichedBytesMetric must beEqualTo(1396L))): @nowarn("msg=type was inferred to be")
                          }
                      }
       } yield assertion
@@ -1320,10 +1329,10 @@ class ProcessingSpec extends Specification with CatsEffect {
                            val badActions = state.collect { case Action.SentToBad(bads) => bads }.flatten.toList
                            val enrichedMetrics = state.collect { case Action.AddedEnrichedCountMetric(n) => n }.sum
                            val enrichedBytesMetric = state.collect { case Action.AddedEnrichedBytesMetric(n) => n }.sum
-                           (enrichedActions must containTheSameElementsAs(expectedEnriched)) and
+                           ((enrichedActions must containTheSameElementsAs(expectedEnriched)) and
                              (badActions must haveSize(1)) and
                              (enrichedMetrics must beEqualTo(4)) and
-                             (enrichedBytesMetric must beEqualTo(1396L))
+                             (enrichedBytesMetric must beEqualTo(1396L))): @nowarn("msg=type was inferred to be")
                          }
                      }
       } yield assertion

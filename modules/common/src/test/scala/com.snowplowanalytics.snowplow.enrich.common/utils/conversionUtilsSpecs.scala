@@ -15,6 +15,8 @@ import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 
+import scala.annotation.nowarn
+
 import cats.syntax.either._
 import cats.syntax.option._
 import io.circe.literal._
@@ -372,6 +374,9 @@ class StringToJIntegerSpec extends Specification with DataTables {
       ConversionUtils.stringToJInteger(str) must beLeft(expected)
     }
 
+  // The "EXPECTED" column mixes Int literals with a null row, so the DataTable's own column type
+  // is necessarily widened; that's inherent to this table, not a bug in the assertion below.
+  @nowarn("msg=type was inferred to be")
   def e2 =
     "SPEC NAME" || "INPUT STR" | "EXPECTED" |
       "Integer #1" !! "0" ! 0 |
@@ -405,6 +410,7 @@ class StringToBooleanLikeJByteSpec extends Specification with DataTables {
       ConversionUtils.stringToBooleanLikeJByte(FieldName, str) must beLeft(expected)
     }
 
+  @nowarn("msg=type was inferred to be")
   def e2 =
     "SPEC NAME" || "INPUT STR" | "EXPECTED" |
       "True aka 1" !! "1" ! 1.toByte |

@@ -10,7 +10,7 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import cats.data.{NonEmptyList, ValidatedNel}
 import cats.implicits._

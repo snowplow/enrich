@@ -20,7 +20,7 @@ import cats.effect.kernel.{Async, Resource, Sync}
 
 import org.http4s.client.{Client => Http4sClient}
 
-import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.{Logger, SelfAwareStructuredLogger}
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import com.snowplowanalytics.snowplow.badrows.{Processor => BadRowProcessor}
@@ -82,7 +82,7 @@ case class Environment[F[_]](
 
 object Environment {
 
-  private implicit def logger[F[_]: Sync] = Slf4jLogger.getLogger[F]
+  private implicit def logger[F[_]: Sync]: SelfAwareStructuredLogger[F] = Slf4jLogger.getLogger[F]
 
   def fromConfig[F[_]: Async, FactoryConfig, SourceConfig, SinkConfig, BlobClientsConfig](
     config: Config.Full[FactoryConfig, SourceConfig, SinkConfig, BlobClientsConfig],

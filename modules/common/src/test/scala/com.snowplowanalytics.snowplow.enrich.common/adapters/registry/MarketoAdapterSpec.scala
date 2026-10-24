@@ -74,7 +74,7 @@ class MarketoAdapterSpec extends Specification with DataTables with ValidatedMat
     )
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(expected))
+      .map(_ must beValidRawEvents(expected))
   }
 
   def e2 = {

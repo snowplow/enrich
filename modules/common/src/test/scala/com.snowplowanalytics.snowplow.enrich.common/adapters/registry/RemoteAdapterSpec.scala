@@ -53,9 +53,9 @@ class RemoteAdapterSpec extends Specification with ValidatedMatchers with CatsEf
 
   def adapter(client: HttpClient[IO]) = RemoteAdapter[IO](client, s"http://localhost:$mockServerPort/$mockServerPath")
 
-  override def beforeAll = httpServer.start()
+  override def beforeAll() = httpServer.start()
 
-  override def afterAll = httpServer.stop(0)
+  override def afterAll() = httpServer.stop(0)
 
   def is =
     sequential ^ s2"""

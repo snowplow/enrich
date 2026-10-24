@@ -16,6 +16,7 @@ import java.util.concurrent.Executors
 
 import scala.concurrent.ExecutionContext
 
+import cats.data.{NonEmptyList, Validated}
 import cats.implicits._
 
 import cats.effect.IO
@@ -34,6 +35,8 @@ import io.circe.literal._
 import org.apache.http.NameValuePair
 import org.apache.http.message.BasicNameValuePair
 
+import org.specs2.matcher.{Expectable, MatchResult, Matcher}
+
 import com.snowplowanalytics.iglu.client.{IgluCirceClient, Resolver}
 import com.snowplowanalytics.iglu.client.resolver.registries.Registry
 import com.snowplowanalytics.iglu.client.resolver.registries.JavaNetRegistryLookup
@@ -44,6 +47,7 @@ import com.snowplowanalytics.iglu.core.circe.implicits._
 import com.snowplowanalytics.lrumap.CreateLruMap._
 
 import com.snowplowanalytics.snowplow.enrich.common.adapters._
+import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.Adapter
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.common.utils.{HttpClient, JsonUtils}
 
@@ -74,6 +78,66 @@ object SpecHelpers extends CatsEffect {
       source,
       context
     )
+
+  /**
+   * Matches an `Adapter.Adapted` against the expected `RawEvent`s, comparing each parameter
+   * value as `Json` when both sides parse (circe's `Json`/`JsonObject` equality is already
+   * order-insensitive, recursively, so this isn't sensitive to `Map`-ordering differences in
+   * how an adapter built up a `ue_pr`- or `co`-style JSON string), and as a plain string
+   * otherwise -- so a non-JSON scalar like a `nuid` is compared verbatim, not normalized.
+   * On failure this reports the raw actual/expected values, not a re-serialised blob.
+   */
+  def beValidRawEvents(expected: NonEmptyList[RawEvent]): Matcher[Adapter.Adapted] =
+    new Matcher[Adapter.Adapted] {
+      def apply[S <: Adapter.Adapted](s: Expectable[S]): MatchResult[S] =
+        s.value match {
+          case Validated.Invalid(e) =>
+            result(test = false, "unreachable", s"is Invalid($e), expected Valid($expected)", s)
+          case Validated.Valid(actual) =>
+            compareRawEvents(actual, expected) match {
+              case None => result(test = true, s"$actual matches $expected", "unreachable", s)
+              case Some(mismatch) => result(test = false, "unreachable", mismatch, s)
+            }
+        }
+    }
+
+  private def compareRawEvents(actual: NonEmptyList[RawEvent], expected: NonEmptyList[RawEvent]): Option[String] = {
+    val a = actual.toList
+    val e = expected.toList
+    if (a.length != e.length)
+      Some(s"expected ${e.length} RawEvent(s) but got ${a.length}: actual=$a, expected=$e")
+    else
+      a.zip(e).zipWithIndex.flatMap {
+        case ((av, ev), i) => compareRawEvent(av, ev).map(msg => s"RawEvent $i $msg")
+      } match {
+        case Nil => None
+        case mismatches => Some(mismatches.mkString("; "))
+      }
+  }
+
+  private def compareRawEvent(actual: RawEvent, expected: RawEvent): Option[String] =
+    if (actual.copy(parameters = Map.empty) != expected.copy(parameters = Map.empty))
+      Some(s"non-parameter fields differ: actual=$actual, expected=$expected")
+    else if (actual.parameters.keySet != expected.parameters.keySet)
+      Some(s"parameter keys differ: actual=${actual.parameters.keySet}, expected=${expected.parameters.keySet}")
+    else
+      actual.parameters.keySet.toList.sorted.flatMap { k =>
+        if (parameterValuesMatch(actual.parameters(k), expected.parameters(k))) None
+        else Some(s"""parameter "$k" differs: actual=${actual.parameters(k)}, expected=${expected.parameters(k)}""")
+      } match {
+        case Nil => None
+        case mismatches => Some(mismatches.mkString("; "))
+      }
+
+  private def parameterValuesMatch(actual: Option[String], expected: Option[String]): Boolean =
+    (actual, expected) match {
+      case (Some(a), Some(e)) =>
+        (io.circe.parser.parse(a), io.circe.parser.parse(e)) match {
+          case (Right(aJson), Right(eJson)) => aJson == eJson
+          case _ => a == e
+        }
+      case _ => actual == expected
+    }
 
   // Standard Iglu configuration
   private val igluConfig = json"""{

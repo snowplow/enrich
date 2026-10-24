@@ -16,7 +16,6 @@ import java.nio.ByteBuffer
 import java.nio.file.{FileSystems, Path => NioPath}
 
 import scala.concurrent.duration._
-import scala.util.control.NonFatal
 
 import cats.{Applicative, Eq, Foldable}
 import cats.implicits._
@@ -290,8 +289,7 @@ object AssetRefresher {
   private def worthRetrying[F[_]: Applicative](e: Throwable): F[Boolean] =
     e match {
       case _: RetryableFailure => Applicative[F].pure(true)
-      case _: IllegalArgumentException => Applicative[F].pure(false)
-      case NonFatal(_) => Applicative[F].pure(false)
+      case _ => Applicative[F].pure(false)
     }
 
   private def onError[F[_]: Sync](

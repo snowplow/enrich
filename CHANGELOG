@@ -1,3 +1,15 @@
+6.14.0 (2026-10-19)
+------------------
+Bump dependencies (#296)
+Bump common-streams to 0.27.1: fix Prometheus latency metrics, which renames them (#287)
+Write decision_reasons onto the identity entity under 2-0-1 (#279)
+Stringify out-of-range numbers in failure entity data (#293)
+Skip IP enrichments when user_ipaddress is not a valid IP (PDP-2900) (#292)
+Kinesis: increase default sinkParallelismFraction to 3 (#288)
+Migrate build from Scala 2.12 to 2.13 (#277)
+fix(security): bump org.http4s:http4s-ember-core_2.12 to 0.23.35 (#278)
+fix(security): bump io.netty:netty-transport-sctp to 4.2.17.Final (#272)
+
 6.13.1 (2026-08-13)
 ------------------
 [DPS-2390] Emit non inferred count (#270)

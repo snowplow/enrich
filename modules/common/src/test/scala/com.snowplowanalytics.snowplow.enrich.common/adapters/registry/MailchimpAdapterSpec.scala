@@ -152,7 +152,7 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
-        _ must beValid(
+        _ must beValidRawEvents(
           NonEmptyList.one(
             RawEvent(
               Shared.api,
@@ -196,7 +196,7 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
-        _ must beValid(
+        _ must beValidRawEvents(
           NonEmptyList.one(
             RawEvent(
               Shared.api,
@@ -232,7 +232,7 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
       adapterWithDefaultSchemas
         .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
         .map(
-          _ must beValid(
+          _ must beValidRawEvents(
             NonEmptyList.one(
               RawEvent(
                 Shared.api,
@@ -316,7 +316,7 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
-        _ must beValid(
+        _ must beValidRawEvents(
           NonEmptyList.one(
             RawEvent(
               Shared.api,

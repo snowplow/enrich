@@ -10,6 +10,8 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.utils
 
+import scala.annotation.nowarn
+
 import org.specs2.Specification
 
 import org.joda.time.format.DateTimeFormat
@@ -85,8 +87,8 @@ class JsonUtilsSpec extends Specification {
     val malformedDate = "2020-09-02"
     val correctDate = "2020-09-02T22:00:00.000Z"
 
-    val exp1 = JsonUtils.toJson(key, Option(malformedDate), Nil, Nil, Some(NonEmptyList.one(key) -> formatter)) must
-      be !== (key -> Json.fromString(malformedDate))
+    val exp1 = (JsonUtils.toJson(key, Option(malformedDate), Nil, Nil, Some(NonEmptyList.one(key) -> formatter)) must
+      be !== (key -> Json.fromString(malformedDate))): @nowarn("msg=type was inferred to be")
 
     val exp2 = JsonUtils.toJson(key, Option(correctDate), Nil, Nil, Some(NonEmptyList.one(key) -> formatter)) must
       beEqualTo(key -> Json.fromString(correctDate))

@@ -138,7 +138,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     val expected = NonEmptyList.one(
       RawEvent(
         Shared.api,
-        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> parse(expectedJson).map(_.noSpaces).right.get).toOpt,
+        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> parse(expectedJson).map(_.noSpaces).toOption.get).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context
@@ -146,7 +146,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     )
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(expected))
+      .map(_ must beValidRawEvents(expected))
   }
 
   def e2 = {
@@ -207,7 +207,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     val expected = NonEmptyList.one(
       RawEvent(
         Shared.api,
-        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> parse(expectedJson).map(_.noSpaces).right.get).toOpt,
+        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> parse(expectedJson).map(_.noSpaces).toOption.get).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context
@@ -215,7 +215,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     )
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(expected))
+      .map(_ must beValidRawEvents(expected))
   }
 
   def e3 = {
@@ -241,7 +241,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     val expected = NonEmptyList.one(
       RawEvent(
         Shared.api,
-        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> parse(expectedJson).map(_.noSpaces).right.get).toOpt,
+        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> parse(expectedJson).map(_.noSpaces).toOption.get).toOpt,
         ContentType.some,
         Shared.cljSource,
         Shared.context
@@ -249,7 +249,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     )
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(expected))
+      .map(_ must beValidRawEvents(expected))
   }
 
   def e4 = {
@@ -283,7 +283,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     )
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(expected))
+      .map(_ must beValidRawEvents(expected))
   }
 
   def e5 = {
@@ -362,7 +362,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     val expected = NonEmptyList.one(
       RawEvent(
         Shared.api,
-        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> parse(expectedJson).map(_.noSpaces).right.get).toOpt,
+        Map("tv" -> "com.mailgun-v1", "e" -> "ue", "p" -> "srv", "ue_pr" -> parse(expectedJson).map(_.noSpaces).toOption.get).toOpt,
         Some("application/json"),
         Shared.cljSource,
         Shared.context
@@ -370,7 +370,7 @@ class MailgunAdapterSpec extends Specification with DataTables with ValidatedMat
     )
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(expected))
+      .map(_ must beValidRawEvents(expected))
   }
 
   def e6 = {

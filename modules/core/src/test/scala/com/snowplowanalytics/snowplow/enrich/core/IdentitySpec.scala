@@ -12,6 +12,7 @@ package com.snowplowanalytics.snowplow.enrich.core
 import cats.Id
 import cats.effect.{IO, Ref, Resource}
 import cats.effect.testing.specs2.CatsEffect
+import io.circe.Json
 import io.circe.literal._
 import org.http4s.{Request, Uri}
 import org.specs2.Specification
@@ -49,6 +50,18 @@ class IdentitySpec extends Specification with CatsEffect {
     not query the api if no identifier can be found $e13
     not add identity context when circuit breaker is open $e14
     recover and add identity context after circuit closes $e15
+    write decision_reasons onto the identity entity $e18
+    omit decision_reasons from the identity entity when the api omits the key $e19
+    omit decision_reasons from the identity entity when the api returns an empty array $e20
+    omit decision_reasons from the identity entity when the api returns null $e21
+    omit decision_reasons from the identity entity when the api returns a malformed value $e22
+    keep identities for the rest of the batch when one entry has malformed decision_reasons $e23
+    omit decision_reasons entirely when one element is not a string $e24
+    omit decision_reasons when the api returns an object instead of an array $e25
+    pass an unknown reason through unchanged $e26
+    report exactly the events whose decision_reasons were dropped $e27
+    say how many and which events lost decision_reasons, and mark a cut id list $e28
+    omit decision_reasons when the api returns a bare string instead of an array $e29
   """
 
   def e1 = {
@@ -73,15 +86,25 @@ class IdentitySpec extends Specification with CatsEffect {
       "created_at": "2023-03-03T03:03:03.333Z"
     }
     """
-    val expectedKey = SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/identity/jsonschema/2-0-0").toOption.get
+    val expectedKey = expectedIdentitySchemaKey
+
+    // e1 already carries an entity from an earlier enrichment. The identity entity goes in front of
+    // it; it must never replace it.
+    val preExisting = SelfDescribingData(
+      SchemaKey("com.test", "earlier_context", "jsonschema", SchemaVer.Full(1, 0, 0)),
+      json"""{"from": "an earlier enrichment"}"""
+    )
+    e1.derived_contexts = List(preExisting)
 
     for {
       api <- Identity.build(testConfig(), testHttpClient)
       _ <- api.addIdentityContexts(List(e1, e2))
     } yield {
       val t1 = e1.derived_contexts must beLike {
-        case List(SelfDescribingData(key, json)) =>
-          (json.noSpaces must beEqualTo(expectedContext1.noSpaces)) and (key must beEqualTo(expectedKey))
+        case List(SelfDescribingData(key, json), kept) =>
+          (json.noSpaces must beEqualTo(expectedContext1.noSpaces)) and
+            (key must beEqualTo(expectedKey)) and
+            (kept must beEqualTo(preExisting))
       }
       val t2 = e2.derived_contexts must beLike {
         case List(SelfDescribingData(key, json)) =>
@@ -876,6 +899,185 @@ class IdentitySpec extends Specification with CatsEffect {
         body must beEqualTo(expectedRequestBody.noSpaces)
     }
   }
+
+  def e18 = emitsReasons(json"""["merge_limit_exceeded", "degraded_registry_only"]""")
+
+  def e19 = emitsNoDecisionReasons(None)
+
+  def e20 = emitsNoDecisionReasons(Some(json"[]"))
+
+  def e21 = emitsNoDecisionReasons(Some(Json.Null))
+
+  def e22 = emitsNoDecisionReasons(Some(json"""[1, 2]"""))
+
+  // A malformed value is not a transport failure. With retries available the API is still called once,
+  // the value costs only that entry's reasons, and every other entry keeps its identity and its reasons.
+  def e23 = {
+    val wellFormed = new EnrichedEvent()
+    wellFormed.event_id = testIdPairs(0).eventId
+    wellFormed.user_id = "test-user-0"
+
+    val malformed = new EnrichedEvent()
+    malformed.event_id = testIdPairs(1).eventId
+    malformed.user_id = "test-user-1"
+
+    val responseBody = json"""
+    [
+      {
+        "created_at": "2023-03-03T03:03:03.333Z",
+        "event_id": ${testIdPairs(0).eventId},
+        "snowplow_id": ${testIdPairs(0).snowplowId},
+        "decision_reasons": ["merge_limit_exceeded"]
+      },
+      {
+        "created_at": "2023-03-03T03:03:03.333Z",
+        "event_id": ${testIdPairs(1).eventId},
+        "snowplow_id": ${testIdPairs(1).snowplowId},
+        "decision_reasons": [1, 2]
+      }
+    ]
+    """
+
+    val expectedWellFormed = json"""
+    {
+      "snowplow_id": ${testIdPairs(0).snowplowId},
+      "created_at": "2023-03-03T03:03:03.333Z",
+      "decision_reasons": ["merge_limit_exceeded"]
+    }
+    """
+
+    for {
+      ref <- Ref[IO].of(List.empty[(Request[IO], String)])
+      api <- Identity.build(testConfig(attempts = 3), new RecordingHttpClient(ref, responseBody).mock)
+      _ <- api.addIdentityContexts(List(wellFormed, malformed))
+      requests <- ref.get
+    } yield {
+      val keptItsReasons = wellFormed.derived_contexts must beLike {
+        case List(SelfDescribingData(key, json)) =>
+          (key must beEqualTo(expectedIdentitySchemaKey)) and
+            (json.noSpaces must beEqualTo(expectedWellFormed.noSpaces))
+      }
+      val keptIdentityLostReasons = malformed.derived_contexts must beLike {
+        case List(SelfDescribingData(key, json)) =>
+          (key must beEqualTo(expectedIdentitySchemaKey)) and hasOnlyBaseFields(json)
+      }
+      // One request despite three attempts being allowed: nothing was retried
+      keptItsReasons and keptIdentityLostReasons and (requests must haveSize(1))
+    }
+  }
+
+  // The guard is all or nothing: one bad element drops the whole array, it does not filter the array
+  def e24 = emitsNoDecisionReasons(Some(json"""["merge_limit_exceeded", 1]"""))
+
+  def e25 = emitsNoDecisionReasons(Some(json"""{"code": "merge_limit_exceeded"}"""))
+
+  def e29 = emitsNoDecisionReasons(Some(json""""merge_limit_exceeded""""))
+
+  // Enrich holds no list of allowed values, and neither does the schema. This is what lets the identity
+  // service add a reason without an enrich release: a value enrich has never seen is written as sent,
+  // and the identity models decide what it means.
+  def e26 = emitsReasons(json"""["not_a_known_reason"]""")
+
+  // merge reports exactly the events whose reasons it dropped; the warning is built from that list
+  def e27 = {
+    val kept = new EnrichedEvent()
+    kept.event_id = testIdPairs(0).eventId
+    val dropped = new EnrichedEvent()
+    dropped.event_id = testIdPairs(1).eventId
+    val nothingToReport = new EnrichedEvent()
+    nothingToReport.event_id = testIdPairs(2).eventId
+
+    val identities = List(
+      // A duplicate for the same event, shadowed by the later entry below. Neither attached nor reported.
+      Identity.Identity("2023-03-03T03:03:03.333Z", testIdPairs(0).eventId, "sp-shadowed", Some(json"""[1]""")),
+      Identity.Identity("2023-03-03T03:03:03.333Z",
+                        testIdPairs(0).eventId,
+                        testIdPairs(0).snowplowId,
+                        Some(json"""["merge_limit_exceeded"]""")
+      ),
+      Identity.Identity("2023-03-03T03:03:03.333Z", testIdPairs(1).eventId, testIdPairs(1).snowplowId, Some(json"""[1, 2]""")),
+      Identity.Identity("2023-03-03T03:03:03.333Z", testIdPairs(2).eventId, testIdPairs(2).snowplowId, Some(json"[]")),
+      // Not in the batch: the API answered for an event it was not asked about. Ignored, and not reported.
+      Identity.Identity("2023-03-03T03:03:03.333Z", UUID.randomUUID.toString, "sp-stray", Some(json"""[1]"""))
+    )
+
+    Identity.merge(List(kept, dropped, nothingToReport), identities) must beEqualTo(
+      Identity.Merged(attached = 3, dropped = List(testIdPairs(1).eventId))
+    )
+  }
+
+  // The warning is the only operator-facing signal, so its shape is pinned: count, denominator, ids,
+  // and a marker when the id list is cut
+  def e28 = {
+    val ids = (1 to 12).map(i => s"event-$i").toList
+    val cut = Identity.droppedWarning(Identity.Merged(attached = 20, dropped = ids)).getOrElse("")
+    val whole = Identity.droppedWarning(Identity.Merged(attached = 5, dropped = ids.take(2))).getOrElse("")
+    val clean = Identity.droppedWarning(Identity.Merged(attached = 5, dropped = Nil))
+
+    List(
+      cut must contain("12 of 20 events given an identity entity"),
+      cut must contain("(first 10 of 12)"),
+      cut must contain("event-10"),
+      cut must not(contain("event-11")),
+      whole must contain("2 of 5 events given an identity entity"),
+      whole must not(contain("(first")),
+      whole must endWith("event-1, event-2"),
+      clean must beNone
+    ).reduce(_ and _)
+  }
+
+  // One identity in the API response, for testIdPairs(0), with or without a decision_reasons key
+  private def identityResponse(reasons: Option[Json]): Json =
+    Json.arr(
+      Json.fromFields(
+        List(
+          "created_at" -> Json.fromString("2023-03-03T03:03:03.333Z"),
+          "event_id" -> Json.fromString(testIdPairs(0).eventId),
+          "snowplow_id" -> Json.fromString(testIdPairs(0).snowplowId)
+        ) ++ reasons.map("decision_reasons" -> _)
+      )
+    )
+
+  private def enrichOne(reasons: Option[Json]): IO[EnrichedEvent] = {
+    val e = new EnrichedEvent()
+    e.event_id = testIdPairs(0).eventId
+    e.user_id = "test-user-0"
+
+    for {
+      api <- Identity.build(testConfig(), staticHttpClient(identityResponse(reasons)))
+      _ <- api.addIdentityContexts(List(e))
+    } yield e
+  }
+
+  // A non-empty array of strings is written onto the entity exactly as the API sent it
+  private def emitsReasons(reasons: Json) = {
+    val expectedContext = json"""
+    {
+      "snowplow_id": ${testIdPairs(0).snowplowId},
+      "created_at": "2023-03-03T03:03:03.333Z",
+      "decision_reasons": $reasons
+    }
+    """
+
+    enrichOne(Some(reasons)).map(_.derived_contexts must beLike {
+      case List(SelfDescribingData(key, json)) =>
+        (key must beEqualTo(expectedIdentitySchemaKey)) and
+          (json.noSpaces must beEqualTo(expectedContext.noSpaces))
+    })
+  }
+
+  // The API says "no reasons" by omitting the key, sending an empty array, or sending null, and it can
+  // send a shape enrich does not write. All of these must produce an entity with exactly the two base
+  // fields. The exact key-set assertion is what fails if the shape guard in merge() is ever dropped,
+  // because a dropped guard writes the key rather than leaving it out.
+  private def emitsNoDecisionReasons(reasons: Option[Json]) =
+    enrichOne(reasons).map(_.derived_contexts must beLike {
+      case List(SelfDescribingData(key, json)) =>
+        (key must beEqualTo(expectedIdentitySchemaKey)) and hasOnlyBaseFields(json)
+    })
+
+  private def hasOnlyBaseFields(json: Json) =
+    json.asObject.map(_.keys.toList) must beSome(List("snowplow_id", "created_at"))
 }
 
 object IdentitySpec {
@@ -940,19 +1142,26 @@ object IdentitySpec {
   ]
   """
 
-  val testHttpClient: Http4sClient[IO] = Http4sClient[IO] { _ =>
-    Resource.eval(Created(mockResponseBody))
-  }
+  val expectedIdentitySchemaKey: SchemaKey =
+    SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/identity/jsonschema/2-0-1").toOption.get
+
+  // A mock Client[F] that answers every request with the given body
+  def staticHttpClient(responseBody: Json): Http4sClient[IO] =
+    Http4sClient[IO] { _ =>
+      Resource.eval(Created(responseBody))
+    }
+
+  val testHttpClient: Http4sClient[IO] = staticHttpClient(mockResponseBody)
 
   // A mock Client[F] that records the requests it receives
-  class RecordingHttpClient(ref: Ref[IO, List[(Request[IO], String)]]) {
+  class RecordingHttpClient(ref: Ref[IO, List[(Request[IO], String)]], responseBody: Json = mockResponseBody) {
     def mock: Http4sClient[IO] =
       Http4sClient[IO] { req =>
         Resource.eval {
           for {
             body <- req.bodyText.compile.string
             _ <- ref.update(_ :+ ((req, body)))
-            response <- Created(mockResponseBody)
+            response <- Created(responseBody)
           } yield response
         }
       }
@@ -975,14 +1184,15 @@ object IdentitySpec {
 
   def testConfig(
     identifiers: List[Config.Identity.Identifier] = defaultIdentifiers,
-    filters: Option[Config.Identity.Filtering.Filters] = None
+    filters: Option[Config.Identity.Filtering.Filters] = None,
+    attempts: Int = 1
   ) =
     Config.IdentityM[Id](
       Uri.unsafeFromString("http://test-server:8787"),
       "test-user",
       "test-password",
       1,
-      Retrying.Config.ForTransient(100.millis, 1),
+      Retrying.Config.ForTransient(100.millis, attempts),
       Config.Identity.CircuitBreakerConfig(
         maxConsecutiveFailures = 5,
         failureRateThreshold = 0.5,

@@ -227,6 +227,7 @@ lazy val nsqDistroless = project
 
 lazy val itCore = project
   .in(file("modules/it/core"))
+  .settings(projectSettings)
   .settings(itSettings)
   .settings(libraryDependencies ++= itDependencies)
   .settings(addCompilerPlugin(betterMonadicFor))
@@ -234,6 +235,7 @@ lazy val itCore = project
 
 lazy val itKinesis = project
   .in(file("modules/it/kinesis"))
+  .settings(projectSettings)
   .settings(itSettings)
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(kinesis)
@@ -243,6 +245,7 @@ lazy val itKinesis = project
 
 lazy val itKafka = project
   .in(file("modules/it/kafka"))
+  .settings(projectSettings)
   .settings(itSettings)
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(kafka)
@@ -252,6 +255,7 @@ lazy val itKafka = project
 
 lazy val itNsq = project
   .in(file("modules/it/nsq"))
+  .settings(projectSettings)
   .settings(itSettings)
   .settings(addCompilerPlugin(betterMonadicFor))
   .dependsOn(nsq)

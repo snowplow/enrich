@@ -18,7 +18,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.util.UUID
 import java.io.{PrintWriter, StringWriter}
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.util.Try
 import scala.util.control.NonFatal
 

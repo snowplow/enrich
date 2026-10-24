@@ -18,7 +18,6 @@ import scala.concurrent.duration.DurationInt
 import org.specs2.Specification
 
 import cats.Id
-import cats.implicits._
 
 import cats.effect.{ExitCode, IO}
 
@@ -152,7 +151,7 @@ object KinesisConfigSpec {
     ),
     streams = EmptyConfig(),
     cpuParallelismFraction = BigDecimal(1),
-    sinkParallelismFraction = BigDecimal(2),
+    sinkParallelismFraction = BigDecimal(3),
     monitoring = Config.Monitoring(
       metrics = Config.Metrics(None, PrometheusConfig(Map.empty)),
       sentry = None,
@@ -251,7 +250,7 @@ object KinesisConfigSpec {
     ),
     streams = EmptyConfig(),
     cpuParallelismFraction = BigDecimal(1),
-    sinkParallelismFraction = BigDecimal(2),
+    sinkParallelismFraction = BigDecimal(3),
     monitoring = Config.Monitoring(
       metrics = Config.Metrics(
         statsd = Some(

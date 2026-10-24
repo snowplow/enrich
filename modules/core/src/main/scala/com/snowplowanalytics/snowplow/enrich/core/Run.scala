@@ -18,7 +18,7 @@ import cats.implicits._
 import cats.effect.ExitCode
 import cats.effect.kernel.{Async, Resource, Sync}
 
-import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.{Logger, SelfAwareStructuredLogger}
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import io.circe.Decoder
@@ -32,7 +32,7 @@ import com.snowplowanalytics.snowplow.enrich.cloudutils.core.BlobClientFactory
 
 object Run {
 
-  private implicit def logger[F[_]: Sync] = Slf4jLogger.getLogger[F]
+  private implicit def logger[F[_]: Sync]: SelfAwareStructuredLogger[F] = Slf4jLogger.getLogger[F]
 
   def fromCli[F[_]: Async, FactoryConfig: Decoder, SourceConfig: Decoder, SinkConfig: Decoder: OptionalDecoder, BlobClientsConfig: Decoder](
     appInfo: AppInfo,

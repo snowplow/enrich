@@ -94,11 +94,16 @@ object RedirectAdapter extends Adapter {
             (if (originalParams.contains("e")) {
                // Already have an event so add the URI redirect as a context (more fiddly)
                def newCo = Map("co" -> toContext(json).noSpaces)
-               (originalParams.get("cx"), originalParams.get("co")) match {
+               // A key that's present but mapped to `None` (present with no `=` at all) carries no
+               // usable value and is treated as absent, which keeps the match below exhaustive
+               // over `Option[String]`. An empty-string `co` is treated as absent too; an
+               // empty-string `cx` is not, and goes to `addToExistingCx`.
+               val cx = originalParams.get("cx").flatten
+               val co = originalParams.get("co").flatten.filter(_.nonEmpty)
+               (cx, co) match {
                  case (None, None) => newCo.asRight
-                 case (None, Some(Some(co))) if co == "" => newCo.asRight
-                 case (None, Some(Some(co))) => addToExistingCo(json, co, maxJsonDepth).map(str => Map("co" -> str))
-                 case (Some(Some(cx)), _) => addToExistingCx(json, cx, maxJsonDepth).map(str => Map("cx" -> str))
+                 case (None, Some(existingCo)) => addToExistingCo(json, existingCo, maxJsonDepth).map(str => Map("co" -> str))
+                 case (Some(existingCx), _) => addToExistingCx(json, existingCx, maxJsonDepth).map(str => Map("cx" -> str))
                }
              } else
                // Add URI redirect as an unstructured event

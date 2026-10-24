@@ -87,7 +87,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
     )
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(expected))
+      .map(_ must beValidRawEvents(expected))
   }
 
   def e2 = {
@@ -117,7 +117,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
     )
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(expected))
+      .map(_ must beValidRawEvents(expected))
   }
 
   def e3 = {
@@ -147,7 +147,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
     )
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(expected))
+      .map(_ must beValidRawEvents(expected))
   }
 
   def e4 = {
@@ -177,7 +177,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
     )
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(expected))
+      .map(_ must beValidRawEvents(expected))
   }
 
   def e5 = {
@@ -207,7 +207,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
     )
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(expected))
+      .map(_ must beValidRawEvents(expected))
   }
 
   def e6 = {
@@ -237,7 +237,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
     )
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(expected))
+      .map(_ must beValidRawEvents(expected))
   }
 
   def e7 = {
@@ -267,7 +267,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
     )
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(expected))
+      .map(_ must beValidRawEvents(expected))
   }
 
   def e8 = {
@@ -297,7 +297,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
     )
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(expected))
+      .map(_ must beValidRawEvents(expected))
   }
 
   def e9 =
@@ -324,7 +324,7 @@ class VeroAdapterSpec extends Specification with DataTables with ValidatedMatche
       adapterWithDefaultSchemas
         .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
         .map(
-          _ must beValid(
+          _ must beValidRawEvents(
             NonEmptyList.one(
               RawEvent(
                 Shared.api,

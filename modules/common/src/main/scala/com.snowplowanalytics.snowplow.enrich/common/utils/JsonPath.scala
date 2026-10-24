@@ -11,6 +11,7 @@
 package com.snowplowanalytics.snowplow.enrich.common.utils
 
 import cats.syntax.either._
+import com.fasterxml.jackson.databind.JsonNode
 import io.circe._
 import io.gatling.jsonpath.{JsonPath => GatlingJsonPath}
 
@@ -38,10 +39,10 @@ object JsonPath {
   /**
    * Wrapper method for not throwing an exception on JNothing, representing it as invalid JSON
    * @param json JSON value, possibly JNothing
-   * @return successful POJO on any JSON except JNothing
+   * @return successful Jackson `JsonNode` on any JSON except JNothing
    */
-  def convertToJson(json: Json): Object =
-    CirceUtils.mapper.convertValue(json, classOf[Object])
+  def convertToJson(json: Json): JsonNode =
+    CirceUtils.mapper.valueToTree(json)
 
   /**
    * Pimp-up JsonPath class to work with JValue
@@ -50,8 +51,8 @@ object JsonPath {
    */
   implicit class CirceExtractor(jsonPath: GatlingJsonPath) {
     def circeQuery(json: Json): List[Json] = {
-      val pojo = convertToJson(json)
-      jsonPath.query(pojo).map(anyToJson).toList
+      val node = convertToJson(json)
+      jsonPath.query(node).map(anyToJson).toList
     }
   }
 
@@ -60,8 +61,8 @@ object JsonPath {
    * Unlike `json.circeQuery(stringPath)` it gives error if JNothing was given
    */
   def query(jsonPath: String, json: Json): Either[String, List[Json]] = {
-    val pojo = convertToJson(json)
-    GatlingJsonPath.query(jsonPath, pojo) match {
+    val node = convertToJson(json)
+    GatlingJsonPath.query(jsonPath, node) match {
       case Right(iterator) => iterator.map(anyToJson).toList.asRight
       case Left(error) => error.reason.asLeft
     }
@@ -89,13 +90,13 @@ object JsonPath {
     }
 
   /**
-   * Convert POJO to JValue with `jackson` mapper
-   * @param any raw JVM type representing JSON
+   * Convert a Jackson `JsonNode` (as returned by gatling-jsonpath) to circe's `Json`
+   * @param node a JSON value, as a Jackson `JsonNode` (a JSON null is `NullNode`, not a Java null)
    * @return Json
    */
-  private[utils] def anyToJson(any: Any): Json =
-    if (any == null) Json.Null
-    else CirceUtils.mapper.convertValue(any, classOf[Json])
+  private[utils] def anyToJson(node: JsonNode): Json =
+    if (node == null) Json.Null
+    else CirceUtils.mapper.convertValue(node, classOf[Json])
 
   implicit val decoder: Decoder[JsonPath] =
     Decoder[String].emap(s => compileQuery(s).map(jsonPath => new JsonPath(jsonPath, s)))

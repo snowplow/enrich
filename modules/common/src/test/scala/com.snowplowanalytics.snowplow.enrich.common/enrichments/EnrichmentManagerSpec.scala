@@ -31,6 +31,8 @@ import org.joda.time.DateTime
 import com.snowplowanalytics.snowplow.badrows._
 import com.snowplowanalytics.snowplow.badrows.{Failure => BadRowFailure}
 
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.Failure
+
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 

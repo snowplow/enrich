@@ -193,6 +193,6 @@ object DbExecutor {
       if (intMap.keys.size == placeholderCount) true else false
     }
 
-  def getConnection[F[_]: Monad: DbExecutor](dataSource: DataSource): Resource[F, Connection] =
+  def getConnection[F[_]: DbExecutor](dataSource: DataSource): Resource[F, Connection] =
     DbExecutor[F].getConnection(dataSource)
 }

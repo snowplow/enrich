@@ -228,7 +228,7 @@ class MandrillAdapterSpec extends Specification with DataTables with ValidatedMa
     )
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(expected))
+      .map(_ must beValidRawEvents(expected))
   }
 
   def e5 = { // Spec for nine seperate events where two have incorrect event names and one does not have event as a parameter

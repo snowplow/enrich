@@ -28,6 +28,9 @@ class JsonPathSpec extends Specification {
   test query of string                    $e9
   test query of double                    $e10
   test query of big decimal               $e11
+  test query of JSON null                  $e12
+  test query of trailing-zero decimal     $e13
+  test query of exponent notation         $e14
   """
 
   val someJson = Json.obj(
@@ -75,10 +78,10 @@ class JsonPathSpec extends Specification {
       beRight(List(Json.fromDoubleOrNull(12.99)))
 
   def e2 =
-    JsonPath.query("$.store.book[5].price", someJson) must beRight(Nil)
+    JsonPath.query("$.store.book[5].price", someJson) must beRight(List.empty[Json])
 
   def e3 =
-    JsonPath.query("$.store.unicorns", someJson) must beRight(Nil)
+    JsonPath.query("$.store.unicorns", someJson) must beRight(List.empty[Json])
 
   def e4 =
     JsonPath.query(".notJsonPath", someJson) must beLeft.like {
@@ -91,7 +94,7 @@ class JsonPathSpec extends Specification {
     }
 
   def e6 =
-    JsonPath.query("$.store.book[2]", Json.fromString("somestring")) must beRight(List())
+    JsonPath.query("$.store.book[2]", Json.fromString("somestring")) must beRight(List.empty[Json])
 
   def e7 = {
     val q1 = JsonPath.query("$.empId", json"""{ "empId": 2147483649 }""") must beRight(List(Json.fromLong(2147483649L)))
@@ -122,4 +125,17 @@ class JsonPathSpec extends Specification {
     val q2 = JsonPath.query("$.id", json"""{ "id": ${Json.fromBigDecimal(20.20)} }""") must beRight(List(Json.fromBigDecimal(20.20)))
     q1 and q2
   }
+
+  // A JSON null value arrives from gatling-jsonpath as Jackson's NullNode; it must round-trip
+  // to Json.Null.
+  def e12 =
+    JsonPath.query("$.a", json"""{ "a": null }""") must beRight(List(Json.Null))
+
+  // A trailing-zero decimal must not collapse to an integer.
+  def e13 =
+    JsonPath.query("$.id", json"""{ "id": 1.0 }""") must beRight(List(json"1.0"))
+
+  // Exponent notation must round-trip.
+  def e14 =
+    JsonPath.query("$.id", json"""{ "id": 1e10 }""") must beRight(List(json"1e10"))
 }

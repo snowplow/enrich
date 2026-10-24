@@ -12,6 +12,7 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
 import java.net.URI
 
+import cats.Applicative
 import cats.data.{NonEmptyList, ValidatedNel}
 import cats.implicits._
 
@@ -20,15 +21,13 @@ import cats.effect.kernel.Sync
 import io.circe._
 import io.circe.syntax._
 
-import inet.ipaddr.HostName
-
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
 
 import com.snowplowanalytics.maxmind.iplookups._
 import com.snowplowanalytics.maxmind.iplookups.model._
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.IpLookupsConf
-import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
+import com.snowplowanalytics.snowplow.enrich.common.utils.{CirceUtils, ConversionUtils}
 
 /** Companion object. Lets us create an IpLookupsEnrichment instance from a Json. */
 object IpLookupsEnrichment extends ParseableEnrichment {
@@ -132,11 +131,15 @@ final case class IpLookupsEnrichment[F[_]](ipLookups: IpLookups[F]) {
 
   /**
    * Extract the geo-location using the client IP address.
+   * The lookup is skipped if the value is not a valid IPv4 or IPv6 literal (hostnames are never resolved).
    * @param ip The client's IP address to use to lookup the client's geo-location
-   * @return an IpLookupResult
+   * @return an IpLookupResult, or None if ip is not a valid IP address
    */
-  def extractIpInformation(ip: String): F[IpLookupResult] =
-    ipLookups.performLookups(Either.catchNonFatal(new HostName(ip).toAddress).fold(_ => ip, addr => addr.toString))
+  def extractIpInformation(ip: String)(implicit F: Applicative[F]): F[Option[IpLookupResult]] =
+    Option(ip)
+      .filter(_.nonEmpty) // HostName treats an empty string as the loopback address
+      .flatMap(ConversionUtils.extractInetAddress)
+      .traverse(addr => ipLookups.performLookups(addr.getHostAddress))
 
   def getAsnContext(ipLookupResult: IpLookupResult): Option[SelfDescribingData[Json]] =
     ipLookupResult.asn.flatMap(_.toOption).map { asn =>

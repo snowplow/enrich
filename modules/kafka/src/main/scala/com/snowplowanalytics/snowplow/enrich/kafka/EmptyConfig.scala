@@ -10,9 +10,10 @@
  */
 package com.snowplowanalytics.snowplow.enrich.kafka
 
+import io.circe.Decoder
 import io.circe.generic.semiauto._
 
 case class EmptyConfig()
 object EmptyConfig {
-  implicit val decoder = deriveDecoder[EmptyConfig]
+  implicit val decoder: Decoder[EmptyConfig] = deriveDecoder[EmptyConfig]
 }

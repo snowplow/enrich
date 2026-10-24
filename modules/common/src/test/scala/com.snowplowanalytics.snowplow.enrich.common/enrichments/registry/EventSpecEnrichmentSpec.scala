@@ -10,6 +10,8 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
+import scala.annotation.nowarn
+
 import cats.data.{EitherT, Ior, NonEmptyList}
 import cats.syntax.either._
 import cats.effect.IO
@@ -1122,9 +1124,9 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
         val isValid = contexts.head.data.hcursor.get[Boolean]("isValid").getOrElse(true)
         val errors = contexts.head.data.hcursor.downField("errors").values.map(_.toList).getOrElse(List.empty)
         val message = errors.head.hcursor.get[String]("message").getOrElse("")
-        (contexts must haveSize(1)) and (isValid must beFalse) and (errors must haveSize(1)) and (message must contain(
+        ((contexts must haveSize(1)) and (isValid must beFalse) and (errors must haveSize(1)) and (message must contain(
           "expected at least 1"
-        ))
+        ))): @nowarn("msg=type was inferred to be")
     }
   }
 
@@ -1153,9 +1155,9 @@ class EventSpecEnrichmentSpec extends Specification with CatsEffect {
       case Ior.Both(failures, contexts) =>
         val attributed = failures.toList.forall(_.enrichment.exists(_.schemaKey == enrichmentConfigSchemaKey))
         val errors = contexts.head.data.hcursor.downField("errors").values.map(_.toList).getOrElse(List.empty)
-        (attributed must beTrue) and
+        ((attributed must beTrue) and
           (contexts must haveSize(1)) and
-          (errors must not(beEmpty))
+          (errors must not(beEmpty))): @nowarn("msg=type was inferred to be")
     }
   }
 

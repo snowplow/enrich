@@ -701,7 +701,7 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     "return one expected SchemaViolation for one invalid context" >> {
       val json = invalidEmailSentData.toJson
       val contexts = List(
-        SpecHelpers.jsonStringToSDJ(invalidEmailSent).right.get
+        SpecHelpers.jsonStringToSDJ(invalidEmailSent).toOption.get
       )
 
       IgluUtils
@@ -727,8 +727,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
       val invalidEmailSentJson = invalidEmailSentData.toJson
       val noSchemaJson = noSchemaData.toJson
       val contexts = List(
-        SpecHelpers.jsonStringToSDJ(invalidEmailSent).right.get,
-        SpecHelpers.jsonStringToSDJ(noSchema).right.get
+        SpecHelpers.jsonStringToSDJ(invalidEmailSent).toOption.get,
+        SpecHelpers.jsonStringToSDJ(noSchema).toOption.get
       )
 
       IgluUtils
@@ -757,8 +757,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
     "return one expected SchemaViolation for one invalid context and one valid" >> {
       val invalidEmailSentJson = invalidEmailSentData.toJson
       val contexts = List(
-        SpecHelpers.jsonStringToSDJ(invalidEmailSent).right.get,
-        SpecHelpers.jsonStringToSDJ(emailSent1).right.get
+        SpecHelpers.jsonStringToSDJ(invalidEmailSent).toOption.get,
+        SpecHelpers.jsonStringToSDJ(emailSent1).toOption.get
       )
 
       IgluUtils
@@ -781,8 +781,8 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
 
     "return 2 valid contexts" >> {
       val contexts = List(
-        SpecHelpers.jsonStringToSDJ(emailSent1).right.get,
-        SpecHelpers.jsonStringToSDJ(emailSent2).right.get
+        SpecHelpers.jsonStringToSDJ(emailSent1).toOption.get,
+        SpecHelpers.jsonStringToSDJ(emailSent2).toOption.get
       )
 
       IgluUtils

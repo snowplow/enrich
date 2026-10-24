@@ -28,7 +28,7 @@ class EventFingerprintEnrichmentSpec extends Specification {
 
   val standardConfig =
     EventFingerprintEnrichment(
-      EventFingerprintEnrichment.getAlgorithm("MD5").right.get,
+      EventFingerprintEnrichment.getAlgorithm("MD5").toOption.get,
       List("stm", "eid")
     )
 

@@ -12,7 +12,7 @@ package com.snowplowanalytics.snowplow.enrich.core
 
 import cats.effect.{Async, Sync}
 import cats.implicits._
-import io.circe.Decoder
+import io.circe.{Decoder, Json}
 import io.circe.literal._
 import io.circe.generic.extras.semiauto._
 import io.circe.generic.extras.Configuration
@@ -48,7 +48,8 @@ object Identity {
   case class Identity(
     createdAt: String,
     eventId: String,
-    snowplowId: String
+    snowplowId: String,
+    decisionReasons: Option[Json] = None
   )
 
   private implicit def unsafeLogger[F[_]: Sync]: Logger[F] =
@@ -90,9 +91,12 @@ object Identity {
             _ <- if (eventsIdentifiers.nonEmpty)
                    circuitBreaker.protect(post(eventsIdentifiers)).flatMap {
                      case Some(identities) =>
-                       Sync[F].delay(merge(events, identities))
+                       Sync[F].delay(merge(events, identities)).flatMap(merged => droppedWarning(merged).traverse_(Logger[F].warn(_)))
                      case None =>
-                       Logger[F].warn(s"Identity circuit breaker open, skipped enrichment for ${eventsIdentifiers.size} events")
+                       Logger[F].warn(
+                         s"Identity enrichment skipped for ${eventsIdentifiers.size} events: " +
+                           "the identity API call failed or the circuit breaker is open"
+                       )
                    }
                  else Sync[F].unit
           } yield ()
@@ -168,24 +172,66 @@ object Identity {
       None
   }
 
-  private def merge(events: List[EnrichedEvent], identities: List[Identity]): Unit = {
+  private final case class Built(entity: SelfDescribingData[Json], reasons: Reasons)
+
+  private[core] final case class Merged(attached: Int, dropped: List[String])
+
+  private[core] def merge(events: List[EnrichedEvent], identities: List[Identity]): Merged = {
     val byEventId = identities.map { identity =>
-      val context = json"""{
+      val base = json"""{
           "snowplow_id": ${identity.snowplowId},
           "created_at": ${identity.createdAt}
         }"""
-      val sdj = SelfDescribingData(identitySchemaKey, context)
-      identity.eventId -> sdj
+      val reasons = Reasons.of(identity.decisionReasons)
+      val context = reasons match {
+        case Reasons.Present(json) => base.mapObject(_.add("decision_reasons", json))
+        case Reasons.Absent | Reasons.Malformed => base
+      }
+      identity.eventId -> Built(SelfDescribingData(identitySchemaKey, context), reasons)
     }.toMap
 
-    events.foreach { e =>
-      byEventId.get(e.event_id).foreach { sdj =>
-        e.derived_contexts = sdj :: e.derived_contexts
+    val attached = events.flatMap { e =>
+      byEventId.get(e.event_id).map { built =>
+        e.derived_contexts = built.entity :: e.derived_contexts
+        e.event_id -> built
       }
     }
+
+    Merged(attached.size, attached.collect { case (eventId, Built(_, Reasons.Malformed)) => eventId })
   }
 
-  private val identitySchemaKey: SchemaKey = SchemaKey("com.snowplowanalytics.snowplow", "identity", "jsonschema", SchemaVer.Full(2, 0, 0))
+  private[core] def droppedWarning(merged: Merged): Option[String] =
+    if (merged.dropped.isEmpty) None
+    else {
+      val ids = merged.dropped.distinct
+      val shown = ids.take(10)
+      val marker = if (shown.size < ids.size) s" (first ${shown.size} of ${ids.size})" else ""
+      Some(
+        s"Identity dropped decision_reasons from ${merged.dropped.size} of ${merged.attached} events given an identity entity, " +
+          s"value was not an array of strings. Event ids$marker: ${shown.mkString(", ")}"
+      )
+    }
+
+  private sealed trait Reasons
+  private object Reasons {
+    case object Absent extends Reasons
+    final case class Present(json: Json) extends Reasons
+    case object Malformed extends Reasons
+
+    def of(raw: Option[Json]): Reasons =
+      raw match {
+        case None => Absent
+        case Some(json) if json.isNull => Absent
+        case Some(json) =>
+          json.as[List[String]] match {
+            case Right(Nil) => Absent
+            case Right(_) => Present(json)
+            case Left(_) => Malformed
+          }
+      }
+  }
+
+  private val identitySchemaKey: SchemaKey = SchemaKey("com.snowplowanalytics.snowplow", "identity", "jsonschema", SchemaVer.Full(2, 0, 1))
 
   private val identityMediaType = new MediaType(
     mainType = "application",

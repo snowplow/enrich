@@ -15,7 +15,7 @@ import java.nio.ByteBuffer
 import java.time.Instant
 import java.util.{Base64, UUID}
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.util.control.NonFatal
 
 import cats.data.ValidatedNel

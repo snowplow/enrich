@@ -33,7 +33,6 @@ import fs2.{Chunk, Stream}
 
 import io.circe.Json
 import io.circe.parser
-import io.circe.literal._
 
 import com.snowplowanalytics.snowplow.badrows._
 import com.snowplowanalytics.snowplow.badrows.FailureDetails._
@@ -91,18 +90,6 @@ object EventUtils {
     val queryStringFull = tiQuantity.fold(queryString)(q => new BasicNameValuePair("ti_qu", q.toString) :: queryString)
     CollectorPayload(api, queryStringFull, None, None, source, context)
   }
-
-  def expectedIdentityContext(eventId: UUID, etlTstamp: Instant): SelfDescribingData[Json] =
-    SelfDescribingData(
-      SchemaKey.fromUri("iglu:com.snowplowanalytics.snowplow/identity/jsonschema/1-0-0").toOption.get,
-      json"""
-      {
-        "snowplowId": $eventId,
-        "createdAt": $etlTstamp,
-        "merged": []
-      }
-      """
-    )
 
   def expectedPageView(eventId: UUID): Event =
     Event

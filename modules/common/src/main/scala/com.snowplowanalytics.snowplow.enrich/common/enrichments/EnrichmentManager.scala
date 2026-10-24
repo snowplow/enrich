@@ -31,6 +31,7 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData
 import com.snowplowanalytics.snowplow.badrows._
 import com.snowplowanalytics.snowplow.badrows.{Failure => BadRowFailure}
 
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.Failure
 import com.snowplowanalytics.snowplow.enrich.common.{EtlPipeline, QueryStringParameters, RawEventParameters}
 import com.snowplowanalytics.snowplow.enrich.common.adapters.RawEvent
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.{EventEnrichments => EE}
@@ -459,7 +460,6 @@ object EnrichmentManager {
   def setCollectorTstamp(event: EnrichedEvent, timestamp: DateTime): Either[AtomicError.ParseError, Unit] =
     EE.formatCollectorTstamp(timestamp).map { t =>
       event.collector_tstamp = t
-      ().asRight
     }
 
   def setUseragent(
@@ -505,7 +505,7 @@ object EnrichmentManager {
         val ipLookup = for {
           enrichment <- OptionT.fromOption[F](ipLookups)
           ip <- OptionT.fromOption[F](Option(event.user_ipaddress))
-          result <- OptionT.liftF(enrichment.extractIpInformation(ip))
+          result <- OptionT(enrichment.extractIpInformation(ip))
           asnContext = enrichment.getAsnContext(result)
         } yield (result, asnContext)
 

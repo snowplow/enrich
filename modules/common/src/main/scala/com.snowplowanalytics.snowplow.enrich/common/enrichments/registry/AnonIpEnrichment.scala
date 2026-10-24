@@ -10,7 +10,7 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
-import java.net.{Inet4Address, Inet6Address}
+import java.net.{Inet4Address, Inet6Address, InetAddress}
 
 import scala.util.Try
 
@@ -24,7 +24,7 @@ import com.google.common.net.{InetAddresses => GuavaInetAddress}
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey}
 
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.AnonIpConf
-import com.snowplowanalytics.snowplow.enrich.common.utils.CirceUtils
+import com.snowplowanalytics.snowplow.enrich.common.utils.{CirceUtils, ConversionUtils}
 
 /** Companion object. Lets us create a AnonIpConf from a Json. */
 object AnonIpEnrichment extends ParseableEnrichment {
@@ -135,10 +135,9 @@ final case class AnonIpEnrichment(ipv4Octets: AnonIPv4Octets.AnonIPv4Octets, ipv
 
   /**
    * Anonymize the supplied IP address.
-   *
-   * TODO: potentially update this to return
-   * a Validation error or a null if the IP
-   * address is somehow invalid or incomplete.
+   * If the value is not a valid IPv4 or IPv6 literal, the address that the IP lookups enrichment
+   * would extract from it (e.g. `1.2.3.4` from `1.2.3.4:8080`) is anonymized instead.
+   * If there is no such address, the value is returned unchanged.
    *
    * @param ipOrNull The IP address to anonymize
    * @return the anonymized IP address
@@ -146,12 +145,26 @@ final case class AnonIpEnrichment(ipv4Octets: AnonIPv4Octets.AnonIPv4Octets, ipv
   def anonymizeIp(ipOrNull: String): String =
     Option(ipOrNull).map { ip =>
       Try(GuavaInetAddress.forString(ip))
-        .map {
-          case _: Inet4Address => anonymizeIpV4(ip)
-          case ipv6: Inet6Address => anonymizeIpV6(ipv6.getHostAddress)
-        }
-        .getOrElse(tryAnonymizingInvalidIp(ip))
+        .map(anonymizeAddress(ip, _))
+        .getOrElse(anonymizeExtractedAddress(ip))
     }.orNull
+
+  private def anonymizeAddress(ip: String, address: InetAddress): String =
+    address match {
+      case _: Inet4Address => anonymizeIpV4(ip)
+      case ipv6: Inet6Address => anonymizeIpV6(ipv6.getHostAddress)
+      // java.net.InetAddress isn't sealed, but only the two subclasses matched above exist;
+      // leave the value unchanged like an invalid IP, just in case.
+      case _ => ip
+    }
+
+  /** Same extraction as `IpLookupsEnrichment.extractIpInformation`, so whatever is looked up gets masked */
+  private def anonymizeExtractedAddress(ip: String): String =
+    Some(ip)
+      .filter(_.nonEmpty) // HostName treats an empty string as the loopback address
+      .flatMap(i => Try(ConversionUtils.extractInetAddress(i)).toOption.flatten)
+      .map(address => anonymizeAddress(address.getHostAddress, address))
+      .getOrElse(ip)
 
   private def anonymizeIpV4(ip: String): String = {
     def mask(ipv4: String) = {
@@ -174,13 +187,5 @@ final case class AnonIpEnrichment(ipv4Octets: AnonIPv4Octets.AnonIPv4Octets, ipv
       .toList
       .padTo(AnonIPv6Segments.All.id, MaskChar)
       .mkString(":")
-
-  /**
-   * Mainly to not brake code that already exists, i.e. broken IP like this: "777.2.23"
-   */
-  private def tryAnonymizingInvalidIp(ip: String): String =
-    if (ip.contains(".") || ip.isEmpty) anonymizeIpV4(ip)
-    else if (ip.contains(":")) anonymizeIpV6(ip)
-    else ip
 
 }

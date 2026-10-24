@@ -117,7 +117,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
               .InputData("t", "unknown".some, "no matching hit type"),
             FailureDetails.AdapterFailure.SchemaMapping(
               "unknown".some,
-              adapterWithDefaultSchemas.unstructEventData.mapValues(_.schemaKey),
+              adapterWithDefaultSchemas.unstructEventData.view.mapValues(_.schemaKey).toMap,
               "no schema associated with the provided type parameter"
             )
           )
@@ -149,7 +149,9 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
+      .map(
+        _ must beValidRawEvents(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
+      )
   }
 
   def e5 = {
@@ -181,7 +183,9 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
+      .map(
+        _ must beValidRawEvents(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
+      )
   }
 
   def e6 = {
@@ -209,7 +213,9 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
+      .map(
+        _ must beValidRawEvents(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
+      )
   }
 
   def e7 = {
@@ -247,7 +253,9 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
+      .map(
+        _ must beValidRawEvents(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
+      )
   }
 
   def e8 = {
@@ -274,7 +282,9 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
+      .map(
+        _ must beValidRawEvents(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
+      )
   }
 
   def e9 = {
@@ -309,7 +319,9 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
+      .map(
+        _ must beValidRawEvents(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
+      )
   }
 
   def e10 = {
@@ -339,7 +351,9 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
+      .map(
+        _ must beValidRawEvents(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
+      )
   }
 
   def e11 = {
@@ -366,7 +380,9 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
+      .map(
+        _ must beValidRawEvents(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
+      )
   }
 
   def e12 = {
@@ -402,7 +418,9 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
+      .map(
+        _ must beValidRawEvents(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
+      )
   }
 
   def e13 = {
@@ -432,7 +450,9 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
+      .map(
+        _ must beValidRawEvents(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
+      )
   }
 
   def e14 = {
@@ -460,7 +480,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(NonEmptyList.of(event, event)))
+      .map(_ must beValidRawEvents(NonEmptyList.of(event, event)))
   }
 
   def e15 = {
@@ -501,7 +521,9 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
 
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
-      .map(_ must beValid(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context))))
+      .map(
+        _ must beValidRawEvents(NonEmptyList.one(RawEvent(api, expectedParams, None, source, context)))
+      )
   }
 
   def e20 = {

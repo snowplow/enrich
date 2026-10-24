@@ -396,5 +396,76 @@ class FailureSpec extends Specification with ValidatedMatchers with CatsEffect w
       )
       fe must beEqualTo(expected)
     }
+
+    "stringify numbers in data outside the range of normal doubles" >> {
+      def json(s: String): Json =
+        io.circe.parser.parse(s).fold(e => throw new RuntimeException(s"Cannot parse $s, $e"), identity)
+
+      val data = json("""{
+        "a": 1e400,
+        "b": [-1e400, 5e-324, 1e-400],
+        "c": {"d": -5e-324},
+        "e": 1.5,
+        "f": 0,
+        "g": -0.0,
+        "h": 1.7976931348623157e308,
+        "i": 2.2250738585072014e-308,
+        "j": 9223372036854775809,
+        "k": "1e400",
+        "l": "Ünïcödé 🚀",
+        "m": 1e-99999999999,
+        "n": 0e-99999999999
+      }""")
+
+      val expected = json("""{
+        "a": "1e400",
+        "b": ["-1e400", "5e-324", "1e-400"],
+        "c": {"d": "-5e-324"},
+        "e": 1.5,
+        "f": 0,
+        "g": -0.0,
+        "h": 1.7976931348623157e308,
+        "i": 2.2250738585072014e-308,
+        "j": 9223372036854775809,
+        "k": "1e400",
+        "l": "Ünïcödé 🚀",
+        "m": "1e-99999999999",
+        "n": 0e-99999999999
+      }""")
+
+      val violations = List(
+        FailureDetails.SchemaViolation.IgluError(
+          schemaKey = schemaKey,
+          error = ClientError.ValidationError(
+            error = ValidatorError.InvalidData(
+              messages = NonEmptyList.one(
+                ValidatorReport(
+                  message = "Number 1e400 cannot be represented as a 64-bit floating point number",
+                  path = "/".some,
+                  targets = Nil,
+                  keyword = None
+                )
+              )
+            ),
+            supersededBy = None
+          )
+        ),
+        FailureDetails.SchemaViolation.NotIglu(json = data, error = ParseError.InvalidData),
+        FailureDetails.SchemaViolation.CriterionMismatch(schemaKey = schemaKey, schemaCriterion = schemaCriterion),
+        FailureDetails.SchemaViolation.IgluError(schemaKey = schemaKey, error = ClientError.ResolutionError(SortedMap.empty))
+      )
+
+      violations
+        .map { violation =>
+          val sv = Failure.SchemaViolation(
+            schemaViolation = violation,
+            source = "testSource",
+            data = data,
+            etlTstamp = SpecHelpers.etlTstamp
+          )
+          Failure.fromSchemaViolation(sv, SpecHelpers.etlTstamp, processor).data must beSome(expected)
+        }
+        .reduce(_ and _)
+    }
   }
 }

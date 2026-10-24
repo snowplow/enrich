@@ -13,7 +13,7 @@ package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 import java.io.InputStream
 import java.util.jar.JarFile
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import cats.effect.IO
 import cats.effect.testing.specs2.CatsEffect
@@ -27,7 +27,7 @@ import org.yaml.snakeyaml.{LoaderOptions, Yaml}
 
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.Resolver
-import com.snowplowanalytics.iglu.client.resolver.registries.{JavaNetRegistryLookup, Registry}
+import com.snowplowanalytics.iglu.client.resolver.registries.{JavaNetRegistryLookup, Registry, RegistryLookup}
 
 /**
  * Validates that all user agents in the YAUAA library's own test corpus produce an entity that
@@ -43,7 +43,7 @@ class YauaaEnrichmentIgluSchemaSpec extends Specification with CatsEffect {
   """
 
   private val yauaaEnrichment = YauaaEnrichment(None)
-  implicit private val registryLookup = JavaNetRegistryLookup.ioLookupInstance[IO]
+  implicit private val registryLookup: RegistryLookup[IO] = JavaNetRegistryLookup.ioLookupInstance[IO]
 
   // SnakeYAML 2.x caps non-scalar YAML aliases at 50 by default as a DoS protection.
   // Some yauaa YAML files exceed this limit. Since we're loading controlled library

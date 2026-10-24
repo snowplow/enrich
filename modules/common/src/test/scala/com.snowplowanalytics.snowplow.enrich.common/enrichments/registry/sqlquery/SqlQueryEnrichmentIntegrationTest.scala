@@ -417,7 +417,7 @@ class SqlQueryEnrichmentIntegrationTest extends Specification with ValidatedMatc
     for {
       enrichment <- SqlQueryEnrichment.parse(configuration, SCHEMA_KEY).map(_.enrichment[IO](SpecHelpers.blockingEC)).toOption.get
       contexts <- enrichment.lookup(event, Nil)
-    } yield contexts must beValid(Nil)
+    } yield contexts must beValid(List.empty[SelfDescribingData[Json]])
   }
 
   def e4 = {
@@ -432,7 +432,7 @@ class SqlQueryEnrichmentIntegrationTest extends Specification with ValidatedMatc
   }
 
   def e5 =
-    invalidCreds(ignoreOnError = true).map(_ must beRight(List.empty))
+    invalidCreds(ignoreOnError = true).map(_ must beRight(List.empty[SelfDescribingData[Json]]))
 
   private def invalidCreds(ignoreOnError: Boolean) = {
     val configuration =

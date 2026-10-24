@@ -176,7 +176,7 @@ class InputSpec extends Specification with ValidatedMatchers {
       event,
       derivedContexts = List(derivedContext1)
     )
-    placeholderMap must beRight(None)
+    placeholderMap must beRight(None: Input.PlaceholderMap)
   }
 
   def e8 = {

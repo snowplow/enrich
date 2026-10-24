@@ -12,6 +12,8 @@ package com.snowplowanalytics.snowplow.enrich.common
 
 package enrichments.registry
 
+import scala.annotation.nowarn
+
 import io.circe.{Json, JsonObject}
 import io.circe.literal._
 
@@ -249,9 +251,9 @@ class JavascriptScriptEnrichmentSpec extends Specification {
         event.eraseDerived_contexts()
       }"""
     val enriched = buildEnriched()
-    (createJsEnrichment(function).process(enriched, List.empty, SpecHelpers.DefaultMaxJsonDepth) must beEqualTo(
+    ((createJsEnrichment(function).process(enriched, List.empty, SpecHelpers.DefaultMaxJsonDepth) must beEqualTo(
       Result.Success(List.empty, useDerivedContextsFromJsEnrichmentOnly = true)
-    )) and ((enriched.use_derived_contexts_from_js_enrichment_only: Boolean) must beTrue)
+    )) and ((enriched.use_derived_contexts_from_js_enrichment_only: Boolean) must beTrue)): @nowarn("msg=type was inferred to be")
   }
 
   def e16 = {
@@ -474,6 +476,7 @@ class JavascriptScriptEnrichmentSpec extends Specification {
           case Result.Success(List(c), false) =>
             c must beEqualTo(expected)
           case Result.Failure(f) => ko(s"Error during the execution of the JS enrichment: ${f.message}")
+          case other => ko(s"Unexpected result from the JS enrichment: $other")
         }
     }
   }

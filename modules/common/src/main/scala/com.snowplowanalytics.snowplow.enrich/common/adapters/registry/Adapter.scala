@@ -166,7 +166,7 @@ trait Adapter {
     formatter: FormatterFunc,
     platform: String
   ): RawEventParameters = {
-    val params = formatter(parameters - ("nuid", "aid", "cv", "p"))
+    val params = formatter(parameters -- Seq("nuid", "aid", "cv", "p"))
     val json = toUnstructEvent(SelfDescribingData(schema, params)).noSpaces
     buildUnstructEventParams(tracker, platform, parameters, json)
   }
@@ -183,7 +183,7 @@ trait Adapter {
       "p" -> parameters.getOrElse("p", Option(platform)), // Required field
       "ue_pr" -> Option(json)
     ) ++
-      parameters.filterKeys(AcceptedQueryParameters)
+      parameters.view.filterKeys(AcceptedQueryParameters).toMap
 
   /**
    * Creates a Snowplow unstructured event by nesting the provided JValue in a self-describing
@@ -376,7 +376,7 @@ trait Adapter {
    */
   private[registry] def camelCase(snakeOrDash: String) =
     snakeCaseOrDashTokenCapturingRegex.replaceAllIn(
-      Character.toLowerCase(snakeOrDash.charAt(0)) + snakeOrDash.substring(1),
+      s"${Character.toLowerCase(snakeOrDash.charAt(0))}${snakeOrDash.substring(1)}",
       m => m.group(1).capitalize
     )
 

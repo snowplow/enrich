@@ -10,16 +10,17 @@
  */
 package com.snowplowanalytics.snowplow.enrich.core
 
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration.{DurationInt, FiniteDuration}
 
 import cats.implicits._
 
-import cats.effect.kernel.{Async, Resource, Sync}
+import cats.effect.kernel.{Async, Resource}
 
 import fs2.Stream
 
 import com.snowplowanalytics.snowplow.streams.SourceAndAck
 import com.snowplowanalytics.snowplow.runtime.{Metrics => CommonMetrics}
+import com.snowplowanalytics.snowplow.runtime.Metrics.Destination.PrometheusAndStatsd
 
 trait Metrics[F[_]] {
   def addRaw(count: Int): F[Unit]
@@ -41,15 +42,15 @@ object Metrics {
   def build[F[_]: Async](config: Config.Metrics, sourceAndAck: SourceAndAck[F]): Resource[F, Metrics[F]] =
     CommonMetrics.build(config.statsd, config.prometheus).evalMap { entries =>
       for {
-        raw <- entries.counter("raw")
-        enriched <- entries.counter("good")
-        failed <- entries.counter("failed")
-        bad <- entries.counter("bad")
-        dropped <- entries.counter("dropped")
-        invalid <- entries.counter("invalid_enriched")
-        enrichedBytes <- entries.counter("good_bytes")
-        latency <- entries.timer("latency_millis", sourceAndAck.currentStreamLatency)
-        e2eLatency <- entries.timer("e2e_latency_millis", Sync[F].pure(None))
+        raw <- entries.counter("raw", PrometheusAndStatsd)
+        enriched <- entries.counter("good", PrometheusAndStatsd)
+        failed <- entries.counter("failed", PrometheusAndStatsd)
+        bad <- entries.counter("bad", PrometheusAndStatsd)
+        dropped <- entries.counter("dropped", PrometheusAndStatsd)
+        invalid <- entries.counter("invalid_enriched", PrometheusAndStatsd)
+        enrichedBytes <- entries.counter("good_bytes", PrometheusAndStatsd)
+        latency <- entries.lagGauge("latency", sourceAndAck.currentStreamLatency, PrometheusAndStatsd)
+        e2eLatency <- entries.timer("e2e_latency", 1.second, PrometheusAndStatsd)
       } yield new Metrics[F] {
         def addRaw(count: Int): F[Unit] = raw.add(count.toLong)
         def addEnriched(count: Int): F[Unit] = enriched.add(count.toLong)

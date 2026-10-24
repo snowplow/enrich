@@ -147,7 +147,7 @@ class CallrailAdapterSpec extends Specification with DataTables with ValidatedMa
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
       .map(
-        _ must beValid(
+        _ must beValidRawEvents(
           NonEmptyList.one(
             RawEvent(
               Shared.api,

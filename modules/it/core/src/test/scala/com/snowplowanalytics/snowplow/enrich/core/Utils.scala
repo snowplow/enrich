@@ -10,7 +10,7 @@
  */
 package com.snowplowanalytics.snowplow.enrich.core
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 
 import java.nio.file.{Files, Path, Paths}
@@ -18,7 +18,6 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.attribute.PosixFilePermission
 
 import cats.data.Validated
-import cats.syntax.either._
 import cats.implicits._
 
 import cats.effect.IO

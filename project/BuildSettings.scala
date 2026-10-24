@@ -27,10 +27,20 @@ object BuildSettings {
 
   lazy val projectSettings = Seq(
     organization := "com.snowplowanalytics",
-    scalaVersion := "2.12.20",
+    scalaVersion := "2.13.18",
     scalacOptions ++= Seq(
       "-Ywarn-macros:after",
       "-Wconf:msg=discarding unmoored doc comment:silent" // so we can put scaladoc on nested functions
+    ),
+    // This suppression is driven purely by specs2's DSL, so scope it to Test rather than silencing
+    // it build-wide. In particular this keeps -Xlint:missing-interpolator active on main sources,
+    // where it catches genuine forgotten-`s` interpolation bugs in production strings.
+    Test / scalacOptions ++= Seq(
+      // specs2's `s2"""..."""` fragment interpolator legitimately contains bare `$e1`-style
+      // fragment references and `${...}` example blocks; -Xlint:missing-interpolator only knows
+      // about the built-in s/f/raw interpolators and can't tell this apart from a forgotten `s`
+      // prefix on a plain string, so it fires a false positive on every spec file.
+      "-Wconf:msg=possible missing interpolator:s"
     ),
     licenses += ("SLULA-1.1", url("https://docs.snowplow.io/limited-use-license-1.1"))
   )

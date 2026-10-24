@@ -134,9 +134,9 @@
   "cpuParallelismFraction": 1
 
   # -- Controls number of sink job that can be run in parallel
-  # -- E.g. If there are 4 available processors, and sinkParallelismFraction = 2, then we run 8 sink job concurrently.
+  # -- E.g. If there are 4 available processors, and sinkParallelismFraction = 3, then we run 12 sink job concurrently.
   # -- Adjusting this value can cause the app to use more or less of the available CPU.
-  "sinkParallelismFraction": 2
+  "sinkParallelismFraction": 3
 
   "monitoring": {
 

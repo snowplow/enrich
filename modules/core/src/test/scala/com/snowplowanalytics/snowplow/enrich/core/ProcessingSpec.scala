@@ -20,6 +20,7 @@ import org.specs2.Specification
 
 import io.circe.parser
 
+import cats.data.{NonEmptyList, Validated}
 import cats.effect.IO
 
 import fs2.{Chunk, Stream}
@@ -31,6 +32,7 @@ import cats.effect.testing.specs2.CatsEffect
 import com.snowplowanalytics.snowplow.analytics.scalasdk.SnowplowEvent
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
+import com.snowplowanalytics.iglu.client.IgluCirceClient
 
 import com.snowplowanalytics.iglu.client.resolver.registries.{Registry, RegistryError, RegistryLookup}
 import com.snowplowanalytics.iglu.core.SchemaList
@@ -43,7 +45,11 @@ import com.snowplowanalytics.snowplow.streams.compression.DecompressionConfig
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{IpLookupsEnrichment, JavascriptScriptEnrichment}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.apirequest.ApiRequestEnrichment
-import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
+import com.snowplowanalytics.snowplow.badrows.{BadRow, Payload, Processor}
+
+import com.snowplowanalytics.snowplow.enrich.common.{FatalEnrichError, SpecHelpers}
+import com.snowplowanalytics.snowplow.enrich.common.adapters.{AdapterRegistry, RawEvent}
+import com.snowplowanalytics.snowplow.enrich.common.loaders.{CollectorPayload, ThriftLoader}
 import com.snowplowanalytics.snowplow.enrich.common.utils.IgluUtils
 import com.snowplowanalytics.snowplow.enrich.core.CompressionTestUtils._
 
@@ -77,6 +83,12 @@ class ProcessingSpec extends Specification with CatsEffect {
     Exclude bytes of size-violation records from good_bytes on a mixed batch $e20
     Reuse one compressor correctly across successive good batches $e21
     Reuse one compressor correctly when a batch has no good events $e22
+    Emit a generic_error bad row for an event that throws unexpectedly, and enrich the other events of its payload $e23
+    Emit a generic_error bad row for a payload whose adapter throws before returning an F, and enrich its siblings $e24
+    Crash with a FatalEnrichError raised while enriching one event of a payload $e25
+    Mark app as unhealthy when sinking enriched events fails $e26
+    Mark app as unhealthy when sinking failed events fails $e27
+    Mark app as unhealthy when sinking bad rows fails $e28
   """
 
   def e1 = {
@@ -183,12 +195,12 @@ class ProcessingSpec extends Specification with CatsEffect {
     val expectedBad =
       List(
         Bad(
-          expectedBadCPF("bm9uc2Vuc2Uy"),
+          expectedBadCPF("bm9uc2Vuc2U="),
           None,
           Map.empty
         ),
         Bad(
-          expectedBadCPF("bm9uc2Vuc2U="),
+          expectedBadCPF("bm9uc2Vuc2Uy"),
           None,
           Map.empty
         )
@@ -1340,6 +1352,274 @@ class ProcessingSpec extends Specification with CatsEffect {
     TestControl.executeEmbed(io)
   }
 
+  def e23 = {
+    val goodEventId = UUID.randomUUID
+    val siblingEventIds = List.fill(2)(UUID.randomUUID)
+    val throwingEventId = UUID.randomUUID
+
+    val throwingEventParams = Map(
+      "e" -> "ue",
+      "eid" -> throwingEventId.toString,
+      "tv" -> "test",
+      "p" -> "web",
+      "ue_px" -> uePxInvalidAddToCart
+    )
+    val payloadWithManyEvents = postPayload(
+      List(
+        pageViewParams(siblingEventIds(0)),
+        throwingEventParams,
+        pageViewParams(siblingEventIds(1))
+      )
+    )
+    val input = GoodBatch(List(pageView(goodEventId), payloadWithManyEvents))
+
+    val io =
+      for {
+        token <- IO.unique
+        inputStream = mkGoodStream((input, token))
+        assertion <-
+          runTest(etlTstamp, inputStream, registryLookup = throwingAddToCartLookup(new RuntimeException("Simulated unexpected error"))) {
+            case control =>
+              for {
+                _ <- Processing.stream(control.environment).compile.drain
+                state <- control.state.get
+              } yield {
+                val bad = state.collect { case Action.SentToBad(b) => b }.flatten.map(_.bad).toList
+                val enriched = state.collect { case Action.SentToEnriched(e) => e }.flatten.toList
+                (bad must beLike {
+                  case List(BadRow.GenericError(_, failure, Payload.RawPayload(raw))) =>
+                    (failure.errors.head must contain("Simulated unexpected error")) and
+                      (rawEventParameters(raw) must beEqualTo(throwingEventParams))
+                }) and
+                  (enriched.map(_.event.event_id) must containTheSameElementsAs(goodEventId :: siblingEventIds)) and
+                  (state must contain(Action.Checkpointed(List(token))))
+              }
+          }
+      } yield assertion
+
+    TestControl.executeEmbed(io)
+  }
+
+  def e24 = {
+    val goodEventId = UUID.randomUUID
+    val throwingEventId = UUID.randomUUID
+
+    val throwingPayload = pageView(throwingEventId)
+    val input = GoodBatch(List(pageView(goodEventId), throwingPayload))
+
+    // Throws directly, before an `F` is returned, like an adapter that evaluates its input eagerly
+    val throwingAdapterRegistry: AdapterRegistry[IO] =
+      new AdapterRegistry[IO](SpecHelpers.adaptersSchemas) {
+        override def toRawEvents(
+          payload: CollectorPayload,
+          client: IgluCirceClient[IO],
+          processor: Processor,
+          registryLookup: RegistryLookup[IO],
+          maxJsonDepth: Int,
+          etlTstamp: Instant
+        ): IO[Validated[BadRow, NonEmptyList[RawEvent]]] =
+          if (payload.querystring.exists(_.getValue == throwingEventId.toString))
+            throw new RuntimeException("Simulated synchronous error")
+          else super.toRawEvents(payload, client, processor, registryLookup, maxJsonDepth, etlTstamp)
+      }
+
+    def parse(bytes: Array[Byte]) =
+      ThriftLoader.toCollectorPayload(bytes, Processor(MockEnvironment.appInfo.name, MockEnvironment.appInfo.version), etlTstamp)
+
+    val io =
+      for {
+        token <- IO.unique
+        inputStream = mkGoodStream((input, token))
+        assertion <- runTest(etlTstamp, inputStream, adapterRegistry = throwingAdapterRegistry) {
+                       case control =>
+                         for {
+                           _ <- Processing.stream(control.environment).compile.drain
+                           state <- control.state.get
+                         } yield {
+                           val bad = state.collect { case Action.SentToBad(b) => b }.flatten.map(_.bad).toList
+                           val enriched = state.collect { case Action.SentToEnriched(e) => e }.flatten.toList
+                           (bad must beLike {
+                             case List(BadRow.GenericError(_, failure, Payload.RawPayload(raw))) =>
+                               (failure.errors.head must contain("Simulated synchronous error")) and
+                                 (parse(Base64.getDecoder.decode(raw)) must beEqualTo(parse(throwingPayload.toRaw)))
+                           }) and
+                             (enriched.map(_.event.event_id) must beEqualTo(List(goodEventId))) and
+                             (state must contain(Action.Checkpointed(List(token))))
+                         }
+                     }
+      } yield assertion
+
+    TestControl.executeEmbed(io)
+  }
+
+  def e25 = {
+    val payloadWithManyEvents = postPayload(
+      List(
+        pageViewParams(UUID.randomUUID),
+        Map("e" -> "ue", "eid" -> UUID.randomUUID.toString, "tv" -> "test", "p" -> "web", "ue_px" -> uePxInvalidAddToCart)
+      )
+    )
+    val input = GoodBatch(List(payloadWithManyEvents))
+
+    val io =
+      for {
+        token <- IO.unique
+        inputStream = mkGoodStream((input, token))
+        result <- runTest(etlTstamp, inputStream, registryLookup = throwingAddToCartLookup(new SimulatedFatalError))(control =>
+                    Processing.stream(control.environment).compile.drain
+                  ).attempt
+      } yield result must beLeft(haveClass[SimulatedFatalError])
+
+    TestControl.executeEmbed(io)
+  }
+
+  def e26 = {
+    val input = GoodBatch(List(pageView(UUID.randomUUID)))
+    val mocks = Mocks.default.copy(enrichedSinkResponse = Response.ExceptionThrown(new RuntimeException("boom!")))
+
+    val expectedMetadata = {
+      val entities = Metadata.EntitiesAndCount(expectedPageViewMetadataEntities, 1)
+      Map(expectedPageViewMetadata -> entities)
+    }
+
+    val io =
+      for {
+        token <- IO.unique
+        inputStream = mkGoodStream((input, token))
+        assertion <- runTest(etlTstamp, inputStream, mocks = mocks) {
+                       case control =>
+                         for {
+                           _ <- Processing.stream(control.environment).compile.drain.voidError
+                           state <- control.state.get
+                         } yield state should beEqualTo(
+                           Vector(
+                             Action.AddedRawCountMetric(1),
+                             Action.AddedMetadata(expectedMetadata),
+                             Action.BecameUnhealthy(RuntimeService.EnrichedSink)
+                           )
+                         )
+                     }
+      } yield assertion
+
+    TestControl.executeEmbed(io)
+  }
+
+  def e27 = {
+    val eventId = UUID.randomUUID
+    val input = GoodBatch(List(invalidAddToCart(eventId)))
+    val mocks = Mocks.default.copy(failedSinkResponse = Response.ExceptionThrown(new RuntimeException("boom!")))
+
+    val expectedBad = List(Bad(expectedBadSV(eventId), None, Map.empty))
+
+    val io =
+      for {
+        token <- IO.unique
+        inputStream = mkGoodStream((input, token))
+        assertion <- runTest(etlTstamp, inputStream, mocks = mocks) {
+                       case control =>
+                         for {
+                           _ <- Processing.stream(control.environment).compile.drain.voidError
+                           state <- control.state.get
+                         } yield state should beOneOf(
+                           failingSinkOutcomes(
+                             RuntimeService.FailedSink,
+                             Vector(Action.SentToBad(expectedBad), Action.AddedBadCountMetric(1))
+                           ): _*
+                         )
+                     }
+      } yield assertion
+
+    TestControl.executeEmbed(io)
+  }
+
+  def e28 = {
+    val eventId = UUID.randomUUID
+    val input = GoodBatch(List(invalidAddToCart(eventId)))
+    val mocks = Mocks.default.copy(badSinkResponse = Response.ExceptionThrown(new RuntimeException("boom!")))
+
+    val expectedFailed = List(Failed(expectedFailedSV(eventId), None, Map.empty))
+
+    val io =
+      for {
+        token <- IO.unique
+        inputStream = mkGoodStream((input, token))
+        assertion <- runTest(etlTstamp, inputStream, mocks = mocks) {
+                       case control =>
+                         for {
+                           _ <- Processing.stream(control.environment).compile.drain.voidError
+                           state <- control.state.get
+                         } yield state should beOneOf(
+                           failingSinkOutcomes(
+                             RuntimeService.BadSink,
+                             Vector(Action.SentToFailed(expectedFailed), Action.AddedFailedCountMetric(1))
+                           ): _*
+                         )
+                     }
+      } yield assertion
+
+    TestControl.executeEmbed(io)
+  }
+
+  /**
+   * The actions recorded when one sink fails while a sibling sink runs in parallel to it.
+   *
+   * The sibling is cancelled when the failing sink raises its error, so it may have recorded none, some or
+   * all of its actions, before or after the app is marked unhealthy. No outcome includes a checkpoint.
+   */
+  private def failingSinkOutcomes(
+    failingService: RuntimeService,
+    siblingActions: Vector[Action]
+  ): Vector[Vector[Action]] = {
+    val unhealthy = Action.BecameUnhealthy(failingService)
+    (0 to siblingActions.size).toVector.flatMap { n =>
+      val sibling = siblingActions.take(n)
+      (0 to n).map(i => Vector(Action.AddedRawCountMetric(1)) ++ sibling.take(i) ++ Vector(unhealthy) ++ sibling.drop(i))
+    }
+  }
+
+  /** Lookups of the add_to_cart schema throw `error` directly, without returning an `IO` */
+  private def throwingAddToCartLookup(error: => Throwable): RegistryLookup[IO] =
+    new RegistryLookup[IO] {
+      def lookup(registry: Registry, schemaKey: SchemaKey): IO[Either[RegistryError, Json]] =
+        if (schemaKey.name == "add_to_cart") throw error
+        else SpecHelpers.registryLookup.lookup(registry, schemaKey)
+
+      def list(
+        registry: Registry,
+        vendor: String,
+        name: String,
+        model: Int
+      ): IO[Either[RegistryError, SchemaList]] =
+        SpecHelpers.registryLookup.list(registry, vendor, name, model)
+    }
+
+  private def pageViewParams(eventId: UUID): Map[String, String] =
+    Map("e" -> "pv", "eid" -> eventId.toString, "tv" -> "test", "p" -> "web", "aid" -> appID)
+
+  /** A tp2 POST collector payload holding several events */
+  private def postPayload(events: List[Map[String, String]]): CollectorPayload = {
+    val body = Json.obj(
+      "schema" -> Json.fromString("iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-4"),
+      "data" -> Json.fromValues(events.map(e => Json.fromFields(e.map { case (k, v) => k -> Json.fromString(v) })))
+    )
+    pageView(UUID.randomUUID).copy(querystring = Nil, contentType = Some("application/json"), body = Some(body.noSpaces.getBytes(UTF_8)))
+  }
+
+  /** The parameters of the raw event held as JSON in a bad row payload */
+  private def rawEventParameters(raw: String): Map[String, String] =
+    parser
+      .parse(raw)
+      .flatMap(_.hcursor.downField("parameters").as[List[Json]])
+      .map(_.flatMap { nvp =>
+        for {
+          name <- nvp.hcursor.get[String]("name").toOption
+          value <- nvp.hcursor.get[String]("value").toOption
+        } yield name -> value
+      }.toMap)
+      .getOrElse(Map.empty)
+
+  private class SimulatedFatalError extends FatalEnrichError("Simulated fatal error")
+
 }
 
 object ProcessingSpec {
@@ -1353,7 +1633,8 @@ object ProcessingSpec {
     compression: Config.Compression = Config.Compression(enabled = false, `type` = Config.Compression.ZSTD, gzipCompressionLevel = 6,
       zstdCompressionLevel = 9),
     registryLookup: RegistryLookup[IO] = SpecHelpers.registryLookup,
-    sinkMaxSize: Int = 1024 * 1024
+    sinkMaxSize: Int = 1024 * 1024,
+    adapterRegistry: AdapterRegistry[IO] = MockEnvironment.testAdapterRegistry
   )(
     f: MockEnvironment => IO[A]
   ): IO[A] =
@@ -1368,7 +1649,8 @@ object ProcessingSpec {
           registryLookup,
           decompression,
           compression,
-          sinkMaxSize
+          sinkMaxSize,
+          adapterRegistry
         )
         .use { env =>
           f(env)

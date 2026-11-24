@@ -31,7 +31,7 @@ import com.snowplowanalytics.snowplow.badrows.BadRow
 
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 
-import com.snowplowanalytics.snowplow.streams.{EventProcessingConfig, EventProcessor, Factory, ListOfList, Sink}
+import com.snowplowanalytics.snowplow.streams.{EventProcessingConfig, EventProcessor, Factory, Sink}
 
 import com.snowplowanalytics.iglu.core.SelfDescribingData
 
@@ -74,7 +74,7 @@ object Utils {
     ): Stream[IO, Nothing] = {
       val rawSink = Stream
         .resource[IO, Sink[IO]](factory.sink(rawSinkConfig))
-        .flatMap(sink => input.parEvalMapUnordered(10)(cp => sink.sinkSimple(ListOfList.ofItems(cp))))
+        .flatMap(sink => input.parEvalMapUnordered(10)(cp => sink.sinkSimple(List(cp))))
       val enrichedSource = Stream
         .resource(factory.source(enrichedSourceConfig))
         .flatMap(source => source.stream(EventProcessingConfig(EventProcessingConfig.NoWindowing, _ => IO.unit), enrichedProcessor(ref)))

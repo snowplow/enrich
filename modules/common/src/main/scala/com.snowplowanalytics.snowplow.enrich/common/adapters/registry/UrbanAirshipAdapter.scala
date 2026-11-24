@@ -105,8 +105,10 @@ case class UrbanAirshipAdapter(schemas: UrbanAirshipSchemas) extends Adapter {
     payload: CollectorPayload,
     maxJsonDepth: Int
   ): ValidatedNel[FailureDetails.AdapterFailure, RawEvent] = {
-    def toTtmFormat(jsonTimestamp: String) =
-      "%d".format(new DateTime(jsonTimestamp).getMillis)
+    def toDateTime(field: String, jsonTimestamp: String): Either[FailureDetails.AdapterFailure, DateTime] =
+      Either
+        .catchNonFatal(new DateTime(jsonTimestamp, DateTimeZone.UTC))
+        .leftMap(_ => FailureDetails.AdapterFailure.InputData(field, jsonTimestamp.some, "expected an ISO 8601 timestamp"))
 
     def err(field: String, e: DecodingFailure): FailureDetails.AdapterFailure.InputData =
       FailureDetails.AdapterFailure.InputData(
@@ -119,11 +121,16 @@ case class UrbanAirshipAdapter(schemas: UrbanAirshipSchemas) extends Adapter {
       case Right(json) =>
         val cursor = json.hcursor
         val eventType = cursor.get[String]("type").toOption
-        val trueTs = cursor.get[String]("occurred").leftMap(err("occurred", _)).toValidatedNel
+        val trueTs = cursor
+          .get[String]("occurred")
+          .leftMap(err("occurred", _))
+          .flatMap(toDateTime("occurred", _))
+          .toValidatedNel
         val eid = cursor.get[String]("id").leftMap(err("id", _)).toValidatedNel
         val collectorTs = cursor
           .get[String]("processed")
           .leftMap(err("processed", _))
+          .flatMap(toDateTime("processed", _))
           .toValidatedNel
         (
           trueTs,
@@ -135,14 +142,14 @@ case class UrbanAirshipAdapter(schemas: UrbanAirshipSchemas) extends Adapter {
             api = payload.api,
             parameters = toUnstructEventParams(
               TrackerVersion,
-              toMap(payload.querystring) ++ Map("ttm" -> Option(toTtmFormat(tts)), "eid" -> Option(id)),
+              toMap(payload.querystring) ++ Map("ttm" -> Option("%d".format(tts.getMillis)), "eid" -> Option(id)),
               schema,
               json,
               "srv"
             ),
             contentType = payload.contentType,
             source = payload.source,
-            context = payload.context.copy(timestamp = new DateTime(cts, DateTimeZone.UTC))
+            context = payload.context.copy(timestamp = cts)
           )
         }
       case Left(e) =>

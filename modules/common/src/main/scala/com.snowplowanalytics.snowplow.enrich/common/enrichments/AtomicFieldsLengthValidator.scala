@@ -15,7 +15,6 @@ import java.time.Instant
 import org.slf4j.LoggerFactory
 
 import cats.Monad
-import cats.data.Validated.{Invalid, Valid}
 import cats.data.{NonEmptyList, WriterT}
 import cats.implicits._
 
@@ -40,14 +39,19 @@ object AtomicFieldsLengthValidator {
     etlTstamp: Instant
   ): WriterT[F, List[Failure.SchemaViolation], Unit] =
     WriterT {
-      atomicFields.value
-        .map(validateField(event, _, emitFailed).toValidatedNel)
-        .combineAll match {
-        case Invalid(errors) if acceptInvalid =>
+      // Must visit every field: validateField nullifies each over-length field when emitFailed is true
+      val failures = atomicFields.value.foldLeft(List.empty[AtomicError.FieldLengthError]) { (acc, atomicField) =>
+        validateField(event, atomicField, emitFailed) match {
+          case Some(error) => error :: acc
+          case None => acc
+        }
+      }
+      NonEmptyList.fromList(failures.reverse) match {
+        case Some(errors) if acceptInvalid =>
           handleAcceptableErrors(invalidCount, event, errors).as((Nil, ()))
-        case Invalid(errors) =>
+        case Some(errors) =>
           Monad[F].pure((List(AtomicFields.errorsToSchemaViolation(errors, etlTstamp)), ()))
-        case Valid(()) =>
+        case None =>
           Monad[F].pure((Nil, ()))
       }
     }
@@ -56,19 +60,19 @@ object AtomicFieldsLengthValidator {
     event: EnrichedEvent,
     atomicField: LimitedAtomicField,
     emitFailed: Boolean
-  ): Either[AtomicError.FieldLengthError, Unit] = {
+  ): Option[AtomicError.FieldLengthError] = {
     val actualValue = atomicField.value.enrichedValueExtractor(event)
     if (actualValue != null && actualValue.length > atomicField.limit) {
       if (emitFailed) atomicField.value.nullify(event)
-      AtomicError
-        .FieldLengthError(
+      Some(
+        AtomicError.FieldLengthError(
           s"Field is longer than maximum allowed size ${atomicField.limit}",
           atomicField.value.name,
           Option(actualValue)
         )
-        .asLeft
+      )
     } else
-      Right(())
+      None
   }
 
   private def handleAcceptableErrors[F[_]: Monad](

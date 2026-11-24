@@ -76,7 +76,7 @@ object EnrichmentManager {
       etlInstant = Instant.ofEpochMilli(etlTstamp.getMillis)
       phase1 <- mapAndValidateInput(raw, enrichedEvent, etlTstamp, processor, client, registryLookup, maxJsonDepth, etlInstant).run
       (phase1Errors, validationInfo) = phase1
-      phase2 <- runEnrichments(registry, raw, enrichedEvent, maxJsonDepth, etlInstant).run
+      phase2 <- runEnrichments(registry, raw, enrichedEvent, maxJsonDepth, etlInstant, atomicFields).run
       (phase2Errors, maybeContexts) = phase2
       result <- maybeContexts match {
                   case None =>
@@ -191,6 +191,7 @@ object EnrichmentManager {
   /**
    * Run all the enrichments
    * @param enriched /!\ MUTABLE enriched event, mutated IN-PLACE /!\
+   * @param atomicFields Used to skip the user agent enrichments when the useragent is longer than its limit
    * @return EnrichmentFailures accumulated in the log. None in the value if the event was dropped,
    *   otherwise all the contexts produced by the enrichments.
    */
@@ -199,10 +200,14 @@ object EnrichmentManager {
     raw: RawEvent,
     enriched: EnrichedEvent,
     maxJsonDepth: Int,
-    etlTstamp: Instant
+    etlTstamp: Instant,
+    atomicFields: AtomicFields
   ): WriterT[F, List[Failure.EnrichmentFailure], Option[List[SelfDescribingData[Json]]]] =
     WriterT {
-      accState(registry, raw, maxJsonDepth)
+      val effectiveRegistry =
+        if (useragentTooLong(enriched, atomicFields)) withoutUserAgentEnrichments(registry)
+        else registry
+      accState(effectiveRegistry, raw, maxJsonDepth)
         .runS(Accumulation.Enriched(enriched, Nil, Nil))
         .map {
           case Accumulation.Enriched(_, failures, contexts) =>
@@ -211,6 +216,25 @@ object EnrichmentManager {
           case Accumulation.Dropped => (Nil, None)
         }
     }
+
+  /**
+   * True if the useragent is longer than its atomic field limit. Such an event fails atomic field
+   * length validation anyway, so the useragent must not reach a user agent parser or its cache.
+   */
+  private def useragentTooLong(enriched: EnrichedEvent, atomicFields: AtomicFields): Boolean =
+    Option(enriched.useragent).exists(_.length > atomicFields.useragentLimit)
+
+  /**
+   * Disables the enrichments that parse the useragent. Nothing that runs before YAUAA changes the
+   * useragent, so the decision made before running the enrichments holds for all of them.
+   */
+  private def withoutUserAgentEnrichments[F[_]](registry: EnrichmentRegistry[F]): EnrichmentRegistry[F] =
+    registry.copy(
+      iab = None,
+      userAgentUtils = None,
+      uaParser = None,
+      yauaa = None
+    )
 
   /**
    * @return SchemaViolations accumulated in the log. Valid derived contexts in the value,
@@ -468,8 +492,7 @@ object EnrichmentManager {
   ): Unit =
     useragent match {
       case Some(ua) =>
-        val s = CU.TabPattern.replaceAllIn(CU.NewlinePattern.replaceAllIn(ua, ""), "    ")
-        event.useragent = s
+        event.useragent = CU.fixTabsNewlinesLenient(ua)
       case None => () // No fields updated
     }
 

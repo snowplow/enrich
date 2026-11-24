@@ -32,7 +32,6 @@ import com.snowplowanalytics.iglu.client.resolver.registries.Registry
 import com.snowplowanalytics.snowplow.badrows.Processor
 
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
-import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.{AtomicFields, EnrichmentRegistry}
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.common.utils.OptionIor
@@ -45,7 +44,6 @@ class EmbeddedSchemasSpec extends Specification with ValidatedMatchers with Cats
   """
 
   val adapterRegistry = new AdapterRegistry[IO](
-    Map.empty[(String, String), RemoteAdapter[IO]],
     adaptersSchemas = adaptersSchemas
   )
   val enrichmentReg = EnrichmentRegistry[IO]()
@@ -73,6 +71,7 @@ class EmbeddedSchemasSpec extends Specification with ValidatedMatchers with Cats
                     payload.validNel,
                     AcceptInvalid.featureFlags,
                     IO.unit,
+                    _ => IO.unit,
                     SpecHelpers.registryLookup,
                     AtomicFields.from(Map.empty),
                     emitFailed,

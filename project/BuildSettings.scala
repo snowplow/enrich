@@ -29,6 +29,7 @@ object BuildSettings {
     organization := "com.snowplowanalytics",
     scalaVersion := "2.13.18",
     scalacOptions ++= Seq(
+      "-release:21", // Target Java 21 bytecode and restrict API to Java 21
       "-Ywarn-macros:after",
       "-Wconf:msg=discarding unmoored doc comment:silent" // so we can put scaladoc on nested functions
     ),

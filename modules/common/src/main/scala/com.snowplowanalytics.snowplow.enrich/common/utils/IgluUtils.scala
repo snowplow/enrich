@@ -29,6 +29,7 @@ import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 import com.snowplowanalytics.iglu.core.{SchemaCriterion, SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
+import com.snowplowanalytics.snowplow.enrich.common.FatalEnrichError
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.Failure
 
 import com.snowplowanalytics.snowplow.badrows._
@@ -54,7 +55,7 @@ object IgluUtils {
    *
    * @see com.snowplowanalytics.iglu.client.resolver.Resolver#isSystemError
    */
-  case class IgluSystemError(message: String) extends RuntimeException(message)
+  case class IgluSystemError(message: String) extends FatalEnrichError(message)
 
   case class ValidSDJ(
     sdj: SelfDescribingData[Json],
@@ -127,7 +128,7 @@ object IgluUtils {
         val criterion = SchemaCriterion("com.snowplowanalytics.snowplow", "unstruct_event", "jsonschema", 1, 0)
 
         WriterT {
-          extractInputData(unstructStr, field, criterion, client, registryLookup, maxJsonDepth, etlTstamp).value.flatMap {
+          extractInputData(unstructStr, field, criterion, hollowEntity, client, registryLookup, maxJsonDepth, etlTstamp).value.flatMap {
             case Left(outerError) =>
               Sync[F].pure((List(outerError), Option.empty[UnstructResult]))
             case Right(innerJson) =>
@@ -169,7 +170,7 @@ object IgluUtils {
         val criterion = SchemaCriterion("com.snowplowanalytics.snowplow", "contexts", "jsonschema", 1, 0)
 
         WriterT {
-          extractInputData(contextsStr, field, criterion, client, registryLookup, maxJsonDepth, etlTstamp).value.flatMap {
+          extractInputData(contextsStr, field, criterion, hollowEntities, client, registryLookup, maxJsonDepth, etlTstamp).value.flatMap {
             case Left(error) =>
               Sync[F].pure((List(error), Option.empty[Contexts]))
             case Right(json) =>
@@ -191,6 +192,7 @@ object IgluUtils {
     rawJson: String,
     field: String, // to put in the bad row
     expectedCriterion: SchemaCriterion,
+    hollow: Json => Json,
     client: IgluCirceClient[F],
     registryLookup: RegistryLookup[F],
     maxJsonDepth: Int,
@@ -235,10 +237,23 @@ object IgluUtils {
                  )
                )
       // Check that the SDJ holding the .data is valid
-      _ <- validateSDJ(client, sdj, registryLookup, field, etlTstamp)
+      _ <- validateSDJ(client, sdj.copy(data = hollow(sdj.data)), registryLookup, field, etlTstamp)
+             .leftMap(_.copy(data = sdj.data))
       // Extract .data of SelfDescribingData[Json]
       data <- EitherT.rightT[F, Failure.SchemaViolation](sdj.data)
     } yield data
+
+  /**
+   * The unstruct_event and contexts schemas leave each entity's `data` unconstrained, so it is
+   * replaced with null before validating the envelope. The entity's data is validated against its
+   * own schema afterwards; validating it here too would fail the whole envelope for a fault in a
+   * single entity, e.g. a number outside the range of a 64-bit float.
+   */
+  private def hollowEntity(entity: Json): Json =
+    entity.mapObject(obj => if (obj.contains("data")) obj.add("data", Json.Null) else obj)
+
+  private def hollowEntities(entities: Json): Json =
+    entities.mapArray(_.map(hollowEntity))
 
   /** Check that the schema of a SDJ matches the expected one */
   private def validateCriterion(sdj: SelfDescribingData[Json], criterion: SchemaCriterion): Boolean =

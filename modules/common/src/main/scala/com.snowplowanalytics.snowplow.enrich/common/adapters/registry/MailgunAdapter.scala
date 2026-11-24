@@ -149,8 +149,7 @@ case class MailgunAdapter(schemas: MailgunSchemas) extends Adapter {
    */
   private def mutateMailgunEvent(json: Json): Either[FailureDetails.AdapterFailure, Json] = {
     val attachmentCountKey = "attachmentCount"
-    val camelCase = camelize(json)
-    camelCase.asObject match {
+    camelize(json).flatMap(_.asObject match {
       case Some(obj) =>
         val withFilteredFields = obj
           .filterKeys(name => !(name == "bodyPlain" || name == attachmentCountKey))
@@ -167,7 +166,7 @@ case class MailgunAdapter(schemas: MailgunSchemas) extends Adapter {
         FailureDetails.AdapterFailure
           .InputData("body", json.noSpaces.some, "body is not a json object")
           .asLeft
-    }
+    })
   }
 
   /**

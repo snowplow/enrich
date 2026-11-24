@@ -81,7 +81,7 @@ object PubsubConfigSpec {
     license = AcceptedLicense(),
     input = PubsubSourceConfig(
       subscription = PubsubSourceConfig.Subscription("myproject", "snowplow-collector-payloads"),
-      parallelPullFactor = 0.5,
+      parallelPullFactor = 2.0,
       durationPerAckExtension = 15.seconds,
       minRemainingAckDeadline = 0.1,
       maxMessagesPerPull = 1000,
@@ -153,7 +153,7 @@ object PubsubConfigSpec {
     license = AcceptedLicense(),
     input = PubsubSourceConfig(
       subscription = PubsubSourceConfig.Subscription("myproject", "snowplow-collector-payloads"),
-      parallelPullFactor = 0.5,
+      parallelPullFactor = 2.0,
       durationPerAckExtension = 15.seconds,
       minRemainingAckDeadline = 0.1,
       maxMessagesPerPull = 1000,

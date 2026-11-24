@@ -16,6 +16,7 @@ import cats.effect.Clock
 import cats.syntax.either._
 import cats.syntax.option._
 import cats.syntax.validated._
+import cats.syntax.traverse._
 import io.circe._
 import org.joda.time.DateTimeZone
 import org.joda.time.format.DateTimeFormat
@@ -55,11 +56,6 @@ case class MailchimpAdapter(schemas: MailchimpSchemas) extends Adapter {
   // Datetime format used by MailChimp (as we will need to massage)
   private val MailchimpDateTimeFormat =
     DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss").withZone(DateTimeZone.UTC)
-
-  // Formatter Function to convert RawEventParameters into a merged Json Object
-  private val MailchimpFormatter: FormatterFunc = { (parameters: RawEventParameters) =>
-    mergeJsons(toJsons(parameters))
-  }
 
   /**
    * Converts a CollectorPayload instance into raw events. An Mailchimp Tracking payload only
@@ -108,13 +104,14 @@ case class MailchimpAdapter(schemas: MailchimpSchemas) extends Adapter {
                        }
           schema <- lookupSchema(eventType.some, EventSchemaMap)
           allParams = toMap(payload.querystring) ++ reformatParameters(params)
+          jsons <- toJsons(allParams -- Seq("nuid", "aid", "cv", "p"), maxJsonDepth)
         } yield RawEvent(
           api = payload.api,
           parameters = toUnstructEventParams(
             TrackerVersion,
             allParams,
             schema,
-            MailchimpFormatter,
+            mergeJsons(jsons),
             "srv"
           ),
           contentType = payload.contentType,
@@ -127,22 +124,38 @@ case class MailchimpAdapter(schemas: MailchimpSchemas) extends Adapter {
   /**
    * Generates a List of json fields from the raw event parameters.
    * @param parameters The Map of all the parameters for this raw event
-   * @return a list of fields, where each field represents an entry from the incoming Map
+   * @param maxJsonDepth The maximum number of nested keys allowed in a single field
+   * @return a list of fields, where each field represents an entry from the incoming Map, or a
+   * failure if a key is invalid or too deeply nested
    */
-  private[registry] def toJsons(parameters: RawEventParameters): List[(String, Json)] =
-    for {
-      (k, v) <- parameters.toList.collect { case (k, Some(v)) => (k, v) }
-    } yield toNestedJson(toKeys(k), v)
+  private[registry] def toJsons(
+    parameters: RawEventParameters,
+    maxJsonDepth: Int
+  ): Either[FailureDetails.AdapterFailure, List[(String, Json)]] =
+    parameters.toList
+      .collect { case (k, Some(v)) => (k, v) }
+      .traverse {
+        case (k, v) =>
+          toKeys(k).flatMap { keys =>
+            if (keys.length > maxJsonDepth)
+              FailureDetails.AdapterFailure
+                .InputData(k, v.some, s"key is nested more than the maximum allowed depth of $maxJsonDepth")
+                .asLeft
+            else
+              toNestedJson(keys, v).asRight
+          }
+      }
 
   /**
    * Returns a NEL of nested keys from a String representing a field from a URI-encoded POST body.
    * @param formKey The key String that (may) need to be split based on the supplied regexp
-   * @return the key or keys as a NonEmptyList of Strings
+   * @return the key or keys as a NonEmptyList of Strings, or a failure if the key is made only
+   * of brackets
    */
-  private[registry] def toKeys(formKey: String): NonEmptyList[String] = {
-    val keys = formKey.split("\\]?(\\[|\\])").toList
-    NonEmptyList.of(keys.head, keys.tail: _*) // Safe only because split() never produces an empty Array
-  }
+  private[registry] def toKeys(formKey: String): Either[FailureDetails.AdapterFailure, NonEmptyList[String]] =
+    NonEmptyList
+      .fromList(formKey.split("\\]?(\\[|\\])").toList)
+      .toRight(FailureDetails.AdapterFailure.InputData(formKey, none, "key must contain a name, not only brackets"))
 
   /**
    * Recursively generates a correct json field, working through the supplied NEL of keys.

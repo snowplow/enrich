@@ -140,6 +140,28 @@ class UrbanAirshipAdapterSpec extends Specification with ValidatedMatchers with 
         .map(_ must beInvalid)
     }
 
+    "reject timestamps that are not ISO 8601" in {
+      val badTimestamps = validPayload.deepMerge(json"""{"occurred": "13/11/2015 16:31", "processed": "not a timestamp"}""")
+      val payload = SpecHelpers.collectorPayload(
+        Shared.api,
+        Nil,
+        None,
+        badTimestamps.noSpaces.some,
+        Shared.cljSource,
+        Shared.context
+      )
+      adapterWithDefaultSchemas
+        .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+        .map(
+          _ must beInvalid(
+            NonEmptyList.of(
+              FailureDetails.AdapterFailure.InputData("occurred", "13/11/2015 16:31".some, "expected an ISO 8601 timestamp"),
+              FailureDetails.AdapterFailure.InputData("processed", "not a timestamp".some, "expected an ISO 8601 timestamp")
+            )
+          )
+        )
+    }
+
     "reject unparsable json" in {
       val payload =
         SpecHelpers.collectorPayload(Shared.api, Nil, None, """{ """.some, Shared.cljSource, Shared.context)

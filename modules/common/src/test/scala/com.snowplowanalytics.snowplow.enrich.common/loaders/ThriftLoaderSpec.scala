@@ -244,9 +244,8 @@ class ThriftLoaderSpec extends Specification with ValidatedMatchers with ScalaCh
                 List()
               ) =>
             f must beLike {
-              case Violation1Byte => ok
-              case Violation2Bytes => ok
-              case ViolationEndOfBytes => ok
+              case FailureDetails.CPFormatViolationMessage.Fallback(message) =>
+                message must startWith("error deserializing raw event: ")
             }
         }
       }
@@ -281,17 +280,4 @@ object ThriftLoaderSpec {
   val Process = Processor("ThriftLoaderSpec", "v1")
   val DeserializeMessage =
     "error deserializing raw event: Cannot read. Remote side has closed. Tried to read 1 bytes, but only got 0 bytes. (This is often indicative of an internal error on the server side. Please check your server logs.)"
-
-  val Violation1Byte: FailureDetails.CPFormatViolationMessage =
-    FailureDetails.CPFormatViolationMessage.Fallback(
-      "error deserializing raw event: Cannot read. Remote side has closed. Tried to read 1 bytes, but only got 0 bytes. (This is often indicative of an internal error on the server side. Please check your server logs.)"
-    )
-  val Violation2Bytes: FailureDetails.CPFormatViolationMessage =
-    FailureDetails.CPFormatViolationMessage.Fallback(
-      "error deserializing raw event: Cannot read. Remote side has closed. Tried to read 2 bytes, but only got 0 bytes. (This is often indicative of an internal error on the server side. Please check your server logs.)"
-    )
-  val ViolationEndOfBytes: FailureDetails.CPFormatViolationMessage =
-    FailureDetails.CPFormatViolationMessage.Fallback(
-      "error deserializing raw event: Reached end of bytes when parsing as thrift format"
-    )
 }

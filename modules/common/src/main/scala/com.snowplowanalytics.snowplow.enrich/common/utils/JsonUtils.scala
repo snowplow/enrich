@@ -16,7 +16,6 @@ import cats.data.NonEmptyList
 import cats.syntax.either._
 
 import io.circe.Json
-import io.circe.syntax._
 
 import org.joda.time.{DateTime, DateTimeZone}
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
@@ -141,7 +140,7 @@ object JsonUtils {
         jsonNumber = _ => false,
         jsonString = _ => false,
         jsonArray = _.exists(checkIfExceedMaxDepth(_, maxJsonDepth - 1)),
-        jsonObject = _.toList.exists { case (_, j) => checkIfExceedMaxDepth(j.asJson, maxJsonDepth - 1) }
+        jsonObject = _.values.exists(checkIfExceedMaxDepth(_, maxJsonDepth - 1))
       )
 
   /**

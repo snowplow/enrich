@@ -48,6 +48,7 @@ import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.{AtomicError, OptionIor}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{
   AsnLookupsEnrichment,
+  BotDetectionEnrichment,
   CrossNavigationEnrichment,
   EventSpecEnrichment,
   HttpHeaderExtractorEnrichment,
@@ -55,8 +56,10 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.{
   IpLookupsEnrichment,
   JavascriptScriptEnrichment,
   RefererParserEnrichment,
+  UserAgentUtilsEnrichment,
   YauaaEnrichment
 }
+import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf.UaParserConf
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.JavascriptScriptEnrichmentSpec.createJsEnrichment
 import com.snowplowanalytics.snowplow.enrich.common.AcceptInvalid
 import com.snowplowanalytics.snowplow.enrich.common.SpecHelpers
@@ -1837,22 +1840,24 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         enriched.derived_contexts match {
           case List(SelfDescribingData(Failure.`failureSchemaKey`, feJson), `emailSentSDJ`)
               if feJson.field("failureType") === "ValidationError".asJson &&
-                feJson.field("errors") === Json.arr(
-                  Json.obj(
-                    "message" := "$.foo: is not defined in the schema and the schema does not allow additional properties",
-                    "source" := "contexts",
-                    "path" := "$",
-                    "keyword" := "additionalProperties",
-                    "targets" := List("foo")
-                  ),
-                  Json.obj(
-                    "message" := "$.emailAddress: is missing but it is required",
-                    "source" := "contexts",
-                    "path" := "$",
-                    "keyword" := "required",
-                    "targets" := List("emailAddress")
-                  )
-                ) &&
+                feJson
+                  .field("errors")
+                  .hasElementsInAnyOrder(
+                    Json.obj(
+                      "message" := "$.foo: is not defined in the schema and the schema does not allow additional properties",
+                      "source" := "contexts",
+                      "path" := "$",
+                      "keyword" := "additionalProperties",
+                      "targets" := List("foo")
+                    ),
+                    Json.obj(
+                      "message" := "$.emailAddress: is missing but it is required",
+                      "source" := "contexts",
+                      "path" := "$",
+                      "keyword" := "required",
+                      "targets" := List("emailAddress")
+                    )
+                  ) &&
                 feJson.field("schema") === emailSentSchema.asJson &&
                 feJson.field("data") === jparse(invalidContextData).toOption.get =>
             true
@@ -1934,22 +1939,24 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
         enriched.derived_contexts match {
           case List(SelfDescribingData(Failure.`failureSchemaKey`, feJson), `emailSentSDJ`)
               if feJson.field("failureType") === "ValidationError".asJson &&
-                feJson.field("errors") === Json.arr(
-                  Json.obj(
-                    "message" := "$.foo: is not defined in the schema and the schema does not allow additional properties",
-                    "source" := "contexts",
-                    "path" := "$",
-                    "keyword" := "additionalProperties",
-                    "targets" := List("foo")
-                  ),
-                  Json.obj(
-                    "message" := "$.emailAddress: is missing but it is required",
-                    "source" := "contexts",
-                    "path" := "$",
-                    "keyword" := "required",
-                    "targets" := List("emailAddress")
-                  )
-                ) &&
+                feJson
+                  .field("errors")
+                  .hasElementsInAnyOrder(
+                    Json.obj(
+                      "message" := "$.foo: is not defined in the schema and the schema does not allow additional properties",
+                      "source" := "contexts",
+                      "path" := "$",
+                      "keyword" := "additionalProperties",
+                      "targets" := List("foo")
+                    ),
+                    Json.obj(
+                      "message" := "$.emailAddress: is missing but it is required",
+                      "source" := "contexts",
+                      "path" := "$",
+                      "keyword" := "required",
+                      "targets" := List("emailAddress")
+                    )
+                  ) &&
                 feJson.field("schema") === emailSentSchema.asJson &&
                 feJson.field("data") === jparse(invalidContextData).toOption.get =>
             true
@@ -1978,6 +1985,108 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           ok
         case other => ko(s"[$other] is not a SchemaViolations bad row and an enriched event with 1 input context")
       }
+    }
+
+    "remove only the context holding a number outside the range of a 64-bit float, and stringify it in the failure entity, if emitFailed is set to true" >> {
+      val outOfRangeContext =
+        """
+          {
+            "schema": "iglu:com.test/all_possible_types/jsonschema/1-0-0",
+            "data": {"myString": "Ünïcödé 🚀", "myDouble": 1e400, "myArray": [1, 5e-324]}
+          }"""
+      val parameters = Map(
+        "e" -> "pp",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "co" ->
+          s"""
+          {
+            "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
+            "data": [
+              $outOfRangeContext,
+              $clientSession
+            ]
+          }
+        """
+      ).toOpt
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      val expectedFailureData = json"""{"myString": "Ünïcödé 🚀", "myDouble": "1e400", "myArray": [1, "5e-324"]}"""
+      def isExpectedFailure(sdj: SelfDescribingData[Json]): Boolean =
+        sdj.schema == Failure.failureSchemaKey &&
+          sdj.data.field("schema") === allPossibleTypesSchema.asJson &&
+          sdj.data.field("data") === expectedFailureData &&
+          sdj.data
+            .field("errors")
+            .asArray
+            .exists(
+              _.map(_.field("message")) === Vector(
+                "Number 1e400 cannot be represented as a 64-bit floating point number".asJson
+              )
+            )
+
+      EnrichmentManager
+        .enrichEvent[IO](
+          enrichmentReg,
+          client,
+          processor,
+          timestamp,
+          rawEvent,
+          AcceptInvalid.featureFlags,
+          IO.unit,
+          SpecHelpers.registryLookup,
+          atomicFieldLimits,
+          emitFailed = true,
+          SpecHelpers.DefaultMaxJsonDepth
+        )
+        .map {
+          case OptionIor.Both(_: BadRow.SchemaViolations, enriched)
+              if enriched.contexts.map(_.schema) === List(clientSessionSchema) &&
+                enriched.derived_contexts.count(isExpectedFailure) === 1 =>
+            ok
+          case other => ko(s"[$other] is not a SchemaViolations bad row and an enriched event with 1 input context")
+        }
+    }
+
+    "set event schema fields on the enriched event when the unstruct event holds a number outside the range of a 64-bit float and emitFailed is true" >> {
+      val parameters = Map(
+        "e" -> "ue",
+        "tv" -> "js-0.13.1",
+        "p" -> "web",
+        "ue_pr" ->
+          """
+          {
+            "schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            "data":{
+              "schema":"iglu:com.test/all_possible_types/jsonschema/1-0-0",
+              "data": {"myString": "Ünïcödé 🚀", "myDouble": -5e-324}
+            }
+          }"""
+      ).toOpt
+      val rawEvent = RawEvent(api, parameters, None, source, context)
+      EnrichmentManager
+        .enrichEvent[IO](
+          enrichmentReg,
+          client,
+          processor,
+          timestamp,
+          rawEvent,
+          AcceptInvalid.featureFlags,
+          IO.unit,
+          SpecHelpers.registryLookup,
+          atomicFieldLimits,
+          emitFailed = true,
+          SpecHelpers.DefaultMaxJsonDepth
+        )
+        .map {
+          case OptionIor.Both(_: BadRow.SchemaViolations, enriched) =>
+            (enriched.unstruct_event must beNone) and
+              (enriched.event_vendor must beEqualTo("com.test")) and
+              (enriched.event_name must beEqualTo("all_possible_types")) and
+              (enriched.event_format must beEqualTo("jsonschema")) and
+              (enriched.event_version must beEqualTo("1-0-0"))
+          case other =>
+            ko(s"[$other] is not a SchemaViolations bad row and an enriched event")
+        }
     }
 
     "return the enriched event after an enrichment exception if emitFailed is set to true" >> {
@@ -2167,22 +2276,24 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
                 SelfDescribingData(SchemaKey("nl.basjes", "yauaa_context", "jsonschema", _), _)
               )
               if feJson.field("failureType") === "ValidationError".asJson &&
-                feJson.field("errors") === Json.arr(
-                  Json.obj(
-                    "message" := "$.foo: is not defined in the schema and the schema does not allow additional properties",
-                    "source" := "derived_contexts",
-                    "path" := "$",
-                    "keyword" := "additionalProperties",
-                    "targets" := List("foo")
-                  ),
-                  Json.obj(
-                    "message" := "$.emailAddress: is missing but it is required",
-                    "source" := "derived_contexts",
-                    "path" := "$",
-                    "keyword" := "required",
-                    "targets" := List("emailAddress")
-                  )
-                ) &&
+                feJson
+                  .field("errors")
+                  .hasElementsInAnyOrder(
+                    Json.obj(
+                      "message" := "$.foo: is not defined in the schema and the schema does not allow additional properties",
+                      "source" := "derived_contexts",
+                      "path" := "$",
+                      "keyword" := "additionalProperties",
+                      "targets" := List("foo")
+                    ),
+                    Json.obj(
+                      "message" := "$.emailAddress: is missing but it is required",
+                      "source" := "derived_contexts",
+                      "path" := "$",
+                      "keyword" := "required",
+                      "targets" := List("emailAddress")
+                    )
+                  ) &&
                 feJson.field("schema") === emailSentSchema.asJson &&
                 feJson.field("data") === jparse(invalidContextData).toOption.get =>
             true
@@ -2785,6 +2896,124 @@ class EnrichmentManagerSpec extends Specification with EitherMatchers with CatsE
           case acc: EnrichmentManager.Accumulation.Enriched =>
             acc.errors must beEmpty
         })
+    }
+  }
+
+  "setUseragent" should {
+    "replace tabs with four spaces" >> {
+      val event = new EnrichedEvent()
+      EnrichmentManager.setUseragent(event, Some("Mozilla\t5.0"))
+      event.useragent must_== "Mozilla    5.0"
+    }
+
+    "remove CR and LF" >> {
+      val event = new EnrichedEvent()
+      EnrichmentManager.setUseragent(event, Some("Mozilla\r\n5.0\n"))
+      event.useragent must_== "Mozilla5.0"
+    }
+
+    "keep other control characters" >> {
+      val event = new EnrichedEvent()
+      EnrichmentManager.setUseragent(event, Some("Mozilla\u00015.0"))
+      event.useragent must_== "Mozilla\u00015.0"
+    }
+
+    "set an empty useragent as empty" >> {
+      val event = new EnrichedEvent()
+      EnrichmentManager.setUseragent(event, Some(""))
+      event.useragent must_== ""
+    }
+
+    "leave the useragent untouched if there is none" >> {
+      val event = new EnrichedEvent()
+      event.useragent = "unchanged"
+      EnrichmentManager.setUseragent(event, None)
+      event.useragent must_== "unchanged"
+    }
+  }
+
+  "enrichEvent with a useragent longer than its atomic field limit" should {
+    "skip the user agent enrichments and fail atomic field length validation" >> {
+      val ua = useragentOfLength(1001)
+      for {
+        reg <- userAgentEnrichmentsReg
+        result <- enrichWithUseragent(reg, ua, AtomicFields.from(SpecHelpers.atomicFieldLimitsDefaults), emitFailed = false)
+        failed <- enrichWithUseragent(reg, ua, AtomicFields.from(SpecHelpers.atomicFieldLimitsDefaults), emitFailed = true)
+      } yield {
+        val badRowCheck = result must beLike {
+          case OptionIor.Left(badRow: BadRow.SchemaViolations) =>
+            (badRow.compact must contain("useragent")) and
+              (badRow.compact must contain("Field is longer than maximum allowed size 1000"))
+        }
+        val contextsCheck = failed must beLike {
+          case OptionIor.Both(_: BadRow.SchemaViolations, enriched) =>
+            (derivedContextNames(enriched) must not(containAnyOf(userAgentContextNames))) and
+              (enriched.br_name must beNull)
+        }
+        badRowCheck and contextsCheck
+      }
+    }
+
+    "run the user agent enrichments when the useragent is exactly at the limit" >> {
+      val ua = useragentOfLength(1000)
+      for {
+        reg <- userAgentEnrichmentsReg
+        result <- enrichWithUseragent(reg, ua, AtomicFields.from(SpecHelpers.atomicFieldLimitsDefaults), emitFailed = false)
+      } yield result must beLike {
+        case OptionIor.Right(enriched) =>
+          (enriched.useragent must beEqualTo(ua)) and
+            (derivedContextNames(enriched) must containAllOf(userAgentContextNames)) and
+            (enriched.br_name must not beNull)
+      }
+    }
+
+    "use the configured limit when it is lower than the schema default" >> {
+      val atomicFields = AtomicFields.from(SpecHelpers.atomicFieldLimitsDefaults ++ Map("useragent" -> 200))
+      for {
+        reg <- userAgentEnrichmentsReg
+        overLimit <- enrichWithUseragent(reg, useragentOfLength(201), atomicFields, emitFailed = true)
+        atLimit <- enrichWithUseragent(reg, useragentOfLength(200), atomicFields, emitFailed = true)
+      } yield {
+        val overCheck = overLimit must beLike {
+          case OptionIor.Both(badRow: BadRow.SchemaViolations, enriched) =>
+            (badRow.compact must contain("Field is longer than maximum allowed size 200")) and
+              (derivedContextNames(enriched) must not(containAnyOf(userAgentContextNames)))
+        }
+        val atCheck = atLimit must beLike {
+          case OptionIor.Right(enriched) =>
+            derivedContextNames(enriched) must containAllOf(userAgentContextNames)
+        }
+        overCheck and atCheck
+      }
+    }
+
+    "still run bot detection, without the YAUAA and IAB inputs" >> {
+      val clientSideBot = json"""{
+        "schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0",
+        "data": [{
+          "schema": "iglu:com.snowplowanalytics.snowplow/client_side_bot_detection/jsonschema/1-0-0",
+          "data": { "bot": true, "kind": "headless_chrome" }
+        }]
+      }"""
+      for {
+        uaReg <- userAgentEnrichmentsReg
+        reg = uaReg.copy(
+                botDetection =
+                  Some(BotDetectionEnrichment(useYauaa = true, useIab = true, useAsnLookups = false, useClientSideDetection = true))
+              )
+        overLimit <- enrichWithUseragent(
+                       reg,
+                       useragentOfLength(1001),
+                       AtomicFields.from(SpecHelpers.atomicFieldLimitsDefaults),
+                       emitFailed = true,
+                       extraParameters = Map("co" -> clientSideBot.noSpaces)
+                     )
+      } yield overLimit must beLike {
+        case OptionIor.Both(_: BadRow.SchemaViolations, enriched) =>
+          val botDetection = enriched.derived_contexts.find(_.schema.name == "bot_detection").map(_.data)
+          (derivedContextNames(enriched) must not(containAnyOf(userAgentContextNames))) and
+            (botDetection must beSome(json"""{"bot": true, "indicators": ["clientSideDetection"]}"""))
+      }
     }
   }
 
@@ -4346,6 +4575,58 @@ object EnrichmentManagerSpec {
 
   val atomicFieldLimits = AtomicFields.from(Map("v_tracker" -> 100))
 
+  val userAgentContextNames = List("ua_parser_context", "yauaa_context", "spiders_and_robots")
+
+  val enrichmentConfigKey = SchemaKey("vendor", "name", "format", SchemaVer.Full(1, 0, 0))
+
+  /** A registry with every enrichment that parses the useragent. */
+  def userAgentEnrichmentsReg: IO[EnrichmentRegistry[IO]] =
+    for {
+      iab <- iabEnrichment
+      uaParser <- UaParserConf(enrichmentConfigKey, None)
+                    .enrichment[IO]
+                    .value
+                    .flatMap(e => IO.fromEither(e.leftMap(new RuntimeException(_))))
+    } yield EnrichmentRegistry[IO](
+      iab = Some(iab),
+      userAgentUtils = Some(UserAgentUtilsEnrichment(enrichmentConfigKey)),
+      uaParser = Some(uaParser),
+      yauaa = Some(YauaaEnrichment(None))
+    )
+
+  /** A Firefox useragent padded to the given length. */
+  def useragentOfLength(length: Int): String = {
+    val firefox = "Mozilla/5.0 (X11; Linux x86_64; rv:75.0) Gecko/20100101 Firefox/75.0"
+    firefox + " " + ("a" * (length - firefox.length - 1))
+  }
+
+  def enrichWithUseragent(
+    reg: EnrichmentRegistry[IO],
+    useragent: String,
+    atomicFields: AtomicFields,
+    emitFailed: Boolean,
+    extraParameters: Map[String, String] = Map.empty
+  ): IO[OptionIor[BadRow, EnrichedEvent]] = {
+    val parameters = (Map("e" -> "pp", "tv" -> "js-0.13.1", "p" -> "web", "dtm" -> "1593500000000") ++ extraParameters).toOpt
+    val rawEvent = RawEvent(api, parameters, None, source, context.copy(useragent = Some(useragent)))
+    EnrichmentManager.enrichEvent[IO](
+      reg,
+      client,
+      processor,
+      timestamp,
+      rawEvent,
+      AcceptInvalid.featureFlags,
+      IO.unit,
+      SpecHelpers.registryLookup,
+      atomicFields,
+      emitFailed,
+      SpecHelpers.DefaultMaxJsonDepth
+    )
+  }
+
+  def derivedContextNames(enriched: EnrichedEvent): List[String] =
+    enriched.derived_contexts.map(_.schema.name)
+
   val leanBody = Map(
     "e" -> "pp",
     "tv" -> "js-0.13.1",
@@ -4415,6 +4696,14 @@ object EnrichmentManagerSpec {
       SchemaVer.Full(1, 0, 1)
     )
 
+  val allPossibleTypesSchema =
+    SchemaKey(
+      "com.test",
+      "all_possible_types",
+      "jsonschema",
+      SchemaVer.Full(1, 0, 0)
+    )
+
   val clientSession = s"""{
     "schema": "${clientSessionSchema.toSchemaUri}",
     "data": {
@@ -4430,5 +4719,9 @@ object EnrichmentManagerSpec {
   implicit class JsonFieldGetter(json: Json) {
     def field(f: String): Json =
       json.hcursor.downField(f).as[Json].toOption.get
+
+    /** True if `json` is an array holding exactly the `expected` elements, with the same multiplicity, in any order */
+    def hasElementsInAnyOrder(expected: Json*): Boolean =
+      json.asArray.exists(actual => actual.size == expected.size && actual.diff(expected).isEmpty)
   }
 }

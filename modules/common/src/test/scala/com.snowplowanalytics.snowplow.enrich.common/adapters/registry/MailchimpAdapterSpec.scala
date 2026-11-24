@@ -49,6 +49,9 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
   toRawEvents must return a Nel Failure if the content type is missing                              $e12
   toRawEvents must return a Nel Failure if the content type is incorrect                            $e13
   toRawEvents must return a Nel Failure if the request body does not contain a type parameter       $e14
+  toRawEvents must return a Nel Failure if a key is made only of brackets                           $e15
+  toRawEvents must return a Nel Failure if a key is nested deeper than maxJsonDepth                 $e16
+  toJsons must accept a key nested exactly maxJsonDepth deep                                        $e17
   """
 
   object Shared {
@@ -71,7 +74,7 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
     val keys = "data[merges][LNAME]"
     val expected = NonEmptyList.of("data", "merges", "LNAME")
 
-    adapterWithDefaultSchemas.toKeys(keys) mustEqual expected
+    adapterWithDefaultSchemas.toKeys(keys) must beRight(expected)
   }
 
   def e2 = {
@@ -91,7 +94,7 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
       ("data", json"""{ "merges": { "LNAME": "Beemster" }}"""),
       ("data", json"""{ "merges": { "FNAME": "Joshua" }}""")
     )
-    adapterWithDefaultSchemas.toJsons(map) mustEqual expected
+    adapterWithDefaultSchemas.toJsons(map, SpecHelpers.DefaultMaxJsonDepth) must beRight(expected)
   }
 
   def e4 = {
@@ -416,5 +419,56 @@ class MailchimpAdapterSpec extends Specification with DataTables with ValidatedM
           )
         )
       )
+  }
+
+  def e15 = {
+    val body = "type=subscribe&%5B%5D=x"
+    val payload = SpecHelpers.collectorPayload(
+      Shared.api,
+      Nil,
+      ContentType.some,
+      body.some,
+      Shared.cljSource,
+      Shared.context
+    )
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure.InputData("[]", None, "key must contain a name, not only brackets")
+          )
+        )
+      )
+  }
+
+  def e16 = {
+    val maxJsonDepth = 5
+    val key = "data" + "[a]" * maxJsonDepth
+    val body = s"type=subscribe&${key.replace("[", "%5B").replace("]", "%5D")}=x"
+    val payload = SpecHelpers.collectorPayload(
+      Shared.api,
+      Nil,
+      ContentType.some,
+      body.some,
+      Shared.cljSource,
+      Shared.context
+    )
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, maxJsonDepth)
+      .map(
+        _ must beInvalid(
+          NonEmptyList.one(
+            FailureDetails.AdapterFailure.InputData(key, "x".some, "key is nested more than the maximum allowed depth of 5")
+          )
+        )
+      )
+  }
+
+  def e17 = {
+    val maxJsonDepth = 5
+    val key = "data" + "[a]" * (maxJsonDepth - 1)
+    val expected = List(("data", json"""{ "a": { "a": { "a": { "a": "x" }}}}"""))
+    adapterWithDefaultSchemas.toJsons(Map(key -> "x").toOpt, maxJsonDepth) must beRight(expected)
   }
 }

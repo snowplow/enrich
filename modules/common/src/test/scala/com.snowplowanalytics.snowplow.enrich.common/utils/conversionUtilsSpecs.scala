@@ -21,7 +21,9 @@ import cats.syntax.either._
 import cats.syntax.option._
 import io.circe.literal._
 
-import org.scalacheck.Gen
+import org.apache.commons.codec.binary.Base64
+
+import org.scalacheck.{Gen, Prop}
 import org.scalacheck.Arbitrary._
 
 import org.specs2.{ScalaCheck, Specification}
@@ -204,6 +206,93 @@ class FixTabsNewlinesSpec extends Specification with DataTables {
     }
 }
 
+class SanitiseTabsNewlinesSpec extends Specification with ScalaCheck {
+  def is = s2"""
+  fixTabsNewlines gives the same output as the regex implementation        $e1
+  fixTabsNewlinesLenient gives the same output as the regex implementation $e2
+  fixTabsNewlines returns the input instance when there is nothing to fix  $e3
+  fixTabsNewlinesLenient returns the input instance when there is nothing to fix $e4
+  fixTabsNewlines returns None for null                                     $e5
+  fixTabsNewlines gives the same output as the regex implementation for every char        $e6
+  fixTabsNewlinesLenient gives the same output as the regex implementation for every char $e7
+  """
+
+  private val TabPattern = "\\t".r
+  private val NewlinePattern = "(\\r|\\n)".r
+  private val ControlCharPattern = "\\p{Cntrl}".r
+
+  // Reference implementations: the regexes ConversionUtils used before the character scan
+  private def regexStrict(str: String): Option[String] =
+    Option(str)
+      .map(s => ControlCharPattern.replaceAllIn(TabPattern.replaceAllIn(s, "    "), ""))
+      .flatMap {
+        case "" => None
+        case other => Some(other)
+      }
+
+  private def regexLenient(str: String): String =
+    TabPattern.replaceAllIn(NewlinePattern.replaceAllIn(str, ""), "    ")
+
+  private val specialChar: Gen[Char] =
+    Gen.frequency(
+      5 -> Gen.oneOf('\t', '\r', '\n', '\u0000', '\u0001', '\u007f'),
+      3 -> Gen.choose('\u0000', '\u001f'),
+      3 -> Gen.choose('\u0080', '\u009f')
+    )
+
+  private val anyChar: Gen[Char] =
+    Gen.frequency(
+      4 -> specialChar,
+      4 -> Gen.alphaNumChar,
+      1 -> Gen.oneOf(' ', '\\', '%', '\u00e9', '\ufffd', '\u2028'),
+      1 -> arbitrary[Char]
+    )
+
+  private val strings: Gen[String] =
+    Gen.frequency(
+      1 -> Gen.const(""),
+      2 -> Gen.listOf(specialChar).map(_.mkString),
+      6 -> Gen.listOf(anyChar).map(_.mkString),
+      1 -> arbitrary[String]
+    )
+
+  def e1 =
+    prop { (str: String) =>
+      ConversionUtils.fixTabsNewlines(str) must_== regexStrict(str)
+    }.setGen(strings).set(minTestsOk = 2000)
+
+  def e2 =
+    prop { (str: String) =>
+      ConversionUtils.fixTabsNewlinesLenient(str) must_== regexLenient(str)
+    }.setGen(strings).set(minTestsOk = 2000)
+
+  def e3 = {
+    val str = new String("Hello, world! \u0080\u009f\u00e9")
+    ConversionUtils.fixTabsNewlines(str) must beSome(beTheSameAs(str))
+  }
+
+  def e4 = {
+    val str = new String("Hello, world! \u0001\u007f\u0080")
+    ConversionUtils.fixTabsNewlinesLenient(str) must beTheSameAs(str)
+  }
+
+  def e5 = ConversionUtils.fixTabsNewlines(null) must beNone
+
+  // Each old pattern matches a single character and the patterns never overlap, so each rule is a
+  // per-character mapping: checking every char value on its own proves equivalence for that mapping.
+  private val everyChar: Seq[String] = (0 to 0xffff).map(_.toChar.toString)
+
+  def e6 =
+    forall(everyChar) { str =>
+      ConversionUtils.fixTabsNewlines(str) must_== regexStrict(str)
+    }
+
+  def e7 =
+    forall(everyChar) { str =>
+      ConversionUtils.fixTabsNewlinesLenient(str) must_== regexLenient(str)
+    }
+}
+
 // TODO: note that we have some functionality tweaks planned.
 // See comments on ConversionUtils.decodeBase64Url for details.
 class DecodeBase64UrlSpec extends Specification with DataTables with ScalaCheck {
@@ -211,6 +300,8 @@ class DecodeBase64UrlSpec extends Specification with DataTables with ScalaCheck 
   decodeBase64Url should return failure if passed a null                          $e1
   decodeBase64Url should not return failure on any other string                   $e2
   decodeBase64Url should correctly decode valid Base64 (URL-safe) encoded strings $e3
+  decodeBase64Url should decode any string exactly as commons-codec does          $e4
+  jdkDecoderFor should pick the JDK decoder for the alphabet of clean input       $e5
   """
 
   // Only way of getting a failure currently
@@ -240,6 +331,91 @@ class DecodeBase64UrlSpec extends Specification with DataTables with ScalaCheck 
       "Blank string" !! "" ! "" |> { (_, str, expected) =>
       ConversionUtils.decodeBase64Url(str) must beRight(expected)
     }
+
+  // commons-codec is the oracle: decodeBase64Url must keep decoding every input as it does
+  def e4 = {
+    val oracle = new Base64(true)
+    Prop
+      .forAllNoShrink(base64LikeString) { (str: String) =>
+        val expected = new String(oracle.decode(str), StandardCharsets.UTF_8)
+        ConversionUtils.decodeBase64Url(str) must beRight(expected)
+      }
+      .set(minTestsOk = 10000)
+  }
+
+  def e5 = {
+    val url: Option[java.util.Base64.Decoder] = Some(java.util.Base64.getUrlDecoder)
+    val standard: Option[java.util.Base64.Decoder] = Some(java.util.Base64.getDecoder)
+    "SPEC NAME" || "INPUT" | "EXPECTED" |
+      "URL-safe only" !! "eyJhIjoiPz8_In0-" ! url |
+      "URL-safe only, padded" !! "_-8=" ! url |
+      "Standard only" !! "eyJhIjoiPz8/In0+" ! standard |
+      "Standard only, padded" !! "/+8=" ! standard |
+      "Alphanumeric only" !! "Sm9oblNtaXRo" ! url |
+      "Alphanumeric only, padded" !! "am9obg==" ! url |
+      "Empty" !! "" ! url |
+      "Mixed alphabets" !! "ab-c+d" ! None |
+      "Mixed alphabets, other pair" !! "ab_c/d" ! None |
+      "Space" !! "am9o bg==" ! None |
+      "Newline" !! "am9o\nbg==" ! None |
+      "Non-ASCII" !! "äöü" ! None |
+      "Other punctuation" !! "am9o.bg" ! None |> { (_, str, expected) =>
+      ConversionUtils.jdkDecoderFor(str) must_== expected
+    }
+  }
+
+  private val jsonLikeText: Gen[String] =
+    for {
+      keys <- Gen.listOf(Gen.alphaNumStr)
+      values <- Gen.listOfN(keys.size, arbitrary[String])
+    } yield keys.zip(values).map { case (k, v) => s""""$k":"$v"""" }.mkString("{", ",", "}")
+
+  private val payloadBytes: Gen[Array[Byte]] =
+    Gen.oneOf(
+      arbitrary[Array[Byte]],
+      arbitrary[String].map(_.getBytes(StandardCharsets.UTF_8)),
+      jsonLikeText.map(_.getBytes(StandardCharsets.UTF_8))
+    )
+
+  private val encoded: Gen[String] =
+    for {
+      bytes <- payloadBytes
+      urlSafe <- arbitrary[Boolean]
+      padded <- arbitrary[Boolean]
+    } yield {
+      val encoder = if (urlSafe) java.util.Base64.getUrlEncoder else java.util.Base64.getEncoder
+      val str = encoder.encodeToString(bytes)
+      if (padded) str else str.reverse.dropWhile(_ == '=').reverse
+    }
+
+  private def insertAt(str: String, chars: Gen[String]): Gen[String] =
+    for {
+      i <- Gen.choose(0, str.length)
+      c <- chars
+    } yield str.take(i) + c + str.drop(i)
+
+  private val alphabetChar: Gen[Char] = Gen.oneOf(Gen.alphaNumChar, Gen.oneOf('-', '_', '+', '/'))
+
+  private def mutate(str: String): Gen[String] =
+    Gen.oneOf(
+      Gen.const(str),
+      insertAt(str, Gen.oneOf("-", "_", "+", "/")), // mixed alphabets
+      insertAt(str, Gen.oneOf(" ", "\n", "\r\n", "\t")),
+      Gen.const(str.replace('+', ' ')),
+      alphabetChar.map(c => str + c), // dangling character
+      Gen.oneOf("=", "==", "===").map(str + _), // extra padding
+      Gen.const(str.replace("=", "")),
+      insertAt(str, Gen.oneOf("=", "==")), // misplaced padding
+      Gen.nonEmptyListOf(alphabetChar).map(cs => str + "=" + cs.mkString), // characters after padding
+      insertAt(str, arbitrary[Char].map(_.toString))
+    )
+
+  private val base64LikeString: Gen[String] =
+    Gen.frequency(
+      1 -> arbitrary[String],
+      1 -> Gen.listOf(Gen.frequency(10 -> alphabetChar, 1 -> Gen.const('='))).map(_.mkString),
+      8 -> encoded.flatMap(mutate).flatMap(s => Gen.oneOf(Gen.const(s), mutate(s)))
+    )
 }
 
 class ValidateUuidSpec extends Specification with DataTables with ScalaCheck {
@@ -294,6 +470,7 @@ class DecodeStringSpec extends Specification {
   def is = s2"""
   decodeString should decode a correctly URL-encoded string            $e1
   decodeString should fail decoding a string not correctly URL-encoded $e2
+  decodeString should sanitise tabs and newlines after decoding        $e3
   """
 
   val utf8 = StandardCharsets.UTF_8
@@ -306,6 +483,9 @@ class DecodeStringSpec extends Specification {
 
   def e2 =
     ConversionUtils.decodeString(utf8, "%%23") must beLeft
+
+  def e3 =
+    ConversionUtils.decodeString(utf8, "a%09b%0D%0Ac%01") must beRight("a    bc\u0001")
 }
 
 class StringToDoubleLikeSpec extends Specification with DataTables {
@@ -758,6 +938,42 @@ class TabSeparatedEnrichedEventSpec extends MSpecification {
         e
       }
       ConversionUtils.tabSeparatedEnrichedEvent(event) must not(contain("pii"))
+    }
+
+    "which equals the fields joined with tabs for a mix of null and non-null fields" >> {
+      val sdj = SelfDescribingData(
+        SchemaKey.fromUri("iglu:myvendor/myschema/jsonschema/1-0-0").toOption.get,
+        json"""{"foo":"bar"}"""
+      )
+      val event = {
+        val e = new EnrichedEvent
+        e.app_id = "myapp"
+        e.txn_id = Int.box(42)
+        e.geo_latitude = Float.box(42.1f)
+        e.contexts = List(sdj)
+        e.se_value = BigDecimal("42.1").bigDecimal
+        e.unstruct_event = Some(sdj)
+        e.br_cookies = Byte.box(1.toByte)
+        e.derived_contexts = List(sdj)
+        e.true_tstamp = "2024-01-01 00:00:00.000"
+        e
+      }
+      val contexts =
+        """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[{"schema":"iglu:myvendor/myschema/jsonschema/1-0-0","data":{"foo":"bar"}}]}"""
+      val unstruct =
+        """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:myvendor/myschema/jsonschema/1-0-0","data":{"foo":"bar"}}}"""
+      val fields = Array.fill(131)("")
+      fields(0) = "myapp"
+      fields(7) = "42"
+      fields(22) = "42.1"
+      fields(52) = contexts
+      fields(57) = "42.1"
+      fields(58) = unstruct
+      fields(93) = "1"
+      fields(122) = contexts
+      fields(130) = "2024-01-01 00:00:00.000"
+
+      ConversionUtils.tabSeparatedEnrichedEvent(event) must beEqualTo(fields.mkString("\t"))
     }
   }
 

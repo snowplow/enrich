@@ -101,7 +101,7 @@ case class GoogleAnalyticsAdapter(schemas: GoogleAnalyticsSchemas) extends Adapt
       fieldName,
       (value: String) =>
         stringToJInteger(value)
-          .map(i => IntType(i.toInt))
+          .flatMap(i => Option(i).map(j => IntType(j.toInt)).toRight("Cannot be null"))
           .leftMap(e => FailureDetails.AdapterFailure.InputData(fieldName, value.some, e))
     )
   private val twoDecimalsTranslation: (String => KVTranslation) = (fieldName: String) =>
@@ -770,9 +770,10 @@ case class GoogleAnalyticsAdapter(schemas: GoogleAnalyticsSchemas) extends Adapt
       r = m + (strs.reduce(_ + _) -> value)
     } yield r
 
-  private val compositeFieldRegex =
+  // Possessive quantifiers prevent catastrophic backtracking on long digit runs
+  private[registry] val compositeFieldRegex =
     ("(" + List("pr", "promo", "il", "cd", "cm", "cg").mkString("|") + ")" +
-      """(\d+)([a-zA-Z]*)(\d*)([a-zA-Z]*)(\d*)$""").r
+      """(\d++)([a-zA-Z]*+)(\d*+)([a-zA-Z]*+)(\d*+)$""").r
 
   /**
    * Breaks down measurement protocol composite fields in a pair of list of strings.

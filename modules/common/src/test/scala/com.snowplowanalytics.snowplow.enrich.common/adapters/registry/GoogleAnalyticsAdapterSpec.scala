@@ -10,9 +10,16 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.adapters.registry
 
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets.UTF_8
+import java.util.concurrent.atomic.AtomicInteger
+
+import scala.concurrent.duration._
+
 import cats.data.NonEmptyList
 import cats.syntax.option._
 
+import cats.effect.IO
 import cats.effect.testing.specs2.CatsEffect
 
 import org.joda.time.DateTime
@@ -47,6 +54,10 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
   toRawEvents returns a succnel with multiple raw events                   $e14
   toRawEvents returns a succNel with multiple composite contexts with cu   $e15
   breakDownCompositeField should work properly                             $e20
+  breakDownCompositeField should fail fast on long digit or letter runs    $e21
+  toRawEvents returns a failNel if an integer field is the string null     $e22
+  toRawEvents returns a failNel if a two-decimals exponent overflows       $e23
+  toRawEvents returns a failNel quickly if a two-decimals exponent is huge $e24
   """
 
   val adapterWithDefaultSchemas = GoogleAnalyticsAdapter(schemas = googleAnalyticsSchemas)
@@ -532,7 +543,7 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
         s,
         None,
         "composite field name has to conform to regex " +
-          """(pr|promo|il|cd|cm|cg)(\d+)([a-zA-Z]*)(\d*)([a-zA-Z]*)(\d*)$"""
+          """(pr|promo|il|cd|cm|cg)(\d++)([a-zA-Z]*+)(\d*+)([a-zA-Z]*+)(\d*+)$"""
       )
     val s = Seq(
       adapterWithDefaultSchemas.breakDownCompField("pr") must beLeft(errorMessage("pr")),
@@ -554,4 +565,59 @@ class GoogleAnalyticsAdapterSpec extends Specification with DataTables with Vali
     )
     s.reduce(_ and _)
   }
+
+  def e21 = {
+    def check(fieldName: String) = {
+      val budgeted = new ReadBudgetedCharSequence(fieldName, budget = 10 * fieldName.length)
+      adapterWithDefaultSchemas.compositeFieldRegex.pattern.matcher(budgeted).matches() must beFalse
+    }
+    check("pr" + "1" * 5000 + "!") and check("pr1" + "a" * 5000 + "!")
+  }
+
+  def e22 = {
+    val body = "t=event&ec=category&ea=action&ev=null"
+    val payload = SpecHelpers.collectorPayload(api, Nil, None, body.some, source, context)
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+      .map(
+        _.fold(_.toList, _ => Nil) must contain(
+          FailureDetails.AdapterFailure.InputData("value", "null".some, "Cannot be null")
+        )
+      )
+  }
+
+  def e23 = twoDecimalsExponent("1E+2147483647")
+
+  def e24 = twoDecimalsExponent("1E+20000000")
+
+  private def twoDecimalsExponent(revenue: String) = {
+    val body = s"t=transaction&ti=transaction-id&tr=${URLEncoder.encode(revenue, UTF_8)}"
+    val payload = SpecHelpers.collectorPayload(api, Nil, None, body.some, source, context)
+    for {
+      start <- IO.monotonic
+      result <- adapterWithDefaultSchemas
+                  .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+      end <- IO.monotonic
+    } yield (result.fold(_.toList, _ => Nil) must contain(
+      FailureDetails.AdapterFailure.InputData("revenue", revenue.some, "Exponent is out of range")
+    )) and ((end - start) must beLessThan(1.second))
+  }
+}
+
+/**
+ * Counts the characters a regex reads and gives up past a budget, so catastrophic backtracking
+ * fails a test deterministically and immediately rather than hanging it
+ */
+private class ReadBudgetedCharSequence(underlying: String, budget: Int) extends CharSequence {
+  private val reads = new AtomicInteger(0)
+
+  def length(): Int = underlying.length
+
+  def charAt(index: Int): Char =
+    if (reads.incrementAndGet() > budget) throw new IllegalStateException(s"regex read more than $budget characters")
+    else underlying.charAt(index)
+
+  def subSequence(start: Int, end: Int): CharSequence = underlying.subSequence(start, end)
+
+  override def toString: String = underlying
 }

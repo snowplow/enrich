@@ -36,7 +36,6 @@ import com.snowplowanalytics.snowplow.enrich.common.{EtlPipeline, SpecHelpers}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.{AtomicFields, EnrichmentRegistry}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry._
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
-import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
 import com.snowplowanalytics.snowplow.enrich.common.loaders._
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.AcceptInvalid
@@ -1001,7 +1000,7 @@ object PiiPseudonymizerEnrichmentSpec {
     val input = collectorPayload.validNel
     EtlPipeline
       .processEvents[IO](
-        new AdapterRegistry[IO](Map.empty[(String, String), RemoteAdapter[IO]], adaptersSchemas),
+        new AdapterRegistry[IO](adaptersSchemas),
         enrichmentReg,
         SpecHelpers.client,
         Processor("spark", "0.0.0"),
@@ -1009,6 +1008,7 @@ object PiiPseudonymizerEnrichmentSpec {
         input,
         AcceptInvalid.featureFlags,
         IO.unit,
+        _ => IO.unit,
         SpecHelpers.registryLookup,
         AtomicFields.from(Map.empty),
         emitFailed,

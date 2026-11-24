@@ -32,6 +32,7 @@ class JsonUtilsSpec extends Specification {
   extractJson can parse JSON that doesn't exceed max depth $e6
   extractJson should return Left when given JSON exceeds max depth $e7
   extractJson should return Left when given string is not json $e8
+  extractJson at max depth N accepts N-1 nested containers and rejects N $e9
   """
 
   def e1 = {
@@ -126,12 +127,21 @@ class JsonUtilsSpec extends Specification {
     val deepJsonArray = createDeepJsonArray(1000000)
 
     val expectedErrorMessage = "invalid json: maximum allowed JSON depth exceeded"
-    JsonUtils.extractJson(deepJsonObject, 40) must beLeft(expectedErrorMessage)
-    JsonUtils.extractJson(deepJsonArray, 40) must beLeft(expectedErrorMessage)
+    (JsonUtils.extractJson(deepJsonObject, 40) must beLeft(expectedErrorMessage)) and
+      (JsonUtils.extractJson(deepJsonArray, 40) must beLeft(expectedErrorMessage))
   }
 
   def e8 =
     JsonUtils.extractJson("{test:", 40) must beLeft("invalid json: expected \" got 'test:' (line 1, column 2)")
+
+  def e9 = {
+    // The scalar leaf counts as a level, so N-1 containers around it make N levels
+    val expectedErrorMessage = "invalid json: maximum allowed JSON depth exceeded"
+    (JsonUtils.extractJson(createDeepJsonObject(9), 10) must beRight) and
+      (JsonUtils.extractJson(createDeepJsonObject(10), 10) must beLeft(expectedErrorMessage)) and
+      (JsonUtils.extractJson(createDeepJsonArray(9), 10) must beRight) and
+      (JsonUtils.extractJson(createDeepJsonArray(10), 10) must beLeft(expectedErrorMessage))
+  }
 }
 
 object JsonUtilsSpec {

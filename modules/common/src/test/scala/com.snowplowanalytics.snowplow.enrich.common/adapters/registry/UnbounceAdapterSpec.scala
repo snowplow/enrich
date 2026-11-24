@@ -39,6 +39,7 @@ class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMa
   payloadBodyToContext must return a Failure if the context data is missing 'page_name'         $e10
   payloadBodyToContext must return a Failure if the context data is missing 'variant'           $e11
   payloadBodyToContext must return a Failure if the context data is missing 'page_url'          $e12
+  toRawEvents must return a Failure Nel if the event data contains an empty key                 $e13
   """
 
   object Shared {
@@ -346,6 +347,26 @@ class UnbounceAdapterSpec extends Specification with DataTables with ValidatedMa
     val expected = NonEmptyList.one(
       FailureDetails.AdapterFailure
         .InputData("page_url", None, "missing 'page_url' field in body")
+    )
+    adapterWithDefaultSchemas
+      .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)
+      .map(_ must beInvalid(expected))
+  }
+
+  def e13 = {
+    val params = SpecHelpers.toNameValuePairs("schema" -> "iglu:com.unbounce/test/jsonschema/1-0-0")
+    val body =
+      "page_id=f7afd389-65a3-45fa-8bad-b7a42236044c&page_name=Test-Webhook&variant=a&page_url=http%3A%2F%2Funbouncepages.com%2Ftest-webhook-1&data.json=%7B%22%22%3A%5B%22x%22%5D%7D"
+    val payload = SpecHelpers.collectorPayload(
+      Shared.api,
+      params,
+      ContentType.some,
+      body.some,
+      Shared.cljSource,
+      Shared.context
+    )
+    val expected = NonEmptyList.one(
+      FailureDetails.AdapterFailure.InputData("body", None, "empty field names are not supported")
     )
     adapterWithDefaultSchemas
       .toRawEvents(payload, SpecHelpers.client, SpecHelpers.registryLookup, SpecHelpers.DefaultMaxJsonDepth)

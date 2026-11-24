@@ -120,6 +120,7 @@ case class OlarkAdapter(schemas: OlarkSchemas) extends Adapter {
                             }
                 schema <- lookupSchema(eventType.some, EventSchemaMap)
                 transformedEvent <- transformTimestamps(event)
+                camelized <- camelize(transformedEvent)
               } yield NonEmptyList.one(
                 RawEvent(
                   api = payload.api,
@@ -127,7 +128,7 @@ case class OlarkAdapter(schemas: OlarkSchemas) extends Adapter {
                     TrackerVersion,
                     qsParams,
                     schema,
-                    camelize(transformedEvent),
+                    camelized,
                     "srv"
                   ),
                   contentType = payload.contentType,

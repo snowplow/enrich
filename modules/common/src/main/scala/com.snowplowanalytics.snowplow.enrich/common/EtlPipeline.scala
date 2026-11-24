@@ -12,22 +12,24 @@ package com.snowplowanalytics.snowplow.enrich.common
 
 import java.time.Instant
 
-import cats.data.{Validated, ValidatedNel}
+import cats.data.{NonEmptyList, Validated, ValidatedNel}
 import cats.effect.Sync
 import cats.implicits._
 
 import org.joda.time.DateTime
 
+import io.circe.syntax._
+
 import com.snowplowanalytics.iglu.client.IgluCirceClient
 import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 
-import com.snowplowanalytics.snowplow.badrows.{BadRow, Processor}
+import com.snowplowanalytics.snowplow.badrows.{BadRow, Failure, Payload, Processor}
 
-import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
+import com.snowplowanalytics.snowplow.enrich.common.adapters.{AdapterRegistry, RawEvent}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.{AtomicFields, EnrichmentManager, EnrichmentRegistry}
 import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
-import com.snowplowanalytics.snowplow.enrich.common.utils.OptionIor
+import com.snowplowanalytics.snowplow.enrich.common.utils.{ConversionUtils, OptionIor}
 
 /** Expresses the end-to-end event pipeline supported by the Scala Common Enrich project. */
 object EtlPipeline {
@@ -49,6 +51,8 @@ object EtlPipeline {
    * @param input The ValidatedMaybeCanonicalInput
    * @param featureFlags The feature flags available in the current version of Enrich
    * @param invalidCount Function to increment the count of invalid events
+   * @param reportUnexpectedError Function to report an unexpected error thrown while enriching one event,
+   *                              before that event is emitted as a `generic_error` bad row
    */
   def processEvents[F[_]: Sync](
     adapterRegistry: AdapterRegistry[F],
@@ -59,6 +63,7 @@ object EtlPipeline {
     input: ValidatedNel[BadRow, CollectorPayload],
     featureFlags: FeatureFlags,
     invalidCount: F[Unit],
+    reportUnexpectedError: Throwable => F[Unit],
     registryLookup: RegistryLookup[F],
     atomicFields: AtomicFields,
     emitFailed: Boolean,
@@ -71,20 +76,26 @@ object EtlPipeline {
           .flatMap {
             case Validated.Valid(rawEvents) =>
               rawEvents.toList.traverse { event =>
-                EnrichmentManager
-                  .enrichEvent(
-                    enrichmentRegistry,
-                    client,
-                    processor,
-                    etlTstamp,
-                    event,
-                    featureFlags,
-                    invalidCount,
-                    registryLookup,
-                    atomicFields,
-                    emitFailed,
-                    maxJsonDepth
+                // `defer` so that exceptions thrown while the `F` is being built are raised inside `F`
+                // and reach the backstop, instead of losing the other events of the collector payload
+                Sync[F]
+                  .defer(
+                    EnrichmentManager
+                      .enrichEvent(
+                        enrichmentRegistry,
+                        client,
+                        processor,
+                        etlTstamp,
+                        event,
+                        featureFlags,
+                        invalidCount,
+                        registryLookup,
+                        atomicFields,
+                        emitFailed,
+                        maxJsonDepth
+                      )
                   )
+                  .handleErrorWith(handleUnexpectedError(processor, event, reportUnexpectedError))
               }
             case Validated.Invalid(badRow) =>
               Sync[F].pure(List(OptionIor.Left(badRow)))
@@ -92,4 +103,31 @@ object EtlPipeline {
       case Validated.Invalid(badRows) =>
         Sync[F].pure(badRows.toList.map(br => OptionIor.Left(br)))
     }
+
+  /**
+   * Backstop so that one event can never crash enrich or lose the other events of its collector payload.
+   *
+   * A `FatalEnrichError` is deliberately fatal and is re-raised. Anything else is reported and
+   * turned into a single `generic_error` bad row holding the raw parameters of this event only.
+   */
+  private def handleUnexpectedError[F[_]: Sync](
+    processor: Processor,
+    event: RawEvent,
+    reportUnexpectedError: Throwable => F[Unit]
+  ): Throwable => F[OptionIor[BadRow, EnrichedEvent]] = {
+    case fatal: FatalEnrichError =>
+      Sync[F].raiseError(fatal)
+    case t =>
+      for {
+        _ <- reportUnexpectedError(t)
+        now <- Sync[F].realTimeInstant
+        raw <- Sync[F].delay(RawEvent.toRawEvent(event).asJson.noSpaces)
+      } yield OptionIor.Left(
+        BadRow.GenericError(
+          processor,
+          Failure.GenericFailure(now, NonEmptyList.one(ConversionUtils.cleanStackTrace(t))),
+          Payload.RawPayload(raw)
+        )
+      )
+  }
 }

@@ -139,6 +139,8 @@ object SqlQueryEnrichment extends ParseableEnrichment {
   private def getDataSource(rdbms: Rdbms): HikariDataSource = {
     val source = new HikariDataSource()
     source.setJdbcUrl(rdbms.connectionString)
+    source.setUsername(rdbms.username)
+    source.setPassword(rdbms.password)
     source.setMaximumPoolSize(1) // see https://github.com/snowplow/enrich/issues/549
     source
   }

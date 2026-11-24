@@ -383,16 +383,25 @@ trait Adapter {
   /**
    * Converts input field case to camel case recursively
    * @param json parsed event fields as a JValue
-   * @return The mutated event.
+   * @return The mutated event, or a failure if a field name is empty.
    */
-  private[registry] def camelize(json: Json): Json =
+  private[registry] def camelize(json: Json): Either[FailureDetails.AdapterFailure, Json] =
     json.asObject match {
       case Some(obj) =>
-        Json.obj(obj.toList.map { case (k, v) => (camelCase(k), camelize(v)) }: _*)
+        obj.toList
+          .traverse {
+            case (k, _) if k.isEmpty =>
+              FailureDetails.AdapterFailure
+                .InputData("body", none, "empty field names are not supported")
+                .asLeft
+            case (k, v) =>
+              camelize(v).map(camelCase(k) -> _)
+          }
+          .map(Json.fromFields)
       case None =>
         json.asArray match {
-          case Some(arr) => Json.arr(arr.map(camelize): _*)
-          case None => json
+          case Some(arr) => arr.traverse(camelize).map(Json.fromValues)
+          case None => json.asRight
         }
     }
 }

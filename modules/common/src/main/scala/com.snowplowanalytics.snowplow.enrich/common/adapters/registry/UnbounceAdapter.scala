@@ -161,13 +161,13 @@ case class UnbounceAdapter(schemas: UnbounceSchemas) extends Adapter {
       case (Some(_), Some(_), Some(_), Some(_), Some(dataJson)) =>
         val event = (bodyMap - "data.json" - "data.xml").toList
         JU.extractJson(dataJson, maxJsonDepth)
-          .map { dJs =>
+          .leftMap(e => FailureDetails.AdapterFailure.NotJson("data.json", dataJson.some, e))
+          .flatMap { dJs =>
             val js = Json
               .obj(
                 ("data.json", dJs) :: event.map { case (k, v) => (k, Json.fromString(v)) }: _*
               )
             camelize(js)
           }
-          .leftMap(e => FailureDetails.AdapterFailure.NotJson("data.json", dataJson.some, e))
     }
 }

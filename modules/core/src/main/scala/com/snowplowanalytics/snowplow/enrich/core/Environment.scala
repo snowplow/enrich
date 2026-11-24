@@ -113,7 +113,7 @@ object Environment {
                  }
       cpuParallelism = chooseCpuParallelism(config.main)
       sinkParallelism = chooseSinkParallelism(config.main)
-      adapterRegistry = new AdapterRegistry(Map.empty, config.main.adaptersSchemas)
+      adapterRegistry = new AdapterRegistry(config.main.adaptersSchemas)
       resolver <- mkResolver[F](config.iglu)
       igluClient <- Resource.eval(IgluCirceClient.fromResolver(resolver, config.iglu.cacheSize, config.main.validation.maxJsonDepth))
       httpClient <- HttpClient.resource[F](config.main.http.client.requestTimeout)

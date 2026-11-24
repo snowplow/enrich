@@ -15,7 +15,7 @@ import java.math.{BigDecimal => JBigDecimal}
 import java.net.{InetAddress, URI, URLDecoder, URLEncoder}
 import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets.UTF_8
-import java.util.UUID
+import java.util.{Base64 => JBase64, UUID}
 import java.io.{PrintWriter, StringWriter}
 
 import scala.jdk.CollectionConverters._
@@ -49,10 +49,9 @@ import com.snowplowanalytics.snowplow.enrich.common.QueryStringParameters
 /** General-purpose utils to help the ETL process along. */
 object ConversionUtils {
   private val UrlSafeBase64 = new Base64(true) // true means "url safe"
+  private val SomeJdkUrlDecoder = Some(JBase64.getUrlDecoder)
+  private val SomeJdkStandardDecoder = Some(JBase64.getDecoder)
 
-  private[common] val TabPattern = "\\t".r
-  private[common] val NewlinePattern = "(\\r|\\n)".r
-  private val ControlCharPattern = "\\p{Cntrl}".r
   private val DoubleEncodedPctPattern = "%25([0-9a-fA-F][0-9a-fA-F])".r
 
   /** Simple case class wrapper around the components of a URI. */
@@ -113,12 +112,52 @@ object ConversionUtils {
    * @return The String with tabs and newlines fixed.
    */
   def fixTabsNewlines(str: String): Option[String] =
-    Option(str)
-      .map(s => ControlCharPattern.replaceAllIn(TabPattern.replaceAllIn(s, "    "), ""))
-      .flatMap {
-        case "" => None
-        case other => Some(other)
+    if (str == null) None
+    else {
+      val s = sanitise(str, dropAllControlChars = true)
+      if (s.isEmpty) None else Some(s)
+    }
+
+  /**
+   * Replaces tabs with four spaces and removes `\r` and `\n`, keeping every other character
+   * (including other control characters). Unlike `fixTabsNewlines`, `""` stays `""`.
+   * @param str The String to fix, must not be null
+   * @return The String with tabs and newlines fixed, or `str` itself if nothing needed fixing.
+   */
+  private[common] def fixTabsNewlinesLenient(str: String): String =
+    sanitise(str, dropAllControlChars = false)
+
+  /**
+   * Control characters as matched by Java regex `\p{Cntrl}`: `\u0000`-`\u001F` and `\u007F`.
+   * Deliberately not `Character.isISOControl`, which also matches `\u0080`-`\u009F`.
+   */
+  private def isControlChar(c: Char): Boolean =
+    c < 0x20 || c == 0x7f
+
+  private def needsSanitising(c: Char, dropAllControlChars: Boolean): Boolean =
+    if (dropAllControlChars) isControlChar(c) else c == '\t' || c == '\r' || c == '\n'
+
+  /**
+   * Replaces each tab with four spaces, and drops `\r`, `\n` and, if `dropAllControlChars`, every
+   * other control character. Returns `str` itself when there is nothing to change.
+   */
+  private def sanitise(str: String, dropAllControlChars: Boolean): String = {
+    val len = str.length
+    var i = 0
+    while (i < len && !needsSanitising(str.charAt(i), dropAllControlChars)) i += 1
+    if (i == len) str
+    else {
+      val sb = new java.lang.StringBuilder(len + 8)
+      sb.append(str, 0, i)
+      while (i < len) {
+        val c = str.charAt(i)
+        if (c == '\t') sb.append("    ")
+        else if (!needsSanitising(c, dropAllControlChars)) sb.append(c)
+        i += 1
       }
+      sb.toString
+    }
+  }
 
   /**
    * Decodes a URL-safe Base64 string.
@@ -143,11 +182,63 @@ object ConversionUtils {
   private def decodeBase64UrlNonNull(str: String): Either[String, String] =
     Either
       .catchNonFatal {
-        val decodedBytes = UrlSafeBase64.decode(str)
+        val decodedBytes = decodeBase64Bytes(str)
         val result = new String(decodedBytes, UTF_8) // Must specify charset (EMR uses US_ASCII)
         result
       }
       .leftMap(e => s"Could not base64 decode: ${e.getMessage}")
+
+  /**
+   * Base64 fields such as `cx` and `ue_px` arrive in either base64 alphabet, with no indication of
+   * which one was used. Snowplow trackers disagree: for example the JavaScript, iOS and Python
+   * trackers send the URL-safe alphabet (`-` `_`), while the Android, Java, Go, .NET, PHP and Ruby
+   * trackers send the standard alphabet (`+` `/`). Some pad with `=` and some don't. So both
+   * alphabets must be decoded, whichever endpoint the event came through.
+   *
+   * Older and home-grown trackers also send malformed base64, such as embedded newlines, a `+`
+   * turned into a space by querystring decoding, or bad padding. Enrich has always accepted these,
+   * and must keep doing so. So this must return exactly what `UrlSafeBase64.decode(str)` returns,
+   * for every input. Despite its `urlSafe` flag, which only affects encoding, commons-codec decodes
+   * both alphabets and leniently skips anything it doesn't recognise.
+   *
+   * The JDK decoders are faster but strict: each accepts only one alphabet, and rejects anything
+   * that commons-codec would skip or tolerate. So a JDK decoder is only tried on input made of a
+   * single alphabet plus `=`, and any input it rejects is decoded again by commons-codec. That
+   * second decode is the accepted cost for malformed input.
+   */
+  private def decodeBase64Bytes(str: String): Array[Byte] =
+    jdkDecoderFor(str) match {
+      case Some(decoder) =>
+        try decoder.decode(str)
+        catch {
+          case _: IllegalArgumentException => UrlSafeBase64.decode(str)
+        }
+      case None =>
+        UrlSafeBase64.decode(str)
+    }
+
+  /**
+   * The JDK decoder for the alphabet `str` is written in, or None if `str` contains anything
+   * other than the characters of one base64 alphabet and `=`. Characters common to both
+   * alphabets (`A-Za-z0-9`) don't pick one, so input made only of those uses the URL decoder.
+   */
+  private[utils] def jdkDecoderFor(str: String): Option[JBase64.Decoder] = {
+    var sawUrlSafe = false
+    var sawStandard = false
+    var i = 0
+    while (i < str.length) {
+      val c = str.charAt(i)
+      // Almost every character is alphanumeric, so that test comes first
+      if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '=') ()
+      else if (c == '-' || c == '_') sawUrlSafe = true
+      else if (c == '+' || c == '/') sawStandard = true
+      else return None
+      i += 1
+    }
+    if (!sawStandard) SomeJdkUrlDecoder
+    else if (!sawUrlSafe) SomeJdkStandardDecoder
+    else None
+  }
 
   /**
    * Encodes a URL-safe Base64 string.
@@ -206,11 +297,10 @@ object ConversionUtils {
    */
   val decodeString: (Charset, String) => Either[String, String] = (enc, str) =>
     try {
-      // TODO: switch to style of fixTabsNewlines above
       // TODO: potentially switch to using fixTabsNewlines too to avoid duplication
       val s = Option(str).getOrElse("")
       val d = URLDecoder.decode(s, enc.toString)
-      TabPattern.replaceAllIn(NewlinePattern.replaceAllIn(d, ""), "    ").asRight
+      fixTabsNewlinesLenient(d).asRight
     } catch {
       case NonFatal(e) => s"Exception URL-decoding (encoding $enc): ${e.getMessage}".asLeft
     }
@@ -448,10 +538,22 @@ object ConversionUtils {
    * Takes a field name and a string value and return a validated double.
    */
   val stringToTwoDecimals: String => Either[String, Double] = str =>
-    try BigDecimal(str).setScale(2, BigDecimal.RoundingMode.HALF_EVEN).toDouble.asRight
-    catch {
+    try {
+      val bd = BigDecimal(str)
+      // Checked before `setScale`, which throws or takes seconds of CPU for extreme exponents such as 1E+20000000
+      if (bd.scale > TwoDecimalsMaxScale || bd.precision.toLong - bd.scale > TwoDecimalsMaxIntegerDigits)
+        "Exponent is out of range".asLeft
+      else
+        bd.setScale(2, BigDecimal.RoundingMode.HALF_EVEN).toDouble.asRight
+    } catch {
       case _: NumberFormatException => "Cannot be converted to Double".asLeft
     }
+
+  /** Largest number of integer digits accepted by `stringToTwoDecimals`: beyond it a Double is infinite */
+  private val TwoDecimalsMaxIntegerDigits = 309
+
+  /** Largest number of decimal places accepted by `stringToTwoDecimals` */
+  private val TwoDecimalsMaxScale = 1000
 
   /**
    * Converts a String to a Double.
@@ -559,8 +661,8 @@ object ConversionUtils {
     )
 
   /** Format an EnrichedEvent as a TSV. */
-  def tabSeparatedEnrichedEvent(e: EnrichedEvent): String =
-    Array[String](
+  def tabSeparatedEnrichedEvent(e: EnrichedEvent): String = {
+    val fields = Array[String](
       forTsv(e.app_id),
       forTsv(e.platform),
       forTsv(e.etl_tstamp),
@@ -692,7 +794,27 @@ object ConversionUtils {
       forTsv(e.event_version),
       forTsv(e.event_fingerprint),
       forTsv(e.true_tstamp)
-    ).mkString("\t")
+    )
+    joinWithTabs(fields)
+  }
+
+  /** Same output as `fields.mkString("\t")`, but with one exactly-sized builder. */
+  private def joinWithTabs(fields: Array[String]): String = {
+    var length = fields.length - 1
+    var i = 0
+    while (i < fields.length) {
+      length += fields(i).length
+      i += 1
+    }
+    val sb = new java.lang.StringBuilder(math.max(length, 0))
+    i = 0
+    while (i < fields.length) {
+      if (i > 0) sb.append('\t')
+      sb.append(fields(i))
+      i += 1
+    }
+    sb.toString
+  }
 
   private def forTsv(v: String): String =
     if (v != null) v else ""

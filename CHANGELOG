@@ -1,3 +1,32 @@
+Version 6.15.0 (2026-11-19)
+---------------------------
+Move Docker publishing to the shared docker-publish/v1 workflow and gate final releases (#294)
+Persist checkout credentials so Claude mentions can fetch
+Bump common-streams to 0.29.0 (#330)
+Bump common-streams to 0.29.0-M1 (#329)
+Restructure project/Dependencies.scala and separate security overrides (#327)
+Remove unused remote adapter code (#326)
+Bump jackson, guava, azure-identity and kafka-clients (#325)
+Exclude libthrift's unused transitive dependencies (#323)
+Stop publishing dev tags to maven central for common-enrich (#322)
+Compile Scala with -release:21 (#321)
+Mark app unhealthy when a sink fails at runtime (#320)
+HTTP header extractor: match header names case-insensitively
+Avoid per-field allocation in AtomicFieldsLengthValidator (#317)
+Reduce allocations in TSV serialisation and JSON depth check (#316)
+Bump iglu-scala-client to 4.3.1 (#318)
+Replace regex tab/newline sanitisation with a character scan (#315)
+Decode base64 with java.util.Base64 when the input is clean (#314)
+Skip user agent enrichments when the useragent is longer than its atomic field limit (#311)
+Turn unexpected per-payload enrich errors into bad rows (#310)
+SQL Query Enrichment: verify server certificate and hostname when sslMode is true (#309)
+SQL enrichment: pass DB credentials via Hikari instead of the JDBC URL (#308)
+Remove cleartext Snowplow Maven repo and defunct conjars resolver (#307)
+Harden claude.yml workflow against prompt injection
+Prevent catastrophic backtracking in GoogleAnalyticsAdapter composite field regex (#304)
+Reject numbers outside the range of a 64-bit float (#303)
+Fix flaky random bytes test in ThriftLoaderSpec (#297)
+
 6.14.1 (2026-10-24)
 ------------------
 Remove the CVE scan and remediation workflows (#298)

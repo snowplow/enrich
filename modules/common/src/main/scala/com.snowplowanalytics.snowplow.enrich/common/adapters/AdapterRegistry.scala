@@ -32,7 +32,6 @@ import com.snowplowanalytics.snowplow.enrich.common.loaders.CollectorPayload
  * adapter.
  */
 class AdapterRegistry[F[_]: Clock: Monad](
-  remoteAdapters: Map[(String, String), RemoteAdapter[F]],
   adaptersSchemas: AdaptersSchemas
 ) {
   val adapters: Map[(String, String), Adapter] = Map(
@@ -101,17 +100,12 @@ class AdapterRegistry[F[_]: Clock: Monad](
       case Some(adapter) =>
         adapter.toRawEvents(payload, client, registryLookup, maxJsonDepth)
       case None =>
-        remoteAdapters.get((payload.api.vendor, payload.api.version)) match {
-          case Some(adapter) =>
-            adapter.toRawEvents(payload, maxJsonDepth)
-          case None =>
-            val f = FailureDetails.AdapterFailure.InputData(
-              "vendor/version",
-              Some(s"${payload.api.vendor}/${payload.api.version}"),
-              "vendor/version combination is not supported"
-            )
-            Monad[F].pure(f.invalidNel[NonEmptyList[RawEvent]])
-        }
+        val f = FailureDetails.AdapterFailure.InputData(
+          "vendor/version",
+          Some(s"${payload.api.vendor}/${payload.api.version}"),
+          "vendor/version combination is not supported"
+        )
+        Monad[F].pure(f.invalidNel[NonEmptyList[RawEvent]])
     }).map(_.leftMap(enrichFailure(_, payload, payload.api.vendor, payload.api.version, processor, etlTstamp)))
 
   private def enrichFailure(

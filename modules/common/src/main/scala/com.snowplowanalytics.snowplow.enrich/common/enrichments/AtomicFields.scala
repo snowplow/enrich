@@ -27,7 +27,11 @@ import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields.Lim
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.utils.AtomicError
 
-final case class AtomicFields(value: List[LimitedAtomicField])
+final case class AtomicFields(value: List[LimitedAtomicField]) {
+
+  /** The effective `useragent` limit, looked up once rather than per event */
+  val useragentLimit: Int = value.find(_.value.name == "useragent").fold(Int.MaxValue)(_.limit)
+}
 
 object AtomicFields {
 

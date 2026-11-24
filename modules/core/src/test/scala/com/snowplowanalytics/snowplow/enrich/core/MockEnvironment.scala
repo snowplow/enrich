@@ -43,18 +43,9 @@ import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
 
 import com.snowplowanalytics.snowplow.runtime.{AppHealth, AppInfo}
 import com.snowplowanalytics.snowplow.streams.compression.{DecompressionConfig, Decompressor}
-import com.snowplowanalytics.snowplow.streams.{
-  EventProcessingConfig,
-  EventProcessor,
-  ListOfList,
-  Sink,
-  Sinkable,
-  SourceAndAck,
-  TokenedEvents
-}
+import com.snowplowanalytics.snowplow.streams.{EventProcessingConfig, EventProcessor, Sink, Sinkable, SourceAndAck, TokenedEvents}
 
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
-import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.EnrichmentConf
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.registry.sqlquery.SqlExecutionContext
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.AtomicFields
@@ -103,7 +94,8 @@ object MockEnvironment {
     registryLookup: RegistryLookup[IO],
     decompression: DecompressionConfig,
     compression: Config.Compression,
-    sinkMaxSize: Int
+    sinkMaxSize: Int,
+    adapterRegistry: AdapterRegistry[IO] = testAdapterRegistry
   ): Resource[IO, MockEnvironment] =
     for {
       state <- Resource.eval(Ref[IO].of(Vector.empty[Action]))
@@ -155,7 +147,7 @@ object MockEnvironment {
         cpuParallelism = 1,
         sinkParallelism = 1,
         sinkMaxSize = sinkMaxSize,
-        adapterRegistry = testAdapterRegistry,
+        adapterRegistry = adapterRegistry,
         enrichmentRegistry = managedRegistry,
         igluClient = igluClient,
         httpClient = httpClient.mock,
@@ -240,10 +232,10 @@ object MockEnvironment {
     updateState: List[A] => IO[Unit]
   ): Sink[IO] =
     new Sink[IO] {
-      override def sink(batch: ListOfList[Sinkable]): IO[Unit] =
+      override def sink(batch: Iterable[Sinkable]): IO[Unit] =
         mockedResponse match {
           case Response.Success(_) =>
-            batch.asIterable.toList.flatTraverse(parse).flatMap(updateState)
+            batch.toList.flatTraverse(parse).flatMap(updateState)
           case Response.ExceptionThrown(value) =>
             IO.raiseError(value)
         }
@@ -285,8 +277,8 @@ object MockEnvironment {
       def report: Stream[IO, Nothing] = Stream.never[IO]
     }
 
-  private val testAdapterRegistry =
-    new AdapterRegistry(Map.empty[(String, String), RemoteAdapter[IO]], SpecHelpers.adaptersSchemas)
+  val testAdapterRegistry =
+    new AdapterRegistry[IO](SpecHelpers.adaptersSchemas)
 
   case class Enriched(
     event: Event,

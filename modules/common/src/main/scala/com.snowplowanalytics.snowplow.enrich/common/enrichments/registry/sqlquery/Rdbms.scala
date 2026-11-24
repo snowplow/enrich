@@ -15,14 +15,18 @@ import cats.syntax.either._
 import io.circe._
 import io.circe.generic.semiauto._
 
-/** Common trait for all supported databases, providing a JDBC connection URI */
+/** Common trait for all supported databases, providing a JDBC connection URI and credentials */
 trait Rdbms {
 
   /** Placeholder for database driver (not used) */
   def driver: Class[_]
 
-  /** Correctly generated connection URI specific for database */
+  /** Correctly generated connection URI specific for database, without credentials */
   def connectionString: String
+
+  def username: String
+
+  def password: String
 }
 
 object Rdbms {
@@ -39,11 +43,10 @@ object Rdbms {
 
     val driver: Class[_] = Class.forName("org.postgresql.Driver") // Load class
 
+    val sslModeParam: String = if (sslMode) "?sslmode=verify-full&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory" else ""
+
     val connectionString =
-      s"jdbc:postgresql://$host:$port/$database?user=$username&password=$password" ++ (if (sslMode)
-                                                                                         "&ssl=true&sslfactory=org.postgresql.ssl.NonValidatingFactory"
-                                                                                       else
-                                                                                         "")
+      s"jdbc:postgresql://$host:$port/$database$sslModeParam"
   }
 
   /** Class representing connection configuration for databases speaking MySQL dialect */
@@ -58,10 +61,10 @@ object Rdbms {
 
     val driver: Class[_] = Class.forName("org.mariadb.jdbc.Driver") // Load class
 
-    val sslModeParam: String = if (sslMode) "&sslMode=trust" else "&sslMode=disable&allowPublicKeyRetrieval=true"
+    val sslModeParam: String = if (sslMode) "&sslMode=verify-full" else "&sslMode=disable&allowPublicKeyRetrieval=true"
 
     val connectionString =
-      s"jdbc:mysql://$host:$port/$database?permitMysqlScheme&user=$username&password=$password$sslModeParam"
+      s"jdbc:mysql://$host:$port/$database?permitMysqlScheme$sslModeParam"
   }
 
   val postgresqlDbDecoder: Decoder[PostgresqlDb] =

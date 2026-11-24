@@ -13,6 +13,8 @@ package com.snowplowanalytics.snowplow.enrich.common.utils
 import org.specs2.mutable.Specification
 import org.specs2.matcher.ValidatedMatchers
 
+import cats.data.NonEmptyList
+import cats.syntax.option._
 import cats.effect.testing.specs2.CatsEffect
 
 import io.circe.parser.parse
@@ -21,6 +23,7 @@ import io.circe.syntax._
 
 import com.snowplowanalytics.iglu.core.{ParseError, SchemaKey, SchemaVer}
 import com.snowplowanalytics.iglu.client.ClientError.{ResolutionError, ValidationError}
+import com.snowplowanalytics.iglu.client.validator.{ValidatorError, ValidatorReport}
 
 import com.snowplowanalytics.snowplow.badrows._
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
@@ -119,10 +122,21 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
   val noSchema =
     s"""{"schema":"iglu:com.snowplowanalytics.snowplow/foo/jsonschema/1-0-0", "data": $noSchemaData}"""
 
+  val deepJsonData = """{"d1":{"d2":{"d3":{"d4":{"d5":{"d6":6}}}}}}"""
   val deepJson = s"""{
     "schema": "${emailSentSchema.toSchemaUri}",
-    "data": {"d1":{"d2":{"d3":{"d4":{"d5":{"d6":6}}}}}}
+    "data": $deepJsonData
   }"""
+
+  val allPossibleTypesSchema =
+    SchemaKey(
+      "com.test",
+      "all_possible_types",
+      "jsonschema",
+      SchemaVer.Full(1, 0, 0)
+    )
+  def allPossibleTypes(data: String) =
+    s"""{"schema": "${allPossibleTypesSchema.toSchemaUri}", "data": $data}"""
 
   "parseAndValidateUnstruct" should {
     "return None if unstruct_event field is empty" >> {
@@ -385,9 +399,9 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         }
     }
 
-    "return a FailureDetails.SchemaViolation.IgluError containing a ValidationError if the JSON in .data exceeds the max allowed JSON depth" >> {
+    "return a FailureDetails.SchemaViolation.IgluError containing a ValidationError and an InvalidUnstruct if the JSON in .data exceeds the max allowed JSON depth" >> {
       val igluScalaClient = SpecHelpers.client(5)
-      val json = deepJson.toJson
+      val json = deepJsonData.toJson
 
       IgluUtils
         .parseAndValidateUnstruct(Some(buildUnstruct(deepJson)),
@@ -400,11 +414,89 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .map {
           case (
                 List(
-                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError), `unstructFieldName`, `json`, _)
+                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(`emailSentSchema`, _: ValidationError),
+                                          `unstructFieldName`,
+                                          `json`,
+                                          _
+                  )
                 ),
-                None
+                Some(InvalidUnstruct(`emailSentSchema`))
               ) =>
             ok
+          case other => ko(s"[$other] is not expected one")
+        }
+    }
+
+    "return a FailureDetails.SchemaViolation.IgluError and an InvalidUnstruct if .data contains a number too big for a 64-bit float" >> {
+      val data = """{"myString": "Ünïcödé 🚀", "myDouble": 1e400}"""
+      val json = data.toJson
+
+      IgluUtils
+        .parseAndValidateUnstruct(Some(buildUnstruct(allPossibleTypes(data))),
+                                  SpecHelpers.client,
+                                  SpecHelpers.registryLookup,
+                                  SpecHelpers.DefaultMaxJsonDepth,
+                                  SpecHelpers.etlTstamp
+        )
+        .run
+        .map {
+          case (
+                List(
+                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(`allPossibleTypesSchema`, error: ValidationError),
+                                          `unstructFieldName`,
+                                          `json`,
+                                          _
+                  )
+                ),
+                Some(InvalidUnstruct(`allPossibleTypesSchema`))
+              ) if isOutOfRange(error, "1e400") =>
+            ok
+          case other => ko(s"[$other] is not expected one")
+        }
+    }
+
+    "return a FailureDetails.SchemaViolation.IgluError and an InvalidUnstruct if .data contains a number too small for a 64-bit float" >> {
+      val data = """{"myString": "Ünïcödé 🚀", "myDouble": -5e-324}"""
+      val json = data.toJson
+
+      IgluUtils
+        .parseAndValidateUnstruct(Some(buildUnstruct(allPossibleTypes(data))),
+                                  SpecHelpers.client,
+                                  SpecHelpers.registryLookup,
+                                  SpecHelpers.DefaultMaxJsonDepth,
+                                  SpecHelpers.etlTstamp
+        )
+        .run
+        .map {
+          case (
+                List(
+                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(`allPossibleTypesSchema`, error: ValidationError),
+                                          `unstructFieldName`,
+                                          `json`,
+                                          _
+                  )
+                ),
+                Some(InvalidUnstruct(`allPossibleTypesSchema`))
+              ) if isOutOfRange(error, "-5e-324") =>
+            ok
+          case other => ko(s"[$other] is not expected one")
+        }
+    }
+
+    "return the extracted unstructured event if .data contains the largest and smallest numbers a 64-bit float can hold" >> {
+      val data =
+        """{"myString": "Ünïcödé 🚀", "myDouble": 1.7976931348623157e308, "myNullNumeric": -2.2250738585072014e-308, "myStruct": {"nestedField": "a"}}"""
+
+      IgluUtils
+        .parseAndValidateUnstruct(Some(buildUnstruct(allPossibleTypes(data))),
+                                  SpecHelpers.client,
+                                  SpecHelpers.registryLookup,
+                                  SpecHelpers.DefaultMaxJsonDepth,
+                                  SpecHelpers.etlTstamp
+        )
+        .run
+        .map {
+          case (Nil, Some(ValidUnstruct(ValidSDJ(sdj, None)))) if sdj.schema == allPossibleTypesSchema => ok
           case other => ko(s"[$other] is not expected one")
         }
     }
@@ -674,10 +766,10 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
 
     "return a FailureDetails.SchemaViolation.IgluError containing a ValidationError if .data contains context that exceeds the max allowed JSON depth" >> {
       val igluScalaClient = SpecHelpers.client(5)
-      val json = s"[$deepJson]".toJson
+      val json = deepJsonData.toJson
 
       IgluUtils
-        .parseAndValidateContexts(Some(buildInputContexts(List(deepJson))),
+        .parseAndValidateContexts(Some(buildInputContexts(List(deepJson, emailSent1))),
                                   igluScalaClient,
                                   SpecHelpers.registryLookup,
                                   SpecHelpers.DefaultMaxJsonDepth,
@@ -687,10 +779,251 @@ class IgluUtilsSpec extends Specification with ValidatedMatchers with CatsEffect
         .map {
           case (
                 List(
-                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ValidationError), `contextsFieldName`, `json`, _)
+                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(`emailSentSchema`, _: ValidationError),
+                                          `contextsFieldName`,
+                                          `json`,
+                                          _
+                  )
+                ),
+                Some(Contexts(NonEmptyList(valid, Nil)))
+              ) if valid.sdj.schema == emailSentSchema =>
+            ok
+          case other => ko(s"[$other] is not expected one")
+        }
+    }
+
+    "return a failure for a context containing a number too big for a 64-bit float, and keep the valid context" >> {
+      val data = """{"myString": "Ünïcödé 🚀", "myDouble": 1e400}"""
+      val json = data.toJson
+
+      IgluUtils
+        .parseAndValidateContexts(
+          Some(buildInputContexts(List(allPossibleTypes(data), emailSent1))),
+          SpecHelpers.client,
+          SpecHelpers.registryLookup,
+          SpecHelpers.DefaultMaxJsonDepth,
+          SpecHelpers.etlTstamp
+        )
+        .run
+        .map {
+          case (
+                List(
+                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(`allPossibleTypesSchema`, error: ValidationError),
+                                          `contextsFieldName`,
+                                          `json`,
+                                          _
+                  )
+                ),
+                Some(Contexts(NonEmptyList(valid, Nil)))
+              ) if isOutOfRange(error, "1e400") && valid.sdj.schema == emailSentSchema =>
+            ok
+          case other => ko(s"[$other] is not expected one")
+        }
+    }
+
+    "return a failure for a context containing a number too small for a 64-bit float nested in an array, and keep the valid context" >> {
+      val data = """{"myString": "Ünïcödé 🚀", "myArray": [1, 5e-324]}"""
+      val json = data.toJson
+
+      IgluUtils
+        .parseAndValidateContexts(
+          Some(buildInputContexts(List(emailSent1, allPossibleTypes(data)))),
+          SpecHelpers.client,
+          SpecHelpers.registryLookup,
+          SpecHelpers.DefaultMaxJsonDepth,
+          SpecHelpers.etlTstamp
+        )
+        .run
+        .map {
+          case (
+                List(
+                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(`allPossibleTypesSchema`, error: ValidationError),
+                                          `contextsFieldName`,
+                                          `json`,
+                                          _
+                  )
+                ),
+                Some(Contexts(NonEmptyList(valid, Nil)))
+              ) if isOutOfRange(error, "5e-324") && valid.sdj.schema == emailSentSchema =>
+            ok
+          case other => ko(s"[$other] is not expected one")
+        }
+    }
+
+    "fail the whole of .contexts if a number outside the range of a 64-bit float sits outside any context's data" >> {
+      val contextWithExtraField =
+        s"""{"schema": "${emailSentSchema.toSchemaUri}", "data": {"emailAddress": "a", "emailAddress2": "b"}, "extra": 1e400}"""
+      val json = s"[$contextWithExtraField, $emailSent1]".toJson
+
+      IgluUtils
+        .parseAndValidateContexts(
+          Some(buildInputContexts(List(contextWithExtraField, emailSent1))),
+          SpecHelpers.client,
+          SpecHelpers.registryLookup,
+          SpecHelpers.DefaultMaxJsonDepth,
+          SpecHelpers.etlTstamp
+        )
+        .run
+        .map {
+          case (
+                List(
+                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(`inputContextsSchema`, error: ValidationError),
+                                          `contextsFieldName`,
+                                          `json`,
+                                          _
+                  )
+                ),
+                None
+              ) if isOutOfRange(error, "1e400") =>
+            ok
+          case other => ko(s"[$other] is not expected one")
+        }
+    }
+
+    "fail .contexts holding an empty array if the schema is contexts 1-0-0" >> {
+      val contexts = s"""{"schema": "${inputContextsSchema.toSchemaUri}", "data": []}"""
+
+      IgluUtils
+        .parseAndValidateContexts(Some(contexts),
+                                  SpecHelpers.client,
+                                  SpecHelpers.registryLookup,
+                                  SpecHelpers.DefaultMaxJsonDepth,
+                                  SpecHelpers.etlTstamp
+        )
+        .run
+        .map {
+          case (
+                List(
+                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(`inputContextsSchema`, _: ValidationError),
+                                          `contextsFieldName`,
+                                          _,
+                                          _
+                  )
                 ),
                 None
               ) =>
+            ok
+          case other => ko(s"[$other] is not expected one")
+        }
+    }
+
+    "accept .contexts holding an empty array if the schema is contexts 1-0-1" >> {
+      val contexts = """{"schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1", "data": []}"""
+
+      IgluUtils
+        .parseAndValidateContexts(Some(contexts),
+                                  SpecHelpers.client,
+                                  SpecHelpers.registryLookup,
+                                  SpecHelpers.DefaultMaxJsonDepth,
+                                  SpecHelpers.etlTstamp
+        )
+        .run
+        .map {
+          case (Nil, None) => ok
+          case other => ko(s"[$other] is not expected one")
+        }
+    }
+
+    "fail .contexts with an unknown version of the contexts schema" >> {
+      val contexts = s"""{"schema": "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-2", "data": [$emailSent1]}"""
+
+      IgluUtils
+        .parseAndValidateContexts(Some(contexts),
+                                  SpecHelpers.client,
+                                  SpecHelpers.registryLookup,
+                                  SpecHelpers.DefaultMaxJsonDepth,
+                                  SpecHelpers.etlTstamp
+        )
+        .run
+        .map {
+          case (
+                List(
+                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(_, _: ResolutionError), `contextsFieldName`, _, _)
+                ),
+                None
+              ) =>
+            ok
+          case other => ko(s"[$other] is not expected one")
+        }
+    }
+
+    // A zero whose exponent overflows an Int is admitted by the Iglu client's range check, but is
+    // then validated as a string, as Java's BigDecimal cannot hold it. These pin that behaviour.
+    "fail a context holding a zero with an exponent beyond the range of an Int in a field typed integer" >> {
+      val data = """{"myString": "Ünïcödé 🚀", "myLong": 0e-99999999999}"""
+
+      IgluUtils
+        .parseAndValidateContexts(
+          Some(buildInputContexts(List(allPossibleTypes(data)))),
+          SpecHelpers.client,
+          SpecHelpers.registryLookup,
+          SpecHelpers.DefaultMaxJsonDepth,
+          SpecHelpers.etlTstamp
+        )
+        .run
+        .map {
+          case (
+                List(
+                  Failure.SchemaViolation(FailureDetails.SchemaViolation.IgluError(`allPossibleTypesSchema`, error: ValidationError),
+                                          `contextsFieldName`,
+                                          _,
+                                          _
+                  )
+                ),
+                None
+              )
+              if error.error == ValidatorError.InvalidData(
+                NonEmptyList.one(
+                  ValidatorReport(
+                    "$.myLong: string found, integer expected",
+                    "$.myLong".some,
+                    List("string", "integer"),
+                    "type".some
+                  )
+                )
+              ) =>
+            ok
+          case other => ko(s"[$other] is not expected one")
+        }
+    }
+
+    "return a context holding a zero with an exponent beyond the range of an Int, unchanged, in a field allowing strings" >> {
+      val data = """{"myString": "Ünïcödé 🚀", "mynull": 0e-99999999999}"""
+
+      IgluUtils
+        .parseAndValidateContexts(
+          Some(buildInputContexts(List(allPossibleTypes(data)))),
+          SpecHelpers.client,
+          SpecHelpers.registryLookup,
+          SpecHelpers.DefaultMaxJsonDepth,
+          SpecHelpers.etlTstamp
+        )
+        .run
+        .map {
+          case (Nil, Some(Contexts(NonEmptyList(valid, Nil))))
+              if valid.sdj.data.noSpaces == """{"myString":"Ünïcödé 🚀","mynull":0e-99999999999}""" =>
+            ok
+          case other => ko(s"[$other] is not expected one")
+        }
+    }
+
+    "return the extracted contexts if they contain the extreme numbers a 64-bit float can hold" >> {
+      val maxDouble = allPossibleTypes("""{"myString": "max", "myDouble": 1.7976931348623157e308}""")
+      val minNormalDouble = allPossibleTypes("""{"myString": "min", "myDouble": -2.2250738585072014e-308}""")
+      val zeroes = allPossibleTypes("""{"myString": "zero", "myDouble": -0.0, "myArray": [0]}""")
+      val beyondLong = allPossibleTypes("""{"myString": "Ünïcödé 🚀", "myLong": 9223372036854775809}""")
+
+      IgluUtils
+        .parseAndValidateContexts(
+          Some(buildInputContexts(List(maxDouble, minNormalDouble, zeroes, beyondLong))),
+          SpecHelpers.client,
+          SpecHelpers.registryLookup,
+          SpecHelpers.DefaultMaxJsonDepth,
+          SpecHelpers.etlTstamp
+        )
+        .run
+        .map {
+          case (Nil, Some(Contexts(contexts))) if contexts.size == 4 && contexts.forall(_.sdj.schema == allPossibleTypesSchema) =>
             ok
           case other => ko(s"[$other] is not expected one")
         }
@@ -1125,6 +1458,13 @@ object IgluUtilsSpec {
 
   def buildInputContexts(sdjs: List[String] = List.empty[String]) =
     s"""{"schema": "${inputContextsSchema.toSchemaUri}", "data": [${sdjs.mkString(",")}]}"""
+
+  def isOutOfRange(error: ValidationError, value: String): Boolean =
+    error.error match {
+      case ValidatorError.InvalidData(NonEmptyList(report, Nil)) =>
+        report.message == s"Number $value cannot be represented as a 64-bit floating point number"
+      case _ => false
+    }
 
   implicit class StringToJson(str: String) {
     def toJson: Json = parse(str).toOption.get

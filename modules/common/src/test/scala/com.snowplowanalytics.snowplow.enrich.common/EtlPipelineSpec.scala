@@ -32,7 +32,6 @@ import com.snowplowanalytics.snowplow.badrows.BadRow
 import com.snowplowanalytics.snowplow.collector.thrift.{CollectorPayload => tCollectorPayload}
 
 import com.snowplowanalytics.snowplow.enrich.common.adapters.AdapterRegistry
-import com.snowplowanalytics.snowplow.enrich.common.adapters.registry.RemoteAdapter
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.{AtomicFields, EnrichmentRegistry}
 import com.snowplowanalytics.snowplow.enrich.common.loaders.{CollectorPayload, ThriftLoader}
 import com.snowplowanalytics.snowplow.enrich.common.utils.OptionIor
@@ -47,7 +46,6 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
   """
 
   val adapterRegistry = new AdapterRegistry[IO](
-    Map.empty[(String, String), RemoteAdapter[IO]],
     adaptersSchemas = adaptersSchemas
   )
   val enrichmentReg = EnrichmentRegistry[IO]()
@@ -70,6 +68,7 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
                     collectorPayloadBatched.validNel,
                     AcceptInvalid.featureFlags,
                     IO.unit,
+                    _ => IO.unit,
                     SpecHelpers.registryLookup,
                     AtomicFields.from(Map.empty),
                     emitFailed,
@@ -98,6 +97,7 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
                     collectorPayload.validNel,
                     AcceptInvalid.featureFlags,
                     IO.unit,
+                    _ => IO.unit,
                     SpecHelpers.registryLookup,
                     AtomicFields.from(Map.empty),
                     emitFailed,
@@ -122,6 +122,7 @@ class EtlPipelineSpec extends Specification with ValidatedMatchers with CatsEffe
                     invalidCollectorPayload,
                     AcceptInvalid.featureFlags,
                     IO.unit,
+                    _ => IO.unit,
                     SpecHelpers.registryLookup,
                     AtomicFields.from(Map.empty),
                     emitFailed,

@@ -10,6 +10,8 @@
  */
 package com.snowplowanalytics.snowplow.enrich.common.enrichments.registry
 
+import java.util.regex.Pattern
+
 import scala.util.matching.Regex
 
 import cats.data.ValidatedNel
@@ -53,15 +55,19 @@ object HttpHeaderExtractorEnrichment extends ParseableEnrichment {
 
 /**
  * Enrichment extracting certain headers from headers.
- * @param headersPattern Compiled regex pattern for headers to extract
+ * @param headersPattern Compiled regex pattern for headers to extract, matched case-insensitively
  */
 final case class HttpHeaderExtractorEnrichment(headersPattern: Regex) {
   case class Header(name: String, value: String)
 
+  // HTTP header names are case-insensitive (RFC 9110), and the collector forwards them in the case the client sent
+  private val namePattern: Pattern =
+    Pattern.compile(headersPattern.regex, headersPattern.pattern.flags | Pattern.CASE_INSENSITIVE)
+
   def extract(headers: List[String]): List[SelfDescribingData[Json]] = {
     val httpHeaders = headers.flatMap { header =>
       header.split(":", 2) match {
-        case Array(name, value) if headersPattern.pattern.matcher(name).matches() =>
+        case Array(name, value) if namePattern.matcher(name).matches() =>
           Some(Header(name, value))
         case _ => None
       }

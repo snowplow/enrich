@@ -19,6 +19,7 @@ import scala.util.{Try, Success => TS, Failure => TF}
 import cats.Monad
 import cats.data.NonEmptyList
 import cats.effect.Clock
+import cats.syntax.either._
 import cats.syntax.option._
 import cats.syntax.validated._
 import io.circe.syntax._
@@ -105,23 +106,24 @@ case class StatusGatorAdapter(schemas: StatusGatorSchemas) extends Adapter {
             )
           case TS(bodyMap) =>
             Monad[F].pure(
-              NonEmptyList
-                .one(
-                  RawEvent(
-                    api = payload.api,
-                    parameters = toUnstructEventParams(
-                      TrackerVersion,
-                      qsParams,
-                      EventSchema,
-                      camelize(bodyMap.asJson),
-                      "srv"
-                    ),
-                    contentType = payload.contentType,
-                    source = payload.source,
-                    context = payload.context
+              camelize(bodyMap.asJson).map { event =>
+                NonEmptyList
+                  .one(
+                    RawEvent(
+                      api = payload.api,
+                      parameters = toUnstructEventParams(
+                        TrackerVersion,
+                        qsParams,
+                        EventSchema,
+                        event,
+                        "srv"
+                      ),
+                      contentType = payload.contentType,
+                      source = payload.source,
+                      context = payload.context
+                    )
                   )
-                )
-                .valid
+              }.toValidatedNel
             )
         }
     }

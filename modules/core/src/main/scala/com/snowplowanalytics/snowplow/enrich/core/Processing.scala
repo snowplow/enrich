@@ -13,19 +13,25 @@ package com.snowplowanalytics.snowplow.enrich.core
 import java.time.Instant
 import java.nio.charset.StandardCharsets.UTF_8
 import java.lang.reflect.Field
+import java.util.Base64
 
 import scala.concurrent.duration.DurationLong
 
 import org.joda.time.DateTime
 
 import cats.implicits._
-import cats.data.Validated
+import cats.data.{NonEmptyList, Validated}
 import cats.Foldable
 
 import cats.effect.kernel.{Async, Sync, Unique}
 import cats.effect.implicits._
 
 import fs2.{Pipe, Stream}
+
+import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
+
+import io.sentry.Sentry
 
 import com.snowplowanalytics.snowplow.badrows.{
   BadRow,
@@ -39,13 +45,16 @@ import com.snowplowanalytics.snowplow.streams.compression.Compressor
 import com.snowplowanalytics.snowplow.streams.compression.Decompression._
 import com.snowplowanalytics.snowplow.runtime.syntax.foldable._
 
-import com.snowplowanalytics.snowplow.enrich.common.EtlPipeline
+import com.snowplowanalytics.snowplow.enrich.common.{EtlPipeline, FatalEnrichError}
 import com.snowplowanalytics.snowplow.enrich.common.outputs.EnrichedEvent
 import com.snowplowanalytics.snowplow.enrich.common.loaders.{CollectorPayload, ThriftLoader}
 import com.snowplowanalytics.snowplow.enrich.common.utils.{ConversionUtils, OptionIor}
 import com.snowplowanalytics.snowplow.enrich.common.enrichments.EnrichmentRegistry
 
 object Processing {
+
+  private implicit def logger[F[_]: Sync]: Logger[F] =
+    Slf4jLogger.getLogger[F]
 
   // Format version written into the compressed header for enriched TSV output.
   private val CompressedEnrichedVersion = 1
@@ -155,6 +164,7 @@ object Processing {
         Validated.Valid(collectorPayload),
         EtlPipeline.FeatureFlags(env.validation.acceptInvalid),
         env.metrics.addInvalid(1),
+        reportUnexpectedEventError[F],
         env.registryLookup,
         env.validation.atomicFieldsLimits,
         env.failedSink.isDefined,
@@ -166,7 +176,11 @@ object Processing {
         .use { enrRegistry =>
           parsed.collectorPayloads
             .parUnorderedTraverse { payload =>
-              enrichPayload(payload, parsed.etlTstamp, enrRegistry)
+              // `defer` so that exceptions thrown while the `F` is being built (e.g. eagerly by an adapter)
+              // are raised inside `F` and reach the backstop, instead of failing the whole batch
+              Sync[F]
+                .defer(enrichPayload(payload, parsed.etlTstamp, enrRegistry))
+                .handleErrorWith(handleUnexpectedError(env, payload))
             }
             .map { enriched =>
               enriched.flatten.foldLeft((List.empty[BadRow], List.empty[EnrichedEvent], List.empty[EnrichedEvent], 0)) {
@@ -198,6 +212,39 @@ object Processing {
     }
   }
 
+  /**
+   * Backstop so that one collector payload can never crash enrich or fail its siblings in the batch.
+   *
+   * A `FatalEnrichError` is deliberately fatal and is re-raised. Anything else is logged, reported
+   * to Sentry and turned into a single `generic_error` bad row holding the collector payload.
+   */
+  private def handleUnexpectedError[F[_]: Sync](
+    env: Environment[F],
+    collectorPayload: CollectorPayload
+  ): Throwable => F[List[OptionIor[BadRow, EnrichedEvent]]] = {
+    case fatal: FatalEnrichError =>
+      Sync[F].raiseError(fatal)
+    case t =>
+      for {
+        _ <- Logger[F].error(t)("Unexpected error while enriching a collector payload, emitting it as a generic_error bad row")
+        _ <- Sync[F].delay(Sentry.captureException(t))
+        now <- Sync[F].realTimeInstant
+        raw <- Sync[F].delay(Base64.getEncoder.encodeToString(collectorPayload.toRaw))
+      } yield List(
+        OptionIor.Left(
+          BadRow.GenericError(
+            env.badRowProcessor,
+            BadRowFailure.GenericFailure(now, NonEmptyList.one(ConversionUtils.cleanStackTrace(t))),
+            BadRowPayload.RawPayload(raw)
+          )
+        )
+      )
+  }
+
+  private def reportUnexpectedEventError[F[_]: Sync](t: Throwable): F[Unit] =
+    Logger[F].error(t)("Unexpected error while enriching an event, emitting it as a generic_error bad row") >>
+      Sync[F].delay(Sentry.captureException(t)).void
+
   private def serialize[F[_]: Async](
     env: Environment[F]
   ): Pipe[F, Enriched, Serialized] = { in =>
@@ -211,7 +258,7 @@ object Processing {
         val failed = enriched.failed.flatMap { f =>
           serializeFailed(f, env.partitionKeyField, env.attributeFields, env.sinkMaxSize)
         }
-        val bad = enriched.bad.mapUnordered { br =>
+        val bad = enriched.bad.map { br =>
           serializeBad(br, env.sinkMaxSize, env.badRowProcessor, enriched.etlTstamp)
         }
         env.compressor match {
@@ -394,7 +441,9 @@ object Processing {
   ): F[Unit] =
     batch match {
       case Serialized(enriched, enrichedCount, enrichedBytesCount, _, _, _, _) if enriched.nonEmpty =>
-        env.enrichedSink.sink(ListOfList.ofLists(enriched)) >>
+        env.enrichedSink
+          .sink(enriched)
+          .onError(_ => env.appHealth.beUnhealthyForRuntimeService(RuntimeService.EnrichedSink)) >>
           env.metrics.addEnriched(enrichedCount) >>
           env.metrics.addEnrichedBytes(enrichedBytesCount)
       case _ =>
@@ -423,7 +472,11 @@ object Processing {
     batch match {
       case Serialized(_, _, _, failed, _, _, _) if failed.nonEmpty =>
         env.failedSink match {
-          case Some(sink) => sink.sink(ListOfList.ofLists(failed)) >> env.metrics.addFailed(failed.size)
+          case Some(sink) =>
+            sink
+              .sink(failed)
+              .onError(_ => env.appHealth.beUnhealthyForRuntimeService(RuntimeService.FailedSink)) >>
+              env.metrics.addFailed(failed.size)
           case _ => Sync[F].unit
         }
       case _ =>
@@ -436,7 +489,10 @@ object Processing {
   ): F[Unit] =
     batch match {
       case Serialized(_, _, _, _, bad, _, _) if bad.nonEmpty =>
-        env.badSink.sink(bad) >> env.metrics.addBad(bad.asIterable.size)
+        env.badSink
+          .sink(bad.view)
+          .onError(_ => env.appHealth.beUnhealthyForRuntimeService(RuntimeService.BadSink)) >>
+          env.metrics.addBad(bad.size)
       case _ =>
         Sync[F].unit
     }
